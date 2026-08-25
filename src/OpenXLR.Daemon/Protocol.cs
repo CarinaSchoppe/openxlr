@@ -41,6 +41,9 @@ public sealed record Command
     /// </summary>
     [JsonPropertyName("device")] public string? Device { get; init; }
 
+    /// <summary>For "setMonitorOutputs": every output the monitor mix should feed.</summary>
+    [JsonPropertyName("devices")] public List<string>? Devices { get; init; }
+
     /// <summary>"setEnforcedDefaults": devices to hold as system defaults (null = don't enforce).</summary>
     [JsonPropertyName("sink")] public string? Sink { get; init; }
     [JsonPropertyName("source")] public string? Source { get; init; }
@@ -100,5 +103,11 @@ public static class ControlNames
     public const string Crossfade = "crossfade";             // int 0..200
     public const string Phantom = "phantom";                 // bool
     public const string ClipGuard = "clipGuard";             // bool
-    public const string Polarity = "polarity";               // bool
+    public const string Compressor = "compressor";           // bool
+    public const string OutHp1 = "outHp1";                   // bool
+    public const string OutHp2 = "outHp2";                   // bool
+    public const string OutUsbAux = "outUsbAux";             // bool
+    public const string OutLineOut = "outLineOut";           // bool
+    public const string AuxLevelDb = "auxLevelDb";           // number dB (-60..0)
+    public const string AuxLevelLock = "auxLevelLock";       // bool
 }

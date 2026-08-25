@@ -190,19 +190,55 @@ public sealed class MainViewModel : ViewModelBase
     private bool _clipGuard2;
     public bool ClipGuard2 { get => _clipGuard2; set { if (Set(ref _clipGuard2, value) && !_applying) _ = _client.SetControlAsync("clipGuard2", value); } }
 
-    private bool _polarity2;
-    public bool Polarity2 { get => _polarity2; set { if (Set(ref _polarity2, value) && !_applying) _ = _client.SetControlAsync("polarity2", value); } }
+    private bool _compressor2;
+    public bool Compressor2 { get => _compressor2; set { if (Set(ref _compressor2, value) && !_applying) _ = _client.SetControlAsync("compressor2", value); } }
 
-    // Pro-only DSP. Bit assignments are provisional, and these three are exactly
-    // what the by-ear labeling pass toggles.
+    // Pro-only DSP, confirmed against the logged capture of 2026-08-25.
     private bool _phantom;
     public bool Phantom { get => _phantom; set { if (Set(ref _phantom, value) && !_applying) _ = _client.SetControlAsync("phantom", value); } }
 
     private bool _clipGuard;
     public bool ClipGuard { get => _clipGuard; set { if (Set(ref _clipGuard, value) && !_applying) _ = _client.SetControlAsync("clipGuard", value); } }
 
-    private bool _polarity;
-    public bool Polarity { get => _polarity; set { if (Set(ref _polarity, value) && !_applying) _ = _client.SetControlAsync("polarity", value); } }
+    private bool _compressor;
+    public bool Compressor { get => _compressor; set { if (Set(ref _compressor, value) && !_applying) _ = _client.SetControlAsync("compressor", value); } }
+
+    // Physical output routing: which jacks carry the hardware monitor bus.
+    private bool _outHp1;
+    public bool OutHp1 { get => _outHp1; set { if (Set(ref _outHp1, value) && !_applying) _ = _client.SetControlAsync("outHp1", value); } }
+
+    private bool _outHp2;
+    public bool OutHp2 { get => _outHp2; set { if (Set(ref _outHp2, value) && !_applying) _ = _client.SetControlAsync("outHp2", value); } }
+
+    private bool _outUsbAux;
+    public bool OutUsbAux { get => _outUsbAux; set { if (Set(ref _outUsbAux, value) && !_applying) _ = _client.SetControlAsync("outUsbAux", value); } }
+
+    private bool _outLineOut;
+    public bool OutLineOut { get => _outLineOut; set { if (Set(ref _outLineOut, value) && !_applying) _ = _client.SetControlAsync("outLineOut", value); } }
+
+    // USB Aux input stage.
+    private double _auxLevelDb;
+    public double AuxLevelDb
+    {
+        get => _auxLevelDb;
+        set
+        {
+            if (Set(ref _auxLevelDb, value))
+            {
+                Raise(nameof(AuxLevelText));
+                if (!_applying)
+                {
+                    var v = value;
+                    SliderSync.Touch("aux");
+                    SliderSync.Send("aux", () => _ = _client.SetControlAsync("auxLevelDb", v));
+                }
+            }
+        }
+    }
+    public string AuxLevelText => $"{_auxLevelDb:0} dB";
+
+    private bool _auxLevelLock;
+    public bool AuxLevelLock { get => _auxLevelLock; set { if (Set(ref _auxLevelLock, value) && !_applying) _ = _client.SetControlAsync("auxLevelLock", value); } }
 
     // --- mixer ---
 
@@ -216,14 +252,32 @@ public sealed class MainViewModel : ViewModelBase
     /// <summary>All capture devices, virtual included (for the Options pickers).</summary>
     public ObservableCollection<AudioDeviceItem> Inputs { get; } = [];
 
-    /// <summary>Physical capture devices only: candidates to feed the Mic channel.</summary>
-    public ObservableCollection<AudioDeviceItem> MicInputs { get; } = [];
-
     /// <summary>
-    /// Sinks the Monitor mix can play on: everything except OpenXLR's own nodes
-    /// (routing the monitor into its own mixer is a feedback loop).
+    /// Sinks the Monitor mix can play on, multi-selectable: everything except
+    /// OpenXLR's own nodes (routing the monitor into its own mixer is a
+    /// feedback loop).
     /// </summary>
-    public ObservableCollection<AudioDeviceItem> MonitorOutputs { get; } = [];
+    public ObservableCollection<MonitorOutputItem> MonitorOutputs { get; } = [];
+
+    /// <summary>Dropdown button text: the selected outputs, or a placeholder.</summary>
+    public string MonitorSummary
+    {
+        get
+        {
+            var picked = MonitorOutputs.Where(o => o.IsSelected).Select(o => o.Label).ToList();
+            return picked.Count == 0 ? "not routed"
+                 : picked.Count <= 2 ? string.Join(" + ", picked)
+                 : $"{picked[0]} + {picked.Count - 1} more";
+        }
+    }
+
+    private void OnMonitorSelectionChanged()
+    {
+        Raise(nameof(MonitorSummary));
+        if (_applying) return;
+        var names = MonitorOutputs.Where(o => o.IsSelected).Select(o => o.Name).ToList();
+        _ = _client.SetMonitorOutputsAsync(names);
+    }
 
     /// <summary>Enforced defaults as reported by the daemon (for the Options window).</summary>
     public string? EnforcedDefaultSink { get; private set; }
@@ -232,12 +286,6 @@ public sealed class MainViewModel : ViewModelBase
     /// <summary>Mirrors the ui.json preference; MainWindow consults it on close.</summary>
     public bool MinimizeToTray { get; set; } = UiSettings.Load().MinimizeToTray;
 
-    private AudioDeviceItem? _selectedOutput;
-    public AudioDeviceItem? SelectedOutput
-    {
-        get => _selectedOutput;
-        set { if (Set(ref _selectedOutput, value) && !_applying) _ = _client.SetMonitorOutputAsync(value?.Name); }
-    }
 
     private double _outputVolume;
     public double OutputVolume
@@ -255,30 +303,6 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
     public string OutputVolumeText => $"{_outputVolume * 100:0}%";
-
-    private double _inputVolume;
-    public double InputVolume
-    {
-        get => _inputVolume;
-        set
-        {
-            if (Set(ref _inputVolume, value) && !_applying)
-            {
-                double v = value;
-                SliderSync.Touch("invol");
-                SliderSync.Send("invol", () => _ = _client.SetInputVolumeAsync(v));
-            }
-            Raise(nameof(InputVolumeText));
-        }
-    }
-    public string InputVolumeText => $"{_inputVolume * 100:0}%";
-
-    private AudioDeviceItem? _selectedInput;
-    public AudioDeviceItem? SelectedInput
-    {
-        get => _selectedInput;
-        set { if (Set(ref _selectedInput, value) && !_applying) _ = _client.SetMicInputAsync(value?.Name); }
-    }
 
     private bool _hasMixer;
     public bool HasMixer { get => _hasMixer; private set => Set(ref _hasMixer, value); }
@@ -306,7 +330,7 @@ public sealed class MainViewModel : ViewModelBase
                 if (!SliderSync.RecentlyTouched("hp2")) Hp2VolumeDb = s["hp2VolumeDb"]?.GetValue<double>() ?? 0;
                 Phantom = s["phantom"]?.GetValue<bool>() ?? false;
                 ClipGuard = s["clipGuard"]?.GetValue<bool>() ?? false;
-                Polarity = s["polarity"]?.GetValue<bool>() ?? false;
+                Compressor = s["compressor"]?.GetValue<bool>() ?? false;
                 if (!SliderSync.RecentlyTouched("gain2")) Gain2Db = s["gain2Db"]?.GetValue<int>() ?? 0;
                 Mute2 = s["mute2"]?.GetValue<bool>() ?? false;
                 LowCut2 = s["lowCut2"]?.GetValue<bool>() ?? false;
@@ -314,7 +338,13 @@ public sealed class MainViewModel : ViewModelBase
                 VoiceTune2 = s["voiceTune2"]?.GetValue<bool>() ?? false;
                 Phantom2 = s["phantom2"]?.GetValue<bool>() ?? false;
                 ClipGuard2 = s["clipGuard2"]?.GetValue<bool>() ?? false;
-                Polarity2 = s["polarity2"]?.GetValue<bool>() ?? false;
+                Compressor2 = s["compressor2"]?.GetValue<bool>() ?? false;
+                OutHp1 = s["outHp1"]?.GetValue<bool>() ?? false;
+                OutHp2 = s["outHp2"]?.GetValue<bool>() ?? false;
+                OutUsbAux = s["outUsbAux"]?.GetValue<bool>() ?? false;
+                OutLineOut = s["outLineOut"]?.GetValue<bool>() ?? false;
+                if (!SliderSync.RecentlyTouched("aux")) AuxLevelDb = s["auxLevelDb"]?.GetValue<double>() ?? 0;
+                AuxLevelLock = s["auxLevelLock"]?.GetValue<bool>() ?? false;
             }
 
             ApplyDevices(node["devices"], node["mixer"]);
@@ -332,7 +362,7 @@ public sealed class MainViewModel : ViewModelBase
     /// </summary>
     private void ApplyDevices(JsonNode? devices, JsonNode? mixer)
     {
-        if (devices is not JsonArray arr) { Outputs.Clear(); Inputs.Clear(); MicInputs.Clear(); return; }
+        if (devices is not JsonArray arr) { Outputs.Clear(); Inputs.Clear(); return; }
 
         var sinks = new List<AudioDeviceItem>();
         var sources = new List<AudioDeviceItem>();
@@ -349,21 +379,28 @@ public sealed class MainViewModel : ViewModelBase
         }
         Replace(Outputs, sinks);
         Replace(Inputs, sources);
-        Replace(MicInputs, [.. sources.Where(s => s.IsPhysical)]);
-        Replace(MonitorOutputs, [.. sinks.Where(s => !s.IsOwn)]);
+
+        // Rebuild the multi-select list only when membership changed, so open
+        // dropdowns and checkbox states survive routine pushes.
+        var wanted = sinks.Where(s => !s.IsOwn).ToList();
+        if (!wanted.Select(w => w.Name).SequenceEqual(MonitorOutputs.Select(m => m.Name)))
+        {
+            MonitorOutputs.Clear();
+            foreach (AudioDeviceItem s in wanted)
+                MonitorOutputs.Add(new MonitorOutputItem(s.Name, s.Label, OnMonitorSelectionChanged));
+        }
 
         EnforcedDefaultSink = mixer?["enforcedDefaultSink"]?.GetValue<string>();
         EnforcedDefaultSource = mixer?["enforcedDefaultSource"]?.GetValue<string>();
 
         if (!SliderSync.RecentlyTouched("outvol"))
             OutputVolume = mixer?["outputVolume"]?.GetValue<double>() ?? 0;
-        if (!SliderSync.RecentlyTouched("invol"))
-            InputVolume = mixer?["inputVolume"]?.GetValue<double>() ?? 0;
 
-        string? curOut = mixer?["monitorOutput"]?.GetValue<string>();
-        string? curIn = mixer?["micInput"]?.GetValue<string>();
-        SelectedOutput = MonitorOutputs.FirstOrDefault(o => o.Name == curOut);
-        SelectedInput = MicInputs.FirstOrDefault(i => i.Name == curIn);
+        var current = new HashSet<string>(
+            (mixer?["monitorOutputs"] as JsonArray)?.Select(n => n?.GetValue<string>())
+                .Where(n => n is not null).Select(n => n!) ?? []);
+        foreach (MonitorOutputItem item in MonitorOutputs) item.Sync(current.Contains(item.Name));
+        Raise(nameof(MonitorSummary));
     }
 
     /// <summary>AudioNodeKind arrives as the enum's number (0 = Sink) or name.</summary>
@@ -511,6 +548,35 @@ public sealed class AppStreamViewModel : ViewModelBase
 public sealed record AudioDeviceItem(string Name, string Description, bool IsOwn, bool IsPhysical = false)
 {
     public string Label => IsOwn ? $"{Description} (OpenXLR)" : Description;
+}
+
+/// <summary>
+/// One entry in the multi-select Monitor dropdown: a sink plus a checkbox
+/// state. Toggling notifies the owning view model, which sends the full
+/// selection to the daemon.
+/// </summary>
+public sealed class MonitorOutputItem : ViewModelBase
+{
+    private readonly Action _changed;
+    public MonitorOutputItem(string name, string label, Action changed)
+    {
+        Name = name;
+        Label = label;
+        _changed = changed;
+    }
+
+    public string Name { get; }
+    public string Label { get; }
+
+    /// <summary>Set without notifying the daemon (state pushes).</summary>
+    public void Sync(bool selected) { if (Set(ref _isSelected, selected, nameof(IsSelected))) { } }
+
+    private bool _isSelected;
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set { if (Set(ref _isSelected, value)) _changed(); }
+    }
 }
 
 /// <summary>A mix (monitor/stream/chat): master level and mute.</summary>

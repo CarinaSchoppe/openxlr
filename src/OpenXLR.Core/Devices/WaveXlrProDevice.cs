@@ -21,7 +21,8 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     {
         Gain = true, Mute = true, LowCut = true, Expander = true, VoiceTune = true,
         HpVolume = true, LowImpedance = true, Crossfade = true,
-        Phantom = true, ClipGuard = true, Polarity = true,
+        Phantom = true, ClipGuard = true, Compressor = true,
+        OutputRouting = true, AuxInput = true,
         XlrInputs = 2, HpOutputs = 2,
     };
 
@@ -33,6 +34,8 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     // Block numbers (wValue) and their lengths.
     private const ushort BlockCrossfade = 0x0001;
     private const int CrossfadeLen = 108;
+    private const ushort BlockCommit = 0x0003;   // write-only; Wave Link sends it after config writes
+    private const int CommitLen = 12;
     private const ushort BlockSettings = 0x0004;
     private const int SettingsLen = 80;
     private const ushort BlockHp = 0x0005;
@@ -46,20 +49,37 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     private const int Xlr2Base = 38;
     private const int GainOffset = 0;      // block 0x0004
     private const int FlagsOffset = 1;     // block 0x0004 / 0x0005
+    private const int ClipGuardOffset = 2; // block 0x0004 (per XLR struct; 0x04 set = DISABLED)
     private const int VoiceTuneStrengthOffset = 10; // block 0x0004
+    private const int AuxLevelLockOffset = 77;      // block 0x0004 tail (0x04 = locked)
+    private const int AuxLevelOffset = 79;          // block 0x0004 tail, dB = -byte/4 (0..-60)
     private const int HpVolOffset = 0;     // block 0x0005 (headphones 1)
     private const int Hp2VolOffset = 2;    // block 0x0005 (headphones 2)
     private const int CrossfadeOffset = 0; // block 0x0001
 
-    // Flag masks in block 0x0004 offset 1.
-    private const byte MuteMask = 0x01;      // bit0 (confirmed vs ALSA)
-    private const byte LowCutMask = 0x10;    // bit4
-    private const byte ExpanderMask = 0x20;  // bit5
-    private const byte VoiceTuneMask = 0x40; // bit6
-    // Pro-only, PROVISIONAL bit positions. Confirm by ear.
-    private const byte PhantomMask = 0x02;   // bit1
-    private const byte ClipGuardMask = 0x08; // bit3
-    private const byte PolarityMask = 0x80;  // bit7
+    // Physical output source selectors in block 0x0001 (confirmed by capture 2
+    // + live jack test): one byte per output, 0x1e = carries the monitor bus,
+    // 0x23 = off. 0x20 was also observed on the USB Aux out (third source
+    // state, unlabeled). A BlockCommit write must follow for it to take effect.
+    private const int OutHp1Offset = 90;
+    private const int OutHp2Offset = 91;
+    private const int OutUsbAuxOffset = 92;
+    private const int OutLineOutOffset = 93;
+    private const byte OutSourceMonitor = 0x1e;
+    private const byte OutSourceOff = 0x23;
+
+    // Flag masks in block 0x0004 offset 1 (all confirmed via the logged
+    // capture 2 and, for mute, bidirectionally against ALSA).
+    private const byte MuteMask = 0x01;       // bit0
+    private const byte PhantomMask = 0x02;    // bit1
+    private const byte LowCutMask = 0x10;     // bit4
+    private const byte ExpanderMask = 0x20;   // bit5
+    private const byte VoiceTuneMask = 0x40;  // bit6
+    private const byte CompressorMask = 0x80; // bit7
+    // Bits 2 and 3 exist but are unlabeled (bit3 reads as set on this unit).
+
+    // ClipGuard lives in the struct's offset-2 byte, INVERTED: 0x04 = disabled.
+    private const byte ClipGuardOffMask = 0x04;
 
     // Flag mask in block 0x0005 offset 1.
     private const byte LowZMask = 0x02;      // bit1
@@ -113,6 +133,19 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
         }
     }
 
+    /// <summary>
+    /// Write a config block then send the BlockCommit that Wave Link sends
+    /// after every change. The output selectors verifiably require it; other
+    /// fields apply without it, but committing matches the reference behavior.
+    /// </summary>
+    private void WriteCommitted(ushort block, byte[] data)
+    {
+        Write(block, data);
+        var commit = new byte[CommitLen];
+        commit[0] = 0x04;
+        Write(BlockCommit, commit);
+    }
+
     /// <summary>Read every control field into one snapshot.</summary>
     public DeviceState ReadState()
     {
@@ -134,8 +167,8 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
             LowImpedance = (b5[FlagsOffset] & LowZMask) != 0,
             Crossfade = b1[CrossfadeOffset],
             Phantom = (f & PhantomMask) != 0,
-            ClipGuard = (f & ClipGuardMask) != 0,
-            Polarity = (f & PolarityMask) != 0,
+            ClipGuard = (b4[ClipGuardOffset] & ClipGuardOffMask) == 0,
+            Compressor = (f & CompressorMask) != 0,
             Gain2Db = b4[Xlr2Base + GainOffset],
             Mute2 = (f2 & MuteMask) != 0,
             LowCut2 = (f2 & LowCutMask) != 0,
@@ -143,8 +176,14 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
             VoiceTune2 = (f2 & VoiceTuneMask) != 0,
             VoiceTuneStrength2 = b4[Xlr2Base + VoiceTuneStrengthOffset],
             Phantom2 = (f2 & PhantomMask) != 0,
-            ClipGuard2 = (f2 & ClipGuardMask) != 0,
-            Polarity2 = (f2 & PolarityMask) != 0,
+            ClipGuard2 = (b4[Xlr2Base + ClipGuardOffset] & ClipGuardOffMask) == 0,
+            Compressor2 = (f2 & CompressorMask) != 0,
+            OutHp1 = b1[OutHp1Offset] != OutSourceOff,
+            OutHp2 = b1[OutHp2Offset] != OutSourceOff,
+            OutUsbAux = b1[OutUsbAuxOffset] != OutSourceOff,
+            OutLineOut = b1[OutLineOutOffset] != OutSourceOff,
+            AuxLevelDb = -b4[AuxLevelOffset] / 4.0,
+            AuxLevelLock = (b4[AuxLevelLockOffset] & 0x04) != 0,
         };
     }
 
@@ -213,8 +252,8 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     public void SetExpander2(bool on) => SetSettingsBit2(ExpanderMask, on);
     public void SetVoiceTune2(bool on) => SetSettingsBit2(VoiceTuneMask, on);
     public void SetPhantom2(bool on) => SetSettingsBit2(PhantomMask, on);
-    public void SetClipGuard2(bool on) => SetSettingsBit2(ClipGuardMask, on);
-    public void SetPolarity2(bool on) => SetSettingsBit2(PolarityMask, on);
+    public void SetCompressor2(bool on) => SetSettingsBit2(CompressorMask, on);
+    public void SetClipGuard2(bool on) => SetClipGuardByte(Xlr2Base + ClipGuardOffset, on);
 
     private void SetSettingsBit2(byte mask, bool on)
     {
@@ -229,8 +268,48 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     public void SetExpander(bool on) => SetSettingsBit(ExpanderMask, on);
     public void SetVoiceTune(bool on) => SetSettingsBit(VoiceTuneMask, on);
     public void SetPhantom(bool on) => SetSettingsBit(PhantomMask, on);
-    public void SetClipGuard(bool on) => SetSettingsBit(ClipGuardMask, on);
-    public void SetPolarity(bool on) => SetSettingsBit(PolarityMask, on);
+    public void SetCompressor(bool on) => SetSettingsBit(CompressorMask, on);
+    public void SetClipGuard(bool on) => SetClipGuardByte(ClipGuardOffset, on);
+
+    /// <summary>ClipGuard's byte is inverted: 0x04 set = disabled.</summary>
+    private void SetClipGuardByte(int offset, bool on)
+    {
+        byte[] b = Read(BlockSettings, SettingsLen);
+        b[offset] = (byte)(on ? b[offset] & ~ClipGuardOffMask : b[offset] | ClipGuardOffMask);
+        WriteCommitted(BlockSettings, b);
+    }
+
+    // --- physical output routing (block 0x0001 off90..93 + commit) ---
+
+    public void SetOutHp1(bool on) => SetOutputSelector(OutHp1Offset, on);
+    public void SetOutHp2(bool on) => SetOutputSelector(OutHp2Offset, on);
+    public void SetOutUsbAux(bool on) => SetOutputSelector(OutUsbAuxOffset, on);
+    public void SetOutLineOut(bool on) => SetOutputSelector(OutLineOutOffset, on);
+
+    private void SetOutputSelector(int offset, bool on)
+    {
+        byte[] b = Read(BlockCrossfade, CrossfadeLen);
+        b[offset] = on ? OutSourceMonitor : OutSourceOff;
+        WriteCommitted(BlockCrossfade, b);
+    }
+
+    // --- USB Aux input (block 0x0004 tail) ---
+
+    /// <summary>Aux input level in dB (-60..0); hardware byte is -4*dB.</summary>
+    public void SetAuxLevelDb(double db)
+    {
+        int v = Math.Clamp((int)Math.Round(-db * 4.0), 0, 240);
+        byte[] b = Read(BlockSettings, SettingsLen);
+        b[AuxLevelOffset] = (byte)v;
+        WriteCommitted(BlockSettings, b);
+    }
+
+    public void SetAuxLevelLock(bool on)
+    {
+        byte[] b = Read(BlockSettings, SettingsLen);
+        b[AuxLevelLockOffset] = (byte)(on ? b[AuxLevelLockOffset] | 0x04 : b[AuxLevelLockOffset] & ~0x04);
+        WriteCommitted(BlockSettings, b);
+    }
 
     public void SetLowImpedance(bool on)
     {

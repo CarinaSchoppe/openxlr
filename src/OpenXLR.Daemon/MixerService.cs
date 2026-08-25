@@ -15,15 +15,38 @@ public sealed class MixerService : IHostedService, IDisposable
 {
     private readonly ILogger<MixerService> _log;
     private readonly IConfiguration _config;
+    private readonly DeviceManager _devices;
     private readonly Mixer _mixer = new();
     private Timer? _streamSweep;
     private Timer? _saveDebounce;
     private Timer? _meterPush;
 
-    public MixerService(ILogger<MixerService> log, IConfiguration config)
+    public MixerService(ILogger<MixerService> log, IConfiguration config, DeviceManager devices)
     {
         _log = log;
         _config = config;
+        _devices = devices;
+    }
+
+    /// <summary>
+    /// Keep the Wave XLR Pro's physical-output selectors in step with the
+    /// monitor choice: picking one of its pseudo-outputs ("...#hp1" etc.)
+    /// enables exactly that output; any other monitor target disables all four
+    /// (the Wave Link model: the monitor destination owns the selectors).
+    /// Re-asserted on every sweep, since the device only honours them while
+    /// connected.
+    /// </summary>
+    private void SyncOutputSelectors()
+    {
+        var suffixes = new HashSet<string>();
+        foreach (string output in _mixer.MonitorOutputs)
+        {
+            int marker = output.IndexOf('#');
+            if (marker >= 0) suffixes.Add(output[(marker + 1)..]);
+        }
+        _devices.EnsureOutputSelectors(
+            hp1: suffixes.Contains("hp1"), hp2: suffixes.Contains("hp2"),
+            usbAux: suffixes.Contains("usbaux"), lineOut: suffixes.Contains("lineout"));
     }
 
     /// <summary>Raised when mixer state changes, so the hub can broadcast.</summary>
@@ -55,8 +78,6 @@ public sealed class MixerService : IHostedService, IDisposable
         // monitor mix exists but isn't routed anywhere audible.
         string? output = _config.GetValue<string>("monitorOutput")
                          ?? Environment.GetEnvironmentVariable("OPENXLR_MONITOR_OUTPUT");
-        string? micIn = _config.GetValue<string>("micInput")
-                        ?? Environment.GetEnvironmentVariable("OPENXLR_MIC_INPUT");
 
         // WirePlumber auto-switches the system defaults to newly created sinks
         // and sources, asynchronously, some time after they appear. Remember
@@ -71,7 +92,7 @@ public sealed class MixerService : IHostedService, IDisposable
 
         try
         {
-            _mixer.Build(MixerConfig.Default(), output, micIn);
+            _mixer.Build(MixerConfig.Default(), output);
 
             // Restore the user's saved levels, mutes, device picks, and per-app
             // assignments. Env vars, when set, still win for the device picks.
@@ -81,10 +102,10 @@ public sealed class MixerService : IHostedService, IDisposable
                 _mixer.ApplySettings(saved with
                 {
                     MonitorOutput = output ?? saved.MonitorOutput,
-                    MicInput = micIn ?? saved.MicInput,
                 });
                 _log.LogInformation("restored settings from {path}", MixerSettings.DefaultPath);
             }
+            SyncOutputSelectors();
 
             _log.LogInformation("submix graph built ({mixes} mixes, {channels} channels){route}",
                 _mixer.Config.Mixes.Count, _mixer.Config.Channels.Count,
@@ -95,7 +116,12 @@ public sealed class MixerService : IHostedService, IDisposable
             // before a user notices, without polling the graph hard.
             _streamSweep = new Timer(_ =>
             {
-                try { if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()) Changed?.Invoke(); }
+                try
+                {
+                    if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()
+                        | _mixer.EnsureInputFeeds()) Changed?.Invoke();
+                    SyncOutputSelectors();
+                }
                 catch (Exception ex) { _log.LogDebug("stream sweep: {msg}", ex.Message); }
             }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
 
@@ -195,15 +221,14 @@ public sealed class MixerService : IHostedService, IDisposable
                 case "setMonitorOutput":
                     // A null device is meaningful here: it disconnects the route.
                     _mixer.SetMonitorOutput(cmd.Device);
+                    SyncOutputSelectors();
                     break;
-                case "setMicInput":
-                    _mixer.SetMicInput(cmd.Device);
+                case "setMonitorOutputs":
+                    _mixer.SetMonitorOutputs(cmd.Devices ?? []);
+                    SyncOutputSelectors();
                     break;
                 case "setOutputVolume":
                     _mixer.SetOutputVolume(cmd.Value.GetDouble());
-                    break;
-                case "setInputVolume":
-                    _mixer.SetInputVolume(cmd.Value.GetDouble());
                     break;
                 case "setEnforcedDefaults":
                     _mixer.SetEnforcedDefaults(cmd.Sink, cmd.Source);

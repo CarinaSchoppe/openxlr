@@ -115,17 +115,13 @@ public sealed class DaemonClient : IAsyncDisposable
     public Task SetMonitorOutputAsync(string? device)
         => SendAsync(new Dictionary<string, object?> { ["cmd"] = "setMonitorOutput", ["device"] = device });
 
-    /// <summary>Feed the mic channel from a different capture device.</summary>
-    public Task SetMicInputAsync(string? device)
-        => SendAsync(new Dictionary<string, object?> { ["cmd"] = "setMicInput", ["device"] = device });
+    /// <summary>Every output the monitor mix should feed (empty = disconnect).</summary>
+    public Task SetMonitorOutputsAsync(IReadOnlyList<string> devices)
+        => SendAsync(new Dictionary<string, object?> { ["cmd"] = "setMonitorOutputs", ["devices"] = devices });
 
     /// <summary>Volume of the selected output device (0..1).</summary>
     public Task SetOutputVolumeAsync(double value)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setOutputVolume", ["value"] = value });
-
-    /// <summary>Volume of the default input device (0..1).</summary>
-    public Task SetInputVolumeAsync(double value)
-        => SendAsync(new Dictionary<string, object> { ["cmd"] = "setInputVolume", ["value"] = value });
 
     /// <summary>Devices the daemon should hold as system defaults (null = don't enforce).</summary>
     public Task SetEnforcedDefaultsAsync(string? sink, string? source)

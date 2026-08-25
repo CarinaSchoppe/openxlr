@@ -22,6 +22,38 @@
       <Setter Property="CornerRadius" Value="8"/>
       <Setter Property="Padding" Value="14"/>
     </Style>
+    <!-- collapsible tiles: a flat expander whose header looks like the old card title -->
+    <Style Selector="Expander.tile">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="MinHeight" Value="0"/>
+      <Setter Property="CornerRadius" Value="0"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="IsExpanded" Value="True"/>
+    </Style>
+    <Style Selector="Expander.tile /template/ ToggleButton#ExpanderHeader">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="Padding" Value="0,0,0,6"/>
+      <Setter Property="MinHeight" Value="0"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+      <Setter Property="CornerRadius" Value="0"/>
+    </Style>
+    <Style Selector="Expander.tile /template/ ToggleButton#ExpanderHeader:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="Expander.tile /template/ Border#ExpanderContent">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="CornerRadius" Value="0"/>
+    </Style>
     <Style Selector="ToggleButton">
       <Setter Property="HorizontalAlignment" Value="Stretch"/>
       <Setter Property="HorizontalContentAlignment" Value="Center"/>
@@ -62,8 +94,9 @@
 
     <!-- device controls -->
     <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12">
+      <Expander Classes="tile">
+        <Expander.Header><TextBlock Text="MICROPHONE" Classes="h"/></Expander.Header>
       <StackPanel Spacing="12">
-        <TextBlock Text="MICROPHONE" Classes="h"/>
 
         <!-- XLR 1 -->
         <Grid ColumnDefinitions="90,*,60">
@@ -78,9 +111,9 @@
           <ToggleButton Content="Low Cut"    IsChecked="{Binding LowCut, Mode=TwoWay}"     Margin="0,0,6,0"/>
           <ToggleButton Content="Expander"   IsChecked="{Binding Expander, Mode=TwoWay}"   Margin="0,0,6,0"/>
           <ToggleButton Content="Voice Tune" IsChecked="{Binding VoiceTune, Mode=TwoWay}"  Margin="0,0,6,0"/>
-          <ToggleButton Content="Phantom *"  IsChecked="{Binding Phantom, Mode=TwoWay}"    Margin="0,0,6,0"/>
-          <ToggleButton Content="ClipGuard *" IsChecked="{Binding ClipGuard, Mode=TwoWay}" Margin="0,0,6,0"/>
-          <ToggleButton Content="Polarity *" IsChecked="{Binding Polarity, Mode=TwoWay}"/>
+          <ToggleButton Content="Phantom"  IsChecked="{Binding Phantom, Mode=TwoWay}"    Margin="0,0,6,0"/>
+          <ToggleButton Content="ClipGuard" IsChecked="{Binding ClipGuard, Mode=TwoWay}" Margin="0,0,6,0"/>
+          <ToggleButton Content="Compressor" IsChecked="{Binding Compressor, Mode=TwoWay}"/>
         </UniformGrid>
 
         <!-- XLR 2 -->
@@ -96,27 +129,36 @@
           <ToggleButton Content="Low Cut"    IsChecked="{Binding LowCut2, Mode=TwoWay}"     Margin="0,0,6,0"/>
           <ToggleButton Content="Expander"   IsChecked="{Binding Expander2, Mode=TwoWay}"   Margin="0,0,6,0"/>
           <ToggleButton Content="Voice Tune" IsChecked="{Binding VoiceTune2, Mode=TwoWay}"  Margin="0,0,6,0"/>
-          <ToggleButton Content="Phantom *"  IsChecked="{Binding Phantom2, Mode=TwoWay}"    Margin="0,0,6,0"/>
-          <ToggleButton Content="ClipGuard *" IsChecked="{Binding ClipGuard2, Mode=TwoWay}" Margin="0,0,6,0"/>
-          <ToggleButton Content="Polarity *" IsChecked="{Binding Polarity2, Mode=TwoWay}"/>
+          <ToggleButton Content="Phantom"  IsChecked="{Binding Phantom2, Mode=TwoWay}"    Margin="0,0,6,0"/>
+          <ToggleButton Content="ClipGuard" IsChecked="{Binding ClipGuard2, Mode=TwoWay}" Margin="0,0,6,0"/>
+          <ToggleButton Content="Compressor" IsChecked="{Binding Compressor2, Mode=TwoWay}"/>
         </UniformGrid>
 
-        <TextBlock Text="* provisional bit mapping, toggle and listen to confirm which is which"
-                   FontSize="11" Foreground="#6b7285"/>
+        <!-- USB Aux input stage -->
+        <Grid ColumnDefinitions="90,*,60,20,110" Margin="0,6,0,0">
+          <TextBlock Text="USB Aux in" Classes="h" VerticalAlignment="Center"/>
+          <Slider Grid.Column="1" Minimum="-60" Maximum="0"
+                  Value="{Binding AuxLevelDb, Mode=TwoWay}"/>
+          <TextBlock Grid.Column="2" Text="{Binding AuxLevelText}" Classes="val" VerticalAlignment="Center"
+                     HorizontalAlignment="Right"/>
+          <ToggleButton Grid.Column="4" Content="Level Lock" IsChecked="{Binding AuxLevelLock, Mode=TwoWay}"/>
+        </Grid>
       </StackPanel>
+      </Expander>
     </Border>
 
-    <!-- headphone outputs -->
+    <!-- headphone outputs (jack 1 on the front of the unit, jack 2 on the back) -->
     <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12">
+      <Expander Classes="tile">
+        <Expander.Header><TextBlock Text="HEADPHONES" Classes="h"/></Expander.Header>
       <StackPanel Spacing="10">
-        <TextBlock Text="HEADPHONES" Classes="h"/>
         <Grid ColumnDefinitions="90,*,52,20,90,*,52">
-          <TextBlock Text="Phones 1" Classes="h" VerticalAlignment="Center"/>
+          <TextBlock Text="Phones 1" Classes="h" VerticalAlignment="Center" ToolTip.Tip="Front jack"/>
           <Slider Grid.Column="1" Minimum="0" Maximum="100"
                   Value="{Binding HpPercent, Mode=TwoWay}"/>
           <TextBlock Grid.Column="2" Text="{Binding HpText}" Classes="val" VerticalAlignment="Center"
                      HorizontalAlignment="Right"/>
-          <TextBlock Grid.Column="4" Text="Phones 2" Classes="h" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="4" Text="Phones 2" Classes="h" VerticalAlignment="Center" ToolTip.Tip="Rear jack"/>
           <Slider Grid.Column="5" Minimum="0" Maximum="100"
                   Value="{Binding Hp2Percent, Mode=TwoWay}"/>
           <TextBlock Grid.Column="6" Text="{Binding Hp2Text}" Classes="val" VerticalAlignment="Center"
@@ -126,56 +168,49 @@
           <ToggleButton Content="Low Imp." IsChecked="{Binding LowImpedance, Mode=TwoWay}" Margin="0,0,6,0"/>
         </UniformGrid>
       </StackPanel>
+      </Expander>
     </Border>
 
-    <!-- device selection: any sink or source, real or virtual -->
+    <!-- monitor destination: the device you hear the Monitor mix on -->
     <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12" IsVisible="{Binding HasMixer}">
+      <Expander Classes="tile">
+        <Expander.Header><TextBlock Text="MONITOR" Classes="h"/></Expander.Header>
       <StackPanel Spacing="10">
-        <TextBlock Text="DEVICES" Classes="h"/>
-        <Grid ColumnDefinitions="90,*,20,90,*">
-          <TextBlock Text="Monitor" Classes="h" VerticalAlignment="Center"/>
-          <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
-                    ItemsSource="{Binding MonitorOutputs}"
-                    SelectedItem="{Binding SelectedOutput, Mode=TwoWay}"
-                    PlaceholderText="not routed">
-            <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:AudioDeviceItem">
-                <TextBlock Text="{Binding Label}"/>
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
+        <Grid ColumnDefinitions="90,*,20,90,*,52">
+          <TextBlock Text="Devices" Classes="h" VerticalAlignment="Center"/>
+          <DropDownButton Grid.Column="1" HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Left"
+                          Content="{Binding MonitorSummary}">
+            <DropDownButton.Flyout>
+              <Flyout Placement="BottomEdgeAlignedLeft">
+                <ItemsControl ItemsSource="{Binding MonitorOutputs}" MinWidth="320">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:MonitorOutputItem">
+                      <CheckBox Content="{Binding Label}" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                Padding="8,4" HorizontalAlignment="Stretch"/>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Flyout>
+            </DropDownButton.Flyout>
+          </DropDownButton>
 
-          <TextBlock Grid.Column="3" Text="Mic" Classes="h" VerticalAlignment="Center"/>
-          <ComboBox Grid.Column="4" HorizontalAlignment="Stretch"
-                    ItemsSource="{Binding MicInputs}"
-                    SelectedItem="{Binding SelectedInput, Mode=TwoWay}"
-                    PlaceholderText="auto (Wave XLR)">
-            <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:AudioDeviceItem">
-                <TextBlock Text="{Binding Label}"/>
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
-        </Grid>
-        <Grid ColumnDefinitions="90,*,52,20,90,*,52" Margin="0,2,0,0">
-          <TextBlock Text="Mon volume" Classes="h" VerticalAlignment="Center"/>
-          <Slider Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding OutputVolume, Mode=TwoWay}"/>
-          <TextBlock Grid.Column="2" Text="{Binding OutputVolumeText}" Classes="val"
-                     VerticalAlignment="Center" HorizontalAlignment="Right"/>
-          <TextBlock Grid.Column="4" Text="Mic volume" Classes="h" VerticalAlignment="Center"/>
-          <Slider Grid.Column="5" Minimum="0" Maximum="1" Value="{Binding InputVolume, Mode=TwoWay}"/>
-          <TextBlock Grid.Column="6" Text="{Binding InputVolumeText}" Classes="val"
+          <TextBlock Grid.Column="3" Text="Volume" Classes="h" VerticalAlignment="Center"/>
+          <Slider Grid.Column="4" Minimum="0" Maximum="1" Value="{Binding OutputVolume, Mode=TwoWay}"/>
+          <TextBlock Grid.Column="5" Text="{Binding OutputVolumeText}" Classes="val"
                      VerticalAlignment="Center" HorizontalAlignment="Right"/>
         </Grid>
-        <TextBlock Text="Monitor is the device you hear the Monitor mix on. Mic is the microphone feeding the Mic channel. System default devices for apps are set in Options."
+        <TextBlock Text="Tick every device the Monitor mix should play on. The Wave XLR Pro's own outputs (Headphones 1/2, USB Aux, Line Out) switch the hardware when ticked. XLR 1, XLR 2 and Line In feed their channels automatically. System default devices for apps are set in Options."
                    FontSize="11" Foreground="#6b7285"/>
       </StackPanel>
+      </Expander>
     </Border>
 
     <!-- running applications and the channel each is routed to -->
     <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12" IsVisible="{Binding HasMixer}">
+      <Expander Classes="tile">
+        <Expander.Header><TextBlock Text="APPLICATIONS" Classes="h"/></Expander.Header>
       <StackPanel Spacing="8">
-        <TextBlock Text="APPLICATIONS" Classes="h"/>
         <ItemsControl ItemsSource="{Binding Apps}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
@@ -195,13 +230,14 @@
         <TextBlock Text="Apps are routed automatically. Changing one here is remembered for next launch."
                    FontSize="11" Foreground="#6b7285"/>
       </StackPanel>
+      </Expander>
     </Border>
 
     <!-- mixer -->
     <Border Classes="card">
+      <Expander Classes="tile">
+        <Expander.Header><TextBlock Text="SUBMIXER" Classes="h"/></Expander.Header>
       <DockPanel>
-        <TextBlock DockPanel.Dock="Top" Text="SUBMIXER" Classes="h" Margin="0,0,0,10"/>
-
         <TextBlock DockPanel.Dock="Top" Text="Mixer not running. Start the daemon with OPENXLR_BUILD_MIXER=1"
                    Foreground="#6b7285" IsVisible="{Binding !HasMixer}"/>
 
@@ -288,6 +324,7 @@
           </ItemsControl>
         </ScrollViewer>
       </DockPanel>
+      </Expander>
     </Border>
   </DockPanel>
 </Window>

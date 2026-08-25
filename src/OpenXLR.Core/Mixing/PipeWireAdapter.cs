@@ -90,14 +90,21 @@ public sealed class PipeWireAdapter
         return id;
     }
 
+    /// <summary>A "sink#suffix" pseudo-device address without its suffix.</summary>
+    private static string BareSink(string sinkName)
+    {
+        int marker = sinkName.IndexOf('#');
+        return marker >= 0 ? sinkName[..marker] : sinkName;
+    }
+
     /// <summary>Set a sink's volume.</summary>
     public void SetSinkVolume(string sinkName, double volume)
-        => Run("pactl", "set-sink-volume", sinkName,
+        => Run("pactl", "set-sink-volume", BareSink(sinkName),
             $"{(int)Math.Round(Math.Clamp(volume, 0, 1) * 100)}%");
 
     /// <summary>Mute or unmute a sink.</summary>
     public void SetSinkMuted(string sinkName, bool muted)
-        => Run("pactl", "set-sink-mute", sinkName, muted ? "1" : "0");
+        => Run("pactl", "set-sink-mute", BareSink(sinkName), muted ? "1" : "0");
 
     /// <summary>Set one sink-input's volume (used for the combine fader legs).</summary>
     public void SetSinkInputVolume(int index, double volume)
@@ -139,7 +146,7 @@ public sealed class PipeWireAdapter
 
     /// <summary>Volume of a sink as 0..1, parsed from pactl (first channel).</summary>
     public double? GetSinkVolume(string sinkName)
-        => ParseVolumePercent(TryRun("pactl", "get-sink-volume", sinkName));
+        => ParseVolumePercent(TryRun("pactl", "get-sink-volume", BareSink(sinkName)));
 
     /// <summary>Volume of a source as 0..1.</summary>
     public double? GetSourceVolume(string sourceName)
@@ -272,7 +279,7 @@ public sealed class PipeWireAdapter
     /// are the standard PipeWire answer for this exact routing.
     /// </summary>
     public PortLink LinkNodes(string fromNode, string fromPortPrefix, string toNode, string toPortPrefix,
-        int toPairOffset = 0)
+        int toPairOffset = 0, int fromPairOffset = 0)
     {
         // Port names vary by device (FL/FR on most nodes, AUX0/AUX1 on
         // multichannel interfaces like the Wave XLR Pro), so discover the real
@@ -280,6 +287,10 @@ public sealed class PipeWireAdapter
         // into a stereo sink gets its one port linked to both inputs.
         List<string> outs = ListPorts(fromNode, fromPortPrefix, output: true);
         List<string> ins = ListPorts(toNode, toPortPrefix, output: false);
+        if (fromPairOffset > 0 && outs.Count > fromPairOffset * 2)
+            outs = [.. outs.Skip(fromPairOffset * 2).Take(2)];
+        else if (outs.Count > 2)
+            outs = [.. outs.Take(2)];
         if (toPairOffset > 0 && ins.Count > toPairOffset * 2)
             ins = [.. ins.Skip(toPairOffset * 2).Take(2)];
         else if (ins.Count > 2 && toPairOffset == 0 && toNode.Contains("multichannel", StringComparison.Ordinal))
@@ -321,26 +332,31 @@ public sealed class PipeWireAdapter
     }
 
     /// <summary>
-    /// Point a mix's sink at an output device. A target of the form
-    /// "sink#phonesN" addresses channel pair N of a multichannel sink (the Wave
-    /// XLR Pro's two headphone outputs), linking to playback ports 2(N-1) and
-    /// 2(N-1)+1 instead of the first pair.
+    /// Point a mix's sink at an output device. A "sink#..." pseudo-device
+    /// address (the Wave XLR Pro's physical outputs) routes into the device's
+    /// hardware monitor bus: USB playback channels 2/3 (pair 1), which the
+    /// device sums into whichever physical outputs have their selector enabled
+    /// (block 0x0001 off90..93). Confirmed by ear on both headphone jacks;
+    /// channels 0/1 do NOT reach the monitor bus.
     /// </summary>
     public PortLink RouteMixToOutput(string mixSink, string outputSink)
     {
         int pair = 0;
-        int marker = outputSink.IndexOf("#phones", StringComparison.Ordinal);
+        int marker = outputSink.IndexOf('#');
         if (marker >= 0)
         {
-            if (int.TryParse(outputSink[(marker + 7)..], out int n) && n >= 1) pair = n - 1;
+            pair = 1;   // monitor-bus return = channels 2/3
             outputSink = outputSink[..marker];
         }
         return LinkNodes(mixSink, "monitor", outputSink, "playback", pair);
     }
 
-    /// <summary>Feed a capture device (microphone) into a channel sink.</summary>
-    public PortLink RouteInputToChannel(string sourceName, string channelSink)
-        => LinkNodes(sourceName, "capture", channelSink, "playback");
+    /// <summary>
+    /// Feed a capture device into a channel sink; <paramref name="sourcePair"/>
+    /// selects which stereo pair of a multichannel source (0 = first).
+    /// </summary>
+    public PortLink RouteInputToChannel(string sourceName, string channelSink, int sourcePair = 0)
+        => LinkNodes(sourceName, "capture", channelSink, "playback", 0, sourcePair);
 
     /// <summary>Stop one loopback (used when re-pointing a device selection).</summary>
     public void StopLoopback(LoopbackHandle lb)
@@ -402,14 +418,25 @@ public sealed class PipeWireAdapter
             }
         }
 
-        // NOTE: the Pro's headphone jacks are NOT reachable through any of its
-        // 17 UAC2 playback channels (verified by a full channel sweep with the
-        // volume registers at maximum, plus crossfade and mode-block attempts,
-        // all silent by ear). The amps are enabled by device state not yet
-        // mapped; until a targeted Wave Link startup capture identifies it, no
-        // Phones pseudo-devices are advertised because they would route audio
-        // into silence. The #phones routing support in RouteMixToOutput stays
-        // for when the enable is found.
+        // The Pro's physical outputs all share its hardware monitor bus, fed by
+        // USB playback channels 2/3 and gated per-output by the selectors in
+        // block 0x0001 (decoded 2026-08-25, confirmed by ear on both jacks).
+        // Each output is advertised as its own pseudo-sink; the daemon flips
+        // the matching hardware selector when one is chosen as the monitor.
+        // Headphones jack 1 is on the front of the unit, jack 2 on the back.
+        AudioNode? pro = found.FirstOrDefault(n =>
+            n.Kind == AudioNodeKind.Sink && n.Name.Contains("Wave_XLR", StringComparison.Ordinal));
+        if (pro is not null)
+        {
+            found.Add(new AudioNode($"{pro.Name}#hp1", "Headphones 1 (front)",
+                AudioNodeKind.Sink, IsOwn: false, IsPhysical: true));
+            found.Add(new AudioNode($"{pro.Name}#hp2", "Headphones 2 (rear)",
+                AudioNodeKind.Sink, IsOwn: false, IsPhysical: true));
+            found.Add(new AudioNode($"{pro.Name}#usbaux", "USB Aux Out",
+                AudioNodeKind.Sink, IsOwn: false, IsPhysical: true));
+            found.Add(new AudioNode($"{pro.Name}#lineout", "Line Out",
+                AudioNodeKind.Sink, IsOwn: false, IsPhysical: true));
+        }
         return found;
     }
 

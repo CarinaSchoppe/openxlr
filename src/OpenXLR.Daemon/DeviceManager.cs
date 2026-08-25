@@ -108,7 +108,13 @@ public sealed class DeviceManager : BackgroundService
                     case ControlNames.Crossfade: _device.SetCrossfade(value.GetInt32()); break;
                     case ControlNames.Phantom: _device.SetPhantom(value.GetBoolean()); break;
                     case ControlNames.ClipGuard: _device.SetClipGuard(value.GetBoolean()); break;
-                    case ControlNames.Polarity: _device.SetPolarity(value.GetBoolean()); break;
+                    case ControlNames.Compressor: _device.SetCompressor(value.GetBoolean()); break;
+                    case ControlNames.OutHp1: _device.SetOutHp1(value.GetBoolean()); break;
+                    case ControlNames.OutHp2: _device.SetOutHp2(value.GetBoolean()); break;
+                    case ControlNames.OutUsbAux: _device.SetOutUsbAux(value.GetBoolean()); break;
+                    case ControlNames.OutLineOut: _device.SetOutLineOut(value.GetBoolean()); break;
+                    case ControlNames.AuxLevelDb: _device.SetAuxLevelDb(value.GetDouble()); break;
+                    case ControlNames.AuxLevelLock: _device.SetAuxLevelLock(value.GetBoolean()); break;
                     case "hp2VolumeDb": _device.SetHp2VolumeDb(value.GetDouble()); break;
                     case "gain2": _device.SetGain2Db(value.GetInt32()); break;
                     case "mute2": _device.SetMute2(value.GetBoolean()); break;
@@ -118,7 +124,7 @@ public sealed class DeviceManager : BackgroundService
                     case "voiceTuneStrength2": _device.SetVoiceTuneStrength2(value.GetInt32()); break;
                     case "phantom2": _device.SetPhantom2(value.GetBoolean()); break;
                     case "clipGuard2": _device.SetClipGuard2(value.GetBoolean()); break;
-                    case "polarity2": _device.SetPolarity2(value.GetBoolean()); break;
+                    case "compressor2": _device.SetCompressor2(value.GetBoolean()); break;
                     default: return $"unknown control '{control}'";
                 }
             }
@@ -131,6 +137,39 @@ public sealed class DeviceManager : BackgroundService
             _last = _device.ReadState();
             RaiseFromLocked();
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Drive the device's physical-output selectors toward the wanted state,
+    /// writing only the ones that differ (called every mixer sweep, so it must
+    /// be a no-op at steady state). Quietly does nothing without a connected
+    /// device that has output routing.
+    /// </summary>
+    public void EnsureOutputSelectors(bool hp1, bool hp2, bool usbAux, bool lineOut)
+    {
+        lock (_gate)
+        {
+            if (_device is null || !_device.Connected || !_device.Capabilities.OutputRouting) return;
+            DeviceState? s = _last;
+            if (s is null) return;
+            try
+            {
+                bool changed = false;
+                if (s.OutHp1 != hp1) { _device.SetOutHp1(hp1); changed = true; }
+                if (s.OutHp2 != hp2) { _device.SetOutHp2(hp2); changed = true; }
+                if (s.OutUsbAux != usbAux) { _device.SetOutUsbAux(usbAux); changed = true; }
+                if (s.OutLineOut != lineOut) { _device.SetOutLineOut(lineOut); changed = true; }
+                if (changed)
+                {
+                    _last = _device.ReadState();
+                    RaiseFromLocked();
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogDebug("output selector sync: {msg}", ex.Message);
+            }
         }
     }
 

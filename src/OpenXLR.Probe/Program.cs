@@ -31,9 +31,11 @@ Console.WriteLine($"  voice-tune      {s0.VoiceTune} (strength {s0.VoiceTuneStre
 Console.WriteLine($"  hp volume       {s0.HpVolumeDb:0.0} dB");
 Console.WriteLine($"  low-impedance   {s0.LowImpedance}");
 Console.WriteLine($"  crossfade       {s0.Crossfade}");
-Console.WriteLine($"  phantom         {s0.Phantom}   (provisional)");
-Console.WriteLine($"  clip-guard      {s0.ClipGuard}   (provisional)");
-Console.WriteLine($"  polarity        {s0.Polarity}   (provisional)");
+Console.WriteLine($"  phantom         {s0.Phantom}");
+Console.WriteLine($"  clip-guard      {s0.ClipGuard}");
+Console.WriteLine($"  compressor      {s0.Compressor}");
+Console.WriteLine($"  outputs         hp1={s0.OutHp1} hp2={s0.OutHp2} usbAux={s0.OutUsbAux} lineOut={s0.OutLineOut}");
+Console.WriteLine($"  aux input       {s0.AuxLevelDb:0.0} dB (lock {s0.AuxLevelLock})");
 
 Console.WriteLine("\nGain cross-check (device write -> ALSA read):");
 foreach (int g in new[] { 40, 65 })

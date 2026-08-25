@@ -25,8 +25,11 @@ public sealed record MixerSettings
     /// <summary>"channel|mix" entries that are muted.</summary>
     public List<string> ChannelMuted { get; init; } = [];
 
+    /// <summary>Single monitor output from older files; superseded by MonitorOutputs.</summary>
     public string? MonitorOutput { get; init; }
-    public string? MicInput { get; init; }
+
+    /// <summary>All selected monitor outputs (the monitor mix can feed several).</summary>
+    public List<string> MonitorOutputs { get; init; } = [];
 
     /// <summary>Application identity to channel id, from manual assignments.</summary>
     public Dictionary<string, string> AppOverrides { get; init; } = [];

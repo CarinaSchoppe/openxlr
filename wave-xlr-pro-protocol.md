@@ -204,3 +204,57 @@ structures cleanly (all verified bidirectionally against ALSA on hardware):
 Implemented in OpenXLR end to end (device layer, daemon controls gain2/mute2/lowCut2/
 expander2/voiceTune2/voiceTuneStrength2/phantom2/clipGuard2/polarity2/hp2VolumeDb, UI
 strips for XLR 1 / XLR 2 and Phones 1 / Phones 2), with gain2 and hp2 verified live.
+
+## 6. Capture 2 (xlrpro2.pcapng, 2026-08-25, WITH ordered action log): outputs, mic DSP, USB Aux
+
+A second targeted capture (6.4 GB, companion `capture-analysis/xlrpro2.txt` with 26 ordered
+actions, plus `flow.png`, a Wave Link Audio Flow screenshot showing the Pro's full topology:
+inputs XLR Mic 1, XLR Mic 2, Line In, USB Aux; monitor destinations Headphone 1, Headphone 2,
+USB Aux out, Line out, or any system device). Everything below is capture-decoded AND
+hardware-verified on Linux the same day; the headphone findings are confirmed by ear on BOTH
+jacks.
+
+### Physical output routing, THE HEADPHONE-JACKS ANSWER (block 0x0001 off90..93 + commit)
+
+One selector byte per physical output: off90 = Headphone 1, off91 = Headphone 2, off92 =
+USB Aux out, off93 = Line out. Value 0x1e = output carries the hardware monitor bus, 0x23 =
+off. (0x20 also observed on the USB Aux out: a third, unlabeled source state.) A block 0x0003
+commit write (payload `04 00 x11`) MUST follow, or nothing changes; this finally explains
+block 3, which Wave Link writes after every config change. The Linux jacks were silent simply
+because both selectors sat at 0x23 (the state left by the last Windows session, monitor on the
+Katana). Live-verified: toggling off91 mid-tone gates jack 2, off90 gates jack 1.
+
+### The monitor bus and which USB playback channels feed it
+
+With a jack enabled, a 17-channel pair sweep found the monitor bus is fed by USB playback
+channel pairs 2/3, 10/11, 12/13, and 14/15 (0/1, 4/5, 6/7, 8/9, 16 are silent). OpenXLR routes
+the monitor mix into channels 2/3 (`#phones` pseudo-device in the Monitor picker; direct port
+links to playback_AUX2/AUX3). End-to-end chain (app -> System channel -> monitor mix -> monitor
+bus -> Headphones 1) confirmed by ear.
+
+### Mic DSP corrections (block 0x0004, per-XLR struct; all now CONFIRMED, no more provisional)
+
+- phantom = flags(off1) bit1  (provisional guess was right)
+- compressor = flags bit7  (previously mislabeled polarity; that's why it read wrong)
+- ClipGuard is NOT in the flags byte: struct offset 2, value 0x04 = DISABLED (inverted).
+  Confirmed identically on XLR2 (off38+2). Off2 bit0 (0x01/0x05 values in capture 1) remains
+  unlabeled.
+- low cut bit4, expander bit5, voice tune bit6, voicetune strength off10 (0..0x64 = %):
+  reconfirmed by the ordered log.
+- flags bits 2 and 3 remain unlabeled (bit3 reads set on this unit).
+
+### USB Aux input stage (block 0x0004 tail)
+
+- off79 = input level, quarter-dB attenuation: dB = -byte/4, range 0..240 = 0..-60 dB (same
+  encoding as the phones volumes).
+- off77 = level lock, 0x04 = locked.
+- off76 = a further gain-stage byte (memory: third input stage), still unexposed.
+
+### Implemented in OpenXLR (same day, all live-verified)
+
+`WaveXlrProDevice`: output selectors (SetOutHp1/2/UsbAux/LineOut) with `WriteCommitted` (config
+write + block 3 commit), corrected ClipGuard/compressor, aux level + lock. Daemon controls:
+outHp1/outHp2/outUsbAux/outLineOut/auxLevelDb/auxLevelLock/compressor (polarity removed). UI:
+MONITOR ROUTING toggles in the HEADPHONES card, USB Aux level+lock row, Compressor button,
+asterisks gone. Mixer: `<proSink>#phones` pseudo-sink "Wave XLR Pro Headphones" in the Monitor
+picker, routed to channels 2/3.

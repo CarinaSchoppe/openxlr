@@ -28,21 +28,19 @@ public sealed class Mixer : IDisposable
     private readonly HashSet<string> _mixMuted = [];
     private readonly object _gate = new();
 
-    // The monitor mix's route to the output device (direct port links) and the
-    // hardware microphone's feed into the mic channel.
-    private PortLink? _monitorRoute;
-    private string? _monitorOutput;
-    private PortLink? _micFeed;
+    // The monitor mix's routes to its output devices (direct port links; the
+    // monitor can feed several at once) and the hardware interface's per-pair
+    // feeds into the input channels (XLR 1, XLR 2, Line In). Routes are keyed
+    // by physical link target, so several pseudo-outputs sharing one underlying
+    // route (the Wave XLR Pro's jacks all ride its monitor bus) make one link.
+    private readonly Dictionary<string, PortLink> _monitorRoutes = [];
+    private readonly List<string> _monitorOutputs = [];
+    private readonly List<PortLink> _inputFeeds = [];
+    private string? _inputDevice;   // the capture device the feeds come from
 
-    // "Input" in the UI: the capture device feeding the mic channel. The system
-    // default source is a separate concept, owned solely by the enforced
-    // defaults below (two controls must not share one property).
-    private string? _micDevice;
-
-    // Cached hardware volumes of the selected output and input devices, so
-    // external changes (KDE applet, hardware knobs) can be detected and pushed.
+    // Cached hardware volume of the selected output device, so external
+    // changes (KDE applet, hardware knobs) can be detected and pushed.
     private double? _outputVolume;
-    private double? _inputVolume;
 
     // Enforced system defaults (null = not enforced).
     private string? _enforcedSink;
@@ -136,37 +134,47 @@ public sealed class Mixer : IDisposable
 
             _built = true;
 
-            if (monitorOutputSink is not null) SetMonitorOutputLocked(monitorOutputSink);
+            if (monitorOutputSink is not null) SetMonitorOutputsLocked([monitorOutputSink]);
             _ = previousDefaultSource;   // defaults are governed by enforcement only
-            SetMicInputLocked(defaultSource);
+            _ = defaultSource;           // input channels are hardware-wired, not selectable
+            WireInputFeedsLocked();
         }
     }
 
     /// <summary>
-    /// Wire a capture device into the mic channel. Passing null auto-detects the
-    /// connected Wave XLR by name; a device the mixer itself created is refused
-    /// (feeding a mix back into a channel is a feedback loop). Skipped when
-    /// nothing suitable exists: the mic channel is then silent, nothing else is
-    /// affected.
+    /// Wire the hardware interface's capture pairs into their input channels
+    /// (XLR 1 = pair 0, XLR 2 = pair 1, Line In = pair 2). The interface is
+    /// found by name; when absent the input channels are silent and everything
+    /// else still works. Safe to call again after a hotplug.
     /// </summary>
-    private void SetMicInputLocked(string? sourceName)
+    private void WireInputFeedsLocked()
     {
-        ChannelDefinition? mic = _config.Channels.FirstOrDefault(c => c.Id == "mic");
-        if (mic is null) return;
-
-        if (sourceName is not null &&
-            (sourceName.StartsWith("OpenXLR", StringComparison.Ordinal) ||
-             _pw.ListDevices().FirstOrDefault(d => d.Name == sourceName) is null or { IsOwn: true }))
-            sourceName = null;   // invalid or own node: fall back to auto-detect
-
-        sourceName ??= _pw.ListDevices()
+        foreach (PortLink feed in _inputFeeds) _pw.Unlink(feed);
+        _inputFeeds.Clear();
+        _inputDevice = _pw.ListDevices()
             .FirstOrDefault(d => d.Kind == AudioNodeKind.Source && !d.IsOwn &&
                                  d.Name.Contains("Wave_XLR", StringComparison.OrdinalIgnoreCase))?.Name;
+        if (_inputDevice is null) return;
+        foreach (ChannelDefinition ch in _config.Channels.Where(c => c.InputPair is not null))
+        {
+            PortLink feed = _pw.RouteInputToChannel(_inputDevice, ch.SinkName, ch.InputPair!.Value);
+            if (feed.Pairs.Count > 0) _inputFeeds.Add(feed);
+        }
+    }
 
-        if (_micFeed is not null) { _pw.Unlink(_micFeed); _micFeed = null; }
-        _micDevice = sourceName;
-        if (sourceName is null) return;
-        _micFeed = _pw.RouteInputToChannel(sourceName, mic.SinkName);
+    /// <summary>
+    /// Re-wire the hardware input feeds if none are connected (the interface
+    /// was absent at build time or was replugged). Returns true when feeds
+    /// were (re)established.
+    /// </summary>
+    public bool EnsureInputFeeds()
+    {
+        lock (_gate)
+        {
+            if (!_built || _inputFeeds.Count > 0) return false;
+            WireInputFeedsLocked();
+            return _inputFeeds.Count > 0;
+        }
     }
 
     /// <summary>Every sink and source the user can pick, real or virtual.</summary>
@@ -183,8 +191,7 @@ public sealed class Mixer : IDisposable
                 MixMuted = [.. _mixMuted],
                 Levels = new Dictionary<string, double>(_levels),
                 ChannelMuted = [.. _muted],
-                MonitorOutput = _monitorOutput,
-                MicInput = _micDevice,
+                MonitorOutputs = [.. _monitorOutputs],
                 AppOverrides = new Dictionary<string, string>(Matcher.Overrides),
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
@@ -215,33 +222,34 @@ public sealed class Mixer : IDisposable
 
             foreach (MixDefinition mix in _config.Mixes) ReapplyMixLocked(mix.Id);
 
-            if (s.MonitorOutput is not null) SetMonitorOutputLocked(s.MonitorOutput);
-            SetMicInputLocked(s.MicInput);
+            IReadOnlyList<string> savedOutputs = s.MonitorOutputs is { Count: > 0 }
+                ? s.MonitorOutputs
+                : s.MonitorOutput is not null ? [s.MonitorOutput] : [];
+            if (savedOutputs.Count > 0) SetMonitorOutputsLocked(savedOutputs);
             _enforcedSink = s.EnforcedDefaultSink;
             _enforcedSource = s.EnforcedDefaultSource;
         }
     }
 
-    /// <summary>Volume of the selected output device (0..1), or null.</summary>
+    /// <summary>Volume of the selected output devices (0..1), applied to each.</summary>
     public void SetOutputVolume(double volume)
     {
         lock (_gate)
         {
-            if (_monitorOutput is null) return;
-            try { _pw.SetSinkVolume(_monitorOutput, volume); _outputVolume = volume; }
-            catch (InvalidOperationException) { /* device gone */ }
+            if (_monitorOutputs.Count == 0) return;
+            foreach (string sink in _monitorOutputs.Select(StripMarker).Distinct())
+            {
+                try { _pw.SetSinkVolume(sink, volume); }
+                catch (InvalidOperationException) { /* device gone */ }
+            }
+            _outputVolume = volume;
         }
     }
 
-    /// <summary>Volume of the mic-feed device (0..1).</summary>
-    public void SetInputVolume(double volume)
+    private static string StripMarker(string name)
     {
-        lock (_gate)
-        {
-            if (_micDevice is null) return;
-            try { _pw.SetSourceVolume(_micDevice, volume); _inputVolume = volume; }
-            catch (InvalidOperationException) { /* device gone */ }
-        }
+        int marker = name.IndexOf('#');
+        return marker >= 0 ? name[..marker] : name;
     }
 
     /// <summary>Enforced system default devices (sink, source); null = off.</summary>
@@ -299,11 +307,10 @@ public sealed class Mixer : IDisposable
     {
         lock (_gate)
         {
-            double? outV = _monitorOutput is null ? null : _pw.GetSinkVolume(_monitorOutput);
-            double? inV = _micDevice is null ? null : _pw.GetSourceVolume(_micDevice);
-            bool changed = Differs(outV, _outputVolume) || Differs(inV, _inputVolume);
+            string? first = _monitorOutputs.FirstOrDefault();
+            double? outV = first is null ? null : _pw.GetSinkVolume(first);
+            bool changed = Differs(outV, _outputVolume);
             _outputVolume = outV;
-            _inputVolume = inV;
             return changed;
         }
 
@@ -311,35 +318,45 @@ public sealed class Mixer : IDisposable
             => a.HasValue != b.HasValue || (a.HasValue && Math.Abs(a.Value - b!.Value) > 0.005);
     }
 
-    /// <summary>Currently selected output for the monitor mix, or null.</summary>
-    public string? MonitorOutput { get { lock (_gate) return _monitorOutput; } }
+    /// <summary>First selected monitor output, or null (legacy single view).</summary>
+    public string? MonitorOutput { get { lock (_gate) return _monitorOutputs.FirstOrDefault(); } }
 
-    /// <summary>The capture device feeding the mic channel, or null.</summary>
-    public string? MicInput { get { lock (_gate) return _micDevice; } }
+    /// <summary>All selected monitor outputs, in selection order.</summary>
+    public IReadOnlyList<string> MonitorOutputs { get { lock (_gate) return [.. _monitorOutputs]; } }
 
     /// <summary>
-    /// Send the monitor mix to a different output device. Any sink works,
-    /// including virtual ones. Passing null disconnects the monitor mix.
+    /// Send the monitor mix to one output device (or none). Kept for clients
+    /// that think in a single monitor destination.
     /// </summary>
     public void SetMonitorOutput(string? sinkName)
+        => SetMonitorOutputs(sinkName is null ? [] : [sinkName]);
+
+    /// <summary>
+    /// Send the monitor mix to any set of output devices at once. Any sink
+    /// works, virtual ones included; an empty list disconnects the monitor.
+    /// </summary>
+    public void SetMonitorOutputs(IReadOnlyList<string> sinkNames)
     {
-        lock (_gate) { if (_built) SetMonitorOutputLocked(sinkName); }
+        lock (_gate) { if (_built) SetMonitorOutputsLocked(sinkNames); }
     }
 
-    /// <summary>Feed the mic channel from a different capture device.</summary>
-    public void SetMicInput(string? sourceName)
+    private void SetMonitorOutputsLocked(IReadOnlyList<string> sinkNames)
     {
-        lock (_gate) { if (_built) SetMicInputLocked(sourceName); }
-    }
-
-    private void SetMonitorOutputLocked(string? sinkName)
-    {
-        if (_monitorRoute is not null) { _pw.Unlink(_monitorRoute); _monitorRoute = null; }
-        _monitorOutput = sinkName;
-        if (sinkName is null) return;
+        foreach (PortLink route in _monitorRoutes.Values) _pw.Unlink(route);
+        _monitorRoutes.Clear();
+        _monitorOutputs.Clear();
         MixDefinition? monitor = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor);
-        if (monitor is null) return;
-        _monitorRoute = _pw.RouteMixToOutput(monitor.SinkName, sinkName);
+        foreach (string name in sinkNames.Where(n => !string.IsNullOrEmpty(n)).Distinct())
+        {
+            _monitorOutputs.Add(name);
+            if (monitor is null) continue;
+            // Pseudo-outputs of one device ("sink#hp1", "sink#lineout", ...)
+            // share the same physical route; only the selector differs.
+            int marker = name.IndexOf('#');
+            string routeKey = marker >= 0 ? name[..marker] + "#bus" : name;
+            if (!_monitorRoutes.ContainsKey(routeKey))
+                _monitorRoutes[routeKey] = _pw.RouteMixToOutput(monitor.SinkName, name);
+        }
     }
 
     /// <summary>Level of one channel in one mix (0..1).</summary>
@@ -472,10 +489,9 @@ public sealed class Mixer : IDisposable
                     c.Id, c.Name,
                     _config.Mixes.ToDictionary(m => m.Id, m => _levels.GetValueOrDefault(Cell(c.Id, m.Id), 0.0)),
                     [.. _config.Mixes.Where(m => _muted.Contains(Cell(c.Id, m.Id))).Select(m => m.Id)]))],
-                MonitorOutput = _monitorOutput,
-                MicInput = _micDevice,
+                MonitorOutput = _monitorOutputs.FirstOrDefault(),
+                MonitorOutputs = [.. _monitorOutputs],
                 OutputVolume = _outputVolume,
-                InputVolume = _inputVolume,
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
                 Streams = [.. _streams.Values],
@@ -518,12 +534,15 @@ public sealed class Mixer : IDisposable
     {
         _meters.Dispose();
         _meters = new MeterReader();   // Dispose is terminal; a rebuild needs a fresh reader
-        if (_monitorRoute is not null) { _pw.Unlink(_monitorRoute); _monitorRoute = null; }
-        if (_micFeed is not null) { _pw.Unlink(_micFeed); _micFeed = null; }
+        foreach (PortLink route in _monitorRoutes.Values) _pw.Unlink(route);
+        _monitorRoutes.Clear();
+        _monitorOutputs.Clear();
+        foreach (PortLink feed in _inputFeeds) _pw.Unlink(feed);
+        _inputFeeds.Clear();
+        _inputDevice = null;
         _pw.TearDown();     // unloads modules in reverse order: combines, then mixes
         _combineModules.Clear();
         _legIndex.Clear();
-        _monitorOutput = null;
         _streams.Clear();
         _cells.Clear();
         _levels.Clear();

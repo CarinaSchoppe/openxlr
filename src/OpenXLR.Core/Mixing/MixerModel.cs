@@ -18,7 +18,12 @@ public sealed record MixerConfig
 
     /// <summary>
     /// The layout carried over from the user's Wave Link setup: three mixes
-    /// (monitor / stream / mic-FX) and the standard channel set.
+    /// (monitor / stream / chat), one channel per hardware input of the Wave
+    /// XLR Pro (XLR 1, XLR 2, Line In, each wired to its capture channel pair),
+    /// and the application channel set. The hardware inputs are muted in the
+    /// monitor mix by default, exactly like Wave Link mutes the mic locally:
+    /// self-monitoring belongs to the device's zero-latency crossfade, not the
+    /// software loop.
     /// </summary>
     public static MixerConfig Default() => new()
     {
@@ -30,7 +35,13 @@ public sealed record MixerConfig
         ],
         Channels =
         [
-            new ChannelDefinition("mic", "Mic") { Levels = Level(1.0, 1.0, 1.0) },
+            new ChannelDefinition("xlr1", "XLR 1") { Levels = Level(1.0, 1.0, 1.0), MutedIn = new HashSet<string> { "monitor" }, InputPair = 0 },
+            new ChannelDefinition("xlr2", "XLR 2") { Levels = Level(1.0, 1.0, 1.0), MutedIn = new HashSet<string> { "monitor" }, InputPair = 1 },
+            // The third hardware input stage is shared: the USB Aux port and the
+            // Line In jack both arrive on capture pair 2 (verified live with a
+            // MacBook on USB Aux; every other capture channel stayed at digital
+            // zero). One channel therefore serves both.
+            new ChannelDefinition("aux", "Aux In") { Levels = Level(1.0, 1.0, 1.0), MutedIn = new HashSet<string> { "monitor" }, InputPair = 2 },
             new ChannelDefinition("game", "Game") { Levels = Level(0.5, 0.5, 0.5) },
             new ChannelDefinition("music", "Music") { Levels = Level(1.0, 1.0, 1.0) },
             new ChannelDefinition("browser", "Browser") { Levels = Level(1.0, 1.0, 1.0) },
@@ -70,6 +81,14 @@ public sealed record ChannelDefinition(string Id, string Name)
     /// <summary>Per-mix mute, keyed by mix id.</summary>
     public IReadOnlySet<string> MutedIn { get; init; } = new HashSet<string>();
 
+    /// <summary>
+    /// Capture channel pair of the hardware interface feeding this channel
+    /// (0 = first stereo pair), or null for an application channel. On the Wave
+    /// XLR Pro's 6-channel source: pair 0 = XLR 1, pair 1 = XLR 2, pair 2 =
+    /// Line In.
+    /// </summary>
+    public int? InputPair { get; init; }
+
     /// <summary>PipeWire node name of the sink applications play into.</summary>
     public string SinkName => $"OpenXLR_ch_{Id}";
 }
@@ -80,17 +99,14 @@ public sealed record MixerState
     public required IReadOnlyList<MixStatus> Mixes { get; init; }
     public required IReadOnlyList<ChannelStatus> Channels { get; init; }
 
-    /// <summary>node.name of the sink the monitor mix feeds, or null.</summary>
+    /// <summary>First selected monitor output, or null (legacy single view).</summary>
     public string? MonitorOutput { get; init; }
 
-    /// <summary>node.name of the capture device feeding the mic channel, or null.</summary>
-    public string? MicInput { get; init; }
+    /// <summary>node.names of every sink the monitor mix feeds.</summary>
+    public IReadOnlyList<string> MonitorOutputs { get; init; } = [];
 
     /// <summary>Volume of the selected output device (0..1), or null.</summary>
     public double? OutputVolume { get; init; }
-
-    /// <summary>Volume of the default input device (0..1), or null.</summary>
-    public double? InputVolume { get; init; }
 
     /// <summary>Enforced system default devices; null = not enforced.</summary>
     public string? EnforcedDefaultSink { get; init; }

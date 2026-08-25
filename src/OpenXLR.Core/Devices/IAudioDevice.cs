@@ -35,7 +35,7 @@ public interface IAudioDevice
     void SetCrossfade(int value);
     void SetPhantom(bool on);
     void SetClipGuard(bool on);
-    void SetPolarity(bool on);
+    void SetCompressor(bool on);
 
     // Second XLR input. Default no-ops so single-input devices need no code;
     // a device with XlrInputs > 1 overrides them.
@@ -48,7 +48,16 @@ public interface IAudioDevice
     void SetVoiceTuneStrength2(int value) { }
     void SetPhantom2(bool on) { }
     void SetClipGuard2(bool on) { }
-    void SetPolarity2(bool on) { }
+    void SetCompressor2(bool on) { }
+
+    // Physical output routing and aux input. Default no-ops; devices with
+    // OutputRouting / AuxInput capabilities override them.
+    void SetOutHp1(bool on) { }
+    void SetOutHp2(bool on) { }
+    void SetOutUsbAux(bool on) { }
+    void SetOutLineOut(bool on) { }
+    void SetAuxLevelDb(double db) { }
+    void SetAuxLevelLock(bool on) { }
 }
 
 /// <summary>Stable identity of a device model.</summary>
@@ -70,7 +79,13 @@ public sealed record DeviceCapabilities
     public bool Crossfade { get; init; }
     public bool Phantom { get; init; }
     public bool ClipGuard { get; init; }
-    public bool Polarity { get; init; }
+    public bool Compressor { get; init; }
+
+    /// <summary>Per-jack routing of the hardware monitor bus (HP1/HP2/USB Aux out/Line out).</summary>
+    public bool OutputRouting { get; init; }
+
+    /// <summary>A controllable auxiliary input stage (level + lock).</summary>
+    public bool AuxInput { get; init; }
 
     /// <summary>Number of XLR inputs the device has (the Pro has two).</summary>
     public int XlrInputs { get; init; } = 1;

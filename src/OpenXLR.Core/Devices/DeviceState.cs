@@ -20,12 +20,12 @@ public sealed record DeviceState
 
     public int Crossfade { get; init; }         // block 0x0001 off0, 0..200 (100 = centre)
 
-    // Pro-only mic DSP. Bit positions are PROVISIONAL (block 0x0004 off1 bits
-    // 1/3/7): the capture + Windows config corroborate phantom and ClipGuard,
-    // but the polarity bit is unconfirmed. Finalize by ear once the UI exists.
+    // Pro-only mic DSP, all confirmed against the logged capture of 2026-08-25:
+    // phantom = off1 bit1, compressor = off1 bit7, ClipGuard = the struct's
+    // offset-2 byte with 0x04 meaning DISABLED (stored here un-inverted).
     public bool Phantom { get; init; }
     public bool ClipGuard { get; init; }
-    public bool Polarity { get; init; }
+    public bool Compressor { get; init; }
 
     // Second XLR input (the Pro has XLR 1 and XLR 2; block 0x0004 holds one
     // 38-byte structure per input, XLR 2 at offset 38, same field layout).
@@ -37,5 +37,17 @@ public sealed record DeviceState
     public int VoiceTuneStrength2 { get; init; }
     public bool Phantom2 { get; init; }
     public bool ClipGuard2 { get; init; }
-    public bool Polarity2 { get; init; }
+    public bool Compressor2 { get; init; }
+
+    // Physical output routing (block 0x0001 off90..93): whether each output
+    // jack carries the hardware monitor bus. Confirmed by ear on both
+    // headphone jacks; requires the commit block to take effect.
+    public bool OutHp1 { get; init; }
+    public bool OutHp2 { get; init; }
+    public bool OutUsbAux { get; init; }
+    public bool OutLineOut { get; init; }
+
+    // USB Aux input stage (block 0x0004 tail): level -60..0 dB and level lock.
+    public double AuxLevelDb { get; init; }
+    public bool AuxLevelLock { get; init; }
 }

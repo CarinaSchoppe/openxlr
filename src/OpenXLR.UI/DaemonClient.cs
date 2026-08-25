@@ -1,0 +1,158 @@
+using System;
+using System.Collections.Generic;
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace OpenXLR.UI;
+
+/// <summary>
+/// The UI's link to the daemon: one WebSocket, reconnecting on its own, raising
+/// <see cref="StateReceived"/> for every pushed state. State is handed over as a
+/// JsonNode so the UI can bind to it without duplicating the daemon's records.
+/// </summary>
+public sealed class DaemonClient : IAsyncDisposable
+{
+    private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    private readonly Uri _uri;
+    private readonly CancellationTokenSource _cts = new();
+    private ClientWebSocket? _socket;
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
+
+    public DaemonClient(string url = "ws://127.0.0.1:37890/ws") => _uri = new Uri(url);
+
+    /// <summary>Raised on every state push (already on a background thread).</summary>
+    public event Action<JsonNode>? StateReceived;
+
+    /// <summary>Raised when an error message arrives from the daemon.</summary>
+    public event Action<string>? ErrorReceived;
+
+    /// <summary>Raised on every meter frame (id to peak, 0..1 and above when clipping).</summary>
+    public event Action<JsonNode>? MetersReceived;
+
+    /// <summary>Raised when the connection comes up or goes down.</summary>
+    public event Action<bool>? ConnectionChanged;
+
+    public void Start() => _ = RunAsync();
+
+    private async Task RunAsync()
+    {
+        while (!_cts.IsCancellationRequested)
+        {
+            try
+            {
+                _socket = new ClientWebSocket();
+                await _socket.ConnectAsync(_uri, _cts.Token);
+                ConnectionChanged?.Invoke(true);
+                await ReceiveLoop(_socket);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception)
+            {
+                // daemon not up yet, or the link dropped, so fall through and retry
+            }
+
+            ConnectionChanged?.Invoke(false);
+            _socket?.Dispose();
+            _socket = null;
+            try { await Task.Delay(1000, _cts.Token); }
+            catch (OperationCanceledException) { return; }
+        }
+    }
+
+    private async Task ReceiveLoop(ClientWebSocket socket)
+    {
+        var buf = new byte[16 * 1024];
+        while (socket.State == WebSocketState.Open && !_cts.IsCancellationRequested)
+        {
+            using var ms = new System.IO.MemoryStream();
+            WebSocketReceiveResult res;
+            do
+            {
+                res = await socket.ReceiveAsync(buf, _cts.Token);
+                if (res.MessageType == WebSocketMessageType.Close) return;
+                ms.Write(buf, 0, res.Count);
+            } while (!res.EndOfMessage);
+
+            JsonNode? node;
+            try { node = JsonNode.Parse(Encoding.UTF8.GetString(ms.ToArray())); }
+            catch (JsonException) { continue; }
+            if (node is null) continue;
+
+            string? type = node["type"]?.GetValue<string>();
+            if (type == "error") ErrorReceived?.Invoke(node["message"]?.GetValue<string>() ?? "unknown error");
+            else if (type == "state") StateReceived?.Invoke(node);
+            else if (type == "meters" && node["levels"] is JsonNode levels) MetersReceived?.Invoke(levels);
+        }
+    }
+
+    /// <summary>Set a hardware control (gain, mute, lowCut, …).</summary>
+    public Task SetControlAsync(string control, object value)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "set", ["control"] = control, ["value"] = value });
+
+    public Task SetLevelAsync(string channel, string mix, double value)
+        => SendAsync(new Dictionary<string, object>
+        { ["cmd"] = "setLevel", ["channel"] = channel, ["mix"] = mix, ["value"] = value });
+
+    public Task SetChannelMutedAsync(string channel, string mix, bool muted)
+        => SendAsync(new Dictionary<string, object>
+        { ["cmd"] = "setChannelMuted", ["channel"] = channel, ["mix"] = mix, ["value"] = muted });
+
+    public Task SetMixVolumeAsync(string mix, double value)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "setMixVolume", ["mix"] = mix, ["value"] = value });
+
+    public Task SetMixMutedAsync(string mix, bool muted)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "setMixMuted", ["mix"] = mix, ["value"] = muted });
+
+    /// <summary>Send the monitor mix to a different output (null disconnects).</summary>
+    public Task SetMonitorOutputAsync(string? device)
+        => SendAsync(new Dictionary<string, object?> { ["cmd"] = "setMonitorOutput", ["device"] = device });
+
+    /// <summary>Feed the mic channel from a different capture device.</summary>
+    public Task SetMicInputAsync(string? device)
+        => SendAsync(new Dictionary<string, object?> { ["cmd"] = "setMicInput", ["device"] = device });
+
+    /// <summary>Volume of the selected output device (0..1).</summary>
+    public Task SetOutputVolumeAsync(double value)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "setOutputVolume", ["value"] = value });
+
+    /// <summary>Volume of the default input device (0..1).</summary>
+    public Task SetInputVolumeAsync(double value)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "setInputVolume", ["value"] = value });
+
+    /// <summary>Devices the daemon should hold as system defaults (null = don't enforce).</summary>
+    public Task SetEnforcedDefaultsAsync(string? sink, string? source)
+        => SendAsync(new Dictionary<string, object?>
+        { ["cmd"] = "setEnforcedDefaults", ["sink"] = sink, ["source"] = source });
+
+    /// <summary>Move an application's audio to a channel, remembered for next launch.</summary>
+    public Task AssignStreamAsync(int streamId, string channel)
+        => SendAsync(new Dictionary<string, object>
+        { ["cmd"] = "assignStream", ["streamId"] = streamId, ["channel"] = channel });
+
+    private async Task SendAsync(object payload)
+    {
+        ClientWebSocket? s = _socket;
+        if (s is null || s.State != WebSocketState.Open) return;
+        byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(payload, Json);
+        await _sendLock.WaitAsync();
+        try { await s.SendAsync(bytes, WebSocketMessageType.Text, true, _cts.Token); }
+        catch (Exception) { /* dropped; the reconnect loop handles it */ }
+        finally { _sendLock.Release(); }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _cts.CancelAsync();
+        _socket?.Dispose();
+        _sendLock.Dispose();
+        _cts.Dispose();
+    }
+}

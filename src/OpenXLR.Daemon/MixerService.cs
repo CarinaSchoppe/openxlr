@@ -1,0 +1,244 @@
+using OpenXLR.Core.Mixing;
+
+namespace OpenXLR.Daemon;
+
+/// <summary>
+/// Owns the submix graph for the daemon's lifetime: builds it on startup, routes
+/// the monitor mix to a physical output, applies client commands, and tears the
+/// graph down on shutdown so no nodes are left behind.
+///
+/// Building is opt-in via configuration so the daemon can run device-only (the
+/// graph adds sinks to the user's audio setup, which shouldn't happen by
+/// surprise). Set OPENXLR_BUILD_MIXER=1, or pass --mixer.
+/// </summary>
+public sealed class MixerService : IHostedService, IDisposable
+{
+    private readonly ILogger<MixerService> _log;
+    private readonly IConfiguration _config;
+    private readonly Mixer _mixer = new();
+    private Timer? _streamSweep;
+    private Timer? _saveDebounce;
+    private Timer? _meterPush;
+
+    public MixerService(ILogger<MixerService> log, IConfiguration config)
+    {
+        _log = log;
+        _config = config;
+    }
+
+    /// <summary>Raised when mixer state changes, so the hub can broadcast.</summary>
+    public event Action? Changed;
+
+    /// <summary>Null until the graph is built.</summary>
+    public MixerState? Snapshot() => _mixer.Built ? _mixer.Snapshot() : null;
+
+    /// <summary>Selectable sinks and sources, or null when the mixer is off.</summary>
+    public IReadOnlyList<AudioNode>? Devices() => _mixer.Built ? _mixer.ListDevices() : null;
+
+    /// <summary>Live stereo levels, or null when the mixer is off.</summary>
+    public IReadOnlyDictionary<string, double[]>? Meters() => _mixer.Built ? _mixer.ReadMeters() : null;
+
+    /// <summary>Raised at the meter refresh rate so the hub can push levels.</summary>
+    public event Action? MetersUpdated;
+
+    public Task StartAsync(CancellationToken ct)
+    {
+        bool wanted = _config.GetValue("mixer", false) ||
+                      Environment.GetEnvironmentVariable("OPENXLR_BUILD_MIXER") == "1";
+        if (!wanted)
+        {
+            _log.LogInformation("submixer not enabled (pass --mixer or OPENXLR_BUILD_MIXER=1)");
+            return Task.CompletedTask;
+        }
+
+        // Optional: the physical sink the monitor mix feeds. Without it the
+        // monitor mix exists but isn't routed anywhere audible.
+        string? output = _config.GetValue<string>("monitorOutput")
+                         ?? Environment.GetEnvironmentVariable("OPENXLR_MONITOR_OUTPUT");
+        string? micIn = _config.GetValue<string>("micInput")
+                        ?? Environment.GetEnvironmentVariable("OPENXLR_MIC_INPUT");
+
+        // WirePlumber auto-switches the system defaults to newly created sinks
+        // and sources, asynchronously, some time after they appear. Remember
+        // what the user had so it can be defended after the graph settles.
+        string? defaultSinkBefore = null, defaultSourceBefore = null;
+        try
+        {
+            defaultSinkBefore = Run("pactl", "get-default-sink");
+            defaultSourceBefore = Run("pactl", "get-default-source");
+        }
+        catch (Exception) { /* best effort */ }
+
+        try
+        {
+            _mixer.Build(MixerConfig.Default(), output, micIn);
+
+            // Restore the user's saved levels, mutes, device picks, and per-app
+            // assignments. Env vars, when set, still win for the device picks.
+            MixerSettings? saved = MixerSettings.Load();
+            if (saved is not null)
+            {
+                _mixer.ApplySettings(saved with
+                {
+                    MonitorOutput = output ?? saved.MonitorOutput,
+                    MicInput = micIn ?? saved.MicInput,
+                });
+                _log.LogInformation("restored settings from {path}", MixerSettings.DefaultPath);
+            }
+
+            _log.LogInformation("submix graph built ({mixes} mixes, {channels} channels){route}",
+                _mixer.Config.Mixes.Count, _mixer.Config.Channels.Count,
+                output is null ? "" : $", monitor -> {output}");
+
+            // Sweep for new application streams and route them to their channel.
+            // One second is responsive enough that audio lands in the right place
+            // before a user notices, without polling the graph hard.
+            _streamSweep = new Timer(_ =>
+            {
+                try { if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()) Changed?.Invoke(); }
+                catch (Exception ex) { _log.LogDebug("stream sweep: {msg}", ex.Message); }
+            }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+
+            // Meters refresh far more often than state; 15 Hz looks smooth
+            // without flooding clients.
+            _meterPush = new Timer(_ => MetersUpdated?.Invoke(), null,
+                TimeSpan.FromMilliseconds(200), TimeSpan.FromMilliseconds(66));
+
+            Changed?.Invoke();
+
+            // Defend the defaults after WirePlumber's delayed auto-switch. Two
+            // passes because the switch can land seconds after node creation.
+            (string? enfSink, string? enfSource) = _mixer.EnforcedDefaults;
+            string? wantSink = enfSink ?? defaultSinkBefore;
+            string? wantSource = enfSource ?? defaultSourceBefore;
+            _ = Task.Run(async () =>
+            {
+                foreach (int delayMs in new[] { 2000, 5000, 10000, 20000 })
+                {
+                    await Task.Delay(delayMs);
+                    try
+                    {
+                        if (wantSink is { Length: > 0 } && Run("pactl", "get-default-sink") != wantSink)
+                            Run("pactl", "set-default-sink", wantSink);
+                        if (wantSource is { Length: > 0 } && Run("pactl", "get-default-source") != wantSource)
+                            Run("pactl", "set-default-source", wantSource);
+                    }
+                    catch (Exception ex) { _log.LogDebug("default defense: {msg}", ex.Message); }
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _log.LogError("failed to build submix graph: {msg}", ex.Message);
+            // A partial graph is worse than none: half the sinks exist but no
+            // routing, and a later rebuild would double up. Remove what was made.
+            try { _mixer.TearDown(); } catch (Exception) { /* best effort */ }
+        }
+        return Task.CompletedTask;
+    }
+
+    private static string Run(string exe, params string[] args)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo(exe) { RedirectStandardOutput = true };
+        foreach (string a in args) psi.ArgumentList.Add(a);
+        using var p = System.Diagnostics.Process.Start(psi)!;
+        string o = p.StandardOutput.ReadToEnd().Trim();
+        p.WaitForExit(3000);
+        if (p.ExitCode != 0) throw new InvalidOperationException($"{exe} failed");
+        return o;
+    }
+
+    public Task StopAsync(CancellationToken ct)
+    {
+        _streamSweep?.Dispose();
+        _streamSweep = null;
+        _meterPush?.Dispose();
+        _meterPush = null;
+        if (_mixer.Built)
+        {
+            try { _mixer.ExportSettings().Save(); } catch (Exception) { /* best effort */ }
+            _mixer.TearDown();
+            _log.LogInformation("submix graph torn down");
+        }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Apply a mixer command. Returns null on success, else an error.</summary>
+    public string? Apply(Command cmd)
+    {
+        if (!_mixer.Built) return "mixer not built (start the daemon with --mixer)";
+        try
+        {
+            switch (cmd.Cmd)
+            {
+                case "setLevel":
+                    if (cmd.Channel is null || cmd.Mix is null) return "setLevel: need 'channel' and 'mix'";
+                    _mixer.SetLevel(cmd.Channel, cmd.Mix, cmd.Value.GetDouble());
+                    break;
+                case "setChannelMuted":
+                    if (cmd.Channel is null || cmd.Mix is null) return "setChannelMuted: need 'channel' and 'mix'";
+                    _mixer.SetChannelMuted(cmd.Channel, cmd.Mix, cmd.Value.GetBoolean());
+                    break;
+                case "setMixVolume":
+                    if (cmd.Mix is null) return "setMixVolume: need 'mix'";
+                    _mixer.SetMixVolume(cmd.Mix, cmd.Value.GetDouble());
+                    break;
+                case "setMixMuted":
+                    if (cmd.Mix is null) return "setMixMuted: need 'mix'";
+                    _mixer.SetMixMuted(cmd.Mix, cmd.Value.GetBoolean());
+                    break;
+                case "assignStream":
+                    if (cmd.Channel is null || cmd.StreamId is null) return "assignStream: need 'channel' and 'streamId'";
+                    // Also remembered per application, so it sticks next launch.
+                    _mixer.AssignStream(cmd.StreamId.Value, cmd.Channel);
+                    break;
+                case "setMonitorOutput":
+                    // A null device is meaningful here: it disconnects the route.
+                    _mixer.SetMonitorOutput(cmd.Device);
+                    break;
+                case "setMicInput":
+                    _mixer.SetMicInput(cmd.Device);
+                    break;
+                case "setOutputVolume":
+                    _mixer.SetOutputVolume(cmd.Value.GetDouble());
+                    break;
+                case "setInputVolume":
+                    _mixer.SetInputVolume(cmd.Value.GetDouble());
+                    break;
+                case "setEnforcedDefaults":
+                    _mixer.SetEnforcedDefaults(cmd.Sink, cmd.Source);
+                    break;
+                default:
+                    return $"unknown mixer command '{cmd.Cmd}'";
+            }
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
+        }
+        Changed?.Invoke();
+        ScheduleSave();
+        return null;
+    }
+
+    /// <summary>
+    /// Persist a moment after the last change, so dragging a fader writes once
+    /// instead of on every pixel of travel.
+    /// </summary>
+    private void ScheduleSave()
+    {
+        _saveDebounce ??= new Timer(_ =>
+        {
+            try { _mixer.ExportSettings().Save(); }
+            catch (Exception ex) { _log.LogDebug("settings save: {msg}", ex.Message); }
+        }, null, Timeout.Infinite, Timeout.Infinite);
+        _saveDebounce.Change(TimeSpan.FromSeconds(2), Timeout.InfiniteTimeSpan);
+    }
+
+    public void Dispose()
+    {
+        _streamSweep?.Dispose();
+        _saveDebounce?.Dispose();
+        _meterPush?.Dispose();
+    }
+}

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- OpenXLR: a female XLR connector face. Pins 1-2-3 in the standard
+       triangle, latch notch at the top. Blue accent on near-black. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#23262f"/>
+      <stop offset="1" stop-color="#15171c"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4db8ff"/>
+      <stop offset="1" stop-color="#2f7fd6"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bg)"/>
+  <!-- connector shell -->
+  <circle cx="128" cy="128" r="86" fill="none" stroke="url(#ring)" stroke-width="14"/>
+  <!-- latch notch -->
+  <rect x="116" y="30" width="24" height="22" rx="6" fill="url(#ring)"/>
+  <!-- pin sockets: XLR triangle (1 bottom-left, 2 bottom-right, 3 top) -->
+  <circle cx="128" cy="84" r="17" fill="#0c0d10" stroke="#4db8ff" stroke-width="7"/>
+  <circle cx="86" cy="158" r="17" fill="#0c0d10" stroke="#4db8ff" stroke-width="7"/>
+  <circle cx="170" cy="158" r="17" fill="#0c0d10" stroke="#4db8ff" stroke-width="7"/>
+</svg>

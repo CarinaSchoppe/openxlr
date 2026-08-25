@@ -1,0 +1,6 @@
+# third-party clone kept only as a local reference; our changes are in
+# capture-analysis/fork-pro-backend.diff
+fork/
+# build output
+src/*/bin/
+src/*/obj/

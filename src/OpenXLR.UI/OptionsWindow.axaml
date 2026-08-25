@@ -1,0 +1,77 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:OpenXLR.UI"
+        x:Class="OpenXLR.UI.OptionsWindow"
+        x:DataType="vm:OptionsViewModel"
+        Title="OpenXLR Options" Width="560" Height="480"
+        WindowStartupLocation="CenterOwner"
+        Background="#16181d" CanResize="False">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.h">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="#8b93a7"/>
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="#1d2027"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="14"/>
+    </Style>
+    <Style Selector="CheckBox">
+      <Setter Property="Foreground" Value="#e6e9f0"/>
+    </Style>
+  </Window.Styles>
+
+  <StackPanel Margin="16" Spacing="12">
+
+    <Border Classes="card">
+      <StackPanel Spacing="10">
+        <TextBlock Text="STARTUP" Classes="h"/>
+        <CheckBox Content="Start the daemon at login (systemd user service)"
+                  IsChecked="{Binding StartDaemonAtLogin, Mode=TwoWay}"/>
+        <CheckBox Content="Open the mixer window at login"
+                  IsChecked="{Binding OpenWindowAtLogin, Mode=TwoWay}"/>
+        <CheckBox Content="Close button minimizes to tray instead of quitting"
+                  IsChecked="{Binding MinimizeToTray, Mode=TwoWay}"/>
+      </StackPanel>
+    </Border>
+
+    <Border Classes="card">
+      <StackPanel Spacing="10">
+        <TextBlock Text="SYSTEM DEFAULT DEVICES" Classes="h"/>
+        <TextBlock Text="When set, OpenXLR holds these as the system defaults and reverts any outside change, like Wave Link does. Applications that follow the system default will use them."
+                   FontSize="11" Foreground="#6b7285" TextWrapping="Wrap"/>
+
+        <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,8,Auto">
+          <TextBlock Text="Default output" Classes="h" VerticalAlignment="Center"/>
+          <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
+                    ItemsSource="{Binding OutputChoices}"
+                    SelectedItem="{Binding EnforcedOutput, Mode=TwoWay}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:DeviceChoice">
+                <TextBlock Text="{Binding Label}"/>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+
+          <TextBlock Grid.Row="2" Text="Default input" Classes="h" VerticalAlignment="Center"/>
+          <ComboBox Grid.Row="2" Grid.Column="1" HorizontalAlignment="Stretch"
+                    ItemsSource="{Binding InputChoices}"
+                    SelectedItem="{Binding EnforcedInput, Mode=TwoWay}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:DeviceChoice">
+                <TextBlock Text="{Binding Label}"/>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </Grid>
+
+        <TextBlock Text="Tip: enforcing OpenXLR Chat as default input makes voice apps record the Chat mix automatically."
+                   FontSize="11" Foreground="#6b7285" TextWrapping="Wrap"/>
+      </StackPanel>
+    </Border>
+
+    <Button Content="Close" HorizontalAlignment="Right" Padding="18,6" Click="OnClose"/>
+  </StackPanel>
+</Window>

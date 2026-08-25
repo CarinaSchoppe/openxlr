@@ -1,0 +1,70 @@
+using System;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Platform;
+
+namespace OpenXLR.UI;
+
+public partial class MainWindow : Window
+{
+    private readonly DaemonClient _client = new();
+    private readonly MainViewModel _vm;
+    private TrayIcon? _tray;
+    private bool _reallyExit;
+
+    public MainWindow()
+    {
+        InitializeComponent();
+        _vm = new MainViewModel(_client);
+        DataContext = _vm;
+        _client.Start();          // connects, and keeps retrying if the daemon isn't up yet
+        SetupTray();
+
+        Closing += (_, e) =>
+        {
+            // With minimize-to-tray on, the close button hides the window; the
+            // tray menu's Quit (or disabling the option) exits for real.
+            if (_vm.MinimizeToTray && !_reallyExit)
+            {
+                e.Cancel = true;
+                Hide();
+            }
+        };
+        Closed += async (_, _) =>
+        {
+            _tray?.Dispose();
+            await _client.DisposeAsync();
+        };
+    }
+
+    private void SetupTray()
+    {
+        try
+        {
+            var menu = new NativeMenu();
+            var show = new NativeMenuItem("Show mixer");
+            show.Click += (_, _) => { Show(); Activate(); };
+            var quit = new NativeMenuItem("Quit OpenXLR");
+            quit.Click += (_, _) => { _reallyExit = true; Close(); };
+            menu.Items.Add(show);
+            menu.Items.Add(new NativeMenuItemSeparator());
+            menu.Items.Add(quit);
+
+            _tray = new TrayIcon
+            {
+                Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://OpenXLR.UI/Assets/icon.png"))),
+                ToolTipText = "OpenXLR",
+                Menu = menu,
+            };
+            _tray.Clicked += (_, _) => { Show(); Activate(); };
+        }
+        catch (Exception)
+        {
+            // No tray host available: the option simply has no effect.
+            _tray = null;
+        }
+    }
+
+    private void OnOptions(object? sender, RoutedEventArgs e)
+        => new OptionsWindow(new OptionsViewModel(_client, _vm)).ShowDialog(this);
+}

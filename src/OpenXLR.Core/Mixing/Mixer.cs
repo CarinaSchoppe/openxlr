@@ -180,6 +180,9 @@ public sealed class Mixer : IDisposable
     /// <summary>Every sink and source the user can pick, real or virtual.</summary>
     public IReadOnlyList<AudioNode> ListDevices() => _pw.ListDevices();
 
+    /// <summary>Close and reopen an output device's stream (see adapter).</summary>
+    public void BounceOutput(string sinkName) => _pw.BounceSink(sinkName);
+
     /// <summary>Current user choices, for persisting.</summary>
     public MixerSettings ExportSettings()
     {
@@ -350,10 +353,12 @@ public sealed class Mixer : IDisposable
         {
             _monitorOutputs.Add(name);
             if (monitor is null) continue;
-            // Pseudo-outputs of one device ("sink#hp1", "sink#lineout", ...)
-            // share the same physical route; only the selector differs.
+            // Pseudo-outputs of one device share a route when they ride the
+            // same USB return pair: the analog outputs (hp1/hp2/lineout) all
+            // use the monitor-bus pair, while the aux port has its own.
             int marker = name.IndexOf('#');
-            string routeKey = marker >= 0 ? name[..marker] + "#bus" : name;
+            string routeKey = marker < 0 ? name
+                : name[..marker] + (name[(marker + 1)..] == "usbaux" ? "#auxbus" : "#bus");
             if (!_monitorRoutes.ContainsKey(routeKey))
                 _monitorRoutes[routeKey] = _pw.RouteMixToOutput(monitor.SinkName, name);
         }

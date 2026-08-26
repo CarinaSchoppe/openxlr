@@ -23,8 +23,12 @@ public partial class MainWindow : Window
         Closing += (_, e) =>
         {
             // With minimize-to-tray on, the close button hides the window; the
-            // tray menu's Quit (or disabling the option) exits for real.
-            if (_vm.MinimizeToTray && !_reallyExit)
+            // tray menu's Quit (or disabling the option) exits for real. Only a
+            // user-initiated window close is intercepted: cancelling an
+            // OS/application shutdown request here blocks the whole system
+            // from logging out or rebooting.
+            if (_vm.MinimizeToTray && !_reallyExit &&
+                e.CloseReason == WindowCloseReason.WindowClosing)
             {
                 e.Cancel = true;
                 Hide();

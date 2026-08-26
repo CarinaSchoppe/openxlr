@@ -200,7 +200,7 @@
           <TextBlock Grid.Column="5" Text="{Binding OutputVolumeText}" Classes="val"
                      VerticalAlignment="Center" HorizontalAlignment="Right"/>
         </Grid>
-        <TextBlock Text="Tick every device the Monitor mix should play on. The Wave XLR Pro's own outputs (Headphones 1/2, USB Aux, Line Out) switch the hardware when ticked. XLR 1, XLR 2 and Line In feed their channels automatically. System default devices for apps are set in Options."
+        <TextBlock Text="Tick every device the Monitor mix should play on. The Wave XLR Pro's own outputs (Headphones 1/2, USB Aux, Line Out) switch the hardware when ticked; enabling USB Aux Out briefly interrupts the Pro's audio while its stream restarts. XLR 1, XLR 2 and Line In feed their channels automatically. System default devices for apps are set in Options."
                    FontSize="11" Foreground="#6b7285"/>
       </StackPanel>
       </Expander>

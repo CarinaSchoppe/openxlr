@@ -148,6 +148,24 @@ public sealed class PipeWireAdapter
     public double? GetSinkVolume(string sinkName)
         => ParseVolumePercent(TryRun("pactl", "get-sink-volume", BareSink(sinkName)));
 
+    /// <summary>
+    /// Force a sink's hardware stream to close and reopen (brief audio gap on
+    /// that device). The Wave XLR Pro latches its aux-return routing at
+    /// playback-stream start, so enabling the aux output on a running stream
+    /// needs this bounce to take effect.
+    /// </summary>
+    public void BounceSink(string sinkName)
+    {
+        string bare = BareSink(sinkName);
+        try
+        {
+            Run("pactl", "suspend-sink", bare, "1");
+            Thread.Sleep(300);
+            Run("pactl", "suspend-sink", bare, "0");
+        }
+        catch (InvalidOperationException) { /* device gone */ }
+    }
+
     /// <summary>Volume of a source as 0..1.</summary>
     public double? GetSourceVolume(string sourceName)
         => ParseVolumePercent(TryRun("pactl", "get-source-volume", sourceName));
@@ -333,11 +351,12 @@ public sealed class PipeWireAdapter
 
     /// <summary>
     /// Point a mix's sink at an output device. A "sink#..." pseudo-device
-    /// address (the Wave XLR Pro's physical outputs) routes into the device's
-    /// hardware monitor bus: USB playback channels 2/3 (pair 1), which the
-    /// device sums into whichever physical outputs have their selector enabled
-    /// (block 0x0001 off90..93). Confirmed by ear on both headphone jacks;
-    /// channels 0/1 do NOT reach the monitor bus.
+    /// address (the Wave XLR Pro's physical outputs) routes into the USB
+    /// return pair that reaches that output's hardware mix: the analog
+    /// outputs (jacks, line out) carry the Personal mix, fed by channels 2/3
+    /// (confirmed by ear); the USB Aux port carries the aux mix, fed by the
+    /// Music return on channels 10/11 (confirmed from the working Windows
+    /// capture; the aux port receives no audio from the Personal mix pairs).
     /// </summary>
     public PortLink RouteMixToOutput(string mixSink, string outputSink)
     {
@@ -345,7 +364,8 @@ public sealed class PipeWireAdapter
         int marker = outputSink.IndexOf('#');
         if (marker >= 0)
         {
-            pair = 1;   // monitor-bus return = channels 2/3
+            string suffix = outputSink[(marker + 1)..];
+            pair = suffix == "usbaux" ? 5 : 1;   // aux mix return vs monitor-bus return
             outputSink = outputSink[..marker];
         }
         return LinkNodes(mixSink, "monitor", outputSink, "playback", pair);

@@ -158,7 +158,10 @@ public sealed class DeviceManager : BackgroundService
                 bool changed = false;
                 if (s.OutHp1 != hp1) { _device.SetOutHp1(hp1); changed = true; }
                 if (s.OutHp2 != hp2) { _device.SetOutHp2(hp2); changed = true; }
-                if (s.OutUsbAux != usbAux) { _device.SetOutUsbAux(usbAux); changed = true; }
+                // The aux output needs its matrix cell open besides the
+                // selector, so re-apply when either is missing.
+                if (s.OutUsbAux != usbAux || (usbAux && !s.AuxReturnEnabled))
+                { _device.SetOutUsbAux(usbAux); changed = true; }
                 if (s.OutLineOut != lineOut) { _device.SetOutLineOut(lineOut); changed = true; }
                 if (changed)
                 {

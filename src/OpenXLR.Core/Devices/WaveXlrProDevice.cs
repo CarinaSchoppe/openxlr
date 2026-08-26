@@ -57,16 +57,27 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     private const int Hp2VolOffset = 2;    // block 0x0005 (headphones 2)
     private const int CrossfadeOffset = 0; // block 0x0001
 
-    // Physical output source selectors in block 0x0001 (confirmed by capture 2
-    // + live jack test): one byte per output, 0x1e = carries the monitor bus,
-    // 0x23 = off. 0x20 was also observed on the USB Aux out (third source
-    // state, unlabeled). A BlockCommit write must follow for it to take effect.
+    // Physical output MIX ASSIGNMENT in block 0x0001 (captures 2-4 + live jack
+    // test): one byte per output, holding a hardware-mix id. 0x1e = the
+    // Personal/monitor mix (feeds the analog outputs; carries USB return pair
+    // 2/3 among others), 0x20 = the aux mix (Wave Link's user-created
+    // "MacBook Mix"), 0x23 = unassigned. A BlockCommit write must follow.
     private const int OutHp1Offset = 90;
     private const int OutHp2Offset = 91;
     private const int OutUsbAuxOffset = 92;
     private const int OutLineOutOffset = 93;
     private const byte OutSourceMonitor = 0x1e;
+    private const byte OutSourceAuxMix = 0x20;
     private const byte OutSourceOff = 0x23;
+
+    // The aux mix's matrix cell for the Music return channel (USB playback
+    // pair 10/11), decoded from capture 4 where music was confirmed flowing to
+    // the aux port: level byte (quarter-dB attenuation, 0 = 0 dB) and its
+    // membership bit. OpenXLR streams the monitor mix on that pair when the
+    // aux output is enabled.
+    private const int AuxMixMusicLevelOffset = 45;
+    private const int AuxMixMusicMemberOffset = 49;
+    private const byte AuxMixMusicMemberMask = 0x02;
 
     // Flag masks in block 0x0004 offset 1 (all confirmed via the logged
     // capture 2 and, for mute, bidirectionally against ALSA).
@@ -182,6 +193,8 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
             OutHp2 = b1[OutHp2Offset] != OutSourceOff,
             OutUsbAux = b1[OutUsbAuxOffset] != OutSourceOff,
             OutLineOut = b1[OutLineOutOffset] != OutSourceOff,
+            AuxReturnEnabled = b1[AuxMixMusicLevelOffset] == 0x00 &&
+                               (b1[AuxMixMusicMemberOffset] & AuxMixMusicMemberMask) != 0,
             AuxLevelDb = -b4[AuxLevelOffset] / 4.0,
             AuxLevelLock = (b4[AuxLevelLockOffset] & 0x04) != 0,
         };
@@ -283,8 +296,24 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
 
     public void SetOutHp1(bool on) => SetOutputSelector(OutHp1Offset, on);
     public void SetOutHp2(bool on) => SetOutputSelector(OutHp2Offset, on);
-    public void SetOutUsbAux(bool on) => SetOutputSelector(OutUsbAuxOffset, on);
     public void SetOutLineOut(bool on) => SetOutputSelector(OutLineOutOffset, on);
+
+    /// <summary>
+    /// The USB Aux port cannot tap the Personal mix (verified: no USB playback
+    /// pair reaches it under 0x1e); it works assigned to the aux mix with the
+    /// Music return cell open, exactly how Wave Link delivers audio there.
+    /// </summary>
+    public void SetOutUsbAux(bool on)
+    {
+        byte[] b = Read(BlockCrossfade, CrossfadeLen);
+        b[OutUsbAuxOffset] = on ? OutSourceAuxMix : OutSourceOff;
+        if (on)
+        {
+            b[AuxMixMusicLevelOffset] = 0x00;                 // 0 dB
+            b[AuxMixMusicMemberOffset] |= AuxMixMusicMemberMask;
+        }
+        WriteCommitted(BlockCrossfade, b);
+    }
 
     private void SetOutputSelector(int offset, bool on)
     {

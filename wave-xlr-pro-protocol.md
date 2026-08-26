@@ -258,3 +258,46 @@ outHp1/outHp2/outUsbAux/outLineOut/auxLevelDb/auxLevelLock/compressor (polarity 
 MONITOR ROUTING toggles in the HEADPHONES card, USB Aux level+lock row, Compressor button,
 asterisks gone. Mixer: `<proSink>#phones` pseudo-sink "Wave XLR Pro Headphones" in the Monitor
 picker, routed to channels 2/3.
+
+## 7. Captures 3-4 (2026-08-26): the hardware mix matrix and the aux-out solution
+
+Sources: `xlrpro3.pcapng` + ordered log + `capture-analysis/mixes.png` (Wave Link "Mixes (XLR
+Pro Hardware Mixer)" screenshot), `xlrpro4.pcapng` + ordered log with music confirmed flowing
+to a MacBook on the aux port. Everything below is verified live on Linux by ear and meter.
+
+### Block 0x0001 is the hardware mix matrix
+
+- The device runs HARDWARE mixes; Wave Link's Personal Mix and user-created mixes (here
+  "MacBook Mix") are device-side. Chat Mix has no output assignment and is software-only.
+- Output selector bytes off90..93 hold a MIX ID per physical output: 0x1e = Personal mix,
+  0x20 = the aux/user mix, 0x23 = unassigned. (Not "modes" as earlier assumed.)
+- The matrix is stored in aa5555-delimited per-mix sections full of quarter-dB attenuation
+  bytes (0x00 = 0 dB, 0xc4 = -49 dB, 0xf4 = -61 dB) plus membership bit-bytes:
+  - Personal section: line-in level off21, membership off30 (bit3 = line-in).
+  - Aux-mix section: music-return level off45, line-in membership off48 bit3 (bit0 = mic,
+    set on this unit), music membership off49 bit1.
+- USB playback pairs are Wave Link channel returns; the Music channel = pair 10/11 (proven
+  from capture 4's iso OUT energy while the Mac was receiving). Pairs 2/3, 12/13, 14/15 are
+  other channel returns summed into the Personal mix (jack listening test).
+
+### The aux-out recipe (implemented in OpenXLR, verified end to end)
+
+1. off92 = 0x20 (aux out -> aux mix) + commit.
+2. Open the music cell: off45 = 0x00, off49 |= 0x02 + commit.
+3. Stream the monitor mix on playback pair 10/11 (`#usbaux` pseudo-device routes there;
+   analog outputs keep pair 2/3 via the Personal mix).
+4. THE LATCH: the device samples the aux-return routing when the HOST PLAYBACK STREAM
+   STARTS. Changing the cell under a running stream has no effect until the stream restarts;
+   `pactl suspend-sink 1/0` (PipeWireAdapter.BounceSink) is sufficient and the daemon does it
+   automatically when aux out is newly enabled.
+5. Confirmed stable for 30s+ with the full daemon (capture stream, 10 Hz poll, and mixer all
+   running); simultaneous Headphones 1 + USB Aux Out both carry the monitor mix.
+
+### Debugging lesson that cost two hours
+
+Untagged test streams played at the Pro sink get moved to a channel sink by OpenXLR's own
+stream matcher within ~1 s, silently invalidating hardware tests ("worked for a few seconds").
+Every "the daemon breaks it" observation was this. Test streams must set
+`PULSE_PROP="node.name=OpenXLR_test"` (the matcher excludes OpenXLR-named streams) or play
+via a channel sink. The earlier "capture stream conflicts with aux forwarding" conclusion was
+an artifact of this and is WITHDRAWN.

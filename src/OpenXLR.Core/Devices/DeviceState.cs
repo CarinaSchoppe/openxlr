@@ -47,6 +47,14 @@ public sealed record DeviceState
     public bool OutUsbAux { get; init; }
     public bool OutLineOut { get; init; }
 
+    /// <summary>
+    /// Whether the aux mix's Music-return matrix cell is open (level 0 dB +
+    /// membership bit). Required, with the aux selector, for USB playback to
+    /// reach the aux port; the receiving side must (re)open its input stream
+    /// after this is set, because the aux stream latches its routing at open.
+    /// </summary>
+    public bool AuxReturnEnabled { get; init; }
+
     // USB Aux input stage (block 0x0004 tail): level -60..0 dB and level lock.
     public double AuxLevelDb { get; init; }
     public bool AuxLevelLock { get; init; }

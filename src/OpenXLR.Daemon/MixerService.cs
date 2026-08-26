@@ -36,17 +36,30 @@ public sealed class MixerService : IHostedService, IDisposable
     /// Re-asserted on every sweep, since the device only honours them while
     /// connected.
     /// </summary>
+    private bool _prevAuxDesired;
+
     private void SyncOutputSelectors()
     {
+        string? auxOutput = null;
         var suffixes = new HashSet<string>();
         foreach (string output in _mixer.MonitorOutputs)
         {
             int marker = output.IndexOf('#');
-            if (marker >= 0) suffixes.Add(output[(marker + 1)..]);
+            if (marker < 0) continue;
+            string suffix = output[(marker + 1)..];
+            suffixes.Add(suffix);
+            if (suffix == "usbaux") auxOutput = output;
         }
+        bool auxDesired = auxOutput is not null;
         _devices.EnsureOutputSelectors(
             hp1: suffixes.Contains("hp1"), hp2: suffixes.Contains("hp2"),
-            usbAux: suffixes.Contains("usbaux"), lineOut: suffixes.Contains("lineout"));
+            usbAux: auxDesired, lineOut: suffixes.Contains("lineout"));
+
+        // The device latches aux-return routing at playback-stream start, so a
+        // freshly enabled aux output needs the stream bounced once.
+        if (auxDesired && !_prevAuxDesired && _mixer.Built)
+            _mixer.BounceOutput(auxOutput!);
+        _prevAuxDesired = auxDesired;
     }
 
     /// <summary>Raised when mixer state changes, so the hub can broadcast.</summary>

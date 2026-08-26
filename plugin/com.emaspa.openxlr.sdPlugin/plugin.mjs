@@ -70,6 +70,27 @@ host.onclose = () => process.exit(0);
 // Visible action instances: context -> {action, settings, controller}
 const instances = new Map();
 
+// A dial can hold a stack of targets; long-pressing the strip cycles them.
+const targetsOf = (inst) =>
+  Array.isArray(inst.settings.targets) && inst.settings.targets.length
+    ? inst.settings.targets
+    : inst.settings.target ? [inst.settings.target] : [];
+const activeTarget = (inst) => {
+  const ts = targetsOf(inst);
+  return ts.length ? ts[(inst.settings.activeIndex ?? 0) % ts.length] : undefined;
+};
+// Which gesture cycles the stack (the other keeps its mute role); only
+// meaningful once the stack has at least two entries.
+const cyclesOn = (inst, gesture) =>
+  targetsOf(inst).length > 1 && (inst.settings.cycleGesture ?? "tap") === gesture;
+function cycleStack(context, inst) {
+  const ts = targetsOf(inst);
+  if (ts.length < 2) return;
+  inst.settings.activeIndex = ((inst.settings.activeIndex ?? 0) + 1) % ts.length;
+  send({ event: "setSettings", context, payload: inst.settings });
+  refresh(context);
+}
+
 host.onmessage = (e) => {
   let m;
   try { m = JSON.parse(e.data); } catch { return; }
@@ -96,8 +117,14 @@ host.onmessage = (e) => {
       if (inst) onDialRotate(m.context, inst, m.payload?.ticks ?? 0);
       break;
     case "dialDown":
+      if (!inst) break;
+      if (cyclesOn(inst, "push")) cycleStack(m.context, inst);
+      else onDialPress(m.context, inst);
+      break;
     case "touchTap":
-      if (inst) onDialPress(m.context, inst);
+      if (!inst) break;
+      if (cyclesOn(inst, "tap")) cycleStack(m.context, inst);
+      else onDialPress(m.context, inst);
       break;
   }
 };
@@ -160,7 +187,8 @@ function dialValue(target) {
   switch (target) {
     case "outputVolume": {
       const v = x?.outputVolume ?? 0;
-      return { label: "Monitor", pct: pct(v), text: `${pct(v)}%`, muted: false };
+      const muted = mixOf("monitor")?.muted ?? false;
+      return { label: "Monitor", pct: pct(v), text: muted ? "MUTED" : `${pct(v)}%`, muted };
     }
     case "gain": case "gain2": {
       const db = target === "gain" ? s?.gainDb : s?.gain2Db;
@@ -173,7 +201,9 @@ function dialValue(target) {
       const db = target === "hp" ? s?.hpVolumeDb : s?.hp2VolumeDb;
       if (db == null) return null;
       const p = Math.round(((60 + db) / 60) * 100);
-      return { label: target === "hp" ? "Phones 1" : "Phones 2", pct: p, text: `${p}%`, muted: false };
+      const jackOff = (target === "hp" ? s?.outHp1 : s?.outHp2) === false;
+      return { label: target === "hp" ? "Phones 1" : "Phones 2", pct: p,
+               text: jackOff ? "MUTED" : `${p}%`, muted: jackOff };
     }
     case "auxLevel": {
       const db = s?.auxLevelDb;
@@ -206,7 +236,7 @@ function onKeyDown(context, inst) {
 }
 
 function onDialRotate(context, inst, ticks) {
-  const t = inst.settings.target;
+  const t = activeTarget(inst);
   if (!t || !daemonState) return;
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   if (t.startsWith("send:")) {
@@ -247,7 +277,7 @@ function onDialRotate(context, inst, ticks) {
 }
 
 function onDialPress(context, inst) {
-  const t = inst.settings.target;
+  const t = activeTarget(inst);
   if (!t) return;
   if (t.startsWith("send:")) {
     const [, ch, mix] = t.split(":");
@@ -268,6 +298,14 @@ function onDialPress(context, inst) {
     const control = t === "gain" ? "mute" : "mute2";
     const muted = dev()?.[control];
     if (muted != null) cmd({ cmd: "set", control, value: !muted });
+  } else if (t === "outputVolume") {
+    const muted = mixOf("monitor")?.muted;
+    if (muted != null) cmd({ cmd: "setMixMuted", mix: "monitor", value: !muted });
+  } else if (t === "hp" || t === "hp2") {
+    // no per-jack mute register exists; the output selector is the mute
+    const control = t === "hp" ? "outHp1" : "outHp2";
+    const on = dev()?.[control];
+    if (on != null) cmd({ cmd: "set", control, value: !on });
   } else if (t === "crossfade") {
     cmd({ cmd: "set", control: "crossfade", value: 100 });   // back to centre
   }
@@ -394,7 +432,7 @@ function refreshMeters() {
   if (!meterLevels) return;
   for (const [context, inst] of instances) {
     if (inst.action !== "com.emaspa.openxlr.dial") continue;
-    const key = meterKeyFor(inst.settings.target);
+    const key = meterKeyFor(activeTarget(inst));
     if (!key || !(key in meterLevels)) continue;
     const lr = meterLevels[key];
     const level = Math.max(lr[0] ?? 0, lr[1] ?? 0);
@@ -442,7 +480,8 @@ setInterval(() => {
 function refresh(context) {
   const inst = instances.get(context);
   if (!inst) return;
-  const t = inst.settings.target;
+  const t = inst.action === "com.emaspa.openxlr.dial"
+    ? activeTarget(inst) : inst.settings.target;
   if (inst.action === "com.emaspa.openxlr.toggle") {
     const v = toggleValue(t);
     send({ event: "setImage", context,

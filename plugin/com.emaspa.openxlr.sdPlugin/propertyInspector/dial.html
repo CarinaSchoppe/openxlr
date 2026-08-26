@@ -5,9 +5,17 @@
   label { display: block; margin-bottom: 6px; color: #8b93a7; }
   select { width: 100%; background: #23262f; color: #e6e9f0;
            border: 1px solid #3a3f4c; border-radius: 5px; padding: 6px; }
+  option, optgroup { background: #23262f; color: #e6e9f0; }
+  button { background: #23262f; color: #e6e9f0; border: 1px solid #3a3f4c;
+           border-radius: 5px; padding: 5px 10px; margin-top: 8px; cursor: pointer; }
+  ul { list-style: none; padding: 0; margin: 10px 0 0 0; }
+  li { background: #1d2027; border: 1px solid #3a3f4c; border-radius: 5px;
+       padding: 5px 8px; margin-bottom: 5px; display: flex;
+       justify-content: space-between; align-items: center; }
+  li button { margin: 0; padding: 1px 7px; }
 </style></head>
 <body>
-  <label for="target">What this dial adjusts</label>
+  <label for="target">Dial stack: add one or more controls (long-press the strip to cycle)</label>
   <select id="target">
     <option value="">choose…</option>
     <optgroup label="Device">
@@ -81,5 +89,62 @@
       <option value="send:sfx:auxout">SFX in Aux</option>
     </optgroup>
   </select>
-  <script src="pi.js"></script>
+  <button id="add">Add to stack</button>
+  <ul id="stack"></ul>
+  <label style="margin-top:12px">Cycle the stack with (the other gesture mutes)</label>
+  <div>
+    <label style="display:inline"><input type="radio" name="gesture" value="tap" checked> Screen tap</label>
+    <label style="display:inline; margin-left:14px"><input type="radio" name="gesture" value="push"> Dial press</label>
+  </div>
+  <script>
+    let ws = null, piUuid = null, settings = {};
+
+    function connect(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inActionInfo) {
+      piUuid = inPropertyInspectorUUID;
+      const actionInfo = JSON.parse(inActionInfo);
+      settings = actionInfo.payload?.settings ?? {};
+      if (!Array.isArray(settings.targets))
+        settings.targets = settings.target ? [settings.target] : [];
+      ws = new WebSocket("ws://localhost:" + inPort);
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ event: inRegisterEvent, uuid: piUuid }));
+        const g = settings.cycleGesture ?? "tap";
+        document.querySelector('input[name="gesture"][value="' + g + '"]').checked = true;
+        for (const r of document.querySelectorAll('input[name="gesture"]'))
+          r.addEventListener("change", () => {
+            settings.cycleGesture = document.querySelector('input[name="gesture"]:checked').value;
+            save();
+          });
+        render();
+      };
+    }
+    window.connectElgatoStreamDeckSocket = connect;
+    window.connectOpenActionSocket = connect;
+
+    function save() {
+      settings.target = settings.targets[0] ?? "";
+      settings.activeIndex = 0;
+      ws.send(JSON.stringify({ event: "setSettings", context: piUuid, payload: settings }));
+    }
+    function labelFor(v) {
+      const o = document.querySelector('#target option[value="' + v + '"]');
+      return o ? o.textContent : v;
+    }
+    function render() {
+      const ul = document.getElementById("stack");
+      ul.innerHTML = "";
+      settings.targets.forEach((t, i) => {
+        const li = document.createElement("li");
+        const x = document.createElement("button");
+        x.textContent = "\u2715";
+        x.onclick = () => { settings.targets.splice(i, 1); save(); render(); };
+        li.append(labelFor(t) + " ", x);
+        ul.appendChild(li);
+      });
+    }
+    document.getElementById("add").onclick = () => {
+      const v = document.getElementById("target").value;
+      if (v && ws) { settings.targets.push(v); save(); render(); }
+    };
+  </script>
 </body></html>

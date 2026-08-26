@@ -23,14 +23,21 @@
       <Setter Property="Template">
         <ControlTemplate>
           <DockPanel>
+            <!-- ClickMode=Press: the default Release mode re-hit-tests the
+                 pointer position on release through a path that misses over
+                 the chevron glyph at fractional display scaling, silently
+                 dropping the click; the press pipeline is reliable -->
             <ToggleButton DockPanel.Dock="Top" HorizontalAlignment="Stretch" Cursor="Hand"
+                          ClickMode="Press"
                           IsChecked="{TemplateBinding IsExpanded, Mode=TwoWay}">
               <ToggleButton.Template>
                 <ControlTemplate TargetType="ToggleButton">
                   <Grid ColumnDefinitions="*,Auto" Background="Transparent" Margin="0,0,0,4">
                     <ContentPresenter Content="{Binding $parent[Expander].Header}"
                                       VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="1" Classes="h" VerticalAlignment="Center"
+                    <!-- decorative: hit-testable glyph ink makes the button's
+                         release-position check flaky, eating the click -->
+                    <TextBlock Grid.Column="1" Classes="h" VerticalAlignment="Center" IsHitTestVisible="False"
                                Text="{Binding $parent[Expander].IsExpanded, Converter={x:Static vm:Converters.Chevron}}"/>
                   </Grid>
                 </ControlTemplate>
@@ -231,8 +238,9 @@
           <TextBlock Grid.Column="6" Text="{Binding Hp2Text}" Classes="val" VerticalAlignment="Center"
                      HorizontalAlignment="Right"/>
         </Grid>
-        <!-- hardware zero-latency blend between mic direct and PC playback -->
-        <Grid ColumnDefinitions="90,*,64">
+        <!-- hardware zero-latency blend between mic direct and PC playback;
+             the value column fits the widest readout, "mic +100" -->
+        <Grid ColumnDefinitions="90,*,74">
           <TextBlock Text="Mic ↔ PC" Classes="h" VerticalAlignment="Center"
                      ToolTip.Tip="Direct-monitor blend: left = only your mic, right = only PC audio"/>
           <Slider Grid.Column="1" Minimum="0" Maximum="200" TickFrequency="1" IsSnapToTickEnabled="True"

@@ -1,35 +1,59 @@
 # OpenXLR
 
-Native Linux control suite for the Elgato Wave XLR Pro: full hardware
-control over a reverse-engineered USB protocol, plus a Wave Link style
+Native Linux control suite for Elgato XLR interfaces: full hardware
+control over reverse-engineered USB protocols, a Wave Link style
 PipeWire submixer with per-application channels, virtual microphones,
-multi-output monitoring, and a dedicated mix for a second computer on the
-device's USB Aux port.
+multi-output monitoring, a dedicated mix for a second computer on the
+USB Aux port, and an OpenDeck plugin for Stream Deck control.
 
 ![OpenXLR mixer](docs/screenshot-mixer.png)
 
-Elgato ships no Linux software. The Wave XLR Pro enumerates as a
-class-compliant USB Audio 2.0 interface, so audio flows out of the box.
-Gain DSP, phantom power, output routing and the hardware mixer only answer
-to a vendor protocol, which this project reverse engineered from USB
-captures of Wave Link and reimplemented from scratch. The protocol is
-documented in [docs/wave-xlr-pro-protocol.md](docs/wave-xlr-pro-protocol.md).
+Elgato ships no Linux software. These devices enumerate as
+class-compliant USB audio interfaces, so audio flows out of the box.
+Gain, DSP, phantom power, output routing and the hardware mixer only
+answer to vendor protocols, which this project reverse engineered from
+USB captures of Wave Link and reimplemented from scratch. The Pro
+protocol is documented in
+[docs/wave-xlr-pro-protocol.md](docs/wave-xlr-pro-protocol.md).
 
 Not affiliated with or endorsed by Elgato. Built by protocol analysis on
 the author's own hardware.
+
+## Supported devices
+
+| Device | USB id | Status |
+|---|---|---|
+| Wave XLR Pro | 0fd9:00b4 | full support, verified on hardware |
+| XLR Dock (Stream Deck+ module) | 0fd9:00a6 | gain, mute, headphone volume; verified on hardware |
+| Wave XLR | 0fd9:007d | gain, mute, headphone volume, low impedance; protocol proven by [openwave](https://github.com/rikkichy/openwave), needs a tester |
+| Wave XLR MK.2 | 0fd9:00b6 | gain, mute, DSP, headphone volume, crossfade; decoded from captures, needs a tester |
+
+The UI shows only the controls the connected device has. With more than
+one supported interface attached, a picker in the header chooses which
+one OpenXLR drives. Own one of the untested devices? Open an issue with
+a diagnostics archive (Options, SUPPORT, Collect diagnostics) and help
+confirm the last two rows.
 
 ## Features
 
 ### Hardware control
 
-Everything Wave Link exposes for the device:
-- Per-XLR input: gain (0–80 dB), mute, low cut, expander, voice tune with
+Everything Wave Link exposes for the device. The full set, on the Wave
+XLR Pro:
+- Per-XLR input: gain (0 to 80 dB), mute, low cut, expander, voice tune with
   strength, phantom power, ClipGuard, compressor
 - USB Aux input stage: level (0 to −60 dB) and level lock
 - Both headphone outputs: independent volumes, low-impedance mode
 - Mic ↔ PC zero-latency direct-monitor crossfade
 - Physical output routing: each output (Headphones 1/2, Line Out, USB Aux)
   is switched in the device's own hardware mixer
+
+On the others, what their protocols expose so far:
+- Wave XLR MK.2: gain, mute, low cut, expander, voice tune with strength,
+  headphone volume, low impedance, crossfade
+- Wave XLR: gain, mute, headphone volume, low impedance
+- XLR Dock: gain, mute, headphone volume; the rest of its config block is
+  still being mapped
 
 ### Submixer
 
@@ -52,6 +76,26 @@ Pure PipeWire, no custom drivers or kernel modules:
 - Manage dialog with the full app registry and an installed-application
   picker to pre-assign channels from `.desktop` entries
 
+### Profiles
+
+Named scenes: every hardware setting plus the whole submix (send levels,
+mutes, masters, monitor outputs, aux state). Saved per device, recalled
+from the header or over the API, so a Stream Deck key can switch scenes.
+App routing and system defaults stay global on purpose: recalling a
+scene never rewires the desktop.
+
+### OpenDeck plugin
+
+`plugin/com.emaspa.openxlr.sdPlugin` puts the whole rig on a Stream Deck
+via [OpenDeck](https://github.com/nekename/OpenDeck): toggle keys with
+live state for every switch and mute, and dial actions with Wave Link
+style touch panels (needle, value, live level meter, mute overlay) for
+sends, masters, gains and the crossfade. A dial can hold a stack of
+targets and cycle them from a chosen gesture. Install by copying the
+plugin folder into `~/.config/opendeck/plugins/` (a symlink breaks
+OpenDeck's asset serving). Touch taps on the Stream Deck + XL need
+OpenDeck with [nekename/OpenDeck#437](https://github.com/nekename/OpenDeck/pull/437).
+
 ### Quality of life
 - Live Audio Flow graph of the whole routing, sources through outputs
 - The daemon holds your chosen system-default devices and re-asserts them
@@ -62,13 +106,13 @@ Pure PipeWire, no custom drivers or kernel modules:
 ## Architecture
 
 ```
-                    WebSocket (127.0.0.1:37890, JSON)
-   OpenXLR.UI  ────────────────┐
-   (Avalonia)                  ▼
-                        OpenXLR.Daemon  ── libusb ──►  Wave XLR Pro
-   future clients ────► (ASP.NET Core)                 (vendor protocol)
-   (OpenDeck plugin,           │
-    scripts, …)                └── pactl / pw-cli / pw-link ──► PipeWire graph
+                     WebSocket (127.0.0.1:37890, JSON)
+   OpenXLR.UI   ────────────────┐
+   (Avalonia)                   ▼
+                         OpenXLR.Daemon  ── libusb ──►  Elgato interface
+   OpenDeck plugin ────► (ASP.NET Core)                 (vendor protocol)
+   scripts, tools               │
+                                └── pactl / pw-cli / pw-link ──► PipeWire graph
 ```
 
 - `OpenXLR.Daemon` owns everything: it connects the device, polls its
@@ -110,10 +154,9 @@ bounces the stream once. Details, offsets and the discovery story:
   and WirePlumber; `pactl`, `pw-cli`, `pw-link`, `pw-dump`, `parec` on PATH
 - .NET 10 SDK to build (runtime to run)
 - libusb 1.0
-- An Elgato Wave XLR Pro (`0fd9:00b4`). Other Wave revisions speak
-  different protocols and are not supported (see
-  [rikkichy/openwave](https://github.com/rikkichy/openwave) for the
-  original Wave XLR)
+- A supported Elgato interface (see the table above); the submixer works
+  with any of them, and the aux and output routing features follow the
+  device's capabilities
 
 ## Install
 
@@ -126,8 +169,11 @@ dotnet build -c Release
 Device access (udev rule, then replug the device):
 
 ```sh
-sudo tee /etc/udev/rules.d/70-wavexlr-pro.rules << 'EOF'
+sudo tee /etc/udev/rules.d/70-openxlr.rules << 'EOF'
 SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="00b4", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="00a6", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="007d", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="00b6", MODE="0660", TAG+="uaccess"
 EOF
 sudo udevadm control --reload
 ```
@@ -155,6 +201,7 @@ user unit for the daemon and an autostart entry for the UI; a reference unit is 
 |---|---|
 | `OPENXLR_BUILD_MIXER=1` | build the PipeWire submix graph (otherwise device-control only) |
 | `OPENXLR_MONITOR_OUTPUT=<sink>` | initial monitor output (overrides saved choice) |
+| `OPENXLR_DEVICE=<pid>` | which interface to drive at start when several are attached (hex product id, e.g. `00a6`) |
 
 ## WebSocket API
 
@@ -177,9 +224,12 @@ are single JSON objects:
 | `assignApp` | `identity`, `channel`, `label?` | route an app (creates a registry entry if unseen) |
 | `forgetApp` | `identity` | drop an app and its remembered channel |
 | `setEnforcedDefaults` | `sink`, `source` | system defaults to hold |
+| `setActiveDevice` | `device` | switch to another attached interface (`vvvv:pppp`) |
+| `saveProfile` / `loadProfile` / `deleteProfile` | `name` | named scenes, scoped to the active device |
 | `getDiagnostics` | none | vendor block dump for bug reports |
 
-This is the same API a future OpenDeck/Stream Deck plugin will use.
+The OpenDeck plugin in `plugin/` is a client of this API; anything it
+does, a script can do too.
 
 ## Configuration
 
@@ -198,6 +248,7 @@ gets uploaded; attach the archive to an issue yourself.
 
 ```
 src/            .NET solution: Core (device + mixer), Daemon, UI, Probe
+plugin/         the OpenDeck (Stream Deck) plugin
 docs/           protocol documentation, research log, capture methodology
 tools/          proprobe.py, a standalone python probe for the vendor protocol
 packaging/      systemd user unit
@@ -205,9 +256,9 @@ packaging/      systemd user unit
 
 ## Status
 
-Daily-driven by the author. The next planned piece is an OpenDeck plugin
-that puts the mixes and device controls on Stream Deck keys and dials over
-the same WebSocket API.
+Daily-driven by the author with a Wave XLR Pro, an XLR Dock, and a
+Stream Deck + XL. The Wave XLR and MK.2 backends are written but need
+owners to confirm them; see the device table for how to help.
 
 ## AI disclosure
 

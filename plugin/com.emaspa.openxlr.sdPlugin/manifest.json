@@ -1,0 +1,44 @@
+{
+	"Name": "OpenXLR",
+	"Description": "Control the OpenXLR daemon: hardware DSP toggles, mix and channel faders on dials, mutes with live state on the keys.",
+	"Author": "Emanuele Sparvoli",
+	"Version": "0.1.0",
+	"CodePath": "plugin.mjs",
+	"Icon": "icons/plugin",
+	"Category": "OpenXLR",
+	"CategoryIcon": "icons/plugin",
+	"OS": [
+		{ "Platform": "linux" },
+		{ "Platform": "windows", "MinimumVersion": "10" },
+		{ "Platform": "mac", "MinimumVersion": "10.11" }
+	],
+	"Actions": [
+		{
+			"Name": "Toggle",
+			"UUID": "com.emaspa.openxlr.toggle",
+			"Icon": "icons/toggle",
+			"Tooltip": "Toggle a hardware switch, a mix mute, or a channel send mute",
+			"Controllers": ["Keypad"],
+			"SupportedInMultiActions": true,
+			"PropertyInspectorPath": "propertyInspector/toggle.html",
+			"States": [{ "Image": "icons/toggle" }]
+		},
+		{
+			"Name": "Dial",
+			"UUID": "com.emaspa.openxlr.dial",
+			"Icon": "icons/dial",
+			"Tooltip": "Adjust a level on a dial: channel sends, mix masters, gain, headphones, crossfade",
+			"Controllers": ["Encoder"],
+			"SupportedInMultiActions": false,
+			"PropertyInspectorPath": "propertyInspector/dial.html",
+			"States": [{ "Image": "icons/dial" }],
+			"Encoder": {
+				"layout": "layouts/dial.json",
+				"TriggerDescription": {
+					"Rotate": "Adjust level",
+					"Push": "Mute / reset"
+				}
+			}
+		}
+	]
+}

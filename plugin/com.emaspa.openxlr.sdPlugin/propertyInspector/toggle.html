@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  body { font-family: sans-serif; background: #16181d; color: #e6e9f0;
+         margin: 10px; font-size: 13px; }
+  label { display: block; margin-bottom: 6px; color: #8b93a7; }
+  select { width: 100%; background: #23262f; color: #e6e9f0;
+           border: 1px solid #3a3f4c; border-radius: 5px; padding: 6px; }
+</style></head>
+<body>
+  <label for="target">What this key toggles</label>
+  <select id="target">
+    <option value="">choose…</option>
+    <optgroup label="Hardware">
+      <option value="mute">XLR 1 mute</option>
+      <option value="mute2">XLR 2 mute</option>
+      <option value="phantom">XLR 1 phantom power</option>
+      <option value="phantom2">XLR 2 phantom power</option>
+      <option value="lowCut">XLR 1 low cut</option>
+      <option value="lowCut2">XLR 2 low cut</option>
+      <option value="expander">XLR 1 expander</option>
+      <option value="expander2">XLR 2 expander</option>
+      <option value="voiceTune">XLR 1 voice tune</option>
+      <option value="voiceTune2">XLR 2 voice tune</option>
+      <option value="clipGuard">XLR 1 ClipGuard</option>
+      <option value="clipGuard2">XLR 2 ClipGuard</option>
+      <option value="compressor">XLR 1 compressor</option>
+      <option value="compressor2">XLR 2 compressor</option>
+      <option value="lowImpedance">Low impedance headphones</option>
+      <option value="auxLevelLock">Aux In level lock</option>
+    </optgroup>
+    <optgroup label="Outputs">
+      <option value="outHp1">Headphones 1</option>
+      <option value="outHp2">Headphones 2</option>
+      <option value="outLineOut">Line Out</option>
+      <option value="auxPort">Aux mix to USB Aux port</option>
+    </optgroup>
+    <optgroup label="Mix mutes">
+      <option value="mixmute:monitor">Monitor mix mute</option>
+      <option value="mixmute:stream">Stream mix mute</option>
+      <option value="mixmute:chat">Chat mix mute</option>
+      <option value="mixmute:auxout">Aux mix mute</option>
+    </optgroup>
+    <optgroup label="Send mutes: Monitor">
+      <option value="sendmute:xlr1:monitor">XLR 1 in Monitor</option>
+      <option value="sendmute:xlr2:monitor">XLR 2 in Monitor</option>
+      <option value="sendmute:aux:monitor">Aux In in Monitor</option>
+      <option value="sendmute:game:monitor">Game in Monitor</option>
+      <option value="sendmute:music:monitor">Music in Monitor</option>
+      <option value="sendmute:browser:monitor">Browser in Monitor</option>
+      <option value="sendmute:system:monitor">System in Monitor</option>
+      <option value="sendmute:voicechat:monitor">Voice Chat in Monitor</option>
+      <option value="sendmute:sfx:monitor">SFX in Monitor</option>
+    </optgroup>
+    <optgroup label="Send mutes: Stream">
+      <option value="sendmute:xlr1:stream">XLR 1 in Stream</option>
+      <option value="sendmute:xlr2:stream">XLR 2 in Stream</option>
+      <option value="sendmute:aux:stream">Aux In in Stream</option>
+      <option value="sendmute:game:stream">Game in Stream</option>
+      <option value="sendmute:music:stream">Music in Stream</option>
+      <option value="sendmute:browser:stream">Browser in Stream</option>
+      <option value="sendmute:system:stream">System in Stream</option>
+      <option value="sendmute:voicechat:stream">Voice Chat in Stream</option>
+      <option value="sendmute:sfx:stream">SFX in Stream</option>
+    </optgroup>
+    <optgroup label="Send mutes: Chat">
+      <option value="sendmute:xlr1:chat">XLR 1 in Chat</option>
+      <option value="sendmute:xlr2:chat">XLR 2 in Chat</option>
+      <option value="sendmute:aux:chat">Aux In in Chat</option>
+      <option value="sendmute:game:chat">Game in Chat</option>
+      <option value="sendmute:music:chat">Music in Chat</option>
+      <option value="sendmute:browser:chat">Browser in Chat</option>
+      <option value="sendmute:system:chat">System in Chat</option>
+      <option value="sendmute:voicechat:chat">Voice Chat in Chat</option>
+      <option value="sendmute:sfx:chat">SFX in Chat</option>
+    </optgroup>
+    <optgroup label="Send mutes: Aux">
+      <option value="sendmute:xlr1:auxout">XLR 1 in Aux</option>
+      <option value="sendmute:xlr2:auxout">XLR 2 in Aux</option>
+      <option value="sendmute:aux:auxout">Aux In in Aux</option>
+      <option value="sendmute:game:auxout">Game in Aux</option>
+      <option value="sendmute:music:auxout">Music in Aux</option>
+      <option value="sendmute:browser:auxout">Browser in Aux</option>
+      <option value="sendmute:system:auxout">System in Aux</option>
+      <option value="sendmute:voicechat:auxout">Voice Chat in Aux</option>
+      <option value="sendmute:sfx:auxout">SFX in Aux</option>
+    </optgroup>
+  </select>
+  <script src="pi.js"></script>
+</body></html>

@@ -32,27 +32,31 @@ public sealed record MixerConfig
             new MixDefinition("monitor", "Monitor", MixKind.Monitor) { Volume = 1.0 },
             new MixDefinition("stream", "Stream", MixKind.VirtualMic) { Volume = 1.0 },
             new MixDefinition("chat", "Chat", MixKind.VirtualMic) { Volume = 1.0 },
+            // What the second computer on the USB Aux port receives.
+            new MixDefinition("auxout", "Aux", MixKind.AuxPort) { Volume = 1.0 },
         ],
         Channels =
         [
-            new ChannelDefinition("xlr1", "XLR 1") { Levels = Level(1.0, 1.0, 1.0), MutedIn = new HashSet<string> { "monitor" }, InputPair = 0 },
-            new ChannelDefinition("xlr2", "XLR 2") { Levels = Level(1.0, 1.0, 1.0), MutedIn = new HashSet<string> { "monitor" }, InputPair = 1 },
+            new ChannelDefinition("xlr1", "XLR 1") { Levels = Level(1.0, 1.0, 1.0, 1.0), MutedIn = new HashSet<string> { "monitor" }, InputPair = 0 },
+            new ChannelDefinition("xlr2", "XLR 2") { Levels = Level(1.0, 1.0, 1.0, 1.0), MutedIn = new HashSet<string> { "monitor" }, InputPair = 1 },
             // The third hardware input stage is shared: the USB Aux port and the
             // Line In jack both arrive on capture pair 2 (verified live with a
             // MacBook on USB Aux; every other capture channel stayed at digital
             // zero). One channel therefore serves both.
-            new ChannelDefinition("aux", "Aux In") { Levels = Level(1.0, 1.0, 1.0), MutedIn = new HashSet<string> { "monitor" }, InputPair = 2 },
-            new ChannelDefinition("game", "Game") { Levels = Level(0.5, 0.5, 0.5) },
-            new ChannelDefinition("music", "Music") { Levels = Level(1.0, 1.0, 1.0) },
-            new ChannelDefinition("browser", "Browser") { Levels = Level(1.0, 1.0, 1.0) },
-            new ChannelDefinition("system", "System") { Levels = Level(0.6, 0.6, 0.6) },
-            new ChannelDefinition("voicechat", "Voice Chat") { Levels = Level(1.0, 1.0, 1.0) },
-            new ChannelDefinition("sfx", "SFX") { Levels = Level(1.0, 1.0, 1.0) },
+            // Aux In must NEVER feed the Aux mix: that would loop the second
+            // computer's audio straight back to it.
+            new ChannelDefinition("aux", "Aux In") { Levels = Level(1.0, 1.0, 1.0, 0.0), MutedIn = new HashSet<string> { "monitor", "auxout" }, InputPair = 2 },
+            new ChannelDefinition("game", "Game") { Levels = Level(0.5, 0.5, 0.5, 0.5) },
+            new ChannelDefinition("music", "Music") { Levels = Level(1.0, 1.0, 1.0, 1.0) },
+            new ChannelDefinition("browser", "Browser") { Levels = Level(1.0, 1.0, 1.0, 1.0) },
+            new ChannelDefinition("system", "System") { Levels = Level(0.6, 0.6, 0.6, 0.6) },
+            new ChannelDefinition("voicechat", "Voice Chat") { Levels = Level(1.0, 1.0, 1.0, 1.0) },
+            new ChannelDefinition("sfx", "SFX") { Levels = Level(1.0, 1.0, 1.0, 1.0) },
         ],
     };
 
-    private static Dictionary<string, double> Level(double monitor, double stream, double chat)
-        => new() { ["monitor"] = monitor, ["stream"] = stream, ["chat"] = chat };
+    private static Dictionary<string, double> Level(double monitor, double stream, double chat, double auxout)
+        => new() { ["monitor"] = monitor, ["stream"] = stream, ["chat"] = chat, ["auxout"] = auxout };
 }
 
 public enum MixKind
@@ -61,6 +65,8 @@ public enum MixKind
     Monitor,
     /// <summary>Published as a virtual capture device for OBS/Discord.</summary>
     VirtualMic,
+    /// <summary>Routed to the audio interface's aux port (the second computer).</summary>
+    AuxPort,
 }
 
 public sealed record MixDefinition(string Id, string Name, MixKind Kind)
@@ -107,6 +113,9 @@ public sealed record MixerState
 
     /// <summary>Volume of the selected output device (0..1), or null.</summary>
     public double? OutputVolume { get; init; }
+
+    /// <summary>Whether the Aux mix is sent to the device's USB Aux port.</summary>
+    public bool AuxPortEnabled { get; init; }
 
     /// <summary>Enforced system default devices; null = not enforced.</summary>
     public string? EnforcedDefaultSink { get; init; }

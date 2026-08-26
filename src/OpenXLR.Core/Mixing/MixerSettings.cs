@@ -38,6 +38,12 @@ public sealed record MixerSettings
     public List<SavedApp> KnownApps { get; init; } = [];
 
     /// <summary>
+    /// Whether the Aux mix feeds the USB Aux port. Null in files written before
+    /// the Aux mix existed; migrated from the old monitor-destination choice.
+    /// </summary>
+    public bool? AuxPortEnabled { get; init; }
+
+    /// <summary>
     /// Devices to enforce as the system defaults, Wave Link style: when set,
     /// the daemon re-asserts them every sweep so nothing else can steal them.
     /// Null means do not enforce.

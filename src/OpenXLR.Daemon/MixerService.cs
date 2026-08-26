@@ -40,26 +40,29 @@ public sealed class MixerService : IHostedService, IDisposable
 
     private void SyncOutputSelectors()
     {
-        string? auxOutput = null;
         var suffixes = new HashSet<string>();
+        string? anyProOutput = null;
         foreach (string output in _mixer.MonitorOutputs)
         {
             int marker = output.IndexOf('#');
             if (marker < 0) continue;
-            string suffix = output[(marker + 1)..];
-            suffixes.Add(suffix);
-            if (suffix == "usbaux") auxOutput = output;
+            suffixes.Add(output[(marker + 1)..]);
+            anyProOutput = output;
         }
-        bool auxDesired = auxOutput is not null;
+        // The USB Aux port follows the Aux mix, not the monitor selection.
+        bool auxDesired = _mixer.AuxPortEnabled;
         _devices.EnsureOutputSelectors(
             hp1: suffixes.Contains("hp1"), hp2: suffixes.Contains("hp2"),
             usbAux: auxDesired, lineOut: suffixes.Contains("lineout"));
 
         // The device latches aux-return routing at playback-stream start, so a
-        // freshly enabled aux output needs the stream bounced once.
+        // freshly enabled aux output needs the stream bounced once. The bounce
+        // needs any address on the physical sink; derive one from a Pro
+        // pseudo-output or fall back to the aux route's own target.
         if (auxDesired && !_prevAuxDesired && _mixer.Built)
-            _mixer.BounceOutput(auxOutput!);
+            _mixer.BounceAuxTarget();
         _prevAuxDesired = auxDesired;
+        _ = anyProOutput;
     }
 
     /// <summary>Raised when mixer state changes, so the hub can broadcast.</summary>
@@ -132,7 +135,7 @@ public sealed class MixerService : IHostedService, IDisposable
                 try
                 {
                     if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()
-                        | _mixer.EnsureInputFeeds()) Changed?.Invoke();
+                        | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()) Changed?.Invoke();
                     SyncOutputSelectors();
                 }
                 catch (Exception ex) { _log.LogDebug("stream sweep: {msg}", ex.Message); }
@@ -253,6 +256,10 @@ public sealed class MixerService : IHostedService, IDisposable
                     break;
                 case "setEnforcedDefaults":
                     _mixer.SetEnforcedDefaults(cmd.Sink, cmd.Source);
+                    break;
+                case "setAuxPortEnabled":
+                    _mixer.SetAuxPortEnabled(cmd.Value.GetBoolean());
+                    SyncOutputSelectors();
                     break;
                 default:
                     return $"unknown mixer command '{cmd.Cmd}'";

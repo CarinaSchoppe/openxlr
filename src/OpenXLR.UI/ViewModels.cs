@@ -563,6 +563,8 @@ public sealed class MainViewModel : ViewModelBase
             SyncList(Mixes, mixes, m => m["id"]!.GetValue<string>(),
                 (m, vm) => vm.ApplyFromDaemon(m),
                 m => new MixViewModel(_client, m["id"]!.GetValue<string>(), m["name"]!.GetValue<string>()));
+            bool auxOn = mixer["auxPortEnabled"]?.GetValue<bool>() ?? true;
+            foreach (MixViewModel mv in Mixes.Where(mv => mv.IsAuxPort)) mv.ApplyAuxPort(auxOn);
         }
 
         if (mixer["channels"] is JsonArray channels)
@@ -718,6 +720,16 @@ public sealed class MixViewModel : ViewModelBase, IHasId
     private bool _muted;
     public bool Muted { get => _muted; set { if (Set(ref _muted, value) && !_applying) _ = _client.SetMixMutedAsync(Id, value); } }
 
+    /// <summary>Only the Aux mix carries the port toggle.</summary>
+    public bool IsAuxPort => Id == "auxout";
+
+    private bool _auxPortEnabled = true;
+    public bool AuxPortEnabled
+    {
+        get => _auxPortEnabled;
+        set { if (Set(ref _auxPortEnabled, value) && !_applying) _ = _client.SetAuxPortEnabledAsync(value); }
+    }
+
     private double _meterL;
     public double MeterL { get => _meterL; set => Set(ref _meterL, Math.Min(value, 1.0)); }
     private double _meterR;
@@ -732,6 +744,13 @@ public sealed class MixViewModel : ViewModelBase, IHasId
                 Volume = n["volume"]?.GetValue<double>() ?? 1.0;
             Muted = n["muted"]?.GetValue<bool>() ?? false;
         }
+        finally { _applying = false; }
+    }
+
+    public void ApplyAuxPort(bool enabled)
+    {
+        _applying = true;
+        try { AuxPortEnabled = enabled; }
         finally { _applying = false; }
     }
 }

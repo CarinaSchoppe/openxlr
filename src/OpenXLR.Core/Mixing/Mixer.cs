@@ -38,6 +38,12 @@ public sealed class Mixer : IDisposable
     private readonly List<PortLink> _inputFeeds = [];
     private string? _inputDevice;   // the capture device the feeds come from
 
+    // The Aux mix's route into the device's USB Aux port (return pair), and
+    // whether the user wants that port fed at all.
+    private PortLink? _auxRoute;
+    private string? _auxTargetSink;
+    private bool _auxPortEnabled = true;
+
     // Cached hardware volume of the selected output device, so external
     // changes (KDE applet, hardware knobs) can be detected and pushed.
     private double? _outputVolume;
@@ -138,6 +144,7 @@ public sealed class Mixer : IDisposable
             _ = previousDefaultSource;   // defaults are governed by enforcement only
             _ = defaultSource;           // input channels are hardware-wired, not selectable
             WireInputFeedsLocked();
+            WireAuxRouteLocked();
         }
     }
 
@@ -159,6 +166,81 @@ public sealed class Mixer : IDisposable
         {
             PortLink feed = _pw.RouteInputToChannel(_inputDevice, ch.SinkName, ch.InputPair!.Value);
             if (feed.Pairs.Count > 0) _inputFeeds.Add(feed);
+        }
+    }
+
+    /// <summary>
+    /// Route the Aux mix into the device's USB Aux port (its dedicated return
+    /// pair) when enabled and the device is present. The port selector and
+    /// matrix cell are the daemon's job; this is only the PipeWire leg.
+    /// </summary>
+    private void WireAuxRouteLocked()
+    {
+        if (_auxRoute is not null) { _pw.Unlink(_auxRoute); _auxRoute = null; }
+        _auxTargetSink = null;
+        if (!_auxPortEnabled) return;
+        MixDefinition? aux = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.AuxPort);
+        if (aux is null) return;
+        // The raw sink is hidden from pickers, so derive it from any Pro
+        // pseudo-output's bare name.
+        string? proSink = _pw.ListDevices()
+            .Where(d => d.Kind == AudioNodeKind.Sink &&
+                        d.Name.Contains("Wave_XLR", StringComparison.OrdinalIgnoreCase))
+            .Select(d => { int m = d.Name.IndexOf('#'); return m < 0 ? d.Name : d.Name[..m]; })
+            .FirstOrDefault();
+        if (proSink is null) return;
+        PortLink route = _pw.RouteMixToOutput(aux.SinkName, proSink + "#usbaux");
+        if (route.Pairs.Count > 0) { _auxRoute = route; _auxTargetSink = proSink; }
+    }
+
+    /// <summary>
+    /// Bounce the aux port's physical sink so the device re-latches its return
+    /// routing. A plain suspend cycle is not enough while our port links keep
+    /// the sink busy, so every link to it is dropped first, the stream is
+    /// cycled on a genuinely idle sink, and the links are rebuilt (which
+    /// reopens the stream with the matrix already set).
+    /// </summary>
+    public void BounceAuxTarget()
+    {
+        string? sink;
+        IReadOnlyList<string> monitorSelection;
+        lock (_gate)
+        {
+            sink = _auxTargetSink;
+            if (sink is null || !_built) return;
+            monitorSelection = [.. _monitorOutputs];
+            foreach (PortLink route in _monitorRoutes.Values) _pw.Unlink(route);
+            _monitorRoutes.Clear();
+            if (_auxRoute is not null) { _pw.Unlink(_auxRoute); _auxRoute = null; }
+        }
+        _pw.BounceSink(sink);
+        lock (_gate)
+        {
+            SetMonitorOutputsLocked(monitorSelection);
+            WireAuxRouteLocked();
+        }
+    }
+
+    /// <summary>Whether the Aux mix feeds the USB Aux port.</summary>
+    public bool AuxPortEnabled { get { lock (_gate) return _auxPortEnabled; } }
+
+    public void SetAuxPortEnabled(bool on)
+    {
+        lock (_gate)
+        {
+            _auxPortEnabled = on;
+            if (_built) WireAuxRouteLocked();
+        }
+    }
+
+    /// <summary>Re-wire the aux route after a hotplug; true when established.</summary>
+    public bool EnsureAuxRoute()
+    {
+        lock (_gate)
+        {
+            if (!_built || !_auxPortEnabled || _auxRoute is not null) return false;
+            WireAuxRouteLocked();
+            return _auxRoute is not null;
         }
     }
 
@@ -199,6 +281,7 @@ public sealed class Mixer : IDisposable
                 KnownApps = [.. _apps.Values.Select(a => new SavedApp(a.Identity, a.Label, a.ChannelId))],
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
+                AuxPortEnabled = _auxPortEnabled,
             };
         }
     }
@@ -245,6 +328,13 @@ public sealed class Mixer : IDisposable
             if (savedOutputs.Count > 0) SetMonitorOutputsLocked(savedOutputs);
             _enforcedSink = s.EnforcedDefaultSink;
             _enforcedSource = s.EnforcedDefaultSource;
+
+            // Migration: before the Aux mix existed, "USB Aux Out" was a
+            // monitor destination; carry that intent over once.
+            _auxPortEnabled = s.AuxPortEnabled
+                ?? (s.MonitorOutputs.Any(o => o.EndsWith("#usbaux", StringComparison.Ordinal)) ||
+                    (s.MonitorOutput?.EndsWith("#usbaux", StringComparison.Ordinal) ?? false));
+            WireAuxRouteLocked();
         }
     }
 
@@ -365,6 +455,9 @@ public sealed class Mixer : IDisposable
         MixDefinition? monitor = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor);
         foreach (string name in sinkNames.Where(n => !string.IsNullOrEmpty(n)).Distinct())
         {
+            // The aux port is owned by the Aux mix now; old saved selections
+            // that still carry it as a monitor destination are dropped.
+            if (name.EndsWith("#usbaux", StringComparison.Ordinal)) continue;
             _monitorOutputs.Add(name);
             if (monitor is null) continue;
             // Pseudo-outputs of one device share a route when they ride the
@@ -604,6 +697,7 @@ public sealed class Mixer : IDisposable
                 OutputVolume = _outputVolume,
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
+                AuxPortEnabled = _auxPortEnabled,
                 Streams = [.. _apps.Values
                     .OrderByDescending(a => a.Active).ThenBy(a => a.Label, StringComparer.OrdinalIgnoreCase)],
             };
@@ -648,6 +742,7 @@ public sealed class Mixer : IDisposable
         foreach (PortLink route in _monitorRoutes.Values) _pw.Unlink(route);
         _monitorRoutes.Clear();
         _monitorOutputs.Clear();
+        if (_auxRoute is not null) { _pw.Unlink(_auxRoute); _auxRoute = null; }
         foreach (PortLink feed in _inputFeeds) _pw.Unlink(feed);
         _inputFeeds.Clear();
         _inputDevice = null;

@@ -111,6 +111,7 @@ public sealed class WebSocketHub
             case "setMonitorOutputs":
             case "setOutputVolume":
             case "setEnforcedDefaults":
+            case "setAuxPortEnabled":
                 string? mixErr = _mixer.Apply(cmd);                     // broadcasts on success
                 if (mixErr is not null) await client.SendAsync(Serialize(new ErrorMessage(mixErr)));
                 break;

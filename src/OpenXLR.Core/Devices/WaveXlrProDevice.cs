@@ -78,6 +78,11 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     private const int AuxMixMusicLevelOffset = 45;
     private const int AuxMixMusicMemberOffset = 49;
     private const byte AuxMixMusicMemberMask = 0x02;
+    // Hardware-direct input cells in the aux mix (off48 bit0 = mic, bit3 =
+    // line-in). Cleared when OpenXLR drives the port: all audio then travels
+    // through the software Aux mix, so nothing arrives twice.
+    private const int AuxMixInputMemberOffset = 48;
+    private const byte AuxMixInputMemberMask = 0x09;
 
     // Flag masks in block 0x0004 offset 1 (all confirmed via the logged
     // capture 2 and, for mute, bidirectionally against ALSA).
@@ -311,6 +316,7 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
         {
             b[AuxMixMusicLevelOffset] = 0x00;                 // 0 dB
             b[AuxMixMusicMemberOffset] |= AuxMixMusicMemberMask;
+            b[AuxMixInputMemberOffset] &= unchecked((byte)~AuxMixInputMemberMask);
         }
         WriteCommitted(BlockCrossfade, b);
     }

@@ -245,7 +245,7 @@
           <StackPanel Orientation="Horizontal" Spacing="6">
             <TextBlock Text="MONITOR" Classes="h" VerticalAlignment="Center"/>
             <TextBlock Text="&#x24D8;" Classes="h" FontSize="12" VerticalAlignment="Center" Margin="0,-1,0,0" Cursor="Help"
-                       ToolTip.Tip="Tick every device the Monitor mix should play on. The Wave XLR Pro's own outputs (Headphones 1/2, USB Aux, Line Out) switch the hardware when ticked; enabling USB Aux Out briefly interrupts the Pro's audio while its stream restarts. XLR 1, XLR 2 and Line In feed their channels automatically. System default devices for apps are set in Options."/>
+                       ToolTip.Tip="Tick every device the Monitor mix should play on. The Wave XLR Pro's own outputs (Headphones 1/2, USB Aux, Line Out) switch the hardware when ticked. The USB Aux port is fed by the dedicated Aux mix in the submixer instead. XLR 1, XLR 2 and Line In feed their channels automatically. System default devices for apps are set in Options."/>
           </StackPanel>
         </Expander.Header>
       <StackPanel Classes="dev" Spacing="4">
@@ -348,6 +348,9 @@
                   </StackPanel>
                   <Slider Minimum="0" Maximum="1" Value="{Binding Volume, Mode=TwoWay}"/>
                   <ToggleButton Content="Mute mix" Classes="mute" IsChecked="{Binding Muted, Mode=TwoWay}"/>
+                  <ToggleButton Content="To USB Aux port" IsChecked="{Binding AuxPortEnabled, Mode=TwoWay}"
+                                IsVisible="{Binding IsAuxPort}"
+                                ToolTip.Tip="Send this mix to the second computer on the USB Aux port. Enabling briefly interrupts the interface's audio while its stream restarts."/>
                 </StackPanel>
               </Border>
             </DataTemplate>

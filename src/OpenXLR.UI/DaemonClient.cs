@@ -133,6 +133,10 @@ public sealed class DaemonClient : IAsyncDisposable
     public Task AssignAppAsync(string identity, string channel, string? label = null)
         => SendAsync(new Dictionary<string, object?> { ["cmd"] = "assignApp", ["identity"] = identity, ["channel"] = channel, ["label"] = label });
 
+    /// <summary>Send or stop sending the Aux mix to the USB Aux port.</summary>
+    public Task SetAuxPortEnabledAsync(bool on)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "setAuxPortEnabled", ["value"] = on });
+
     /// <summary>Remove an app from the registry and forget its override.</summary>
     public Task ForgetAppAsync(string identity)
         => SendAsync(new Dictionary<string, object?> { ["cmd"] = "forgetApp", ["identity"] = identity });

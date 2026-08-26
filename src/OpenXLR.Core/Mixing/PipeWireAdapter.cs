@@ -452,8 +452,8 @@ public sealed class PipeWireAdapter
                 AudioNodeKind.Sink, IsOwn: false, IsPhysical: true));
             found.Add(new AudioNode($"{pro.Name}#hp2", "Headphones 2 (rear)",
                 AudioNodeKind.Sink, IsOwn: false, IsPhysical: true));
-            found.Add(new AudioNode($"{pro.Name}#usbaux", "USB Aux Out",
-                AudioNodeKind.Sink, IsOwn: false, IsPhysical: true));
+            // No "#usbaux" entry: the USB Aux port is owned by the Aux mix
+            // (its own submixer column), not the monitor selection.
             found.Add(new AudioNode($"{pro.Name}#lineout", "Line Out",
                 AudioNodeKind.Sink, IsOwn: false, IsPhysical: true));
             // Hide the raw multichannel sink from device pickers: its first

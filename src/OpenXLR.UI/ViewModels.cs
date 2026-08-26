@@ -63,7 +63,7 @@ public sealed class MainViewModel : ViewModelBase
     public string Status { get => _status; private set { if (Set(ref _status, value)) Raise(nameof(StatusLine)); } }
 
     public string StatusLine => !DaemonConnected ? "Daemon not running"
-        : DeviceConnected ? $"{DeviceName} (connected)"
+        : DeviceConnected ? DeviceName
         : "No device";
 
     // --- hardware controls ---

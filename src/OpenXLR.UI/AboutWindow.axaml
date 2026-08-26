@@ -1,0 +1,44 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="OpenXLR.UI.AboutWindow"
+        Title="About OpenXLR" Width="460" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        Background="#16181d" CanResize="False">
+
+  <Window.Styles>
+    <Style Selector="Button.link">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="#5ba8f5"/>
+      <Setter Property="Padding" Value="2,1"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="HorizontalAlignment" Value="Left"/>
+    </Style>
+    <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="TextElement.Foreground" Value="#8cc4ff"/>
+    </Style>
+  </Window.Styles>
+
+  <StackPanel Margin="22" Spacing="10">
+    <StackPanel Orientation="Horizontal" Spacing="12">
+      <Image Source="avares://OpenXLR.UI/Assets/icon.png" Width="48" Height="48"/>
+      <StackPanel VerticalAlignment="Center">
+        <TextBlock Text="OpenXLR" FontSize="22" FontWeight="Bold" Foreground="#e6e9f0"/>
+        <TextBlock Name="VersionText" Text="v0.0.0" FontSize="12" Foreground="#8b93a7"/>
+      </StackPanel>
+    </StackPanel>
+
+    <TextBlock TextWrapping="Wrap" Foreground="#b9bfcc" FontSize="13"
+               Text="Open-source control suite for the Elgato Wave XLR Pro on Linux: hardware control over a reverse-engineered vendor protocol, a Wave Link style PipeWire submixer with per-application channels and virtual microphones, multi-output monitoring, and a dedicated mix for a second computer on the USB Aux port."/>
+
+    <TextBlock TextWrapping="Wrap" Foreground="#6b7285" FontSize="11"
+               Text="Not affiliated with or endorsed by Elgato. Built by reverse engineering on the author's own hardware."/>
+
+    <StackPanel Spacing="2" Margin="0,4,0,0">
+      <Button Classes="link" Content="github.com/emaspa/openxlr" Click="OnRepo"/>
+      <Button Classes="link" Content="Buy me a coffee ☕" Click="OnCoffee"/>
+    </StackPanel>
+
+    <Button Content="Close" HorizontalAlignment="Right" Padding="18,6" Margin="0,4,0,4" Click="OnClose"/>
+  </StackPanel>
+</Window>

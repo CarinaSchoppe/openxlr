@@ -18,6 +18,7 @@ public partial class MainWindow : Window
         _vm = new MainViewModel(_client);
         DataContext = _vm;
         _client.Start();          // connects, and keeps retrying if the daemon isn't up yet
+        HeaderVersion.Text = $"v{AppVersion.Current}";
         SetupTray();
 
         // Start hidden in the tray when configured (and a tray actually
@@ -82,4 +83,7 @@ public partial class MainWindow : Window
 
     private void OnManageApps(object? sender, RoutedEventArgs e)
         => new AppsWindow { DataContext = _vm }.ShowDialog(this);
+
+    private void OnAbout(object? sender, RoutedEventArgs e)
+        => new AboutWindow().ShowDialog(this);
 }

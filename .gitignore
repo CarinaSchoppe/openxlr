@@ -4,3 +4,10 @@ fork/
 # build output
 src/*/bin/
 src/*/obj/
+
+# Local working material, never shipped: personal Windows exports, USB capture
+# analysis, third-party clones, caches.
+windows-export/
+capture-analysis/
+fork/
+__pycache__/

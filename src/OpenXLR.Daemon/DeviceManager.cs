@@ -141,6 +141,55 @@ public sealed class DeviceManager : BackgroundService
     }
 
     /// <summary>
+    /// Recall a profile's hardware snapshot, writing only the fields that
+    /// differ from the live state. The physical-output selectors are skipped
+    /// on purpose: they follow the mixer's monitor-output selection (synced
+    /// every sweep), which the profile's mixer half restores instead.
+    /// </summary>
+    public string? ApplyProfile(DeviceState p)
+    {
+        lock (_gate)
+        {
+            if (_device is null || !_device.Connected) return "no device connected";
+            DeviceState s = _last ?? _device.ReadState();
+            try
+            {
+                if (s.GainDb != p.GainDb) _device.SetGainDb(p.GainDb);
+                if (s.Mute != p.Mute) _device.SetMute(p.Mute);
+                if (s.LowCut != p.LowCut) _device.SetLowCut(p.LowCut);
+                if (s.Expander != p.Expander) _device.SetExpander(p.Expander);
+                if (s.VoiceTune != p.VoiceTune) _device.SetVoiceTune(p.VoiceTune);
+                if (s.VoiceTuneStrength != p.VoiceTuneStrength) _device.SetVoiceTuneStrength(p.VoiceTuneStrength);
+                if (s.Phantom != p.Phantom) _device.SetPhantom(p.Phantom);
+                if (s.ClipGuard != p.ClipGuard) _device.SetClipGuard(p.ClipGuard);
+                if (s.Compressor != p.Compressor) _device.SetCompressor(p.Compressor);
+                if (s.Gain2Db != p.Gain2Db) _device.SetGain2Db(p.Gain2Db);
+                if (s.Mute2 != p.Mute2) _device.SetMute2(p.Mute2);
+                if (s.LowCut2 != p.LowCut2) _device.SetLowCut2(p.LowCut2);
+                if (s.Expander2 != p.Expander2) _device.SetExpander2(p.Expander2);
+                if (s.VoiceTune2 != p.VoiceTune2) _device.SetVoiceTune2(p.VoiceTune2);
+                if (s.VoiceTuneStrength2 != p.VoiceTuneStrength2) _device.SetVoiceTuneStrength2(p.VoiceTuneStrength2);
+                if (s.Phantom2 != p.Phantom2) _device.SetPhantom2(p.Phantom2);
+                if (s.ClipGuard2 != p.ClipGuard2) _device.SetClipGuard2(p.ClipGuard2);
+                if (s.Compressor2 != p.Compressor2) _device.SetCompressor2(p.Compressor2);
+                if (s.HpVolumeDb != p.HpVolumeDb) _device.SetHpVolumeDb(p.HpVolumeDb);
+                if (s.Hp2VolumeDb != p.Hp2VolumeDb) _device.SetHp2VolumeDb(p.Hp2VolumeDb);
+                if (s.LowImpedance != p.LowImpedance) _device.SetLowImpedance(p.LowImpedance);
+                if (s.Crossfade != p.Crossfade) _device.SetCrossfade(p.Crossfade);
+                if (s.AuxLevelDb != p.AuxLevelDb) _device.SetAuxLevelDb(p.AuxLevelDb);
+                if (s.AuxLevelLock != p.AuxLevelLock) _device.SetAuxLevelLock(p.AuxLevelLock);
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+            _last = _device.ReadState();
+            RaiseFromLocked();
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Drive the device's physical-output selectors toward the wanted state,
     /// writing only the ones that differ (called every mixer sweep, so it must
     /// be a no-op at steady state). Quietly does nothing without a connected

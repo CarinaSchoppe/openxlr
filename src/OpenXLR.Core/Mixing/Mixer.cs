@@ -338,6 +338,55 @@ public sealed class Mixer : IDisposable
         }
     }
 
+    /// <summary>The current mixer scene, for saving into a profile.</summary>
+    public MixerScene ExportScene()
+    {
+        lock (_gate)
+        {
+            return new MixerScene
+            {
+                MixVolumes = new Dictionary<string, double>(_mixVolume),
+                MixMuted = [.. _mixMuted],
+                Levels = new Dictionary<string, double>(_levels),
+                ChannelMuted = [.. _muted],
+                MonitorOutputs = [.. _monitorOutputs],
+                AuxPortEnabled = _auxPortEnabled,
+                OutputVolume = _outputVolume,
+            };
+        }
+    }
+
+    /// <summary>
+    /// Recall a profile's mixer scene. Unlike <see cref="ApplySettings"/> this
+    /// touches only scene state: app routing, the registry, and the enforced
+    /// system defaults stay exactly as they are.
+    /// </summary>
+    public void ApplyScene(MixerScene s)
+    {
+        lock (_gate)
+        {
+            if (!_built) return;
+
+            foreach ((string mixId, double vol) in s.MixVolumes)
+                if (_mixVolume.ContainsKey(mixId)) _mixVolume[mixId] = Math.Clamp(vol, 0, 1);
+            _mixMuted.Clear();
+            foreach (string mixId in s.MixMuted) _mixMuted.Add(mixId);
+
+            foreach ((string cell, double lvl) in s.Levels)
+                if (_cells.Contains(cell)) _levels[cell] = Math.Clamp(lvl, 0, 1);
+            _muted.Clear();
+            foreach (string cell in s.ChannelMuted)
+                if (_cells.Contains(cell)) _muted.Add(cell);
+
+            foreach (MixDefinition mix in _config.Mixes) ReapplyMixLocked(mix.Id);
+
+            if (s.MonitorOutputs.Count > 0) SetMonitorOutputsLocked(s.MonitorOutputs);
+            _auxPortEnabled = s.AuxPortEnabled;
+            WireAuxRouteLocked();
+        }
+        if (s.OutputVolume is double v) SetOutputVolume(v);
+    }
+
     /// <summary>Volume of the selected output devices (0..1), applied to each.</summary>
     public void SetOutputVolume(double volume)
     {

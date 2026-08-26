@@ -42,7 +42,12 @@ public sealed class WebSocketHub
 
     /// <summary>Device state plus mixer state, as one message.</summary>
     private StateMessage Snapshot() =>
-        _devices.Snapshot() with { Mixer = _mixer.Snapshot(), Devices = _mixer.Devices() };
+        _devices.Snapshot() with
+        {
+            Mixer = _mixer.Snapshot(),
+            Devices = _mixer.Devices(),
+            Profiles = OpenXLR.Core.ProfileStore.List(),
+        };
 
     /// <summary>Serve one client for the life of its socket.</summary>
     public async Task HandleAsync(WebSocket socket)
@@ -118,9 +123,53 @@ public sealed class WebSocketHub
                 string? mixErr = _mixer.Apply(cmd);                     // broadcasts on success
                 if (mixErr is not null) await client.SendAsync(Serialize(new ErrorMessage(mixErr)));
                 break;
+            case "saveProfile":
+            case "loadProfile":
+            case "deleteProfile":
+                string? profErr = HandleProfile(cmd);
+                if (profErr is not null) await client.SendAsync(Serialize(new ErrorMessage(profErr)));
+                else await BroadcastAsync(Snapshot());   // list (and loaded state) changed
+                break;
             default:
                 await client.SendAsync(Serialize(new ErrorMessage($"unknown cmd '{cmd.Cmd}'")));
                 break;
+        }
+    }
+
+    /// <summary>Save, load, or delete a named profile. Null on success.</summary>
+    private string? HandleProfile(Command cmd)
+    {
+        string? name = OpenXLR.Core.ProfileStore.SanitizeName(cmd.Name);
+        if (name is null) return $"{cmd.Cmd}: missing or invalid 'name'";
+        try
+        {
+            switch (cmd.Cmd)
+            {
+                case "saveProfile":
+                    OpenXLR.Core.ProfileStore.Save(name, new OpenXLR.Core.Profile
+                    {
+                        Device = _devices.Snapshot().State,
+                        Mixer = _mixer.ExportScene(),
+                    });
+                    return null;
+                case "loadProfile":
+                    OpenXLR.Core.Profile? p = OpenXLR.Core.ProfileStore.Load(name);
+                    if (p is null) return $"no profile named '{name}'";
+                    // Apply both halves; report the first failure but still
+                    // try the other half, so a missing device does not block
+                    // the mixer scene (and the other way round).
+                    string? devErr = p.Device is null ? null : _devices.ApplyProfile(p.Device);
+                    string? mixErr = p.Mixer is null ? null : _mixer.ApplyScene(p.Mixer);
+                    return devErr ?? mixErr;
+                case "deleteProfile":
+                    return OpenXLR.Core.ProfileStore.Delete(name) ? null : $"no profile named '{name}'";
+                default:
+                    return $"unknown profile command '{cmd.Cmd}'";
+            }
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
         }
     }
 

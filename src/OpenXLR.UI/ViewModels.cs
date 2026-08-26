@@ -414,6 +414,7 @@ public sealed class MainViewModel : ViewModelBase
                 AuxLevelLock = s["auxLevelLock"]?.GetValue<bool>() ?? false;
             }
 
+            ApplyProfiles(node["profiles"]);
             ApplyDevices(node["devices"], node["mixer"]);
             ApplyMixer(node["mixer"]);
             ApplyStreams(node["mixer"]);
@@ -422,6 +423,22 @@ public sealed class MainViewModel : ViewModelBase
         finally { _applying = false; }
         StateApplied?.Invoke();
     }
+
+    /// <summary>Saved profile names from the daemon, newest list wins.</summary>
+    public ObservableCollection<string> Profiles { get; } = [];
+
+    private void ApplyProfiles(JsonNode? profiles)
+    {
+        var names = (profiles as JsonArray)?.Select(n => n?.GetValue<string>())
+            .Where(n => n is not null).Cast<string>().ToList() ?? [];
+        if (names.SequenceEqual(Profiles)) return;
+        Profiles.Clear();
+        foreach (string n in names) Profiles.Add(n);
+    }
+
+    public void SaveProfile(string name) => _ = _client.SaveProfileAsync(name);
+    public void LoadProfile(string name) => _ = _client.LoadProfileAsync(name);
+    public void DeleteProfile(string name) => _ = _client.DeleteProfileAsync(name);
 
     /// <summary>Raised after a daemon state push has been applied (UI thread).</summary>
     public event Action? StateApplied;

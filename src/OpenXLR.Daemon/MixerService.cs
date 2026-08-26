@@ -275,6 +275,21 @@ public sealed class MixerService : IHostedService, IDisposable
         return null;
     }
 
+    /// <summary>The current mixer scene for saving into a profile, or null.</summary>
+    public OpenXLR.Core.MixerScene? ExportScene() => _mixer.Built ? _mixer.ExportScene() : null;
+
+    /// <summary>Recall a profile's mixer scene. Returns null on success.</summary>
+    public string? ApplyScene(OpenXLR.Core.MixerScene scene)
+    {
+        if (!_mixer.Built) return "mixer not built (start the daemon with --mixer)";
+        try { _mixer.ApplyScene(scene); }
+        catch (Exception ex) { return ex.Message; }
+        SyncOutputSelectors();
+        Changed?.Invoke();
+        ScheduleSave();
+        return null;
+    }
+
     /// <summary>
     /// Persist a moment after the last change, so dragging a fader writes once
     /// instead of on every pixel of travel.

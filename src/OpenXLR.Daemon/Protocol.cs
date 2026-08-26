@@ -53,6 +53,9 @@ public sealed record Command
     /// <summary>"setEnforcedDefaults": devices to hold as system defaults (null = don't enforce).</summary>
     [JsonPropertyName("sink")] public string? Sink { get; init; }
     [JsonPropertyName("source")] public string? Source { get; init; }
+
+    /// <summary>"saveProfile" / "loadProfile" / "deleteProfile": the profile name.</summary>
+    [JsonPropertyName("name")] public string? Name { get; init; }
 }
 
 /// <summary>Full-state push from the daemon to all clients.</summary>
@@ -71,6 +74,9 @@ public sealed record StateMessage
     /// clients can offer output and input pickers. Null when the mixer is off.
     /// </summary>
     [JsonPropertyName("devices")] public IReadOnlyList<AudioNode>? Devices { get; init; }
+
+    /// <summary>Saved profile names, so any client can offer recall.</summary>
+    [JsonPropertyName("profiles")] public IReadOnlyList<string>? Profiles { get; init; }
 }
 
 public sealed record DeviceDescriptor(string Vendor, string Model, string UsbId);

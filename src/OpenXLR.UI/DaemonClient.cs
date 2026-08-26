@@ -112,6 +112,15 @@ public sealed class DaemonClient : IAsyncDisposable
     }
 
     /// <summary>Set a hardware control (gain, mute, lowCut, …).</summary>
+    public Task SaveProfileAsync(string name)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "saveProfile", ["name"] = name });
+
+    public Task LoadProfileAsync(string name)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "loadProfile", ["name"] = name });
+
+    public Task DeleteProfileAsync(string name)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "deleteProfile", ["name"] = name });
+
     public Task SetControlAsync(string control, object value)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "set", ["control"] = control, ["value"] = value });
 

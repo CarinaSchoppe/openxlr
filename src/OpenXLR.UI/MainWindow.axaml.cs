@@ -87,6 +87,24 @@ public partial class MainWindow : Window
     private void OnAbout(object? sender, RoutedEventArgs e)
         => new AboutWindow().ShowDialog(this);
 
+    private void OnProfileSave(object? sender, RoutedEventArgs e)
+    {
+        string name = ProfileNameBox.Text?.Trim() ?? "";
+        if (name.Length == 0) return;
+        _vm.SaveProfile(name);
+        ProfileNameBox.Text = "";
+    }
+
+    private void OnProfileLoad(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Content is string name) _vm.LoadProfile(name);
+    }
+
+    private void OnProfileDelete(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is string name) _vm.DeleteProfile(name);
+    }
+
     private FlowWindow? _flow;
 
     private void OnFlow(object? sender, RoutedEventArgs e)

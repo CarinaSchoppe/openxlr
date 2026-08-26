@@ -1,0 +1,29 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="OpenXLR.UI.FlowWindow"
+        Title="OpenXLR Audio Flow" Width="1180" Height="760" MinWidth="900" MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        Background="#16181d">
+
+  <DockPanel Margin="14">
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+      <StackPanel>
+        <TextBlock Text="Audio flow" FontSize="18" FontWeight="Bold" Foreground="#e6e9f0"/>
+        <TextBlock Text="Live view of the routing: sources into channels, channels into mixes, mixes to outputs."
+                   FontSize="11" Foreground="#8b93a7"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+        <TextBlock Text="lines share the color of their channel (mixes color their output lines)"
+                   FontSize="11" Foreground="#8b93a7" VerticalAlignment="Center"/>
+        <StackPanel Orientation="Horizontal" Spacing="5">
+          <Rectangle Width="14" Height="3" Fill="#555b68" VerticalAlignment="Center"/>
+          <TextBlock Text="muted / silent" FontSize="11" Foreground="#8b93a7"/>
+        </StackPanel>
+      </StackPanel>
+    </Grid>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+      <Canvas Name="GraphCanvas" Background="#16181d"/>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

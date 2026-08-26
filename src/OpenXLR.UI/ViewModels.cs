@@ -420,7 +420,11 @@ public sealed class MainViewModel : ViewModelBase
             Status = DeviceConnected ? "ready" : "no device";
         }
         finally { _applying = false; }
+        StateApplied?.Invoke();
     }
+
+    /// <summary>Raised after a daemon state push has been applied (UI thread).</summary>
+    public event Action? StateApplied;
 
     /// <summary>
     /// Refresh the output/input pickers. The lists are rebuilt only when the set

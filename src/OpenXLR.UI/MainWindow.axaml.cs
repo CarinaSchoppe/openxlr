@@ -86,4 +86,14 @@ public partial class MainWindow : Window
 
     private void OnAbout(object? sender, RoutedEventArgs e)
         => new AboutWindow().ShowDialog(this);
+
+    private FlowWindow? _flow;
+
+    private void OnFlow(object? sender, RoutedEventArgs e)
+    {
+        // Non-modal so it can sit on another monitor while mixing; one at a time.
+        if (_flow is { IsVisible: true }) { _flow.Activate(); return; }
+        _flow = new FlowWindow(_vm);
+        _flow.Show(this);
+    }
 }

@@ -16,8 +16,53 @@ public sealed class DeviceManager : BackgroundService
     private readonly object _gate = new();
     private IAudioDevice? _device;
     private DeviceState? _last;
+    private IReadOnlyList<DeviceInfo> _detected = [];
+    private ushort? _preferredPid;
 
-    public DeviceManager(ILogger<DeviceManager> log) => _log = log;
+    public DeviceManager(ILogger<DeviceManager> log)
+    {
+        _log = log;
+        string? want = Environment.GetEnvironmentVariable("OPENXLR_DEVICE");
+        if (want is not null && ushort.TryParse(want, System.Globalization.NumberStyles.HexNumber, null, out ushort pid))
+            _preferredPid = pid;
+    }
+
+    /// <summary>Every supported interface currently attached, for client pickers.</summary>
+    public IReadOnlyList<(string UsbId, string Name, bool Active)> Detected()
+    {
+        lock (_gate)
+        {
+            return [.. _detected.Select(d => (
+                $"{d.VendorId:x4}:{d.ProductId:x4}",
+                d.DisplayName,
+                _device is { Connected: true } && _device.Info.ProductId == d.ProductId))];
+        }
+    }
+
+    /// <summary>
+    /// Switch to another attached supported device ("vvvv:pppp" or "pppp").
+    /// The connect loop picks it up within a poll tick. Null on success.
+    /// </summary>
+    public string? SetActiveDevice(string usbId)
+    {
+        string pidPart = usbId.Contains(':') ? usbId.Split(':')[1] : usbId;
+        if (!ushort.TryParse(pidPart, System.Globalization.NumberStyles.HexNumber, null, out ushort pid))
+            return $"setActiveDevice: bad device id '{usbId}'";
+        lock (_gate)
+        {
+            if (!_detected.Any(d => d.ProductId == pid))
+                return $"setActiveDevice: no attached supported device '{usbId}'";
+            _preferredPid = pid;
+            if (_device is not null && _device.Info.ProductId != pid)
+            {
+                try { _device.Disconnect(); } catch { /* releasing anyway */ }
+                _device = null;
+                _last = null;
+                RaiseFromLocked();   // show the handoff instead of stale state
+            }
+        }
+        return null;
+    }
 
     /// <summary>Raised (off the poll loop) whenever the pushed state should change.</summary>
     public event Action<StateMessage>? StateChanged;
@@ -62,8 +107,12 @@ public sealed class DeviceManager : BackgroundService
     {
         lock (_gate)
         {
+            IReadOnlyList<IAudioDevice> all = DeviceRegistry.DetectAll();
+            _detected = [.. all.Select(d => d.Info)];
             if (_device is { Connected: true }) return;
-            IAudioDevice? dev = DeviceRegistry.DetectFirst();
+            IAudioDevice? dev = _preferredPid is ushort pid
+                ? all.FirstOrDefault(d => d.Info.ProductId == pid) ?? (all.Count > 0 ? all[0] : null)
+                : all.Count > 0 ? all[0] : null;
             if (dev is null) return;                    // nothing attached; try again next tick
             dev.Connect();
             _device = dev;

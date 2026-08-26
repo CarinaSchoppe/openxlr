@@ -77,7 +77,15 @@ public sealed record StateMessage
 
     /// <summary>Saved profile names, so any client can offer recall.</summary>
     [JsonPropertyName("profiles")] public IReadOnlyList<string>? Profiles { get; init; }
+
+    /// <summary>Every attached supported interface, so clients can offer a picker.</summary>
+    [JsonPropertyName("detected")] public IReadOnlyList<DetectedDevice>? Detected { get; init; }
 }
+
+public sealed record DetectedDevice(
+    [property: JsonPropertyName("usbId")] string UsbId,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("active")] bool Active);
 
 public sealed record DeviceDescriptor(string Vendor, string Model, string UsbId);
 

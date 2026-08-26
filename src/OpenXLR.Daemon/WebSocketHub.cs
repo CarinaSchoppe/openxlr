@@ -46,7 +46,8 @@ public sealed class WebSocketHub
         {
             Mixer = _mixer.Snapshot(),
             Devices = _mixer.Devices(),
-            Profiles = OpenXLR.Core.ProfileStore.List(),
+            Profiles = ActiveDeviceId() is string devId ? OpenXLR.Core.ProfileStore.List(devId) : [],
+            Detected = [.. _devices.Detected().Select(d => new DetectedDevice(d.UsbId, d.Name, d.Active))],
         };
 
     /// <summary>Serve one client for the life of its socket.</summary>
@@ -123,6 +124,11 @@ public sealed class WebSocketHub
                 string? mixErr = _mixer.Apply(cmd);                     // broadcasts on success
                 if (mixErr is not null) await client.SendAsync(Serialize(new ErrorMessage(mixErr)));
                 break;
+            case "setActiveDevice":
+                if (cmd.Device is null) { await client.SendAsync(Serialize(new ErrorMessage("setActiveDevice: missing 'device'"))); break; }
+                string? devSelErr = _devices.SetActiveDevice(cmd.Device);
+                if (devSelErr is not null) await client.SendAsync(Serialize(new ErrorMessage(devSelErr)));
+                break;
             case "saveProfile":
             case "loadProfile":
             case "deleteProfile":
@@ -136,24 +142,28 @@ public sealed class WebSocketHub
         }
     }
 
-    /// <summary>Save, load, or delete a named profile. Null on success.</summary>
+    /// <summary>The active device's usb id, or null while disconnected.</summary>
+    private string? ActiveDeviceId() => _devices.Snapshot().Device?.UsbId;
+
+    /// <summary>Save, load, or delete a named profile (per device). Null on success.</summary>
     private string? HandleProfile(Command cmd)
     {
         string? name = OpenXLR.Core.ProfileStore.SanitizeName(cmd.Name);
         if (name is null) return $"{cmd.Cmd}: missing or invalid 'name'";
+        if (ActiveDeviceId() is not string devId) return $"{cmd.Cmd}: no device connected";
         try
         {
             switch (cmd.Cmd)
             {
                 case "saveProfile":
-                    OpenXLR.Core.ProfileStore.Save(name, new OpenXLR.Core.Profile
+                    OpenXLR.Core.ProfileStore.Save(devId, name, new OpenXLR.Core.Profile
                     {
                         Device = _devices.Snapshot().State,
                         Mixer = _mixer.ExportScene(),
                     });
                     return null;
                 case "loadProfile":
-                    OpenXLR.Core.Profile? p = OpenXLR.Core.ProfileStore.Load(name);
+                    OpenXLR.Core.Profile? p = OpenXLR.Core.ProfileStore.Load(devId, name);
                     if (p is null) return $"no profile named '{name}'";
                     // Apply both halves; report the first failure but still
                     // try the other half, so a missing device does not block
@@ -162,7 +172,7 @@ public sealed class WebSocketHub
                     string? mixErr = p.Mixer is null ? null : _mixer.ApplyScene(p.Mixer);
                     return devErr ?? mixErr;
                 case "deleteProfile":
-                    return OpenXLR.Core.ProfileStore.Delete(name) ? null : $"no profile named '{name}'";
+                    return OpenXLR.Core.ProfileStore.Delete(devId, name) ? null : $"no profile named '{name}'";
                 default:
                     return $"unknown profile command '{cmd.Cmd}'";
             }

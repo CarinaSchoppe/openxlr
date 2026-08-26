@@ -15,8 +15,10 @@ public static class DeviceRegistry
     private static readonly Dictionary<Key, Func<IAudioDevice>> Factories = new()
     {
         [new Key(WaveXlrProDevice.VendorId, WaveXlrProDevice.ProductId)] = () => new WaveXlrProDevice(),
+        [new Key(Mk1ClassProtocolDevice.VendorId, WaveXlrMk1Device.ProductId)] = () => new WaveXlrMk1Device(),
+        [new Key(Mk1ClassProtocolDevice.VendorId, XlrDockDevice.ProductId)] = () => new XlrDockDevice(),
+        [new Key(WaveXlrMk2Device.VendorId, WaveXlrMk2Device.ProductId)] = () => new WaveXlrMk2Device(),
         // Add more brands/models here, e.g.:
-        // [new Key(0x0FD9, 0x00B6)] = () => new WaveXlrMk2Device(),
         // [new Key(0x1220, 0x8fe0)] = () => new GoXlrDevice(),
     };
 
@@ -30,8 +32,19 @@ public static class DeviceRegistry
         return found;
     }
 
-    /// <summary>The first supported device attached, or null.</summary>
-    public static IAudioDevice? DetectFirst() => DetectAll().Count > 0 ? DetectAll()[0] : null;
+    /// <summary>
+    /// The first supported device attached, or null. With several attached,
+    /// OPENXLR_DEVICE (a hex product id, e.g. "007d") picks which one.
+    /// </summary>
+    public static IAudioDevice? DetectFirst()
+    {
+        IReadOnlyList<IAudioDevice> all = DetectAll();
+        if (all.Count == 0) return null;
+        string? want = Environment.GetEnvironmentVariable("OPENXLR_DEVICE");
+        if (want is not null && ushort.TryParse(want, System.Globalization.NumberStyles.HexNumber, null, out ushort pid))
+            return all.FirstOrDefault(d => d.Info.ProductId == pid) ?? all[0];
+        return all[0];
+    }
 
     private static IEnumerable<(ushort Vid, ushort Pid)> EnumerateUsbIds()
     {

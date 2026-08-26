@@ -34,9 +34,11 @@ public sealed record Profile
 }
 
 /// <summary>
-/// Named profiles as single JSON files under the XDG config directory. The
-/// file name is the profile name (sanitized), so the store needs no index
-/// and survives hand-editing.
+/// Named profiles as single JSON files under the XDG config directory,
+/// scoped per device model (profiles/&lt;usbId&gt;/&lt;name&gt;.json): a scene
+/// saved from one interface only makes sense recalled on the same model.
+/// The file name is the profile name (sanitized), so the store needs no
+/// index and survives hand-editing.
 /// </summary>
 public static class ProfileStore
 {
@@ -47,7 +49,7 @@ public static class ProfileStore
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
-    private static string Dir
+    private static string Root
     {
         get
         {
@@ -55,6 +57,32 @@ public static class ProfileStore
                 ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config");
             return Path.Combine(root, "openxlr", "profiles");
         }
+    }
+
+    private static string Dir(string deviceId) => Path.Combine(Root, deviceId.Replace(':', '-'));
+
+    private static bool _migrated;
+
+    /// <summary>
+    /// Profiles saved before per-device scoping lived directly in the root;
+    /// they were all Wave XLR Pro scenes (the only supported device then), so
+    /// they move into its folder once.
+    /// </summary>
+    private static void MigrateOnce()
+    {
+        if (_migrated) return;
+        _migrated = true;
+        try
+        {
+            if (!Directory.Exists(Root)) return;
+            string proDir = Dir("0fd9:00b4");
+            foreach (string f in Directory.EnumerateFiles(Root, "*.json"))
+            {
+                Directory.CreateDirectory(proDir);
+                File.Move(f, Path.Combine(proDir, Path.GetFileName(f)), overwrite: false);
+            }
+        }
+        catch (IOException) { /* leave stragglers for the next run */ }
     }
 
     /// <summary>
@@ -69,11 +97,12 @@ public static class ProfileStore
         return kept.Length is 0 or > 60 ? null : kept;
     }
 
-    public static IReadOnlyList<string> List()
+    public static IReadOnlyList<string> List(string deviceId)
     {
+        MigrateOnce();
         try
         {
-            return [.. Directory.EnumerateFiles(Dir, "*.json")
+            return [.. Directory.EnumerateFiles(Dir(deviceId), "*.json")
                 .Select(Path.GetFileNameWithoutExtension)
                 .Where(n => n is not null)
                 .Cast<string>()
@@ -82,26 +111,29 @@ public static class ProfileStore
         catch (DirectoryNotFoundException) { return []; }
     }
 
-    public static void Save(string name, Profile profile)
+    public static void Save(string deviceId, string name, Profile profile)
     {
-        Directory.CreateDirectory(Dir);
-        string path = Path.Combine(Dir, name + ".json");
+        MigrateOnce();
+        Directory.CreateDirectory(Dir(deviceId));
+        string path = Path.Combine(Dir(deviceId), name + ".json");
         string tmp = path + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(profile, Json));
         File.Move(tmp, path, overwrite: true);
     }
 
-    public static Profile? Load(string name)
+    public static Profile? Load(string deviceId, string name)
     {
-        string path = Path.Combine(Dir, name + ".json");
+        MigrateOnce();
+        string path = Path.Combine(Dir(deviceId), name + ".json");
         try { return JsonSerializer.Deserialize<Profile>(File.ReadAllText(path), Json); }
         catch (FileNotFoundException) { return null; }
         catch (DirectoryNotFoundException) { return null; }
     }
 
-    public static bool Delete(string name)
+    public static bool Delete(string deviceId, string name)
     {
-        string path = Path.Combine(Dir, name + ".json");
+        MigrateOnce();
+        string path = Path.Combine(Dir(deviceId), name + ".json");
         if (!File.Exists(path)) return false;
         File.Delete(path);
         return true;

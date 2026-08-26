@@ -85,6 +85,32 @@ public sealed class MainViewModel : ViewModelBase
     }
     public string GainText => $"{_gainDb} dB";
 
+    // What the connected device can do, from the daemon's capabilities block;
+    // the layout hides what a device does not have. Defaults keep the full
+    // Pro layout until a state push says otherwise.
+    private bool _hasXlr2 = true;
+    public bool HasXlr2 { get => _hasXlr2; set => Set(ref _hasXlr2, value); }
+    private bool _hasHp2 = true;
+    public bool HasHp2 { get => _hasHp2; set => Set(ref _hasHp2, value); }
+    private bool _capLowCut = true;
+    public bool CapLowCut { get => _capLowCut; set => Set(ref _capLowCut, value); }
+    private bool _capExpander = true;
+    public bool CapExpander { get => _capExpander; set => Set(ref _capExpander, value); }
+    private bool _capVoiceTune = true;
+    public bool CapVoiceTune { get => _capVoiceTune; set => Set(ref _capVoiceTune, value); }
+    private bool _capPhantom = true;
+    public bool CapPhantom { get => _capPhantom; set => Set(ref _capPhantom, value); }
+    private bool _capClipGuard = true;
+    public bool CapClipGuard { get => _capClipGuard; set => Set(ref _capClipGuard, value); }
+    private bool _capCompressor = true;
+    public bool CapCompressor { get => _capCompressor; set => Set(ref _capCompressor, value); }
+    private bool _capCrossfade = true;
+    public bool CapCrossfade { get => _capCrossfade; set => Set(ref _capCrossfade, value); }
+    private bool _capLowImpedance = true;
+    public bool CapLowImpedance { get => _capLowImpedance; set => Set(ref _capLowImpedance, value); }
+    private bool _capAuxInput = true;
+    public bool CapAuxInput { get => _capAuxInput; set => Set(ref _capAuxInput, value); }
+
     private bool _mute;
     public bool Mute { get => _mute; set { if (Set(ref _mute, value) && !_applying) _ = _client.SetControlAsync("mute", value); } }
 
@@ -382,6 +408,22 @@ public sealed class MainViewModel : ViewModelBase
             if (node["device"] is JsonNode dev)
                 DeviceName = $"{dev["vendor"]?.GetValue<string>()} {dev["model"]?.GetValue<string>()}".Trim();
 
+            if (node["capabilities"] is JsonNode caps)
+            {
+                bool Cap(string k) => caps[k]?.GetValue<bool>() ?? false;
+                HasXlr2 = (caps["xlrInputs"]?.GetValue<int>() ?? 1) > 1;
+                HasHp2 = (caps["hpOutputs"]?.GetValue<int>() ?? 1) > 1;
+                CapLowCut = Cap("lowCut");
+                CapExpander = Cap("expander");
+                CapVoiceTune = Cap("voiceTune");
+                CapPhantom = Cap("phantom");
+                CapClipGuard = Cap("clipGuard");
+                CapCompressor = Cap("compressor");
+                CapCrossfade = Cap("crossfade");
+                CapLowImpedance = Cap("lowImpedance");
+                CapAuxInput = Cap("auxInput");
+            }
+
             if (node["state"] is JsonNode s)
             {
                 if (!SliderSync.RecentlyTouched("gain")) GainDb = s["gainDb"]?.GetValue<int>() ?? 0;
@@ -414,6 +456,7 @@ public sealed class MainViewModel : ViewModelBase
                 AuxLevelLock = s["auxLevelLock"]?.GetValue<bool>() ?? false;
             }
 
+            ApplyDetected(node["detected"]);
             ApplyProfiles(node["profiles"]);
             ApplyDevices(node["devices"], node["mixer"]);
             ApplyMixer(node["mixer"]);
@@ -422,6 +465,39 @@ public sealed class MainViewModel : ViewModelBase
         }
         finally { _applying = false; }
         StateApplied?.Invoke();
+    }
+
+    /// <summary>Attached supported interfaces; a picker shows when there are two.</summary>
+    public ObservableCollection<DetectedDeviceItem> DetectedDevices { get; } = [];
+
+    private bool _hasMultipleDevices;
+    public bool HasMultipleDevices { get => _hasMultipleDevices; set => Set(ref _hasMultipleDevices, value); }
+
+    private DetectedDeviceItem? _selectedDevice;
+    public DetectedDeviceItem? SelectedDevice
+    {
+        get => _selectedDevice;
+        set
+        {
+            if (Set(ref _selectedDevice, value) && !_applying && value is not null && !value.Active)
+                _ = _client.SetActiveDeviceAsync(value.UsbId);
+        }
+    }
+
+    private void ApplyDetected(JsonNode? detected)
+    {
+        var items = (detected as JsonArray)?.Select(n => new DetectedDeviceItem(
+            n?["usbId"]?.GetValue<string>() ?? "",
+            n?["name"]?.GetValue<string>() ?? "",
+            n?["active"]?.GetValue<bool>() ?? false)).ToList() ?? [];
+        if (!items.SequenceEqual(DetectedDevices))
+        {
+            DetectedDevices.Clear();
+            foreach (DetectedDeviceItem d in items) DetectedDevices.Add(d);
+        }
+        HasMultipleDevices = items.Count > 1;
+        DetectedDeviceItem? active = DetectedDevices.FirstOrDefault(d => d.Active);
+        if (!Equals(_selectedDevice, active)) { _selectedDevice = active; Raise(nameof(SelectedDevice)); }
     }
 
     /// <summary>Saved profile names from the daemon, newest list wins.</summary>
@@ -902,4 +978,10 @@ internal static class SliderSync
         };
         return timer;
     }
+}
+
+/// <summary>One attached supported interface in the device picker.</summary>
+public sealed record DetectedDeviceItem(string UsbId, string Name, bool Active)
+{
+    public override string ToString() => Name;
 }

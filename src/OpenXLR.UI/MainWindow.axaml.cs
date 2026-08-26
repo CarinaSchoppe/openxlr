@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform;
@@ -87,12 +89,54 @@ public partial class MainWindow : Window
     private void OnAbout(object? sender, RoutedEventArgs e)
         => new AboutWindow().ShowDialog(this);
 
-    private void OnProfileSave(object? sender, RoutedEventArgs e)
+    private async void OnProfileSave(object? sender, RoutedEventArgs e)
     {
         string name = ProfileNameBox.Text?.Trim() ?? "";
         if (name.Length == 0) return;
+        bool exists = _vm.Profiles.Any(p => string.Equals(p, name, StringComparison.OrdinalIgnoreCase));
+        if (exists && !await ConfirmAsync("Overwrite profile?",
+                $"A profile named \"{name}\" already exists for this device.\n" +
+                "Saving will replace it with the current scene."))
+            return;
         _vm.SaveProfile(name);
         ProfileNameBox.Text = "";
+    }
+
+    /// <summary>Small in-app confirmation dialog; true when the user accepts.</summary>
+    private async Task<bool> ConfirmAsync(string title, string message)
+    {
+        var yes = new Button { Content = "Overwrite", Background = Avalonia.Media.Brush.Parse("#a03434") };
+        var no = new Button { Content = "Cancel" };
+        var dialog = new Window
+        {
+            Title = title,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Background = Avalonia.Media.Brush.Parse("#1d2027"),
+            Content = new StackPanel
+            {
+                Margin = new Avalonia.Thickness(18),
+                Spacing = 14,
+                Children =
+                {
+                    new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap, MaxWidth = 380 },
+                    new StackPanel
+                    {
+                        Orientation = Avalonia.Layout.Orientation.Horizontal,
+                        Spacing = 8,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Children = { no, yes },
+                    },
+                },
+            },
+        };
+        var done = new TaskCompletionSource<bool>();
+        yes.Click += (_, _) => { done.TrySetResult(true); dialog.Close(); };
+        no.Click += (_, _) => { done.TrySetResult(false); dialog.Close(); };
+        dialog.Closed += (_, _) => done.TrySetResult(false);
+        await dialog.ShowDialog(this);
+        return await done.Task;
     }
 
     private void OnProfileLoad(object? sender, RoutedEventArgs e)

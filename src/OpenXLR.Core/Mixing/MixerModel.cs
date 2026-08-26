@@ -123,5 +123,16 @@ public sealed record ChannelStatus(string Id, string Name,
     IReadOnlyList<string> MutedIn);
 
 
-/// <summary>An application stream and the channel it is playing into.</summary>
-public sealed record StreamAssignment(int Id, int Serial, string Label, string Identity, string ChannelId);
+/// <summary>
+/// An application the mixer knows about and the channel it plays into. Active
+/// means a live stream exists right now; inactive apps are remembered (and
+/// persisted) so their routing can be changed while they are silent.
+/// </summary>
+public sealed record StreamAssignment(int Id, int Serial, string Label, string Identity, string ChannelId)
+{
+    /// <summary>A live audio stream exists right now.</summary>
+    public bool Active { get; init; } = true;
+
+    /// <summary>The app is running and registered with PipeWire (audio-capable).</summary>
+    public bool Running { get; init; } = true;
+}

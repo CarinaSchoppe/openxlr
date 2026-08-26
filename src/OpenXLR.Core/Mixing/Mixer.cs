@@ -196,6 +196,7 @@ public sealed class Mixer : IDisposable
                 ChannelMuted = [.. _muted],
                 MonitorOutputs = [.. _monitorOutputs],
                 AppOverrides = new Dictionary<string, string>(Matcher.Overrides),
+                KnownApps = [.. _apps.Values.Select(a => new SavedApp(a.Identity, a.Label, a.ChannelId))],
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
             };
@@ -221,7 +222,20 @@ public sealed class Mixer : IDisposable
                 if (_cells.Contains(cell)) _muted.Add(cell);
 
             foreach ((string identity, string channelId) in s.AppOverrides)
-                Matcher.SetOverride(identity, channelId);
+                Matcher.SetOverride(Sanitize(identity), channelId);
+
+            // Remembered apps come back inactive until a stream appears.
+            // Identities saved before the "(deleted)" fix are migrated here so
+            // an app does not appear twice after its binary was updated.
+            foreach (SavedApp app in s.KnownApps)
+            {
+                string identity = Sanitize(app.Identity);
+                if (PipeWireAdapter.IsPlumbingIdentity(identity)) continue;   // pre-filter leftovers
+                if (!_apps.ContainsKey(identity))
+                    _apps[identity] = new StreamAssignment(0, 0, Sanitize(app.Label), identity, app.ChannelId) { Active = false, Running = false };
+            }
+
+            static string Sanitize(string v) => v.EndsWith(" (deleted)", StringComparison.Ordinal) ? v[..^10] : v;
 
             foreach (MixDefinition mix in _config.Mixes) ReapplyMixLocked(mix.Id);
 
@@ -416,6 +430,10 @@ public sealed class Mixer : IDisposable
         get { lock (_gate) return [.. _streams.Values]; }
     }
 
+    // Known applications keyed by identity: active ones have a live stream,
+    // inactive ones are remembered so their routing stays editable and the
+    // list is stable. _streams tracks the live stream ids already placed.
+    private readonly Dictionary<string, StreamAssignment> _apps = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, StreamAssignment> _streams = [];
 
     /// <summary>
@@ -432,9 +450,11 @@ public sealed class Mixer : IDisposable
         lock (_gate)
         {
             var seen = new HashSet<int>();
+            var liveIdentities = new HashSet<string>();
             foreach (AudioStream s in live)
             {
                 seen.Add(s.Id);
+                liveIdentities.Add(s.Identity);
                 if (_streams.ContainsKey(s.Id)) continue;
 
                 string channelId = Matcher.Match(s);
@@ -445,7 +465,9 @@ public sealed class Mixer : IDisposable
                 try { _pw.MoveStreamToSink(s.Serial, ch.SinkName); }
                 catch (InvalidOperationException) { continue; }
 
-                _streams[s.Id] = new StreamAssignment(s.Id, s.Serial, s.Label, s.Identity, ch.Id);
+                var placed = new StreamAssignment(s.Id, s.Serial, s.Label, s.Identity, ch.Id);
+                _streams[s.Id] = placed;
+                _apps[s.Identity] = placed;
                 changed = true;
             }
 
@@ -454,8 +476,91 @@ public sealed class Mixer : IDisposable
                 _streams.Remove(gone);
                 changed = true;
             }
+
+            // Every running audio-capable app is listed even before it plays:
+            // PipeWire clients cover "running", streams cover "playing".
+            var runningIdentities = new HashSet<string>();
+            foreach (AudioStream client in _pw.ListClients())
+            {
+                string identity = client.Identity;
+                runningIdentities.Add(identity);
+                if (!_apps.ContainsKey(identity))
+                {
+                    _apps[identity] = new StreamAssignment(0, 0, client.Label, identity,
+                        Matcher.Match(client)) { Active = false, Running = true };
+                    changed = true;
+                }
+                else if (!_apps[identity].Active && _apps[identity].Label != client.Label &&
+                         (client.Label.Length < _apps[identity].Label.Length ||
+                          string.Equals(_apps[identity].Label, identity, StringComparison.OrdinalIgnoreCase)))
+                {
+                    // Heal stale or placeholder labels from a live client, but
+                    // prefer the shortest name: apps register helper clients
+                    // like "Google Chrome input" alongside the real one.
+                    _apps[identity] = _apps[identity] with { Label = client.Label };
+                    changed = true;
+                }
+            }
+
+            // Reconcile flags; remembered apps stay listed when gone entirely.
+            foreach ((string identity, StreamAssignment app) in _apps.ToList())
+            {
+                bool activeNow = liveIdentities.Contains(identity);
+                bool runningNow = activeNow || runningIdentities.Contains(identity);
+                if (app.Active != activeNow || app.Running != runningNow)
+                {
+                    _apps[identity] = app with
+                    {
+                        Active = activeNow, Running = runningNow,
+                        Id = activeNow ? app.Id : 0, Serial = activeNow ? app.Serial : 0,
+                    };
+                    changed = true;
+                }
+            }
         }
         return changed;
+    }
+
+    /// <summary>
+    /// Drop an application from the registry and forget its channel override.
+    /// A still-running app simply re-registers on the next sweep.
+    /// </summary>
+    public void ForgetApp(string identity)
+    {
+        lock (_gate)
+        {
+            _apps.Remove(identity);
+            Matcher.RemoveOverride(identity);
+        }
+    }
+
+    /// <summary>
+    /// Route an application (by identity) to a channel: remembered for every
+    /// future stream, and applied to its live streams right away if any.
+    /// </summary>
+    public void AssignApp(string identity, string channelId, string? label = null)
+    {
+        lock (_gate)
+        {
+            ChannelDefinition? ch = _config.Channels.FirstOrDefault(c => c.Id == channelId);
+            if (ch is null || string.IsNullOrWhiteSpace(identity)) return;
+            Matcher.SetOverride(identity, channelId);
+
+            foreach ((int id, StreamAssignment placed) in _streams.ToList())
+                if (placed.Identity == identity)
+                {
+                    try { _pw.MoveStreamToSink(placed.Serial, ch.SinkName); }
+                    catch (InvalidOperationException) { continue; }
+                    _streams[id] = placed with { ChannelId = channelId };
+                }
+
+            if (_apps.TryGetValue(identity, out StreamAssignment? app))
+                _apps[identity] = app with { ChannelId = channelId };
+            else
+                // Pre-registered by hand (e.g. from the installed-apps picker):
+                // listed silent until its first stream shows up and confirms.
+                _apps[identity] = new StreamAssignment(0, 0, label ?? identity, identity, channelId) { Active = false, Running = false };
+        }
     }
 
     /// <summary>
@@ -499,7 +604,8 @@ public sealed class Mixer : IDisposable
                 OutputVolume = _outputVolume,
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
-                Streams = [.. _streams.Values],
+                Streams = [.. _apps.Values
+                    .OrderByDescending(a => a.Active).ThenBy(a => a.Label, StringComparer.OrdinalIgnoreCase)],
             };
         }
     }

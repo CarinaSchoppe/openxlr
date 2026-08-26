@@ -467,6 +467,77 @@ public sealed class PipeWireAdapter
     }
 
     /// <summary>
+    /// Binaries that are audio plumbing, not applications: they register as
+    /// PipeWire clients but should never appear in the app list.
+    /// </summary>
+    private static readonly string[] PlumbingBinaries =
+    [
+        "pipewire", "pipewire-pulse", "wireplumber", "pactl", "parec", "paplay",
+        "pw-cli", "pw-dump", "pw-cat", "pw-play", "pw-record", "pw-loopback",
+        "pw-link", "pw-mon", "speech-dispatcher", "OpenXLR.Daemon", "OpenXLR.UI",
+        "libcanberra", "xdg-desktop-portal", "xdg-desktop-portal-kde",
+        "xdg-desktop-portal-gnome", "pavucontrol",
+    ];
+
+    /// <summary>
+    /// Desktop-environment services: audio-capable, but noise in an app list.
+    /// Excluded from the running-clients scan only; when one actually plays a
+    /// sound its stream still registers it, so nothing is ever unroutable.
+    /// </summary>
+    private static readonly string[] DesktopServiceBinaries =
+    [
+        "kwin_wayland", "kwin_x11", "plasmashell", "gnome-shell",
+        "polkit-kde-authentication-agent-1", "libcanberra", "gsd-media-keys",
+        "kded5", "kded6", "kaccess", "orca", "ksmserver", "krunner",
+    ];
+
+    /// <summary>True for identities that are audio plumbing, not applications.</summary>
+    public static bool IsPlumbingIdentity(string identity)
+        => Array.Exists(PlumbingBinaries, pb => identity.Equals(pb, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Every running application that has registered with PipeWire, playing or
+    /// not. Browsers, chat apps and players connect as clients the moment they
+    /// initialise audio, so this is "audio-capable and running".
+    /// </summary>
+    public IReadOnlyList<AudioStream> ListClients()
+    {
+        var found = new List<AudioStream>();
+        string json = Run("pw-dump");
+        JsonDocument doc;
+        try { doc = JsonDocument.Parse(json); }
+        catch (JsonException) { return found; }
+        using (doc)
+        {
+            foreach (JsonElement o in doc.RootElement.EnumerateArray())
+            {
+                if (!o.TryGetProperty("type", out JsonElement t) ||
+                    t.GetString() != "PipeWire:Interface:Client") continue;
+                if (!o.TryGetProperty("info", out JsonElement info) ||
+                    !info.TryGetProperty("props", out JsonElement props)) continue;
+
+                string? binary = props.TryGetProperty("application.process.binary", out JsonElement b) ? b.GetString() : null;
+                if (binary is not null && binary.EndsWith(" (deleted)", StringComparison.Ordinal))
+                    binary = binary[..^10];
+                string? appName = props.TryGetProperty("application.name", out JsonElement an) ? an.GetString() : null;
+                // Chromium registers its capture-side client as "<name> input";
+                // it is the same application, so drop the suffix.
+                if (appName is not null && appName.EndsWith(" input", StringComparison.Ordinal))
+                    appName = appName[..^6];
+                if (binary is null && appName is null) continue;
+                bool Listed(string[] list, string? v) => v is not null && Array.Exists(list, e =>
+                        v.Equals(e, StringComparison.OrdinalIgnoreCase));
+                if (Listed(PlumbingBinaries, binary) || Listed(PlumbingBinaries, appName)) continue;
+                if (Listed(DesktopServiceBinaries, binary) || Listed(DesktopServiceBinaries, appName)) continue;
+                if (appName is not null && appName.Contains("OpenXLR", StringComparison.Ordinal)) continue;
+
+                found.Add(new AudioStream(0, appName, binary, null));
+            }
+        }
+        return found;
+    }
+
+    /// <summary>
     /// Every application playback stream (what PulseAudio calls a sink-input),
     /// with the identity fields the matcher needs. OpenXLR's own loopbacks are
     /// excluded: they are plumbing, not applications.
@@ -507,10 +578,15 @@ public sealed class PipeWireAdapter
                 // by the PipeWire node id.
                 int serial = props.TryGetProperty("object.serial", out JsonElement os) &&
                              os.TryGetInt32(out int sv) ? sv : o.GetProperty("id").GetInt32();
+                // A binary replaced on disk while running (updates) reports
+                // as "name (deleted)"; strip it or the app splits identities.
+                string? binary = Str(props, "application.process.binary");
+                if (binary is not null && binary.EndsWith(" (deleted)", StringComparison.Ordinal))
+                    binary = binary[..^10];
                 found.Add(new AudioStream(
                     o.GetProperty("id").GetInt32(),
                     Str(props, "application.name"),
-                    Str(props, "application.process.binary"),
+                    binary,
                     Str(props, "media.name")) { Serial = serial });
             }
         }

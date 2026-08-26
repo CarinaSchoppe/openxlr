@@ -282,7 +282,7 @@
       <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="APPLICATIONS" Classes="h"/></Expander.Header>
       <StackPanel Spacing="8">
-        <ItemsControl ItemsSource="{Binding Apps}">
+        <ItemsControl ItemsSource="{Binding ActiveApps}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
@@ -290,6 +290,9 @@
             <DataTemplate x:DataType="vm:AppStreamViewModel">
               <Border Background="#23262f" CornerRadius="6" Padding="8,6" Margin="0,0,8,8">
                 <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                           Fill="{Binding Active, Converter={x:Static vm:Converters.BoolToBrush}}"
+                           ToolTip.Tip="{Binding StatusText}"/>
                   <TextBlock Text="{Binding Label}" Foreground="#e6e9f0" VerticalAlignment="Center"/>
                   <ComboBox ItemsSource="{Binding Channels}" MinWidth="110"
                             SelectedItem="{Binding ChannelId, Mode=TwoWay}"/>
@@ -298,8 +301,13 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <TextBlock TextWrapping="Wrap" Text="Apps are routed automatically. Changing one here is remembered for next launch."
-                   FontSize="11" Foreground="#6b7285"/>
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock TextWrapping="Wrap" VerticalAlignment="Center"
+                     Text="Running audio-capable apps appear here (green light = playing) and are routed automatically. Changing one is remembered."
+                     FontSize="11" Foreground="#6b7285"/>
+          <Button Grid.Column="1" Content="Manage…" Padding="12,4" Margin="8,0,0,0"
+                  Click="OnManageApps" IsEnabled="{Binding HasApps}"/>
+        </Grid>
       </StackPanel>
       </Expander>
     </Border>

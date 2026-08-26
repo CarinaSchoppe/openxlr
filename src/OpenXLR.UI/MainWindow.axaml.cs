@@ -79,4 +79,7 @@ public partial class MainWindow : Window
 
     private void OnOptions(object? sender, RoutedEventArgs e)
         => new OptionsWindow(new OptionsViewModel(_client, _vm)).ShowDialog(this);
+
+    private void OnManageApps(object? sender, RoutedEventArgs e)
+        => new AppsWindow { DataContext = _vm }.ShowDialog(this);
 }

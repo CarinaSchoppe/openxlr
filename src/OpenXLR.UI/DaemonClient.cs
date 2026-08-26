@@ -129,6 +129,14 @@ public sealed class DaemonClient : IAsyncDisposable
         { ["cmd"] = "setEnforcedDefaults", ["sink"] = sink, ["source"] = source });
 
     /// <summary>Move an application's audio to a channel, remembered for next launch.</summary>
+    /// <summary>Route an app (by identity) to a channel, silent or not.</summary>
+    public Task AssignAppAsync(string identity, string channel, string? label = null)
+        => SendAsync(new Dictionary<string, object?> { ["cmd"] = "assignApp", ["identity"] = identity, ["channel"] = channel, ["label"] = label });
+
+    /// <summary>Remove an app from the registry and forget its override.</summary>
+    public Task ForgetAppAsync(string identity)
+        => SendAsync(new Dictionary<string, object?> { ["cmd"] = "forgetApp", ["identity"] = identity });
+
     public Task AssignStreamAsync(int streamId, string channel)
         => SendAsync(new Dictionary<string, object>
         { ["cmd"] = "assignStream", ["streamId"] = streamId, ["channel"] = channel });

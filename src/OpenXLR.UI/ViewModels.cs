@@ -299,6 +299,16 @@ public sealed class MainViewModel : ViewModelBase
     public ObservableCollection<ChannelViewModel> Channels { get; } = [];
     public ObservableCollection<MixViewModel> Mixes { get; } = [];
 
+    /// <summary>Running audio-capable apps (the main card shows these).</summary>
+    public ObservableCollection<AppStreamViewModel> ActiveApps { get; } = [];
+
+    /// <summary>True when the registry holds anything (enables Manage…).</summary>
+    public bool HasApps => Apps.Count > 0;
+
+    /// <summary>Pre-register an installed app with a channel (Manage dialog).</summary>
+    public void AddApp(string identity, string label, string channel)
+        => _ = _client.AssignAppAsync(identity, channel, label);
+
     // --- device selection (any sink/source, real or virtual) ---
 
     public ObservableCollection<AudioDeviceItem> Outputs { get; } = [];
@@ -506,25 +516,41 @@ public sealed class MainViewModel : ViewModelBase
     private void ApplyStreams(JsonNode? mixer)
     {
         if (mixer?["streams"] is not JsonArray arr) { Apps.Clear(); return; }
-        var fresh = new List<(int Id, string Label, string Channel)>();
+        var fresh = new List<(string Identity, string Label, string Channel, bool Active, bool Running)>();
         foreach (JsonNode? s in arr)
         {
             if (s is null) continue;
-            fresh.Add((s["id"]?.GetValue<int>() ?? 0,
+            fresh.Add((s["identity"]?.GetValue<string>() ?? "?",
                        s["label"]?.GetValue<string>() ?? "?",
-                       s["channelId"]?.GetValue<string>() ?? ""));
+                       s["channelId"]?.GetValue<string>() ?? "",
+                       s["active"]?.GetValue<bool>() ?? true,
+                       s["running"]?.GetValue<bool>() ?? true));
         }
         // Update in place so an open dropdown is not closed by a state push.
         foreach (var f in fresh)
         {
-            AppStreamViewModel? existing = Apps.FirstOrDefault(a => a.StreamId == f.Id);
+            AppStreamViewModel? existing = Apps.FirstOrDefault(a =>
+                string.Equals(a.Identity, f.Identity, StringComparison.OrdinalIgnoreCase));
             if (existing is null)
-                Apps.Add(new AppStreamViewModel(_client, f.Id, f.Label, [.. Channels.Select(c => c.Id)]) { ChannelId = f.Channel });
+                Apps.Add(new AppStreamViewModel(_client, f.Identity, f.Label, [.. Channels.Select(c => c.Id)])
+                    { ChannelId = f.Channel, Active = f.Active, Running = f.Running });
             else
-                existing.ApplyFromDaemon(f.Channel);
+                existing.ApplyFromDaemon(f.Channel, f.Active, f.Running);
         }
         for (int i = Apps.Count - 1; i >= 0; i--)
-            if (!fresh.Any(f => f.Id == Apps[i].StreamId)) Apps.RemoveAt(i);
+            if (!fresh.Any(f => string.Equals(f.Identity, Apps[i].Identity, StringComparison.OrdinalIgnoreCase))) Apps.RemoveAt(i);
+
+        // Maintain the running-apps view without disturbing open dropdowns.
+        foreach (AppStreamViewModel a in Apps)
+        {
+            bool listed = ActiveApps.Contains(a);
+            bool wanted = a.Active || a.Running;
+            if (wanted && !listed) ActiveApps.Add(a);
+            else if (!wanted && listed) ActiveApps.Remove(a);
+        }
+        for (int i = ActiveApps.Count - 1; i >= 0; i--)
+            if (!Apps.Contains(ActiveApps[i])) ActiveApps.RemoveAt(i);
+        Raise(nameof(HasApps));
     }
 
     private void ApplyMixer(JsonNode? mixer)
@@ -576,29 +602,51 @@ public sealed class AppStreamViewModel : ViewModelBase
     private readonly DaemonClient _client;
     private bool _applying;
 
-    public AppStreamViewModel(DaemonClient client, int streamId, string label, IReadOnlyList<string> channels)
+    public AppStreamViewModel(DaemonClient client, string identity, string label, IReadOnlyList<string> channels)
     {
-        _client = client; StreamId = streamId; Label = label;
+        _client = client; Identity = identity; Label = label;
         foreach (string c in channels) Channels.Add(c);
     }
 
-    public int StreamId { get; }
+    public string Identity { get; }
     public string Label { get; }
     public ObservableCollection<string> Channels { get; } = [];
+
+    private bool _active = true;
+    public bool Active
+    {
+        get => _active;
+        set { if (Set(ref _active, value)) { Raise(nameof(Opacity)); Raise(nameof(StatusText)); } }
+    }
+
+    private bool _running = true;
+    public bool Running
+    {
+        get => _running;
+        set { if (Set(ref _running, value)) { Raise(nameof(Opacity)); Raise(nameof(StatusText)); } }
+    }
+
+    /// <summary>Playing full, running slightly dimmed, remembered-only half.</summary>
+    public double Opacity => _active ? 1.0 : _running ? 0.8 : 0.5;
 
     private string _channelId = "";
     public string ChannelId
     {
         get => _channelId;
-        set { if (Set(ref _channelId, value) && !_applying && value.Length > 0) _ = _client.AssignStreamAsync(StreamId, value); }
+        set { if (Set(ref _channelId, value) && !_applying && value.Length > 0) _ = _client.AssignAppAsync(Identity, value); }
     }
 
-    public void ApplyFromDaemon(string channelId)
+    public void ApplyFromDaemon(string channelId, bool active, bool running)
     {
         _applying = true;
-        try { ChannelId = channelId; }
+        try { ChannelId = channelId; Active = active; Running = running; }
         finally { _applying = false; }
     }
+
+    /// <summary>"playing" / "running" / "not running", for the manage dialog.</summary>
+    public string StatusText => Active ? "playing" : Running ? "running" : "not running";
+
+    public void Forget() => _ = _client.ForgetAppAsync(Identity);
 }
 
 /// <summary>One selectable sink or source. Own nodes are OpenXLR's own.</summary>

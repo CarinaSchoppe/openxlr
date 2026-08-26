@@ -34,6 +34,9 @@ public sealed record MixerSettings
     /// <summary>Application identity to channel id, from manual assignments.</summary>
     public Dictionary<string, string> AppOverrides { get; init; } = [];
 
+    /// <summary>Every app ever seen, so the list survives silence and restarts.</summary>
+    public List<SavedApp> KnownApps { get; init; } = [];
+
     /// <summary>
     /// Devices to enforce as the system defaults, Wave Link style: when set,
     /// the daemon re-asserts them every sweep so nothing else can steal them.
@@ -94,3 +97,6 @@ public sealed record MixerSettings
         }
     }
 }
+
+/// <summary>A remembered application: identity, display label, channel.</summary>
+public sealed record SavedApp(string Identity, string Label, string ChannelId);

@@ -53,6 +53,9 @@ public sealed class StreamMatcher
     /// rules. Keyed by the stream's identity so a Proton game keeps its channel
     /// even though its binary is shared with every other Proton game.
     /// </summary>
+    /// <summary>Drop a remembered per-app choice (used when forgetting an app).</summary>
+    public void RemoveOverride(string identity) => _overrides.Remove(identity);
+
     public void SetOverride(string identity, string channelId)
     {
         if (!string.IsNullOrWhiteSpace(identity)) _overrides[identity] = channelId;
@@ -110,8 +113,26 @@ public sealed record AudioStream(int Id, string? AppName, string? Binary, string
         }
     }
 
+    /// <summary>
+    /// Application names that identify a runtime, not the actual app: Electron
+    /// apps (Discord and friends) all report "Chromium", so the process binary
+    /// is the truthful name for them.
+    /// </summary>
+    private static readonly string[] GenericAppNames =
+        ["Chromium", "Chromium input", "Electron", "WEBRTC VoiceEngine", "Wine",
+         "ALSA plug-in", "ringrtc", "libcanberra"];
+
     /// <summary>What to show in a picker.</summary>
-    public string Label => AppName is { Length: > 0 } and not "paplay" ? AppName
-        : Binary is { Length: > 0 } ? Binary
-        : MediaName ?? $"stream {Id}";
+    public string Label
+    {
+        get
+        {
+            bool generic = AppName is not { Length: > 0 } || AppName == "paplay" ||
+                Array.Exists(GenericAppNames, g => AppName.Equals(g, StringComparison.OrdinalIgnoreCase));
+            if (!generic) return AppName!;
+            if (Binary is { Length: > 1 } && Binary != "paplay")
+                return char.ToUpperInvariant(Binary[0]) + Binary[1..];
+            return AppName is { Length: > 0 } ? AppName : MediaName ?? $"stream {Id}";
+        }
+    }
 }

@@ -44,6 +44,12 @@ public sealed record Command
     /// <summary>For "setMonitorOutputs": every output the monitor mix should feed.</summary>
     [JsonPropertyName("devices")] public List<string>? Devices { get; init; }
 
+    /// <summary>For "assignApp": the application identity to route.</summary>
+    [JsonPropertyName("identity")] public string? Identity { get; init; }
+
+    /// <summary>For "assignApp": display label when pre-registering an app.</summary>
+    [JsonPropertyName("label")] public string? Label { get; init; }
+
     /// <summary>"setEnforcedDefaults": devices to hold as system defaults (null = don't enforce).</summary>
     [JsonPropertyName("sink")] public string? Sink { get; init; }
     [JsonPropertyName("source")] public string? Source { get; init; }

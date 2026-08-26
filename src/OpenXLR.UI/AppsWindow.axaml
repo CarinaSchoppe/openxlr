@@ -1,0 +1,70 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:OpenXLR.UI"
+        x:Class="OpenXLR.UI.AppsWindow"
+        x:DataType="vm:MainViewModel"
+        Title="OpenXLR Applications" Width="620" SizeToContent="Height" MaxHeight="700"
+        WindowStartupLocation="CenterOwner"
+        Background="#16181d" CanResize="False">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.h">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="#8b93a7"/>
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="#1d2027"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="14"/>
+    </Style>
+  </Window.Styles>
+
+  <StackPanel Margin="14" Spacing="8">
+    <Border Classes="card">
+      <StackPanel Spacing="6">
+        <TextBlock Text="KNOWN APPLICATIONS" Classes="h"/>
+        <TextBlock Text="Every app OpenXLR has routed, playing or silent. Assignments apply to the next stream the app opens; Forget drops the app and its remembered channel."
+                   FontSize="11" Foreground="#6b7285" TextWrapping="Wrap"/>
+        <ScrollViewer MaxHeight="480" VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Apps}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:AppStreamViewModel">
+                <Grid ColumnDefinitions="10,8,*,130,8,Auto" Margin="0,3">
+                  <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                           Fill="{Binding Active, Converter={x:Static vm:Converters.BoolToBrush}}"
+                           ToolTip.Tip="{Binding StatusText}"/>
+                  <TextBlock Grid.Column="2" Text="{Binding Label}" Foreground="#e6e9f0"
+                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                             ToolTip.Tip="{Binding Identity}"/>
+                  <ComboBox Grid.Column="3" HorizontalAlignment="Stretch"
+                            ItemsSource="{Binding Channels}"
+                            SelectedItem="{Binding ChannelId, Mode=TwoWay}"/>
+                  <Button Grid.Column="5" Content="Forget" Padding="10,3" FontSize="12"
+                          Click="OnForget"/>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </StackPanel>
+    </Border>
+
+    <Border Classes="card">
+      <StackPanel Spacing="6">
+        <TextBlock Text="ADD INSTALLED APPLICATION" Classes="h"/>
+        <TextBlock Text="Pre-assign a channel to an app that has not played audio yet. The identity is guessed from its launcher; if the app reports differently on first play, it simply appears as a new entry."
+                   FontSize="11" Foreground="#6b7285" TextWrapping="Wrap"/>
+        <Grid ColumnDefinitions="*,8,130,8,Auto">
+          <ComboBox Name="InstalledPicker" HorizontalAlignment="Stretch" MaxDropDownHeight="380"
+                    PlaceholderText="choose an application"/>
+          <ComboBox Name="ChannelPicker" Grid.Column="2" HorizontalAlignment="Stretch"
+                    PlaceholderText="channel"/>
+          <Button Grid.Column="4" Content="Add" Padding="14,4" Click="OnAdd"/>
+        </Grid>
+      </StackPanel>
+    </Border>
+
+    <Button Content="Close" HorizontalAlignment="Right" Padding="18,6" Margin="0,2,0,6" Click="OnClose"/>
+  </StackPanel>
+</Window>

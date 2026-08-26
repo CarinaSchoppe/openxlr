@@ -105,6 +105,8 @@ public sealed class WebSocketHub
             case "setMixVolume":
             case "setMixMuted":
             case "assignStream":
+            case "assignApp":
+            case "forgetApp":
             case "setMonitorOutput":
             case "setMonitorOutputs":
             case "setOutputVolume":

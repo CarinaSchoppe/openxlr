@@ -231,6 +231,14 @@ public sealed class MixerService : IHostedService, IDisposable
                     // Also remembered per application, so it sticks next launch.
                     _mixer.AssignStream(cmd.StreamId.Value, cmd.Channel);
                     break;
+                case "assignApp":
+                    if (cmd.Channel is null || cmd.Identity is null) return "assignApp: need 'channel' and 'identity'";
+                    _mixer.AssignApp(cmd.Identity, cmd.Channel, cmd.Label);
+                    break;
+                case "forgetApp":
+                    if (cmd.Identity is null) return "forgetApp: need 'identity'";
+                    _mixer.ForgetApp(cmd.Identity);
+                    break;
                 case "setMonitorOutput":
                     // A null device is meaningful here: it disconnects the route.
                     _mixer.SetMonitorOutput(cmd.Device);

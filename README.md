@@ -209,6 +209,14 @@ Daily-driven by the author. The next planned piece is an OpenDeck plugin
 that puts the mixes and device controls on Stream Deck keys and dials over
 the same WebSocket API.
 
+## AI disclosure
+
+The majority of OpenXLR's code was produced by the author. AI tooling
+(Anthropic's Claude) assisted along the way: analyzing the USB protocol
+captures behind the vendor-protocol documentation, and helping with UI
+design and parts of the coding. Every hardware finding was verified live
+on a real device.
+
 ## License
 
 [GPL-3.0](LICENSE). If you find OpenXLR useful, consider

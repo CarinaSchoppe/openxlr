@@ -135,7 +135,8 @@ public sealed class MixerService : IHostedService, IDisposable
                 try
                 {
                     if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()
-                        | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()) Changed?.Invoke();
+                        | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()
+                        | _mixer.EnsureMonitorRoutes()) Changed?.Invoke();
                     SyncOutputSelectors();
                 }
                 catch (Exception ex) { _log.LogDebug("stream sweep: {msg}", ex.Message); }

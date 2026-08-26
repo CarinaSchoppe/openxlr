@@ -452,22 +452,63 @@ public sealed class Mixer : IDisposable
         foreach (PortLink route in _monitorRoutes.Values) _pw.Unlink(route);
         _monitorRoutes.Clear();
         _monitorOutputs.Clear();
-        MixDefinition? monitor = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor);
         foreach (string name in sinkNames.Where(n => !string.IsNullOrEmpty(n)).Distinct())
         {
             // The aux port is owned by the Aux mix now; old saved selections
             // that still carry it as a monitor destination are dropped.
             if (name.EndsWith("#usbaux", StringComparison.Ordinal)) continue;
             _monitorOutputs.Add(name);
-            if (monitor is null) continue;
-            // Pseudo-outputs of one device share a route when they ride the
-            // same USB return pair: the analog outputs (hp1/hp2/lineout) all
-            // use the monitor-bus pair, while the aux port has its own.
+        }
+        MixDefinition? monitor = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor);
+        if (monitor is null) return;
+        foreach ((string key, string target) in MonitorRouteTargetsLocked())
+            _monitorRoutes[key] = _pw.RouteMixToOutput(monitor.SinkName, target);
+    }
+
+    /// <summary>
+    /// One route per selected monitor destination, keyed so pseudo-outputs of
+    /// one device share a route when they ride the same USB return pair: the
+    /// analog outputs (hp1/hp2/lineout) all use the monitor-bus pair.
+    /// </summary>
+    private IEnumerable<(string Key, string Target)> MonitorRouteTargetsLocked()
+    {
+        var seen = new HashSet<string>();
+        foreach (string name in _monitorOutputs)
+        {
             int marker = name.IndexOf('#');
-            string routeKey = marker < 0 ? name
-                : name[..marker] + (name[(marker + 1)..] == "usbaux" ? "#auxbus" : "#bus");
-            if (!_monitorRoutes.ContainsKey(routeKey))
-                _monitorRoutes[routeKey] = _pw.RouteMixToOutput(monitor.SinkName, name);
+            string key = marker < 0 ? name : name[..marker] + "#bus";
+            if (seen.Add(key)) yield return (key, name);
+        }
+    }
+
+    /// <summary>
+    /// Verify the monitor mix's device links and repair what died: a USB
+    /// output that re-enumerates (suspend, reset, profile change) takes its
+    /// node and every link on it along, and a device absent at wiring time
+    /// got no links at all. Runs every sweep; true when something changed.
+    /// </summary>
+    public bool EnsureMonitorRoutes()
+    {
+        lock (_gate)
+        {
+            if (!_built || _monitorOutputs.Count == 0) return false;
+            MixDefinition? monitor = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor);
+            if (monitor is null) return false;
+            bool changed = false;
+            foreach ((string key, string target) in MonitorRouteTargetsLocked())
+            {
+                PortLink? route = _monitorRoutes.GetValueOrDefault(key);
+                if (route is { Pairs.Count: > 0 })
+                {
+                    LinkHealth health = _pw.EnsureLinks(route);
+                    if (health == LinkHealth.Healthy) continue;
+                    if (health == LinkHealth.Relinked) { changed = true; continue; }
+                    _pw.Unlink(route);   // Broken: the port names themselves are stale
+                }
+                _monitorRoutes[key] = _pw.RouteMixToOutput(monitor.SinkName, target);
+                changed |= _monitorRoutes[key].Pairs.Count > 0;
+            }
+            return changed;
         }
     }
 

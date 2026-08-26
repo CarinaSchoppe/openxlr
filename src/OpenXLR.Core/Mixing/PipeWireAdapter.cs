@@ -339,6 +339,32 @@ public sealed class PipeWireAdapter
         return ports;
     }
 
+    /// <summary>
+    /// Make sure every pair of a link set still exists, re-creating any that
+    /// died (a USB device re-enumerating destroys its node and every link on
+    /// it, while the new node usually keeps the same port names). Returns
+    /// Broken when a port is gone entirely, meaning the route needs a fresh
+    /// port discovery instead.
+    /// </summary>
+    public LinkHealth EnsureLinks(PortLink link)
+    {
+        var health = LinkHealth.Healthy;
+        foreach ((string from, string to) in link.Pairs)
+        {
+            try
+            {
+                Run("pw-link", from, to);
+                health = LinkHealth.Relinked;
+            }
+            catch (InvalidOperationException ex)
+            {
+                if (ex.Message.Contains("File exists", StringComparison.Ordinal)) continue;
+                return LinkHealth.Broken;
+            }
+        }
+        return health;
+    }
+
     /// <summary>Remove a set of port links made by <see cref="LinkNodes"/>.</summary>
     public void Unlink(PortLink link)
     {
@@ -668,6 +694,9 @@ public sealed record LoopbackHandle(string Id, string CaptureNodeName, string Pl
 
 /// <summary>A set of direct port links between two nodes.</summary>
 public sealed record PortLink(IReadOnlyList<(string From, string To)> Pairs);
+
+/// <summary>Outcome of verifying a <see cref="PortLink"/>'s pairs.</summary>
+public enum LinkHealth { Healthy, Relinked, Broken }
 
 public enum AudioNodeKind { Sink, Source }
 

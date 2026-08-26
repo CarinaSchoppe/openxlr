@@ -97,6 +97,60 @@ public sealed class MainViewModel : ViewModelBase
     private bool _voiceTune;
     public bool VoiceTune { get => _voiceTune; set { if (Set(ref _voiceTune, value) && !_applying) _ = _client.SetControlAsync("voiceTune", value); } }
 
+    private int _voiceTuneStrength;
+    public int VoiceTuneStrength
+    {
+        get => _voiceTuneStrength;
+        set
+        {
+            if (Set(ref _voiceTuneStrength, value) && !_applying)
+            {
+                int v = value;
+                SliderSync.Touch("vts");
+                SliderSync.Send("vts", () => _ = _client.SetControlAsync("voiceTuneStrength", v));
+            }
+            Raise(nameof(VoiceTuneStrengthText));
+        }
+    }
+    public string VoiceTuneStrengthText => $"{_voiceTuneStrength}%";
+
+    private int _voiceTuneStrength2;
+    public int VoiceTuneStrength2
+    {
+        get => _voiceTuneStrength2;
+        set
+        {
+            if (Set(ref _voiceTuneStrength2, value) && !_applying)
+            {
+                int v = value;
+                SliderSync.Touch("vts2");
+                SliderSync.Send("vts2", () => _ = _client.SetControlAsync("voiceTuneStrength2", v));
+            }
+            Raise(nameof(VoiceTuneStrength2Text));
+        }
+    }
+    public string VoiceTuneStrength2Text => $"{_voiceTuneStrength2}%";
+
+    // Crossfade: the hardware's zero-latency direct-monitor blend, 0 = only
+    // the mic side, 200 = only PC playback, 100 = centre.
+    private int _crossfade;
+    public int Crossfade
+    {
+        get => _crossfade;
+        set
+        {
+            if (Set(ref _crossfade, value) && !_applying)
+            {
+                int v = value;
+                SliderSync.Touch("xfade");
+                SliderSync.Send("xfade", () => _ = _client.SetControlAsync("crossfade", v));
+            }
+            Raise(nameof(CrossfadeText));
+        }
+    }
+    public string CrossfadeText => _crossfade == 100 ? "centre"
+        : _crossfade < 100 ? $"mic +{100 - _crossfade}" : $"pc +{_crossfade - 100}";
+
     private bool _lowImpedance;
     public bool LowImpedance { get => _lowImpedance; set { if (Set(ref _lowImpedance, value) && !_applying) _ = _client.SetControlAsync("lowImpedance", value); } }
 
@@ -326,6 +380,9 @@ public sealed class MainViewModel : ViewModelBase
                 Expander = s["expander"]?.GetValue<bool>() ?? false;
                 VoiceTune = s["voiceTune"]?.GetValue<bool>() ?? false;
                 LowImpedance = s["lowImpedance"]?.GetValue<bool>() ?? false;
+                if (!SliderSync.RecentlyTouched("vts")) VoiceTuneStrength = s["voiceTuneStrength"]?.GetValue<int>() ?? 0;
+                if (!SliderSync.RecentlyTouched("vts2")) VoiceTuneStrength2 = s["voiceTuneStrength2"]?.GetValue<int>() ?? 0;
+                if (!SliderSync.RecentlyTouched("xfade")) Crossfade = s["crossfade"]?.GetValue<int>() ?? 0;
                 if (!SliderSync.RecentlyTouched("hp")) HpVolumeDb = s["hpVolumeDb"]?.GetValue<double>() ?? 0;
                 if (!SliderSync.RecentlyTouched("hp2")) Hp2VolumeDb = s["hp2VolumeDb"]?.GetValue<double>() ?? 0;
                 Phantom = s["phantom"]?.GetValue<bool>() ?? false;

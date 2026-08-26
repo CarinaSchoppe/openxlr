@@ -3,7 +3,7 @@
         xmlns:vm="using:OpenXLR.UI"
         x:Class="OpenXLR.UI.OptionsWindow"
         x:DataType="vm:OptionsViewModel"
-        Title="OpenXLR Options" Width="560" Height="480"
+        Title="OpenXLR Options" Width="560" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         Background="#16181d" CanResize="False">
 
@@ -23,10 +23,10 @@
     </Style>
   </Window.Styles>
 
-  <StackPanel Margin="16" Spacing="12">
+  <StackPanel Margin="14" Spacing="8">
 
     <Border Classes="card">
-      <StackPanel Spacing="10">
+      <StackPanel Spacing="6">
         <TextBlock Text="STARTUP" Classes="h"/>
         <CheckBox Content="Start the daemon at login (systemd user service)"
                   IsChecked="{Binding StartDaemonAtLogin, Mode=TwoWay}"/>
@@ -34,11 +34,13 @@
                   IsChecked="{Binding OpenWindowAtLogin, Mode=TwoWay}"/>
         <CheckBox Content="Close button minimizes to tray instead of quitting"
                   IsChecked="{Binding MinimizeToTray, Mode=TwoWay}"/>
+        <CheckBox Content="Start minimized to tray"
+                  IsChecked="{Binding StartMinimized, Mode=TwoWay}"/>
       </StackPanel>
     </Border>
 
     <Border Classes="card">
-      <StackPanel Spacing="10">
+      <StackPanel Spacing="6">
         <TextBlock Text="SYSTEM DEFAULT DEVICES" Classes="h"/>
         <TextBlock Text="When set, OpenXLR holds these as the system defaults and reverts any outside change, like Wave Link does. Applications that follow the system default will use them."
                    FontSize="11" Foreground="#6b7285" TextWrapping="Wrap"/>
@@ -72,6 +74,6 @@
       </StackPanel>
     </Border>
 
-    <Button Content="Close" HorizontalAlignment="Right" Padding="18,6" Click="OnClose"/>
+    <Button Content="Close" HorizontalAlignment="Right" Padding="18,6" Margin="0,2,0,6" Click="OnClose"/>
   </StackPanel>
 </Window>

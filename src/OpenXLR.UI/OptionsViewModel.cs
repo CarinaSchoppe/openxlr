@@ -27,6 +27,7 @@ public sealed class OptionsViewModel : ViewModelBase
         _startDaemonAtLogin = s.StartDaemonAtLogin;
         _openWindowAtLogin = s.OpenWindowAtLogin;
         _minimizeToTray = s.MinimizeToTray;
+        _startMinimized = s.StartMinimized;
 
         BuildChoices();
         _applying = true;
@@ -76,11 +77,23 @@ public sealed class OptionsViewModel : ViewModelBase
         }
     }
 
+    private bool _startMinimized;
+    public bool StartMinimized
+    {
+        get => _startMinimized;
+        set
+        {
+            if (!Set(ref _startMinimized, value)) return;
+            Persist();
+        }
+    }
+
     private void Persist() => new UiSettings
     {
         StartDaemonAtLogin = _startDaemonAtLogin,
         OpenWindowAtLogin = _openWindowAtLogin,
         MinimizeToTray = _minimizeToTray,
+        StartMinimized = _startMinimized,
     }.Save();
 
     // --- enforced system defaults ---

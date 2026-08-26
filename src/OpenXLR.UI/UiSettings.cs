@@ -15,6 +15,7 @@ public sealed record UiSettings
     public bool StartDaemonAtLogin { get; init; }
     public bool OpenWindowAtLogin { get; init; }
     public bool MinimizeToTray { get; init; }
+    public bool StartMinimized { get; init; }
 
     private static readonly JsonSerializerOptions Json = new()
     {

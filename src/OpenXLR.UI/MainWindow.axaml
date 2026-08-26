@@ -7,7 +7,48 @@
         Icon="avares://OpenXLR.UI/Assets/icon.png"
         Background="#16181d">
 
+  <!-- flat rectangular fader knobs instead of the round Fluent thumb: the
+       Fluent slider sizes its thumb from these theme resources -->
+  <Window.Resources>
+    <x:Double x:Key="SliderHorizontalThumbWidth">22</x:Double>
+    <x:Double x:Key="SliderHorizontalThumbHeight">10</x:Double>
+    <x:Double x:Key="SliderVerticalThumbWidth">10</x:Double>
+    <x:Double x:Key="SliderVerticalThumbHeight">22</x:Double>
+    <CornerRadius x:Key="SliderThumbCornerRadius">2</CornerRadius>
+
+    <ControlTheme x:Key="TileExpanderTheme" TargetType="Expander">
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="VerticalAlignment" Value="Top"/>
+      <Setter Property="Template">
+        <ControlTemplate>
+          <DockPanel>
+            <ToggleButton DockPanel.Dock="Top" HorizontalAlignment="Stretch" Cursor="Hand"
+                          IsChecked="{TemplateBinding IsExpanded, Mode=TwoWay}">
+              <ToggleButton.Template>
+                <ControlTemplate TargetType="ToggleButton">
+                  <Grid ColumnDefinitions="*,Auto" Background="Transparent" Margin="0,0,0,4">
+                    <ContentPresenter Content="{Binding $parent[Expander].Header}"
+                                      VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Classes="h" VerticalAlignment="Center"
+                               Text="{Binding $parent[Expander].IsExpanded, Converter={x:Static vm:Converters.Chevron}}"/>
+                  </Grid>
+                </ControlTemplate>
+              </ToggleButton.Template>
+            </ToggleButton>
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              IsVisible="{TemplateBinding IsExpanded}"/>
+          </DockPanel>
+        </ControlTemplate>
+      </Setter>
+    </ControlTheme>
+  </Window.Resources>
+
   <Window.Styles>
+    <Style Selector="Slider /template/ Thumb">
+      <Setter Property="CornerRadius" Value="2"/>
+    </Style>
     <Style Selector="TextBlock.h">
       <Setter Property="FontSize" Value="12"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
@@ -20,10 +61,24 @@
     <Style Selector="Border.card">
       <Setter Property="Background" Value="#1d2027"/>
       <Setter Property="CornerRadius" Value="8"/>
-      <Setter Property="Padding" Value="14"/>
+      <Setter Property="Padding" Value="12,9"/>
+    </Style>
+    <!-- compact device-control rows: shorter sliders and buttons than the
+         theme default so the fixed cards stay small (the submixer keeps its
+         own sizing) -->
+    <Style Selector="StackPanel.dev Slider">
+      <Setter Property="MinHeight" Value="0"/>
+      <Setter Property="Height" Value="30"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="StackPanel.dev ToggleButton">
+      <Setter Property="Padding" Value="6,3"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="MinHeight" Value="0"/>
     </Style>
     <!-- collapsible tiles: a flat expander whose header looks like the old card title -->
     <Style Selector="Expander.tile">
+      <Setter Property="VerticalAlignment" Value="Top"/>
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="BorderBrush" Value="Transparent"/>
@@ -34,32 +89,19 @@
       <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
       <Setter Property="IsExpanded" Value="True"/>
     </Style>
-    <Style Selector="Expander.tile /template/ ToggleButton#ExpanderHeader">
-      <Setter Property="Background" Value="Transparent"/>
-      <Setter Property="BorderThickness" Value="0"/>
-      <Setter Property="BorderBrush" Value="Transparent"/>
-      <Setter Property="Padding" Value="0,0,0,6"/>
-      <Setter Property="MinHeight" Value="0"/>
-      <Setter Property="HorizontalAlignment" Value="Stretch"/>
-      <Setter Property="HorizontalContentAlignment" Value="Left"/>
-      <Setter Property="CornerRadius" Value="0"/>
-    </Style>
-    <Style Selector="Expander.tile /template/ ToggleButton#ExpanderHeader:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="Transparent"/>
-    </Style>
-    <Style Selector="Expander.tile /template/ Border#ExpanderContent">
-      <Setter Property="Background" Value="Transparent"/>
-      <Setter Property="BorderThickness" Value="0"/>
-      <Setter Property="BorderBrush" Value="Transparent"/>
-      <Setter Property="Padding" Value="0"/>
-      <Setter Property="CornerRadius" Value="0"/>
-    </Style>
     <Style Selector="ToggleButton">
       <Setter Property="HorizontalAlignment" Value="Stretch"/>
       <Setter Property="HorizontalContentAlignment" Value="Center"/>
       <Setter Property="Padding" Value="8,5"/>
     </Style>
-    <!-- mute buttons: green while audio passes, red when muted -->
+    <!-- mute buttons: green while audio passes, red when muted. The compact
+         strip buttons also swap their letter: O = open, M = muted. -->
+    <Style Selector="ToggleButton.mutemini">
+      <Setter Property="Content" Value="O"/>
+    </Style>
+    <Style Selector="ToggleButton.mutemini:checked">
+      <Setter Property="Content" Value="M"/>
+    </Style>
     <Style Selector="ToggleButton.mute">
       <Setter Property="Background" Value="#1e5c3a"/>
       <Setter Property="Foreground" Value="#d9efe2"/>
@@ -74,11 +116,13 @@
   </Window.Styles>
 
   <!-- MaxWidth keeps sliders and dropdowns a sane length on an ultrawide or when
-       maximized; without it a fader stretches across the whole screen. -->
-  <DockPanel Margin="16" MaxWidth="1300" HorizontalAlignment="Center">
+       maximized; without it a fader stretches across the whole screen. Every
+       card sizes to its content; the page scrolls when the window is shorter. -->
+  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+  <StackPanel Margin="16" MaxWidth="1300" HorizontalAlignment="Center">
 
     <!-- header -->
-    <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12">
+    <Border Classes="card" Margin="0,0,0,8">
       <Grid ColumnDefinitions="Auto,8,*,Auto">
         <Button Name="OptionsButton" Content="⚙" FontSize="18" Padding="8,4"
                 VerticalAlignment="Center" Background="Transparent"
@@ -93,13 +137,13 @@
     </Border>
 
     <!-- device controls -->
-    <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12">
-      <Expander Classes="tile">
-        <Expander.Header><TextBlock Text="MICROPHONE" Classes="h"/></Expander.Header>
-      <StackPanel Spacing="12">
+    <Border Classes="card" Margin="0,0,0,8">
+      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
+        <Expander.Header><TextBlock Text="INPUTS" Classes="h"/></Expander.Header>
+      <StackPanel Classes="dev" Spacing="4">
 
         <!-- XLR 1 -->
-        <Grid ColumnDefinitions="90,*,60">
+        <Grid ColumnDefinitions="90,*,64">
           <TextBlock Text="XLR 1 gain" Classes="h" VerticalAlignment="Center"/>
           <Slider Grid.Column="1" Minimum="0" Maximum="80" TickFrequency="1" IsSnapToTickEnabled="True"
                   Value="{Binding GainDb, Mode=TwoWay}"/>
@@ -115,9 +159,16 @@
           <ToggleButton Content="ClipGuard" IsChecked="{Binding ClipGuard, Mode=TwoWay}" Margin="0,0,6,0"/>
           <ToggleButton Content="Compressor" IsChecked="{Binding Compressor, Mode=TwoWay}"/>
         </UniformGrid>
+        <Grid ColumnDefinitions="90,*,64" IsVisible="{Binding VoiceTune}">
+          <TextBlock Text="VT strength" Classes="h" VerticalAlignment="Center"/>
+          <Slider Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True"
+                  Value="{Binding VoiceTuneStrength, Mode=TwoWay}"/>
+          <TextBlock Grid.Column="2" Text="{Binding VoiceTuneStrengthText}" Classes="val"
+                     VerticalAlignment="Center" HorizontalAlignment="Right"/>
+        </Grid>
 
         <!-- XLR 2 -->
-        <Grid ColumnDefinitions="90,*,60" Margin="0,6,0,0">
+        <Grid ColumnDefinitions="90,*,64" Margin="0,2,0,0">
           <TextBlock Text="XLR 2 gain" Classes="h" VerticalAlignment="Center"/>
           <Slider Grid.Column="1" Minimum="0" Maximum="80" TickFrequency="1" IsSnapToTickEnabled="True"
                   Value="{Binding Gain2Db, Mode=TwoWay}"/>
@@ -133,9 +184,16 @@
           <ToggleButton Content="ClipGuard" IsChecked="{Binding ClipGuard2, Mode=TwoWay}" Margin="0,0,6,0"/>
           <ToggleButton Content="Compressor" IsChecked="{Binding Compressor2, Mode=TwoWay}"/>
         </UniformGrid>
+        <Grid ColumnDefinitions="90,*,64" IsVisible="{Binding VoiceTune2}">
+          <TextBlock Text="VT strength" Classes="h" VerticalAlignment="Center"/>
+          <Slider Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True"
+                  Value="{Binding VoiceTuneStrength2, Mode=TwoWay}"/>
+          <TextBlock Grid.Column="2" Text="{Binding VoiceTuneStrength2Text}" Classes="val"
+                     VerticalAlignment="Center" HorizontalAlignment="Right"/>
+        </Grid>
 
         <!-- USB Aux input stage -->
-        <Grid ColumnDefinitions="90,*,60,20,110" Margin="0,6,0,0">
+        <Grid ColumnDefinitions="90,*,64,20,110" Margin="0,2,0,0">
           <TextBlock Text="USB Aux in" Classes="h" VerticalAlignment="Center"/>
           <Slider Grid.Column="1" Minimum="-60" Maximum="0"
                   Value="{Binding AuxLevelDb, Mode=TwoWay}"/>
@@ -148,11 +206,11 @@
     </Border>
 
     <!-- headphone outputs (jack 1 on the front of the unit, jack 2 on the back) -->
-    <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12">
-      <Expander Classes="tile">
+    <Border Classes="card" Margin="0,0,0,8">
+      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="HEADPHONES" Classes="h"/></Expander.Header>
-      <StackPanel Spacing="10">
-        <Grid ColumnDefinitions="90,*,52,20,90,*,52">
+      <StackPanel Classes="dev" Spacing="4">
+        <Grid ColumnDefinitions="90,*,64,20,90,*,64">
           <TextBlock Text="Phones 1" Classes="h" VerticalAlignment="Center" ToolTip.Tip="Front jack"/>
           <Slider Grid.Column="1" Minimum="0" Maximum="100"
                   Value="{Binding HpPercent, Mode=TwoWay}"/>
@@ -164,6 +222,15 @@
           <TextBlock Grid.Column="6" Text="{Binding Hp2Text}" Classes="val" VerticalAlignment="Center"
                      HorizontalAlignment="Right"/>
         </Grid>
+        <!-- hardware zero-latency blend between mic direct and PC playback -->
+        <Grid ColumnDefinitions="90,*,64">
+          <TextBlock Text="Mic ↔ PC" Classes="h" VerticalAlignment="Center"
+                     ToolTip.Tip="Direct-monitor blend: left = only your mic, right = only PC audio"/>
+          <Slider Grid.Column="1" Minimum="0" Maximum="200" TickFrequency="1" IsSnapToTickEnabled="True"
+                  Value="{Binding Crossfade, Mode=TwoWay}"/>
+          <TextBlock Grid.Column="2" Text="{Binding CrossfadeText}" Classes="val"
+                     VerticalAlignment="Center" HorizontalAlignment="Right"/>
+        </Grid>
         <UniformGrid Columns="7">
           <ToggleButton Content="Low Imp." IsChecked="{Binding LowImpedance, Mode=TwoWay}" Margin="0,0,6,0"/>
         </UniformGrid>
@@ -172,11 +239,17 @@
     </Border>
 
     <!-- monitor destination: the device you hear the Monitor mix on -->
-    <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12" IsVisible="{Binding HasMixer}">
-      <Expander Classes="tile">
-        <Expander.Header><TextBlock Text="MONITOR" Classes="h"/></Expander.Header>
-      <StackPanel Spacing="10">
-        <Grid ColumnDefinitions="90,*,20,90,*,52">
+    <Border Classes="card" Margin="0,0,0,8" IsVisible="{Binding HasMixer}">
+      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
+        <Expander.Header>
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="MONITOR" Classes="h" VerticalAlignment="Center"/>
+            <TextBlock Text="&#x24D8;" Classes="h" FontSize="12" VerticalAlignment="Center" Margin="0,-1,0,0" Cursor="Help"
+                       ToolTip.Tip="Tick every device the Monitor mix should play on. The Wave XLR Pro's own outputs (Headphones 1/2, USB Aux, Line Out) switch the hardware when ticked; enabling USB Aux Out briefly interrupts the Pro's audio while its stream restarts. XLR 1, XLR 2 and Line In feed their channels automatically. System default devices for apps are set in Options."/>
+          </StackPanel>
+        </Expander.Header>
+      <StackPanel Classes="dev" Spacing="4">
+        <Grid ColumnDefinitions="90,*,20,90,*,64">
           <TextBlock Text="Devices" Classes="h" VerticalAlignment="Center"/>
           <DropDownButton Grid.Column="1" HorizontalAlignment="Stretch"
                           HorizontalContentAlignment="Left"
@@ -200,15 +273,13 @@
           <TextBlock Grid.Column="5" Text="{Binding OutputVolumeText}" Classes="val"
                      VerticalAlignment="Center" HorizontalAlignment="Right"/>
         </Grid>
-        <TextBlock Text="Tick every device the Monitor mix should play on. The Wave XLR Pro's own outputs (Headphones 1/2, USB Aux, Line Out) switch the hardware when ticked; enabling USB Aux Out briefly interrupts the Pro's audio while its stream restarts. XLR 1, XLR 2 and Line In feed their channels automatically. System default devices for apps are set in Options."
-                   FontSize="11" Foreground="#6b7285"/>
       </StackPanel>
       </Expander>
     </Border>
 
     <!-- running applications and the channel each is routed to -->
-    <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12" IsVisible="{Binding HasMixer}">
-      <Expander Classes="tile">
+    <Border Classes="card" Margin="0,0,0,8" IsVisible="{Binding HasMixer}">
+      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="APPLICATIONS" Classes="h"/></Expander.Header>
       <StackPanel Spacing="8">
         <ItemsControl ItemsSource="{Binding Apps}">
@@ -227,7 +298,7 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <TextBlock Text="Apps are routed automatically. Changing one here is remembered for next launch."
+        <TextBlock TextWrapping="Wrap" Text="Apps are routed automatically. Changing one here is remembered for next launch."
                    FontSize="11" Foreground="#6b7285"/>
       </StackPanel>
       </Expander>
@@ -235,7 +306,7 @@
 
     <!-- mixer -->
     <Border Classes="card">
-      <Expander Classes="tile">
+      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="SUBMIXER" Classes="h"/></Expander.Header>
       <DockPanel>
         <TextBlock DockPanel.Dock="Top" Text="Mixer not running. Start the daemon with OPENXLR_BUILD_MIXER=1"
@@ -257,12 +328,14 @@
                   </Grid>
                   <StackPanel Spacing="1">
                     <Border Background="#14161b" CornerRadius="2" Height="4">
-                      <Border Background="#3ecf7a" CornerRadius="2" HorizontalAlignment="Left"
-                              Width="{Binding MeterL, Converter={x:Static vm:Converters.MeterWidth}}"/>
+                      <Border Background="#3ecf7a" CornerRadius="2" HorizontalAlignment="Stretch"
+                              RenderTransformOrigin="0,0.5"
+                              RenderTransform="{Binding MeterL, Converter={x:Static vm:Converters.MeterScale}}"/>
                     </Border>
                     <Border Background="#14161b" CornerRadius="2" Height="4">
-                      <Border Background="#3ecf7a" CornerRadius="2" HorizontalAlignment="Left"
-                              Width="{Binding MeterR, Converter={x:Static vm:Converters.MeterWidth}}"/>
+                      <Border Background="#3ecf7a" CornerRadius="2" HorizontalAlignment="Stretch"
+                              RenderTransformOrigin="0,0.5"
+                              RenderTransform="{Binding MeterR, Converter={x:Static vm:Converters.MeterScale}}"/>
                     </Border>
                   </StackPanel>
                   <Slider Minimum="0" Maximum="1" Value="{Binding Volume, Mode=TwoWay}"/>
@@ -291,12 +364,14 @@
                     <!-- stereo level meter (L over R), dB scale -->
                     <StackPanel Spacing="1">
                       <Border Background="#14161b" CornerRadius="2" Height="4">
-                        <Border Background="#3ecf7a" CornerRadius="2" HorizontalAlignment="Left"
-                                Width="{Binding MeterL, Converter={x:Static vm:Converters.MeterWidth}}"/>
+                        <Border Background="#3ecf7a" CornerRadius="2" HorizontalAlignment="Stretch"
+                                RenderTransformOrigin="0,0.5"
+                                RenderTransform="{Binding MeterL, Converter={x:Static vm:Converters.MeterScale}}"/>
                       </Border>
                       <Border Background="#14161b" CornerRadius="2" Height="4">
-                        <Border Background="#3ecf7a" CornerRadius="2" HorizontalAlignment="Left"
-                                Width="{Binding MeterR, Converter={x:Static vm:Converters.MeterWidth}}"/>
+                        <Border Background="#3ecf7a" CornerRadius="2" HorizontalAlignment="Stretch"
+                                RenderTransformOrigin="0,0.5"
+                                RenderTransform="{Binding MeterR, Converter={x:Static vm:Converters.MeterScale}}"/>
                       </Border>
                     </StackPanel>
                     <ItemsControl ItemsSource="{Binding Sends}">
@@ -310,7 +385,7 @@
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
                               <Slider Minimum="0" Maximum="1" Value="{Binding Level, Mode=TwoWay}"
                                       VerticalAlignment="Center"/>
-                              <ToggleButton Grid.Column="1" Content="M" Classes="mute" IsChecked="{Binding Muted, Mode=TwoWay}"
+                              <ToggleButton Grid.Column="1" Classes="mute mutemini" IsChecked="{Binding Muted, Mode=TwoWay}"
                                             Padding="7,2" FontSize="11" MinWidth="0" VerticalAlignment="Center"/>
                             </Grid>
                           </StackPanel>
@@ -326,5 +401,6 @@
       </DockPanel>
       </Expander>
     </Border>
-  </DockPanel>
+  </StackPanel>
+  </ScrollViewer>
 </Window>

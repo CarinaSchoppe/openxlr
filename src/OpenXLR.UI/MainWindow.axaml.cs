@@ -20,6 +20,14 @@ public partial class MainWindow : Window
         _client.Start();          // connects, and keeps retrying if the daemon isn't up yet
         SetupTray();
 
+        // Start hidden in the tray when configured (and a tray actually
+        // exists; otherwise the window must show or nothing is reachable).
+        if (UiSettings.Load().StartMinimized && _tray is not null)
+        {
+            bool hidden = false;
+            Opened += (_, _) => { if (!hidden) { hidden = true; Hide(); } };
+        }
+
         Closing += (_, e) =>
         {
             // With minimize-to-tray on, the close button hides the window; the

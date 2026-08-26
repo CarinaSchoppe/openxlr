@@ -456,6 +456,12 @@ public sealed class PipeWireAdapter
                 AudioNodeKind.Sink, IsOwn: false, IsPhysical: true));
             found.Add(new AudioNode($"{pro.Name}#lineout", "Line Out",
                 AudioNodeKind.Sink, IsOwn: false, IsPhysical: true));
+            // Hide the raw multichannel sink from device pickers: its first
+            // pair reaches no physical output (audio vanishes), and choosing
+            // it clears the hardware output selectors. The pseudo-outputs
+            // above cover every real destination; internal routing keeps
+            // using the raw sink by name regardless of this listing.
+            found.Remove(pro);
         }
         return found;
     }

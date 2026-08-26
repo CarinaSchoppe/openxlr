@@ -117,3 +117,9 @@ public static class ControlNames
     public const string AuxLevelDb = "auxLevelDb";           // number dB (-60..0)
     public const string AuxLevelLock = "auxLevelLock";       // bool
 }
+
+/// <summary>Reply to "getDiagnostics": raw vendor blocks for bug reports.</summary>
+public sealed record DiagnosticsMessage(IReadOnlyDictionary<string, string> Blocks)
+{
+    [System.Text.Json.Serialization.JsonPropertyName("type")] public string Type => "diagnostics";
+}

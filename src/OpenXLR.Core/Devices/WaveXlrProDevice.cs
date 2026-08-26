@@ -360,6 +360,19 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
         Write(BlockSettings, b);
     }
 
+    /// <summary>Every readable vendor block as hex, for tester diagnostics.</summary>
+    public IReadOnlyDictionary<string, string> DumpBlocks()
+    {
+        var blocks = new Dictionary<string, string>();
+        foreach ((ushort block, int len) in new (ushort, int)[]
+                 { (0x0001, 108), (0x0002, 150), (0x0004, 80), (0x0005, 8), (0x0006, 29), (0x0008, 96) })
+        {
+            try { blocks[$"0x{block:X4}"] = Convert.ToHexString(Read(block, len)); }
+            catch (IOException ex) { blocks[$"0x{block:X4}"] = $"read failed: {ex.Message}"; }
+        }
+        return blocks;
+    }
+
     public void Dispose()
     {
         Disconnect();

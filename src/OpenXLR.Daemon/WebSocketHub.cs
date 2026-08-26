@@ -95,6 +95,9 @@ public sealed class WebSocketHub
             case "getState":
                 await client.SendAsync(Serialize(Snapshot()));
                 break;
+            case "getDiagnostics":
+                await client.SendAsync(Serialize(new DiagnosticsMessage(_devices.DumpBlocks())));
+                break;
             case "set":
                 if (cmd.Control is null) { await client.SendAsync(Serialize(new ErrorMessage("set: missing 'control'"))); break; }
                 string? err = _devices.Apply(cmd.Control, cmd.Value);  // broadcasts on success

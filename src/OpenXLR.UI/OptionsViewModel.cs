@@ -18,6 +18,9 @@ public sealed class OptionsViewModel : ViewModelBase
     private readonly MainViewModel _main;
     private bool _applying;
 
+    /// <summary>Exposed for the diagnostics collector in the Options window.</summary>
+    public DaemonClient Client => _client;
+
     public OptionsViewModel(DaemonClient client, MainViewModel main)
     {
         _client = client;

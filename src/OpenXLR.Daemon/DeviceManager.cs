@@ -176,6 +176,17 @@ public sealed class DeviceManager : BackgroundService
         }
     }
 
+    /// <summary>Vendor block dumps for diagnostics; empty without a device.</summary>
+    public IReadOnlyDictionary<string, string> DumpBlocks()
+    {
+        lock (_gate)
+        {
+            if (_device is null || !_device.Connected) return new Dictionary<string, string>();
+            try { return _device.DumpBlocks(); }
+            catch (Exception ex) { return new Dictionary<string, string> { ["error"] = ex.Message }; }
+        }
+    }
+
     private void RaiseFromLocked()
     {
         StateMessage msg = _device is { Connected: true }

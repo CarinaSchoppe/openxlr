@@ -28,6 +28,22 @@ public sealed class DaemonClient : IAsyncDisposable
     /// <summary>Raised on every state push (already on a background thread).</summary>
     public event Action<JsonNode>? StateReceived;
 
+    /// <summary>The raw JSON of the newest state push, for diagnostics.</summary>
+    public string? LastStateJson { get; private set; }
+
+    private TaskCompletionSource<JsonNode>? _diagnosticsWaiter;
+
+    /// <summary>Request the daemon's vendor-block dump; null on timeout.</summary>
+    public async Task<JsonNode?> RequestDiagnosticsAsync(TimeSpan timeout)
+    {
+        var tcs = new TaskCompletionSource<JsonNode>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _diagnosticsWaiter = tcs;
+        await SendAsync(new Dictionary<string, object> { ["cmd"] = "getDiagnostics" });
+        Task done = await Task.WhenAny(tcs.Task, Task.Delay(timeout));
+        _diagnosticsWaiter = null;
+        return done == tcs.Task ? tcs.Task.Result : null;
+    }
+
     /// <summary>Raised when an error message arrives from the daemon.</summary>
     public event Action<string>? ErrorReceived;
 
@@ -81,14 +97,16 @@ public sealed class DaemonClient : IAsyncDisposable
                 ms.Write(buf, 0, res.Count);
             } while (!res.EndOfMessage);
 
+            string text = Encoding.UTF8.GetString(ms.ToArray());
             JsonNode? node;
-            try { node = JsonNode.Parse(Encoding.UTF8.GetString(ms.ToArray())); }
+            try { node = JsonNode.Parse(text); }
             catch (JsonException) { continue; }
             if (node is null) continue;
 
             string? type = node["type"]?.GetValue<string>();
             if (type == "error") ErrorReceived?.Invoke(node["message"]?.GetValue<string>() ?? "unknown error");
-            else if (type == "state") StateReceived?.Invoke(node);
+            else if (type == "state") { LastStateJson = text; StateReceived?.Invoke(node); }
+            else if (type == "diagnostics") _diagnosticsWaiter?.TrySetResult(node);
             else if (type == "meters" && node["levels"] is JsonNode levels) MetersReceived?.Invoke(levels);
         }
     }

@@ -52,6 +52,12 @@ public interface IAudioDevice
 
     // Physical output routing and aux input. Default no-ops; devices with
     // OutputRouting / AuxInput capabilities override them.
+    /// <summary>
+    /// Raw vendor state for diagnostics: block name to hex payload. Default
+    /// empty for devices without a block protocol.
+    /// </summary>
+    IReadOnlyDictionary<string, string> DumpBlocks() => new Dictionary<string, string>();
+
     void SetOutHp1(bool on) { }
     void SetOutHp2(bool on) { }
     void SetOutUsbAux(bool on) { }

@@ -57,6 +57,23 @@ On the others, what their protocols expose so far:
   no onboard DSP; Wave Link runs those effects host-side, so their Linux
   home is the submixer
 
+### Software controls
+
+For devices whose DSP lives host-side, OpenXLR provides the equivalents
+in its PipeWire layer. They appear only when the active device lacks the
+hardware version, so nothing is ever filtered twice:
+- Low cut: a high-pass at 80 or 120 Hz (Wave Link's choices) inserted
+  between the mic and its channel, cycled from a button on the XLR 1
+  strip. Measured at the textbook second-order response and self-healing
+  if its filter node ever dies
+- Gain lock: the daemon rejects every gain change while the lock is set,
+  from any client, and remembers it per device across restarts
+
+Two safety behaviors come with multi-device switching: the mixer's
+input channels follow the active device, and a device switch brings the
+hardware channels' monitor sends up muted, so a hot mic can never howl
+through the speakers the moment it is patched in.
+
 ### Submixer
 
 Pure PipeWire, no custom drivers or kernel modules:
@@ -90,10 +107,12 @@ scene never rewires the desktop.
 
 `plugin/com.emaspa.openxlr.sdPlugin` puts the whole rig on a Stream Deck
 via [OpenDeck](https://github.com/nekename/OpenDeck): toggle keys with
-live state for every switch and mute, and dial actions with Wave Link
-style touch panels (needle, value, live level meter, mute overlay) for
-sends, masters, gains and the crossfade. A dial can hold a stack of
-targets and cycle them from a chosen gesture. Install by copying the
+live state for every switch and mute (the software low cut and gain
+lock included; the low cut key cycles Off, 80 Hz, 120 Hz and shows the
+current setting), and dial actions with Wave Link style touch panels
+(needle, value, live level meter, mute overlay) for sends, masters,
+gains and the crossfade. A dial can hold a stack of targets and cycle
+them from a chosen gesture. Install by copying the
 plugin folder into `~/.config/opendeck/plugins/` (a symlink breaks
 OpenDeck's asset serving). Touch taps on the Stream Deck + XL need
 OpenDeck with [nekename/OpenDeck#437](https://github.com/nekename/OpenDeck/pull/437).
@@ -229,7 +248,8 @@ are single JSON objects:
 | Command | Fields | Purpose |
 |---|---|---|
 | `getState` | none | request a state push |
-| `set` | `control`, `value` | hardware control (`gain`, `mute`, `lowCut`, `expander`, `voiceTune`, `voiceTuneStrength`, `phantom`, `clipGuard`, `compressor`, `…2` variants, `hpVolumeDb`, `hp2VolumeDb`, `lowImpedance`, `crossfade`, `auxLevelDb`, `auxLevelLock`, `outHp1/2`, `outUsbAux`, `outLineOut`) |
+| `set` | `control`, `value` | hardware control (`gain`, `mute`, `lowCut`, `expander`, `voiceTune`, `voiceTuneStrength`, `phantom`, `clipGuard`, `compressor`, `…2` variants, `hpVolumeDb`, `hp2VolumeDb`, `lowImpedance`, `crossfade`, `auxLevelDb`, `auxLevelLock`, `outHp1/2`, `outUsbAux`, `outLineOut`) and the software `gainLock` |
+| `setLowCutHz` | `value` | software low cut: 0, 80, or 120 |
 | `setLevel` | `channel`, `mix`, `value` | one send fader |
 | `setChannelMuted` | `channel`, `mix`, `value` | one send mute |
 | `setMixVolume` / `setMixMuted` | `mix`, `value` | mix masters |
@@ -249,7 +269,9 @@ does, a script can do too.
 ## Configuration
 
 - `~/.config/openxlr/mixer.json` holds every mixer decision: levels, mutes,
-  device choices, the app registry, enforced defaults (the daemon writes it)
+  device choices, the app registry, enforced defaults, the software low
+  cut (the daemon writes it)
+- `~/.config/openxlr/gainlock.json` holds which devices have the gain lock set
 - `~/.config/openxlr/ui.json` holds window preferences (tray, autostart)
 
 ## Reporting problems

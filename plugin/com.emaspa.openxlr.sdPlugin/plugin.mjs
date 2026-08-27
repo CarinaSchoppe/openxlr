@@ -460,37 +460,57 @@ function refreshMeters() {
   }
 }
 
-// The strip's title box fits about 13 characters at the reduced font. A
-// send dial pins the channel name and scrolls the full mix name in the
-// space that remains; other long titles scroll whole.
-const TITLE_CHARS = 13;
-const marquee = new Map();   // context -> {pin, scroll, offset, hold}
-function windowed(text, offset, width) {
-  const looped = text + "   ";
-  return (looped + looped).slice(offset, offset + width);
+// The title is rendered as our own pixmap so the scroll is pixel-exact
+// across the full strip width, the way Wave Link's plugin uses it. Text
+// width is made deterministic with SVG textLength (approximated from a
+// per-character average, then enforced by the renderer). A send dial
+// pins the channel name and scrolls the mix name in the space that
+// remains; other long titles scroll whole.
+const TITLE_W = 158, TITLE_H = 24, CHAR_W = 8.1, GAP_PX = 20, STEP_PX = 7;
+const escXml = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const textW = (t) => Math.round(t.length * CHAR_W);
+
+function titleSvg(pinText, scroll, offsetPx) {
+  const attrs = 'y="17" font-family="sans-serif" font-size="14.5" font-weight="700" fill="#ffffff"';
+  const pinW = textW(pinText);
+  const scrollW = textW(scroll);
+  const avail = TITLE_W - pinW;
+  const pinPart = pinText === "" ? "" :
+    `<text x="0" ${attrs} textLength="${pinW - 4}" lengthAdjust="spacingAndGlyphs">${escXml(pinText)}</text>`;
+  let body;
+  if (scrollW <= avail) {
+    body = `<text x="${pinW}" ${attrs}>${escXml(scroll)}</text>`;
+  } else {
+    const total = scrollW + GAP_PX;
+    const o = offsetPx % total;
+    const t = (x) =>
+      `<text x="${x}" ${attrs} textLength="${scrollW}" lengthAdjust="spacingAndGlyphs">${escXml(scroll)}</text>`;
+    body = `<svg x="${pinW}" y="0" width="${avail}" height="${TITLE_H}">${t(-o)}${t(-o + total)}</svg>`;
+  }
+  return "data:image/svg+xml;base64," + Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${TITLE_W}" height="${TITLE_H}" viewBox="0 0 ${TITLE_W} ${TITLE_H}">${pinPart}${body}</svg>`
+  ).toString("base64");
 }
-function composeTitle(m) {
-  if (m.pin === "") return windowed(m.scroll, m.offset, TITLE_CHARS);
-  return `${m.pin} · ${windowed(m.scroll, m.offset, TITLE_CHARS - m.pin.length - 3)}`;
-}
+
+const marquee = new Map();   // context -> {pin, scroll, offset, hold, total}
 function marqueeTitle(context, pin, scroll) {
-  const full = pin === "" ? scroll : `${pin} · ${scroll}`;
-  if (full.length <= TITLE_CHARS) { marquee.delete(context); return full; }
+  let pinText = pin === "" ? "" : `${pin} · `;
   // with no room left beside the pin, scroll the whole thing instead
-  if (pin !== "" && TITLE_CHARS - pin.length - 3 < 3)
-    return marqueeTitle(context, "", full);
+  if (pinText !== "" && TITLE_W - textW(pinText) < 40) { scroll = pinText + scroll; pinText = ""; }
+  if (textW(scroll) <= TITLE_W - textW(pinText)) { marquee.delete(context); return titleSvg(pinText, scroll, 0); }
   let m = marquee.get(context);
-  if (!m || m.pin !== pin || m.scroll !== scroll)
-    { m = { pin, scroll, offset: 0, hold: 3 }; marquee.set(context, m); }
-  return composeTitle(m);
+  if (!m || m.pinText !== pinText || m.scroll !== scroll)
+    { m = { pinText, scroll, offset: 0, hold: 3, total: textW(scroll) + GAP_PX }; marquee.set(context, m); }
+  return titleSvg(pinText, m.scroll, m.offset);
 }
 setInterval(() => {
   for (const [context, m] of marquee) {
     if (!instances.has(context)) { marquee.delete(context); continue; }
     if (m.hold > 0) { m.hold--; continue; }
-    m.offset = (m.offset + 1) % (m.scroll.length + 3);
-    if (m.offset === 0) m.hold = 3;   // pause each time the start comes round
-    send({ event: "setFeedback", context, payload: { title: composeTitle(m) } });
+    m.offset += STEP_PX;
+    if (m.offset >= m.total) { m.offset = 0; m.hold = 3; }   // pause at each wrap
+    send({ event: "setFeedback", context,
+           payload: { title: titleSvg(m.pinText, m.scroll, m.offset) } });
   }
 }, 350);
 

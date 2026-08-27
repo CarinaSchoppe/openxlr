@@ -35,6 +35,7 @@ const DEVICE_TOGGLES = {
   lowImpedance: "Low Z", auxLevelLock: "Aux In\nLock",
   outHp1: "HP 1\nOut", outHp2: "HP 2\nOut", outLineOut: "Line\nOut",
   gainLocked: "Gain\nLock",
+  softClipGuard: "Clip\nGuard",
 };
 // Targets whose ON state means "muted" (shown red instead of lit green).
 const MUTE_LIKE = new Set(["mute", "mute2"]);
@@ -144,6 +145,7 @@ function toggleValue(target) {
     const hz = mixer()?.lowCutHz;
     return hz == null ? null : hz > 0;
   }
+  if (target === "softClipGuard") return mixer()?.softClipGuard ?? null;
   if (target.startsWith("mixmute:")) return mixOf(target.slice(8))?.muted ?? null;
   if (target.startsWith("sendmute:")) {
     const [, ch, mix] = target.split(":");
@@ -240,6 +242,7 @@ function onKeyDown(context, inst) {
     const hz = mixer()?.lowCutHz ?? 0;
     cmd({ cmd: "setLowCutHz", value: hz === 0 ? 80 : hz === 80 ? 120 : 0 });
   }
+  else if (t === "softClipGuard") cmd({ cmd: "setSoftClipGuard", value: !cur });
   else if (t === "gainLocked") cmd({ cmd: "set", control: "gainLock", value: !cur });
   else if (t.startsWith("mixmute:"))
     cmd({ cmd: "setMixMuted", mix: t.slice(8), value: !cur });

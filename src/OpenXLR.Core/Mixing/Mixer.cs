@@ -193,10 +193,12 @@ public sealed class Mixer : IDisposable
         }
         foreach (ChannelDefinition ch in _config.Channels.Where(c => c.InputPair is not null))
         {
-            if (ch.InputPair == 0 && _lowCutHz > 0 && _lowCutApplicable)
+            bool lc = _lowCutHz > 0 && _lowCutApplicable;
+            bool cg = _softClipGuard && _clipGuardApplicable;
+            if (ch.InputPair == 0 && (lc || cg))
             {
-                // Route the mic through the high-pass instead of straight in.
-                _lowCut = _pw.CreateLowCut("xlr1", _lowCutHz);
+                // Route the mic through the filter chain instead of straight in.
+                _lowCut = _pw.CreateMicFilter("xlr1", lc ? _lowCutHz : 0, cg);
                 _pw.UnlinkNodes(_inputDevice, ch.SinkName);   // clear any stale bypass
                 PortLink into = _pw.RouteInputToChannel(_inputDevice, _lowCut.SinkName, 0);
                 if (into.Pairs.Count > 0) _inputFeeds.Add(into);
@@ -331,6 +333,35 @@ public sealed class Mixer : IDisposable
         }
     }
 
+    // Software ClipGuard: a hard limiter at -3 dB in the mic filter chain,
+    // for devices whose ClipGuard runs host-side in the vendor app.
+    private bool _softClipGuard;
+    private bool _clipGuardApplicable = true;
+
+    /// <summary>Whether the software ClipGuard is enabled.</summary>
+    public bool SoftClipGuard { get { lock (_gate) return _softClipGuard; } }
+
+    public void SetSoftClipGuard(bool on)
+    {
+        lock (_gate)
+        {
+            if (_softClipGuard == on) return;
+            _softClipGuard = on;
+            if (_built) WireInputFeedsLocked();
+        }
+    }
+
+    /// <summary>False while the active device has the hardware ClipGuard.</summary>
+    public void SetClipGuardApplicable(bool applicable)
+    {
+        lock (_gate)
+        {
+            if (_clipGuardApplicable == applicable) return;
+            _clipGuardApplicable = applicable;
+            if (_built && _softClipGuard) WireInputFeedsLocked();
+        }
+    }
+
     /// <summary>
     /// Set the software low cut for the first XLR channel: a host-side
     /// high-pass for devices whose DSP lives in the vendor app (the XLR
@@ -401,6 +432,7 @@ public sealed class Mixer : IDisposable
                 EnforcedDefaultSource = _enforcedSource,
                 AuxPortEnabled = _auxPortEnabled,
                 LowCutHz = _lowCutHz,
+                SoftClipGuard = _softClipGuard,
             };
         }
     }
@@ -455,11 +487,18 @@ public sealed class Mixer : IDisposable
                     (s.MonitorOutput?.EndsWith("#usbaux", StringComparison.Ordinal) ?? false));
             WireAuxRouteLocked();
 
+            bool rewire = false;
             if (s.LowCutHz is 80 or 120 && _lowCutHz != s.LowCutHz)
             {
                 _lowCutHz = s.LowCutHz;
-                WireInputFeedsLocked();
+                rewire = true;
             }
+            if (s.SoftClipGuard && !_softClipGuard)
+            {
+                _softClipGuard = true;
+                rewire = true;
+            }
+            if (rewire) WireInputFeedsLocked();
         }
     }
 
@@ -478,6 +517,7 @@ public sealed class Mixer : IDisposable
                 AuxPortEnabled = _auxPortEnabled,
                 OutputVolume = _outputVolume,
                 LowCutHz = _lowCutHz,
+                SoftClipGuard = _softClipGuard,
             };
         }
     }
@@ -510,11 +550,18 @@ public sealed class Mixer : IDisposable
             _auxPortEnabled = s.AuxPortEnabled;
             WireAuxRouteLocked();
 
+            bool rewire = false;
             if (s.LowCutHz is int hz && hz is 0 or 80 or 120 && _lowCutHz != hz)
             {
                 _lowCutHz = hz;
-                WireInputFeedsLocked();
+                rewire = true;
             }
+            if (s.SoftClipGuard is bool scg && _softClipGuard != scg)
+            {
+                _softClipGuard = scg;
+                rewire = true;
+            }
+            if (rewire) WireInputFeedsLocked();
         }
         if (s.OutputVolume is double v) SetOutputVolume(v);
     }
@@ -918,6 +965,7 @@ public sealed class Mixer : IDisposable
                 MonitorOutputs = [.. _monitorOutputs],
                 OutputVolume = _outputVolume,
                 LowCutHz = _lowCutHz,
+                SoftClipGuard = _softClipGuard,
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
                 AuxPortEnabled = _auxPortEnabled,

@@ -122,6 +122,7 @@ public sealed class WebSocketHub
             case "setEnforcedDefaults":
             case "setAuxPortEnabled":
             case "setLowCutHz":
+            case "setSoftClipGuard":
                 string? mixErr = _mixer.Apply(cmd);                     // broadcasts on success
                 if (mixErr is not null) await client.SendAsync(Serialize(new ErrorMessage(mixErr)));
                 break;

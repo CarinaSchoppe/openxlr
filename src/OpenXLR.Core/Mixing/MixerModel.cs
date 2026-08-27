@@ -120,6 +120,9 @@ public sealed record MixerState
     /// <summary>Software low cut on the first XLR channel (0, 80, or 120 Hz).</summary>
     public int LowCutHz { get; init; }
 
+    /// <summary>Software ClipGuard (hard limiter) on the first XLR channel.</summary>
+    public bool SoftClipGuard { get; init; }
+
     /// <summary>Enforced system default devices; null = not enforced.</summary>
     public string? EnforcedDefaultSink { get; init; }
     public string? EnforcedDefaultSource { get; init; }

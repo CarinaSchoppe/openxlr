@@ -96,6 +96,13 @@ public sealed record DeviceCapabilities
     /// <summary>Number of XLR inputs the device has (the Pro has two).</summary>
     public int XlrInputs { get; init; } = 1;
 
+    /// <summary>
+    /// Whether the device has physical controls (dials, buttons) that write
+    /// hardware state directly. A daemon-side gain lock cannot stop those,
+    /// so the lock only shows for devices without them.
+    /// </summary>
+    public bool PhysicalControls { get; init; }
+
     /// <summary>Number of headphone outputs (the Pro has two).</summary>
     public int HpOutputs { get; init; } = 1;
 }

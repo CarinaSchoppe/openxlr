@@ -294,21 +294,36 @@ public sealed class PipeWireAdapter
     }
 
     /// <summary>
-    /// Insert a mono high-pass filter (the software low cut for devices whose
-    /// DSP lives host-side). module-filter-chain is not reachable through the
-    /// PulseAudio emulation, so it is loaded by a held "pw-cli -m" process:
-    /// the module lives exactly as long as the process (kill = unload). The
-    /// filter appears as a sink half (feed the mic into it) and a source half
-    /// (link onward to the channel).
+    /// Insert the mono mic filter (the software DSP for devices whose own
+    /// DSP lives host-side): an optional high-pass (the low cut) and an
+    /// optional hard limiter (ClipGuard; LADSPA hardLimiter from
+    /// swh-plugins), chained when both are active. module-filter-chain is
+    /// not reachable through the PulseAudio emulation, so it is loaded by a
+    /// held "pw-cli -m" process: the module lives exactly as long as the
+    /// process (kill = unload). The filter appears as a sink half (feed the
+    /// mic into it) and a source half (link onward to the channel).
     /// </summary>
-    public FilterHandle CreateLowCut(string id, int hz)
+    public FilterHandle CreateMicFilter(string id, int lowCutHz, bool clipGuard)
     {
+        if (lowCutHz <= 0 && !clipGuard)
+            throw new ArgumentException("mic filter needs at least one stage");
         string sinkName = $"OpenXLR_lc_{id}_in";
         string srcName = $"OpenXLR_lc_{id}_out";
+        var nodes = new List<string>();
+        if (lowCutHz > 0)
+            nodes.Add($"{{ type = builtin name = hp label = bq_highpass control = {{ \"Freq\" = {lowCutHz}.0 }} }}");
+        if (clipGuard)
+            nodes.Add("{ type = ladspa name = lim plugin = hard_limiter_1413 label = hardLimiter " +
+                "control = { \"dB limit\" = -3.0 \"Wet level\" = 1.0 \"Residue level\" = 0.0 } }");
+        string links = lowCutHz > 0 && clipGuard
+            ? "links = [ { output = \"hp:Out\" input = \"lim:Input\" } ] "
+            : "";
+        string inPort = lowCutHz > 0 ? "hp:In" : "lim:Input";
+        string outPort = clipGuard ? "lim:Output" : "hp:Out";
         string spa =
-            "{ node.description = \"OpenXLR Low Cut\" " +
-            "filter.graph = { nodes = [ { type = builtin name = hp label = bq_highpass " +
-            $"control = {{ \"Freq\" = {hz}.0 }} }} ] }} " +
+            "{ node.description = \"OpenXLR Mic Filter\" " +
+            $"filter.graph = {{ nodes = [ {string.Join(' ', nodes)} ] {links}" +
+            $"inputs = [ \"{inPort}\" ] outputs = [ \"{outPort}\" ] }} " +
             $"capture.props = {{ node.name = {sinkName} media.class = Audio/Sink " +
             "audio.channels = 1 audio.position = [ MONO ] node.suspend-on-idle = false } " +
             $"playback.props = {{ node.name = {srcName} media.class = Audio/Source " +

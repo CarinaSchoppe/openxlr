@@ -19,7 +19,8 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
 
     public DeviceCapabilities Capabilities { get; } = new()
     {
-        Gain = true, Mute = true, LowCut = true, Expander = true, VoiceTune = true,
+        Gain = true,
+        PhysicalControls = true, Mute = true, LowCut = true, Expander = true, VoiceTune = true,
         HpVolume = true, LowImpedance = true, Crossfade = true,
         Phantom = true, ClipGuard = true, Compressor = true,
         OutputRouting = true, AuxInput = true,

@@ -66,8 +66,13 @@ hardware version, so nothing is ever filtered twice:
   between the mic and its channel, cycled from a button on the XLR 1
   strip. Measured at the textbook second-order response and self-healing
   if its filter node ever dies
+- ClipGuard: a hard limiter at -3 dB in the same filter chain, so a
+  sudden shout cannot clip the recording (needs the swh-plugins LADSPA
+  package)
 - Gain lock: the daemon rejects every gain change while the lock is set,
-  from any client, and remembers it per device across restarts
+  from any client, and remembers it per device across restarts. Shown
+  only for devices without physical controls; a lock the hardware's own
+  dial could bypass would be a lie
 
 Two safety behaviors come with multi-device switching: the mixer's
 input channels follow the active device, and a device switch brings the
@@ -107,9 +112,9 @@ scene never rewires the desktop.
 
 `plugin/com.emaspa.openxlr.sdPlugin` puts the whole rig on a Stream Deck
 via [OpenDeck](https://github.com/nekename/OpenDeck): toggle keys with
-live state for every switch and mute (the software low cut and gain
-lock included; the low cut key cycles Off, 80 Hz, 120 Hz and shows the
-current setting), and dial actions with Wave Link style touch panels
+live state for every switch and mute (the software low cut, ClipGuard
+and gain lock included; the low cut key cycles Off, 80 Hz, 120 Hz and
+shows the current setting), and dial actions with Wave Link style touch panels
 (needle, value, live level meter, mute overlay) for sends, masters,
 gains and the crossfade. A dial can hold a stack of targets and cycle
 them from a chosen gesture. Install by copying the
@@ -173,6 +178,8 @@ bounces the stream once. Details, offsets and the discovery story:
 
 - Linux with PipeWire 1.4 or newer (developed on 1.6), `pipewire-pulse`
   and WirePlumber; `pactl`, `pw-cli`, `pw-link`, `pw-dump`, `parec` on PATH
+- `swh-plugins` (LADSPA) for the software ClipGuard; everything else
+  works without it
 - .NET 10 SDK to build (runtime to run)
 - libusb 1.0
 - A supported Elgato interface (see the table above); the submixer works
@@ -250,6 +257,7 @@ are single JSON objects:
 | `getState` | none | request a state push |
 | `set` | `control`, `value` | hardware control (`gain`, `mute`, `lowCut`, `expander`, `voiceTune`, `voiceTuneStrength`, `phantom`, `clipGuard`, `compressor`, `…2` variants, `hpVolumeDb`, `hp2VolumeDb`, `lowImpedance`, `crossfade`, `auxLevelDb`, `auxLevelLock`, `outHp1/2`, `outUsbAux`, `outLineOut`) and the software `gainLock` |
 | `setLowCutHz` | `value` | software low cut: 0, 80, or 120 |
+| `setSoftClipGuard` | `value` | software ClipGuard (hard limiter at -3 dB) |
 | `setLevel` | `channel`, `mix`, `value` | one send fader |
 | `setChannelMuted` | `channel`, `mix`, `value` | one send mute |
 | `setMixVolume` / `setMixMuted` | `mix`, `value` | mix masters |

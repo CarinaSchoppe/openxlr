@@ -216,7 +216,7 @@
           <TextBlock Grid.Column="2" Text="{Binding GainText}" Classes="val" VerticalAlignment="Center"
                      HorizontalAlignment="Right"/>
           <ToggleButton Grid.Column="3" Content="Lock" Classes="mute" FontSize="11" Padding="8,2"
-                        Margin="6,0,0,0" MinWidth="0"
+                        Margin="6,0,0,0" MinWidth="0" IsVisible="{Binding ShowGainLock}"
                         IsChecked="{Binding GainLocked, Mode=TwoWay}" VerticalAlignment="Center"
                         ToolTip.Tip="Gain lock: the daemon rejects every gain change while set"/>
         </Grid>
@@ -226,6 +226,9 @@
           <ToggleButton Content="{Binding SoftLowCutText}" Margin="0,0,6,0" IsVisible="{Binding ShowSoftLowCut}"
                         IsChecked="{Binding SoftLowCutOn, Mode=OneWay}" Click="OnCycleSoftLowCut"
                         ToolTip.Tip="Host-side low cut for this device (its DSP lives in software); cycles Off, 80 Hz, 120 Hz"/>
+          <ToggleButton Content="ClipGuard" Margin="0,0,6,0" IsVisible="{Binding ShowSoftClipGuard}"
+                        IsChecked="{Binding SoftClipGuard, Mode=TwoWay}"
+                        ToolTip.Tip="Host-side ClipGuard for this device: a hard limiter at -3 dB on the mic channel"/>
           <ToggleButton Content="Expander"   IsChecked="{Binding Expander, Mode=TwoWay}"   Margin="0,0,6,0" IsVisible="{Binding CapExpander}"/>
           <ToggleButton Content="Voice Tune" IsChecked="{Binding VoiceTune, Mode=TwoWay}"  Margin="0,0,6,0" IsVisible="{Binding CapVoiceTune}"/>
           <ToggleButton Content="Phantom"  IsChecked="{Binding Phantom, Mode=TwoWay}"    Margin="0,0,6,0" IsVisible="{Binding CapPhantom}"/>

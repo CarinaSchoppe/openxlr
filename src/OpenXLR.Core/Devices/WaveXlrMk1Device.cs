@@ -175,6 +175,7 @@ public sealed class WaveXlrMk1Device : Mk1ClassProtocolDevice
     public override DeviceCapabilities Capabilities { get; } = new()
     {
         Gain = true,
+        PhysicalControls = true,
         Mute = true,
         HpVolume = true,
         LowImpedance = true,

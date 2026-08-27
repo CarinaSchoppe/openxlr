@@ -49,6 +49,7 @@ public sealed class WaveXlrMk2Device : IAudioDevice
     public DeviceCapabilities Capabilities { get; } = new()
     {
         Gain = true,
+        PhysicalControls = true,
         Mute = true,
         LowCut = true,
         Expander = true,

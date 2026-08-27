@@ -121,6 +121,26 @@ public sealed class MainViewModel : ViewModelBase
     private bool _capOutputRouting = true;
     public bool CapOutputRouting { get => _capOutputRouting; set => Set(ref _capOutputRouting, value); }
 
+    private bool _capPhysicalControls = true;
+    public bool CapPhysicalControls { get => _capPhysicalControls; set => Set(ref _capPhysicalControls, value); }
+
+    // The daemon-side gain lock cannot stop a physical dial, so it only
+    // shows for devices without one.
+    private bool _showGainLock;
+    public bool ShowGainLock { get => _showGainLock; private set => Set(ref _showGainLock, value); }
+
+    // Software ClipGuard (host-side limiter) for devices without the
+    // hardware one.
+    private bool _softClipGuard;
+    public bool SoftClipGuard
+    {
+        get => _softClipGuard;
+        set { if (Set(ref _softClipGuard, value) && !_applying) _ = _client.SetSoftClipGuardAsync(value); }
+    }
+
+    private bool _showSoftClipGuard;
+    public bool ShowSoftClipGuard { get => _showSoftClipGuard; private set => Set(ref _showSoftClipGuard, value); }
+
     // Software low cut (host-side high-pass) for devices without the
     // hardware filter; state lives in the mixer, not the device.
     private int _softLowCutHz;
@@ -458,6 +478,7 @@ public sealed class MainViewModel : ViewModelBase
                 CapLowImpedance = Cap("lowImpedance");
                 CapAuxInput = Cap("auxInput");
                 CapOutputRouting = Cap("outputRouting");
+                CapPhysicalControls = Cap("physicalControls");
             }
 
             if (node["state"] is JsonNode s)
@@ -499,6 +520,8 @@ public sealed class MainViewModel : ViewModelBase
             ApplyMixer(node["mixer"]);
             ApplyStreams(node["mixer"]);
             ShowSoftLowCut = DeviceConnected && !CapLowCut && HasMixer;
+            ShowSoftClipGuard = DeviceConnected && !CapClipGuard && HasMixer;
+            ShowGainLock = DeviceConnected && !CapPhysicalControls;
             Status = DeviceConnected ? "ready" : "no device";
         }
         finally { _applying = false; }
@@ -693,6 +716,7 @@ public sealed class MainViewModel : ViewModelBase
         if (mixer is null) { HasMixer = false; return; }
         HasMixer = true;
         SoftLowCutHz = mixer["lowCutHz"]?.GetValue<int>() ?? 0;
+        SoftClipGuard = mixer["softClipGuard"]?.GetValue<bool>() ?? false;
 
         if (mixer["mixes"] is JsonArray mixes)
         {

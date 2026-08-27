@@ -171,6 +171,10 @@ public sealed class DaemonClient : IAsyncDisposable
     public Task SetLowCutHzAsync(int hz)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setLowCutHz", ["value"] = hz });
 
+    /// <summary>Software ClipGuard (host-side limiter) on or off.</summary>
+    public Task SetSoftClipGuardAsync(bool on)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "setSoftClipGuard", ["value"] = on });
+
     /// <summary>Remove an app from the registry and forget its override.</summary>
     public Task ForgetAppAsync(string identity)
         => SendAsync(new Dictionary<string, object?> { ["cmd"] = "forgetApp", ["identity"] = identity });

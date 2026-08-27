@@ -137,8 +137,9 @@ public sealed class MixerService : IHostedService, IDisposable
                     // Channel feeds follow the actively driven interface; the
                     // node name contains the model with underscores for spaces.
                     _mixer.SetInputDeviceHint(_devices.ActiveInfo?.Model.Replace(' ', '_'));
-                    // Soft low cut only for devices without the hardware one.
+                    // Software DSP only for devices without the hardware version.
                     _mixer.SetLowCutApplicable(!(_devices.ActiveCapabilities?.LowCut ?? false));
+                    _mixer.SetClipGuardApplicable(!(_devices.ActiveCapabilities?.ClipGuard ?? false));
                     if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()
                         | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()
                         | _mixer.EnsureLowCutRoutes()
@@ -272,6 +273,9 @@ public sealed class MixerService : IHostedService, IDisposable
                     int hz = cmd.Value.GetInt32();
                     if (hz is not (0 or 80 or 120)) return "setLowCutHz: value must be 0, 80, or 120";
                     _mixer.SetLowCutHz(hz);
+                    break;
+                case "setSoftClipGuard":
+                    _mixer.SetSoftClipGuard(cmd.Value.GetBoolean());
                     break;
                 default:
                     return $"unknown mixer command '{cmd.Cmd}'";

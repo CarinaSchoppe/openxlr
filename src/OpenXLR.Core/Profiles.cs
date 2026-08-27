@@ -22,6 +22,8 @@ public sealed record MixerScene
     public double? OutputVolume { get; init; }
     /// <summary>Software low cut (0, 80, or 120 Hz); absent in older profiles.</summary>
     public int? LowCutHz { get; init; }
+    /// <summary>Software ClipGuard; absent in older profiles.</summary>
+    public bool? SoftClipGuard { get; init; }
 }
 
 /// <summary>

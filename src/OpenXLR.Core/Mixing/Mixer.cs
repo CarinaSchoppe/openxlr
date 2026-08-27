@@ -158,9 +158,15 @@ public sealed class Mixer : IDisposable
     {
         foreach (PortLink feed in _inputFeeds) _pw.Unlink(feed);
         _inputFeeds.Clear();
-        _inputDevice = _pw.ListDevices()
-            .FirstOrDefault(d => d.Kind == AudioNodeKind.Source && !d.IsOwn &&
-                                 d.Name.Contains("Wave_XLR", StringComparison.OrdinalIgnoreCase))?.Name;
+        var sources = _pw.ListDevices()
+            .Where(d => d.Kind == AudioNodeKind.Source && !d.IsOwn).ToList();
+        // Prefer the interface the daemon actively drives (the hint), so a
+        // device switch moves the channel feeds with it; fall back to any
+        // Wave XLR so the mixer still works when no device is connected.
+        _inputDevice = (_inputHint is null ? null : sources.FirstOrDefault(
+                d => d.Name.Contains(_inputHint, StringComparison.OrdinalIgnoreCase))?.Name)
+            ?? sources.FirstOrDefault(
+                d => d.Name.Contains("Wave_XLR", StringComparison.OrdinalIgnoreCase))?.Name;
         if (_inputDevice is null) return;
         foreach (ChannelDefinition ch in _config.Channels.Where(c => c.InputPair is not null))
         {
@@ -241,6 +247,22 @@ public sealed class Mixer : IDisposable
             if (!_built || !_auxPortEnabled || _auxRoute is not null) return false;
             WireAuxRouteLocked();
             return _auxRoute is not null;
+        }
+    }
+
+    private string? _inputHint;
+
+    /// <summary>
+    /// Name fragment of the interface whose capture should feed the input
+    /// channels (the daemon's active device). A change re-wires the feeds.
+    /// </summary>
+    public void SetInputDeviceHint(string? hint)
+    {
+        lock (_gate)
+        {
+            if (_inputHint == hint) return;
+            _inputHint = hint;
+            if (_built) WireInputFeedsLocked();
         }
     }
 

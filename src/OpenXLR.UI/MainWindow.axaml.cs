@@ -149,6 +149,11 @@ public partial class MainWindow : Window
         if ((sender as Button)?.Tag is string name) _vm.DeleteProfile(name);
     }
 
+    private void OnPickDevice(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is DetectedDeviceItem d) _vm.SelectDevice(d);
+    }
+
     private FlowWindow? _flow;
 
     private void OnFlow(object? sender, RoutedEventArgs e)

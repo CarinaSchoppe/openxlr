@@ -140,10 +140,24 @@
             <Ellipse Width="9" Height="9" VerticalAlignment="Center"
                      Fill="{Binding DeviceConnected, Converter={x:Static vm:Converters.BoolToBrush}}"/>
             <TextBlock Text="{Binding StatusLine}" Classes="h" VerticalAlignment="Center"/>
-            <ComboBox ItemsSource="{Binding DetectedDevices}" SelectedItem="{Binding SelectedDevice}"
-                      IsVisible="{Binding HasMultipleDevices}" FontSize="11" Padding="6,1"
-                      MinHeight="0" VerticalAlignment="Center"
-                      ToolTip.Tip="More than one supported interface is attached; pick which one OpenXLR drives"/>
+            <DropDownButton Content="{Binding ActiveDeviceName}" FontSize="11" Padding="6,1"
+                            MinHeight="0" VerticalAlignment="Center" Background="Transparent"
+                            IsVisible="{Binding HasMultipleDevices}"
+                            ToolTip.Tip="More than one supported interface is attached; pick which one OpenXLR drives">
+              <DropDownButton.Flyout>
+                <Flyout Placement="BottomEdgeAlignedLeft">
+                  <ItemsControl ItemsSource="{Binding DetectedDevices}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:DetectedDeviceItem">
+                        <Button Content="{Binding Name}" HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left" FontSize="12"
+                                Background="Transparent" Click="OnPickDevice" Tag="{Binding}"/>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </Flyout>
+              </DropDownButton.Flyout>
+            </DropDownButton>
           </StackPanel>
         </StackPanel>
         <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">

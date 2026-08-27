@@ -305,8 +305,15 @@ public sealed class PipeWireAdapter
         // into a stereo sink gets its one port linked to both inputs.
         List<string> outs = ListPorts(fromNode, fromPortPrefix, output: true);
         List<string> ins = ListPorts(toNode, toPortPrefix, output: false);
-        if (fromPairOffset > 0 && outs.Count > fromPairOffset * 2)
-            outs = [.. outs.Skip(fromPairOffset * 2).Take(2)];
+        if (fromPairOffset > 0)
+        {
+            // A source without that pair feeds nothing. Falling back to the
+            // first pair here used to duplicate a mono capture into every
+            // channel, which made the channel mutes ineffective.
+            outs = outs.Count > fromPairOffset * 2
+                ? [.. outs.Skip(fromPairOffset * 2).Take(2)]
+                : [];
+        }
         else if (outs.Count > 2)
             outs = [.. outs.Take(2)];
         if (toPairOffset > 0 && ins.Count > toPairOffset * 2)

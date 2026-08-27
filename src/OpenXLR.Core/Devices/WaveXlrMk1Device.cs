@@ -183,29 +183,3 @@ public sealed class WaveXlrMk1Device : Mk1ClassProtocolDevice
     };
 }
 
-/// <summary>
-/// The Elgato XLR Dock (0fd9:00a6), the controls-free Stream Deck+ module.
-/// Speaks the MK.1 class protocol with a 64-byte config block (two similar
-/// sub-structures; the second is not yet mapped). Gain (Q8.8 dB), mute, and
-/// headphone volume verified by live write/readback/restore on real hardware;
-/// phantom, low cut, and the rest of the second structure need a Wave Link
-/// capture before they can be exposed.
-/// </summary>
-public sealed class XlrDockDevice : Mk1ClassProtocolDevice
-{
-    public const ushort ProductId = 0x00A6;
-
-    protected override int ConfigLen => 64;
-    protected override bool HasLowZ => false;
-
-    public override DeviceInfo Info { get; } = new("Elgato", "XLR Dock", VendorId, ProductId);
-
-    public override DeviceCapabilities Capabilities { get; } = new()
-    {
-        Gain = true,
-        Mute = true,
-        HpVolume = true,
-        XlrInputs = 1,
-        HpOutputs = 1,
-    };
-}

@@ -64,6 +64,12 @@ public sealed class DeviceManager : BackgroundService
         return null;
     }
 
+    /// <summary>Identity of the connected device, or null; cheap to poll.</summary>
+    public DeviceInfo? ActiveInfo
+    {
+        get { lock (_gate) return _device is { Connected: true } ? _device.Info : null; }
+    }
+
     /// <summary>Raised (off the poll loop) whenever the pushed state should change.</summary>
     public event Action<StateMessage>? StateChanged;
 

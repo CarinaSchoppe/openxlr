@@ -134,6 +134,9 @@ public sealed class MixerService : IHostedService, IDisposable
             {
                 try
                 {
+                    // Channel feeds follow the actively driven interface; the
+                    // node name contains the model with underscores for spaces.
+                    _mixer.SetInputDeviceHint(_devices.ActiveInfo?.Model.Replace(' ', '_'));
                     if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()
                         | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()
                         | _mixer.EnsureMonitorRoutes()) Changed?.Invoke();

@@ -16,7 +16,7 @@ public static class DeviceRegistry
     {
         [new Key(WaveXlrProDevice.VendorId, WaveXlrProDevice.ProductId)] = () => new WaveXlrProDevice(),
         [new Key(Mk1ClassProtocolDevice.VendorId, WaveXlrMk1Device.ProductId)] = () => new WaveXlrMk1Device(),
-        [new Key(Mk1ClassProtocolDevice.VendorId, XlrDockDevice.ProductId)] = () => new XlrDockDevice(),
+        [new Key(XlrDockDevice.VendorId, XlrDockDevice.ProductId)] = () => new XlrDockDevice(),
         [new Key(WaveXlrMk2Device.VendorId, WaveXlrMk2Device.ProductId)] = () => new WaveXlrMk2Device(),
         // Add more brands/models here, e.g.:
         // [new Key(0x1220, 0x8fe0)] = () => new GoXlrDevice(),

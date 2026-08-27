@@ -473,15 +473,16 @@ public sealed class MainViewModel : ViewModelBase
     private bool _hasMultipleDevices;
     public bool HasMultipleDevices { get => _hasMultipleDevices; set => Set(ref _hasMultipleDevices, value); }
 
-    private DetectedDeviceItem? _selectedDevice;
-    public DetectedDeviceItem? SelectedDevice
+    private string _activeDeviceName = "";
+    public string ActiveDeviceName { get => _activeDeviceName; set => Set(ref _activeDeviceName, value); }
+
+    /// <summary>
+    /// Explicit pick from the device menu. Only a click reaches this, never a
+    /// binding, so a list rebuild can no longer switch devices on its own.
+    /// </summary>
+    public void SelectDevice(DetectedDeviceItem device)
     {
-        get => _selectedDevice;
-        set
-        {
-            if (Set(ref _selectedDevice, value) && !_applying && value is not null && !value.Active)
-                _ = _client.SetActiveDeviceAsync(value.UsbId);
-        }
+        if (!device.Active) _ = _client.SetActiveDeviceAsync(device.UsbId);
     }
 
     private void ApplyDetected(JsonNode? detected)
@@ -496,8 +497,7 @@ public sealed class MainViewModel : ViewModelBase
             foreach (DetectedDeviceItem d in items) DetectedDevices.Add(d);
         }
         HasMultipleDevices = items.Count > 1;
-        DetectedDeviceItem? active = DetectedDevices.FirstOrDefault(d => d.Active);
-        if (!Equals(_selectedDevice, active)) { _selectedDevice = active; Raise(nameof(SelectedDevice)); }
+        ActiveDeviceName = DetectedDevices.FirstOrDefault(d => d.Active)?.Name ?? "";
     }
 
     /// <summary>Saved profile names from the daemon, newest list wins.</summary>

@@ -34,6 +34,7 @@ const DEVICE_TOGGLES = {
   compressor: "XLR 1\nComp", compressor2: "XLR 2\nComp",
   lowImpedance: "Low Z", auxLevelLock: "Aux In\nLock",
   outHp1: "HP 1\nOut", outHp2: "HP 2\nOut", outLineOut: "Line\nOut",
+  gainLocked: "Gain\nLock",
 };
 // Targets whose ON state means "muted" (shown red instead of lit green).
 const MUTE_LIKE = new Set(["mute", "mute2"]);
@@ -139,6 +140,10 @@ const chOf = (id) => mixer()?.channels?.find((x) => x.id === id);
 function toggleValue(target) {
   if (!target) return null;
   if (target === "auxPort") return mixer()?.auxPortEnabled ?? null;
+  if (target === "softLowCut") {
+    const hz = mixer()?.lowCutHz;
+    return hz == null ? null : hz > 0;
+  }
   if (target.startsWith("mixmute:")) return mixOf(target.slice(8))?.muted ?? null;
   if (target.startsWith("sendmute:")) {
     const [, ch, mix] = target.split(":");
@@ -150,6 +155,10 @@ function toggleValue(target) {
 function toggleLabel(target) {
   if (!target) return "OpenXLR";
   if (target === "auxPort") return "Aux\nPort";
+  if (target === "softLowCut") {
+    const hz = mixer()?.lowCutHz ?? 0;
+    return hz ? `Low Cut\n${hz} Hz` : "Low Cut\nOff";
+  }
   if (target.startsWith("mixmute:")) return `${MIXES[target.slice(8)] ?? target.slice(8)}\nMute`;
   if (target.startsWith("sendmute:")) {
     const [, ch, mix] = target.split(":");
@@ -227,6 +236,11 @@ function onKeyDown(context, inst) {
   const cur = toggleValue(t);
   if (cur === null) { send({ event: "showAlert", context }); return; }
   if (t === "auxPort") cmd({ cmd: "setAuxPortEnabled", value: !cur });
+  else if (t === "softLowCut") {
+    const hz = mixer()?.lowCutHz ?? 0;
+    cmd({ cmd: "setLowCutHz", value: hz === 0 ? 80 : hz === 80 ? 120 : 0 });
+  }
+  else if (t === "gainLocked") cmd({ cmd: "set", control: "gainLock", value: !cur });
   else if (t.startsWith("mixmute:"))
     cmd({ cmd: "setMixMuted", mix: t.slice(8), value: !cur });
   else if (t.startsWith("sendmute:")) {

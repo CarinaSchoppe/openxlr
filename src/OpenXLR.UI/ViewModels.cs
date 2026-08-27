@@ -146,30 +146,6 @@ public sealed class MainViewModel : ViewModelBase
     public void CycleSoftLowCut()
         => _ = _client.SetLowCutHzAsync(_softLowCutHz switch { 0 => 80, 80 => 120, _ => 0 });
 
-    // Host-side direct monitor (mic into the device's own headphones).
-    private int _directMonitor;
-    public int DirectMonitor
-    {
-        get => _directMonitor;
-        set
-        {
-            if (Set(ref _directMonitor, value))
-            {
-                Raise(nameof(DirectMonitorText));
-                if (!_applying)
-                {
-                    var v = value;
-                    SliderSync.Touch("dm");
-                    SliderSync.Send("dm", () => _ = _client.SetDirectMonitorAsync(v));
-                }
-            }
-        }
-    }
-    public string DirectMonitorText => _directMonitor == 0 ? "off" : $"{_directMonitor}%";
-
-    private bool _showDirectMonitor;
-    public bool ShowDirectMonitor { get => _showDirectMonitor; private set => Set(ref _showDirectMonitor, value); }
-
     private bool _mute;
     public bool Mute { get => _mute; set { if (Set(ref _mute, value) && !_applying) _ = _client.SetControlAsync("mute", value); } }
 
@@ -523,7 +499,6 @@ public sealed class MainViewModel : ViewModelBase
             ApplyMixer(node["mixer"]);
             ApplyStreams(node["mixer"]);
             ShowSoftLowCut = DeviceConnected && !CapLowCut && HasMixer;
-            ShowDirectMonitor = DeviceConnected && !CapCrossfade && HasMixer;
             Status = DeviceConnected ? "ready" : "no device";
         }
         finally { _applying = false; }
@@ -718,7 +693,6 @@ public sealed class MainViewModel : ViewModelBase
         if (mixer is null) { HasMixer = false; return; }
         HasMixer = true;
         SoftLowCutHz = mixer["lowCutHz"]?.GetValue<int>() ?? 0;
-        if (!SliderSync.RecentlyTouched("dm")) DirectMonitor = mixer["directMonitor"]?.GetValue<int>() ?? 0;
 
         if (mixer["mixes"] is JsonArray mixes)
         {

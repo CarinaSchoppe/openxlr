@@ -137,13 +137,11 @@ public sealed class MixerService : IHostedService, IDisposable
                     // Channel feeds follow the actively driven interface; the
                     // node name contains the model with underscores for spaces.
                     _mixer.SetInputDeviceHint(_devices.ActiveInfo?.Model.Replace(' ', '_'));
-                    // Soft low cut only for devices without the hardware one;
-                    // soft direct monitor only without a hardware crossfade.
+                    // Soft low cut only for devices without the hardware one.
                     _mixer.SetLowCutApplicable(!(_devices.ActiveCapabilities?.LowCut ?? false));
-                    _mixer.SetDirectMonitorApplicable(!(_devices.ActiveCapabilities?.Crossfade ?? false));
                     if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()
                         | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()
-                        | _mixer.EnsureLowCutRoutes() | _mixer.EnsureDirectMonitor()
+                        | _mixer.EnsureLowCutRoutes()
                         | _mixer.EnsureMonitorRoutes()) Changed?.Invoke();
                     SyncOutputSelectors();
                 }
@@ -274,9 +272,6 @@ public sealed class MixerService : IHostedService, IDisposable
                     int hz = cmd.Value.GetInt32();
                     if (hz is not (0 or 80 or 120)) return "setLowCutHz: value must be 0, 80, or 120";
                     _mixer.SetLowCutHz(hz);
-                    break;
-                case "setDirectMonitor":
-                    _mixer.SetDirectMonitor(cmd.Value.GetDouble() / 100.0);
                     break;
                 default:
                     return $"unknown mixer command '{cmd.Cmd}'";

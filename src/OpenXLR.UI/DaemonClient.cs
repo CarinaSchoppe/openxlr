@@ -171,10 +171,6 @@ public sealed class DaemonClient : IAsyncDisposable
     public Task SetLowCutHzAsync(int hz)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setLowCutHz", ["value"] = hz });
 
-    /// <summary>Host-side direct monitor level in percent (0..100).</summary>
-    public Task SetDirectMonitorAsync(int percent)
-        => SendAsync(new Dictionary<string, object> { ["cmd"] = "setDirectMonitor", ["value"] = percent });
-
     /// <summary>Remove an app from the registry and forget its override.</summary>
     public Task ForgetAppAsync(string identity)
         => SendAsync(new Dictionary<string, object?> { ["cmd"] = "forgetApp", ["identity"] = identity });

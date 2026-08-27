@@ -206,9 +206,6 @@ public sealed class Mixer : IDisposable
             PortLink feed = _pw.RouteInputToChannel(_inputDevice, ch.SinkName, ch.InputPair!.Value);
             if (feed.Pairs.Count > 0) _inputFeeds.Add(feed);
         }
-        // The direct monitor taps the mic (or the low cut's output), so it
-        // re-targets whenever the feeds are rebuilt.
-        WireDirectMonitorLocked();
     }
 
     private void RemoveLowCutLocked()
@@ -317,69 +314,6 @@ public sealed class Mixer : IDisposable
     /// <summary>Software low cut frequency (0, 80, or 120 Hz; 0 = off).</summary>
     public int LowCutHz { get { lock (_gate) return _lowCutHz; } }
 
-    // Host-side direct monitor (Wave Link's mic monitoring for devices with
-    // no hardware sidetone path): a loopback from the mic (post low cut when
-    // that is engaged) into the device's own output, never anywhere else.
-    private double _directMonitor;           // 0..1; 0 = no loopback at all
-    private bool _directMonitorApplicable = true;
-    private LoopbackHandle? _dmLoop;
-
-    /// <summary>Direct monitor level as a percentage (0..100).</summary>
-    public int DirectMonitorPercent { get { lock (_gate) return (int)Math.Round(_directMonitor * 100); } }
-
-    public void SetDirectMonitor(double fraction)
-    {
-        fraction = Math.Clamp(fraction, 0.0, 1.0);
-        lock (_gate)
-        {
-            if (Math.Abs(_directMonitor - fraction) < 0.001) return;
-            bool wasOn = _directMonitor > 0;
-            _directMonitor = fraction;
-            if (!_built) return;
-            if (wasOn && fraction > 0 && _dmLoop is not null) _pw.SetLoopbackVolume(_dmLoop, fraction);
-            else WireDirectMonitorLocked();
-        }
-    }
-
-    /// <summary>
-    /// False while the active device has a hardware crossfade (its own
-    /// zero-latency monitor path); the stored level survives switches.
-    /// </summary>
-    public void SetDirectMonitorApplicable(bool applicable)
-    {
-        lock (_gate)
-        {
-            if (_directMonitorApplicable == applicable) return;
-            _directMonitorApplicable = applicable;
-            if (_built) WireDirectMonitorLocked();
-        }
-    }
-
-    private void WireDirectMonitorLocked()
-    {
-        if (_dmLoop is not null) { _pw.StopLoopback(_dmLoop); _dmLoop = null; }
-        if (!_directMonitorApplicable || _directMonitor <= 0 || _inputDevice is null || _inputHint is null)
-            return;
-        string? ownSink = _pw.ListDevices().FirstOrDefault(d =>
-            d.Kind == AudioNodeKind.Sink && !d.IsOwn &&
-            d.Name.Contains(_inputHint, StringComparison.OrdinalIgnoreCase) &&
-            !d.Name.Contains('#'))?.Name;
-        if (ownSink is null) return;
-        string from = _lowCut is not null ? _lowCut.SourceName : _inputDevice;
-        _dmLoop = _pw.CreateLoopback("dm", from, ownSink, _directMonitor, fromIsSource: true);
-    }
-
-    /// <summary>Sweep healing: revive the direct monitor if its process died.</summary>
-    public bool EnsureDirectMonitor()
-    {
-        lock (_gate)
-        {
-            if (!_built || _dmLoop is null || !_dmLoop.Process.HasExited) return false;
-            WireDirectMonitorLocked();
-            return true;
-        }
-    }
-
     private bool _lowCutApplicable = true;
 
     /// <summary>
@@ -467,7 +401,6 @@ public sealed class Mixer : IDisposable
                 EnforcedDefaultSource = _enforcedSource,
                 AuxPortEnabled = _auxPortEnabled,
                 LowCutHz = _lowCutHz,
-                DirectMonitor = _directMonitor,
             };
         }
     }
@@ -527,11 +460,6 @@ public sealed class Mixer : IDisposable
                 _lowCutHz = s.LowCutHz;
                 WireInputFeedsLocked();
             }
-            if (s.DirectMonitor > 0)
-            {
-                _directMonitor = Math.Clamp(s.DirectMonitor, 0.0, 1.0);
-                WireDirectMonitorLocked();
-            }
         }
     }
 
@@ -550,7 +478,6 @@ public sealed class Mixer : IDisposable
                 AuxPortEnabled = _auxPortEnabled,
                 OutputVolume = _outputVolume,
                 LowCutHz = _lowCutHz,
-                DirectMonitor = _directMonitor,
             };
         }
     }
@@ -587,11 +514,6 @@ public sealed class Mixer : IDisposable
             {
                 _lowCutHz = hz;
                 WireInputFeedsLocked();
-            }
-            if (s.DirectMonitor is double dm && Math.Abs(_directMonitor - dm) >= 0.001)
-            {
-                _directMonitor = Math.Clamp(dm, 0.0, 1.0);
-                WireDirectMonitorLocked();
             }
         }
         if (s.OutputVolume is double v) SetOutputVolume(v);
@@ -996,7 +918,6 @@ public sealed class Mixer : IDisposable
                 MonitorOutputs = [.. _monitorOutputs],
                 OutputVolume = _outputVolume,
                 LowCutHz = _lowCutHz,
-                DirectMonitor = (int)Math.Round(_directMonitor * 100),
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
                 AuxPortEnabled = _auxPortEnabled,
@@ -1048,7 +969,6 @@ public sealed class Mixer : IDisposable
         foreach (PortLink feed in _inputFeeds) _pw.Unlink(feed);
         _inputFeeds.Clear();
         RemoveLowCutLocked();
-        _dmLoop = null;     // its process dies in the adapter teardown below
         _inputDevice = null;
         _pw.TearDown();     // unloads modules in reverse order: combines, then mixes
         _combineModules.Clear();

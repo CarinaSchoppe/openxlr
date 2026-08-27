@@ -40,9 +40,6 @@ public sealed record MixerSettings
     /// <summary>Software low cut on the first XLR channel (0, 80, or 120 Hz).</summary>
     public int LowCutHz { get; init; }
 
-    /// <summary>Host-side direct monitor level (0..1).</summary>
-    public double DirectMonitor { get; init; }
-
     /// <summary>
     /// Whether the Aux mix feeds the USB Aux port. Null in files written before
     /// the Aux mix existed; migrated from the old monitor-destination choice.

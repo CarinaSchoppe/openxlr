@@ -117,6 +117,12 @@ public sealed record MixerState
     /// <summary>Whether the Aux mix is sent to the device's USB Aux port.</summary>
     public bool AuxPortEnabled { get; init; }
 
+    /// <summary>Software low cut on the first XLR channel (0, 80, or 120 Hz).</summary>
+    public int LowCutHz { get; init; }
+
+    /// <summary>Host-side direct monitor level, percent (0..100).</summary>
+    public int DirectMonitor { get; init; }
+
     /// <summary>Enforced system default devices; null = not enforced.</summary>
     public string? EnforcedDefaultSink { get; init; }
     public string? EnforcedDefaultSource { get; init; }

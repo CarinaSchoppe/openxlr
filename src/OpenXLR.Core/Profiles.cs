@@ -20,6 +20,10 @@ public sealed record MixerScene
     public List<string> MonitorOutputs { get; init; } = [];
     public bool AuxPortEnabled { get; init; }
     public double? OutputVolume { get; init; }
+    /// <summary>Software low cut (0, 80, or 120 Hz); absent in older profiles.</summary>
+    public int? LowCutHz { get; init; }
+    /// <summary>Host-side direct monitor level (0..1); absent in older profiles.</summary>
+    public double? DirectMonitor { get; init; }
 }
 
 /// <summary>

@@ -58,4 +58,11 @@ public sealed record DeviceState
     // USB Aux input stage (block 0x0004 tail): level -60..0 dB and level lock.
     public double AuxLevelDb { get; init; }
     public bool AuxLevelLock { get; init; }
+
+    /// <summary>
+    /// Daemon-enforced software gain lock (Wave Link's Gain Lock for devices
+    /// that keep it app-side). Not a hardware field: the daemon stamps it
+    /// onto every snapshot and rejects gain writes while it is set.
+    /// </summary>
+    public bool GainLocked { get; init; }
 }

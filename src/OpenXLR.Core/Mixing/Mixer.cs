@@ -163,20 +163,74 @@ public sealed class Mixer : IDisposable
     {
         foreach (PortLink feed in _inputFeeds) _pw.Unlink(feed);
         _inputFeeds.Clear();
+        RemoveLowCutLocked();
         var sources = _pw.ListDevices()
             .Where(d => d.Kind == AudioNodeKind.Source && !d.IsOwn).ToList();
         // Prefer the interface the daemon actively drives (the hint), so a
         // device switch moves the channel feeds with it; fall back to any
         // Wave XLR so the mixer still works when no device is connected.
+        string? previousInput = _inputDevice;
         _inputDevice = (_inputHint is null ? null : sources.FirstOrDefault(
                 d => d.Name.Contains(_inputHint, StringComparison.OrdinalIgnoreCase))?.Name)
             ?? sources.FirstOrDefault(
                 d => d.Name.Contains("Wave_XLR", StringComparison.OrdinalIgnoreCase))?.Name;
         if (_inputDevice is null) return;
+
+        // Console rule: a newly patched input comes up muted. Switching the
+        // feed device once put a hot mic straight into the monitor outputs
+        // (a feedback howl through the speakers), so the hardware channels'
+        // monitor sends start muted after a device change and the user
+        // unmutes deliberately.
+        if (previousInput is not null && previousInput != _inputDevice)
+        {
+            MixDefinition? mon = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor);
+            if (mon is not null)
+                foreach (ChannelDefinition hw in _config.Channels.Where(c => c.InputPair is not null))
+                {
+                    _muted.Add(Cell(hw.Id, mon.Id));
+                    ApplyCellLocked(hw.Id, mon.Id);
+                }
+        }
         foreach (ChannelDefinition ch in _config.Channels.Where(c => c.InputPair is not null))
         {
+            if (ch.InputPair == 0 && _lowCutHz > 0 && _lowCutApplicable)
+            {
+                // Route the mic through the high-pass instead of straight in.
+                _lowCut = _pw.CreateLowCut("xlr1", _lowCutHz);
+                _pw.UnlinkNodes(_inputDevice, ch.SinkName);   // clear any stale bypass
+                PortLink into = _pw.RouteInputToChannel(_inputDevice, _lowCut.SinkName, 0);
+                if (into.Pairs.Count > 0) _inputFeeds.Add(into);
+                _lowCutOut = _pw.LinkNodes(_lowCut.SourceName, "capture", ch.SinkName, "playback");
+                continue;
+            }
             PortLink feed = _pw.RouteInputToChannel(_inputDevice, ch.SinkName, ch.InputPair!.Value);
             if (feed.Pairs.Count > 0) _inputFeeds.Add(feed);
+        }
+        // The direct monitor taps the mic (or the low cut's output), so it
+        // re-targets whenever the feeds are rebuilt.
+        WireDirectMonitorLocked();
+    }
+
+    private void RemoveLowCutLocked()
+    {
+        if (_lowCutOut is not null) { _pw.Unlink(_lowCutOut); _lowCutOut = null; }
+        if (_lowCut is not null) { _pw.StopFilter(_lowCut); _lowCut = null; }
+    }
+
+    /// <summary>
+    /// Sweep healing for the software low cut: a dead holder process or a
+    /// broken link re-wires the whole input path. True when something changed.
+    /// </summary>
+    public bool EnsureLowCutRoutes()
+    {
+        lock (_gate)
+        {
+            if (!_built || _lowCut is null) return false;
+            bool broken = _lowCut.Process.HasExited
+                || (_lowCutOut is not null && _pw.EnsureLinks(_lowCutOut) == LinkHealth.Broken);
+            if (!broken) return false;
+            WireInputFeedsLocked();
+            return true;
         }
     }
 
@@ -256,6 +310,109 @@ public sealed class Mixer : IDisposable
     }
 
     private string? _inputHint;
+    private int _lowCutHz;                 // 0 = off; software low cut on the first XLR channel
+    private FilterHandle? _lowCut;
+    private PortLink? _lowCutOut;          // filter source half into the channel sink
+
+    /// <summary>Software low cut frequency (0, 80, or 120 Hz; 0 = off).</summary>
+    public int LowCutHz { get { lock (_gate) return _lowCutHz; } }
+
+    // Host-side direct monitor (Wave Link's mic monitoring for devices with
+    // no hardware sidetone path): a loopback from the mic (post low cut when
+    // that is engaged) into the device's own output, never anywhere else.
+    private double _directMonitor;           // 0..1; 0 = no loopback at all
+    private bool _directMonitorApplicable = true;
+    private LoopbackHandle? _dmLoop;
+
+    /// <summary>Direct monitor level as a percentage (0..100).</summary>
+    public int DirectMonitorPercent { get { lock (_gate) return (int)Math.Round(_directMonitor * 100); } }
+
+    public void SetDirectMonitor(double fraction)
+    {
+        fraction = Math.Clamp(fraction, 0.0, 1.0);
+        lock (_gate)
+        {
+            if (Math.Abs(_directMonitor - fraction) < 0.001) return;
+            bool wasOn = _directMonitor > 0;
+            _directMonitor = fraction;
+            if (!_built) return;
+            if (wasOn && fraction > 0 && _dmLoop is not null) _pw.SetLoopbackVolume(_dmLoop, fraction);
+            else WireDirectMonitorLocked();
+        }
+    }
+
+    /// <summary>
+    /// False while the active device has a hardware crossfade (its own
+    /// zero-latency monitor path); the stored level survives switches.
+    /// </summary>
+    public void SetDirectMonitorApplicable(bool applicable)
+    {
+        lock (_gate)
+        {
+            if (_directMonitorApplicable == applicable) return;
+            _directMonitorApplicable = applicable;
+            if (_built) WireDirectMonitorLocked();
+        }
+    }
+
+    private void WireDirectMonitorLocked()
+    {
+        if (_dmLoop is not null) { _pw.StopLoopback(_dmLoop); _dmLoop = null; }
+        if (!_directMonitorApplicable || _directMonitor <= 0 || _inputDevice is null || _inputHint is null)
+            return;
+        string? ownSink = _pw.ListDevices().FirstOrDefault(d =>
+            d.Kind == AudioNodeKind.Sink && !d.IsOwn &&
+            d.Name.Contains(_inputHint, StringComparison.OrdinalIgnoreCase) &&
+            !d.Name.Contains('#'))?.Name;
+        if (ownSink is null) return;
+        string from = _lowCut is not null ? _lowCut.SourceName : _inputDevice;
+        _dmLoop = _pw.CreateLoopback("dm", from, ownSink, _directMonitor, fromIsSource: true);
+    }
+
+    /// <summary>Sweep healing: revive the direct monitor if its process died.</summary>
+    public bool EnsureDirectMonitor()
+    {
+        lock (_gate)
+        {
+            if (!_built || _dmLoop is null || !_dmLoop.Process.HasExited) return false;
+            WireDirectMonitorLocked();
+            return true;
+        }
+    }
+
+    private bool _lowCutApplicable = true;
+
+    /// <summary>
+    /// Whether the soft low cut may engage: false while the active device has
+    /// a hardware low cut (stacking both would double-filter). The stored
+    /// frequency survives, so switching back re-engages it.
+    /// </summary>
+    public void SetLowCutApplicable(bool applicable)
+    {
+        lock (_gate)
+        {
+            if (_lowCutApplicable == applicable) return;
+            _lowCutApplicable = applicable;
+            if (_built && _lowCutHz > 0) WireInputFeedsLocked();
+        }
+    }
+
+    /// <summary>
+    /// Set the software low cut for the first XLR channel: a host-side
+    /// high-pass for devices whose DSP lives in the vendor app (the XLR
+    /// Dock), matching Wave Link's 80/120 Hz choices. Devices with a real
+    /// hardware low cut never see this path; the UI gates it by capability.
+    /// </summary>
+    public void SetLowCutHz(int hz)
+    {
+        if (hz is not (0 or 80 or 120)) return;
+        lock (_gate)
+        {
+            if (_lowCutHz == hz) return;
+            _lowCutHz = hz;
+            if (_built) WireInputFeedsLocked();
+        }
+    }
 
     /// <summary>
     /// Name fragment of the interface whose capture should feed the input
@@ -309,6 +466,8 @@ public sealed class Mixer : IDisposable
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
                 AuxPortEnabled = _auxPortEnabled,
+                LowCutHz = _lowCutHz,
+                DirectMonitor = _directMonitor,
             };
         }
     }
@@ -362,6 +521,17 @@ public sealed class Mixer : IDisposable
                 ?? (s.MonitorOutputs.Any(o => o.EndsWith("#usbaux", StringComparison.Ordinal)) ||
                     (s.MonitorOutput?.EndsWith("#usbaux", StringComparison.Ordinal) ?? false));
             WireAuxRouteLocked();
+
+            if (s.LowCutHz is 80 or 120 && _lowCutHz != s.LowCutHz)
+            {
+                _lowCutHz = s.LowCutHz;
+                WireInputFeedsLocked();
+            }
+            if (s.DirectMonitor > 0)
+            {
+                _directMonitor = Math.Clamp(s.DirectMonitor, 0.0, 1.0);
+                WireDirectMonitorLocked();
+            }
         }
     }
 
@@ -379,6 +549,8 @@ public sealed class Mixer : IDisposable
                 MonitorOutputs = [.. _monitorOutputs],
                 AuxPortEnabled = _auxPortEnabled,
                 OutputVolume = _outputVolume,
+                LowCutHz = _lowCutHz,
+                DirectMonitor = _directMonitor,
             };
         }
     }
@@ -410,6 +582,17 @@ public sealed class Mixer : IDisposable
             if (s.MonitorOutputs.Count > 0) SetMonitorOutputsLocked(s.MonitorOutputs);
             _auxPortEnabled = s.AuxPortEnabled;
             WireAuxRouteLocked();
+
+            if (s.LowCutHz is int hz && hz is 0 or 80 or 120 && _lowCutHz != hz)
+            {
+                _lowCutHz = hz;
+                WireInputFeedsLocked();
+            }
+            if (s.DirectMonitor is double dm && Math.Abs(_directMonitor - dm) >= 0.001)
+            {
+                _directMonitor = Math.Clamp(dm, 0.0, 1.0);
+                WireDirectMonitorLocked();
+            }
         }
         if (s.OutputVolume is double v) SetOutputVolume(v);
     }
@@ -812,6 +995,8 @@ public sealed class Mixer : IDisposable
                 MonitorOutput = _monitorOutputs.FirstOrDefault(),
                 MonitorOutputs = [.. _monitorOutputs],
                 OutputVolume = _outputVolume,
+                LowCutHz = _lowCutHz,
+                DirectMonitor = (int)Math.Round(_directMonitor * 100),
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
                 AuxPortEnabled = _auxPortEnabled,
@@ -862,6 +1047,8 @@ public sealed class Mixer : IDisposable
         if (_auxRoute is not null) { _pw.Unlink(_auxRoute); _auxRoute = null; }
         foreach (PortLink feed in _inputFeeds) _pw.Unlink(feed);
         _inputFeeds.Clear();
+        RemoveLowCutLocked();
+        _dmLoop = null;     // its process dies in the adapter teardown below
         _inputDevice = null;
         _pw.TearDown();     // unloads modules in reverse order: combines, then mixes
         _combineModules.Clear();

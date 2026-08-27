@@ -70,6 +70,45 @@ public sealed class DeviceManager : BackgroundService
         get { lock (_gate) return _device is { Connected: true } ? _device.Info : null; }
     }
 
+    /// <summary>Capabilities of the connected device, or null; cheap to poll.</summary>
+    public DeviceCapabilities? ActiveCapabilities
+    {
+        get { lock (_gate) return _device is { Connected: true } ? _device.Capabilities : null; }
+    }
+
+    // Software gain lock (Wave Link's Gain Lock, app-side on these devices):
+    // per-device usbIds persisted so the lock survives restarts. The daemon
+    // stamps the flag onto every state snapshot and rejects gain writes while
+    // set, so every client honors it without needing its own logic.
+    private readonly HashSet<string> _gainLocked = LoadGainLocks();
+
+    private static string GainLockPath => Path.Combine(
+        Environment.GetEnvironmentVariable("XDG_CONFIG_HOME")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config"),
+        "openxlr", "gainlock.json");
+
+    private static HashSet<string> LoadGainLocks()
+    {
+        try { return JsonSerializer.Deserialize<HashSet<string>>(File.ReadAllText(GainLockPath)) ?? []; }
+        catch (Exception) { return []; }
+    }
+
+    private void SaveGainLocks()
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(GainLockPath)!);
+            File.WriteAllText(GainLockPath, JsonSerializer.Serialize(_gainLocked));
+        }
+        catch (Exception) { /* best effort */ }
+    }
+
+    private static string DevId(IAudioDevice d) => $"{d.Info.VendorId:x4}:{d.Info.ProductId:x4}";
+
+    private bool GainIsLocked => _device is not null && _gainLocked.Contains(DevId(_device));
+
+    private DeviceState Stamp(DeviceState s) => s with { GainLocked = GainIsLocked };
+
     /// <summary>Raised (off the poll loop) whenever the pushed state should change.</summary>
     public event Action<StateMessage>? StateChanged;
 
@@ -85,7 +124,7 @@ public sealed class DeviceManager : BackgroundService
                 Device = new DeviceDescriptor(_device.Info.Vendor, _device.Info.Model,
                     $"{_device.Info.VendorId:x4}:{_device.Info.ProductId:x4}"),
                 Capabilities = _device.Capabilities,
-                State = _last ?? _device.ReadState(),
+                State = _last ?? Stamp(_device.ReadState()),
             };
         }
     }
@@ -133,7 +172,7 @@ public sealed class DeviceManager : BackgroundService
         lock (_gate)
         {
             if (_device is null || !_device.Connected) return;
-            DeviceState now = _device.ReadState();
+            DeviceState now = Stamp(_device.ReadState());
             if (_last is null || now != _last)
             {
                 _last = now;
@@ -152,7 +191,10 @@ public sealed class DeviceManager : BackgroundService
             {
                 switch (control)
                 {
-                    case ControlNames.Gain: _device.SetGainDb(value.GetInt32()); break;
+                    case ControlNames.Gain:
+                        if (GainIsLocked) return "gain is locked";
+                        _device.SetGainDb(value.GetInt32());
+                        break;
                     case ControlNames.Mute: _device.SetMute(value.GetBoolean()); break;
                     case ControlNames.LowCut: _device.SetLowCut(value.GetBoolean()); break;
                     case ControlNames.Expander: _device.SetExpander(value.GetBoolean()); break;
@@ -171,7 +213,15 @@ public sealed class DeviceManager : BackgroundService
                     case ControlNames.AuxLevelDb: _device.SetAuxLevelDb(value.GetDouble()); break;
                     case ControlNames.AuxLevelLock: _device.SetAuxLevelLock(value.GetBoolean()); break;
                     case "hp2VolumeDb": _device.SetHp2VolumeDb(value.GetDouble()); break;
-                    case "gain2": _device.SetGain2Db(value.GetInt32()); break;
+                    case "gain2":
+                        if (GainIsLocked) return "gain is locked";
+                        _device.SetGain2Db(value.GetInt32());
+                        break;
+                    case "gainLock":
+                        if (value.GetBoolean()) _gainLocked.Add(DevId(_device));
+                        else _gainLocked.Remove(DevId(_device));
+                        SaveGainLocks();
+                        break;
                     case "mute2": _device.SetMute2(value.GetBoolean()); break;
                     case "lowCut2": _device.SetLowCut2(value.GetBoolean()); break;
                     case "expander2": _device.SetExpander2(value.GetBoolean()); break;
@@ -189,7 +239,7 @@ public sealed class DeviceManager : BackgroundService
             }
             // Reflect immediately; the poll loop will also catch it, but this
             // makes the client's own change feel instant.
-            _last = _device.ReadState();
+            _last = Stamp(_device.ReadState());
             RaiseFromLocked();
             return null;
         }
@@ -206,7 +256,7 @@ public sealed class DeviceManager : BackgroundService
         lock (_gate)
         {
             if (_device is null || !_device.Connected) return "no device connected";
-            DeviceState s = _last ?? _device.ReadState();
+            DeviceState s = _last ?? Stamp(_device.ReadState());
             try
             {
                 if (s.GainDb != p.GainDb) _device.SetGainDb(p.GainDb);
@@ -238,7 +288,7 @@ public sealed class DeviceManager : BackgroundService
             {
                 return ex.Message;
             }
-            _last = _device.ReadState();
+            _last = Stamp(_device.ReadState());
             RaiseFromLocked();
             return null;
         }
@@ -269,7 +319,7 @@ public sealed class DeviceManager : BackgroundService
                 if (s.OutLineOut != lineOut) { _device.SetOutLineOut(lineOut); changed = true; }
                 if (changed)
                 {
-                    _last = _device.ReadState();
+                    _last = Stamp(_device.ReadState());
                     RaiseFromLocked();
                 }
             }

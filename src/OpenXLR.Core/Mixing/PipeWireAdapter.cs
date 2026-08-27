@@ -18,6 +18,7 @@ public sealed class PipeWireAdapter
 {
     private readonly List<uint> _modules = [];
     private readonly List<Process> _loopbacks = [];
+    private readonly List<Process> _filters = [];
 
     /// <summary>
     /// pactl joins its arguments into one module-argument string and re-splits on
@@ -290,6 +291,93 @@ public sealed class PipeWireAdapter
         if (WaitForNode(playName, TimeSpan.FromSeconds(3)))
             SetLoopbackVolume(handle, volume);
         return handle;
+    }
+
+    /// <summary>
+    /// Insert a mono high-pass filter (the software low cut for devices whose
+    /// DSP lives host-side). module-filter-chain is not reachable through the
+    /// PulseAudio emulation, so it is loaded by a held "pw-cli -m" process:
+    /// the module lives exactly as long as the process (kill = unload). The
+    /// filter appears as a sink half (feed the mic into it) and a source half
+    /// (link onward to the channel).
+    /// </summary>
+    public FilterHandle CreateLowCut(string id, int hz)
+    {
+        string sinkName = $"OpenXLR_lc_{id}_in";
+        string srcName = $"OpenXLR_lc_{id}_out";
+        string spa =
+            "{ node.description = \"OpenXLR Low Cut\" " +
+            "filter.graph = { nodes = [ { type = builtin name = hp label = bq_highpass " +
+            $"control = {{ \"Freq\" = {hz}.0 }} }} ] }} " +
+            $"capture.props = {{ node.name = {sinkName} media.class = Audio/Sink " +
+            "audio.channels = 1 audio.position = [ MONO ] node.suspend-on-idle = false } " +
+            $"playback.props = {{ node.name = {srcName} media.class = Audio/Source " +
+            "audio.channels = 1 audio.position = [ MONO ] node.suspend-on-idle = false } }";
+        var psi = new ProcessStartInfo("pw-cli")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        psi.ArgumentList.Add("-m");
+        psi.ArgumentList.Add("load-module");
+        psi.ArgumentList.Add("libpipewire-module-filter-chain");
+        psi.ArgumentList.Add(spa);
+        var p = Process.Start(psi) ?? throw new InvalidOperationException("failed to start pw-cli");
+        _filters.Add(p);
+        // Ports lag node registration; linking a port-less node silently
+        // yields an empty PortLink, so wait for both halves' ports.
+        WaitForPorts(sinkName, "playback", output: false, TimeSpan.FromSeconds(3));
+        WaitForPorts(srcName, "capture", output: true, TimeSpan.FromSeconds(3));
+        return new FilterHandle(id, sinkName, srcName, p);
+    }
+
+    /// <summary>Unload a filter by killing its holder process.</summary>
+    public void StopFilter(FilterHandle f)
+    {
+        try { if (!f.Process.HasExited) { f.Process.Kill(entireProcessTree: true); f.Process.WaitForExit(2000); } }
+        catch (Exception) { /* already gone */ }
+        _filters.Remove(f.Process);
+        f.Process.Dispose();
+    }
+
+    private bool WaitForPorts(string node, string prefix, bool output, TimeSpan timeout)
+    {
+        DateTime end = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < end)
+        {
+            if (ListPorts(node, prefix, output).Count > 0) return true;
+            Thread.Sleep(100);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Best-effort removal of every direct link between two nodes, whatever
+    /// created it. Used to clear a stale raw bypass before inserting a filter;
+    /// name-based pw-link -d can fail during churn, so failures are ignored.
+    /// </summary>
+    public void UnlinkNodes(string fromNode, string toNode)
+    {
+        string listing;
+        try { listing = Run("pw-link", "-l"); }
+        catch (InvalidOperationException) { return; }
+        string? currentOut = null;
+        foreach (string raw in listing.Split('\n'))
+        {
+            if (raw.Length == 0) continue;
+            string line = raw.TrimEnd();
+            if (!char.IsWhiteSpace(raw[0])) { currentOut = line; continue; }
+            string t = line.TrimStart();
+            if (!t.StartsWith("|->", StringComparison.Ordinal)) continue;
+            string target = t[3..].Trim();
+            if (currentOut is not null &&
+                currentOut.StartsWith(fromNode + ":", StringComparison.Ordinal) &&
+                target.StartsWith(toNode + ":", StringComparison.Ordinal))
+            {
+                try { Run("pw-link", "-d", currentOut, target); }
+                catch (InvalidOperationException) { /* racing churn */ }
+            }
+        }
     }
 
     /// <summary>Set a fader level live (0.0 removes the source from that mix).</summary>
@@ -686,13 +774,14 @@ public sealed class PipeWireAdapter
     /// <summary>Remove everything this adapter created, in reverse order.</summary>
     public void TearDown()
     {
-        foreach (Process p in _loopbacks)
+        foreach (Process p in _loopbacks.Concat(_filters))
         {
             try { if (!p.HasExited) { p.Kill(entireProcessTree: true); p.WaitForExit(2000); } }
             catch (Exception) { /* already gone */ }
             p.Dispose();
         }
         _loopbacks.Clear();
+        _filters.Clear();
 
         for (int i = _modules.Count - 1; i >= 0; i--)
         {
@@ -718,6 +807,10 @@ public sealed class PipeWireAdapter
 
 /// <summary>A running fader (one channel's send into one mix).</summary>
 public sealed record LoopbackHandle(string Id, string CaptureNodeName, string PlaybackNodeName, Process Process);
+
+/// <summary>A loaded filter-chain: sink half (input), source half (output),
+/// and the pw-cli process whose lifetime is the module's.</summary>
+public sealed record FilterHandle(string Id, string SinkName, string SourceName, Process Process);
 
 /// <summary>A set of direct port links between two nodes.</summary>
 public sealed record PortLink(IReadOnlyList<(string From, string To)> Pairs);

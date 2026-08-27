@@ -209,16 +209,23 @@
       <StackPanel Classes="dev" Spacing="4">
 
         <!-- XLR 1 -->
-        <Grid ColumnDefinitions="90,*,64">
+        <Grid ColumnDefinitions="90,*,64,Auto">
           <TextBlock Text="XLR 1 gain" Classes="h" VerticalAlignment="Center"/>
           <Slider Grid.Column="1" Minimum="0" Maximum="80" TickFrequency="1" IsSnapToTickEnabled="True"
-                  Value="{Binding GainDb, Mode=TwoWay}"/>
+                  Value="{Binding GainDb, Mode=TwoWay}" IsEnabled="{Binding !GainLocked}"/>
           <TextBlock Grid.Column="2" Text="{Binding GainText}" Classes="val" VerticalAlignment="Center"
                      HorizontalAlignment="Right"/>
+          <ToggleButton Grid.Column="3" Content="Lock" Classes="mute" FontSize="11" Padding="8,2"
+                        Margin="6,0,0,0" MinWidth="0"
+                        IsChecked="{Binding GainLocked, Mode=TwoWay}" VerticalAlignment="Center"
+                        ToolTip.Tip="Gain lock: the daemon rejects every gain change while set"/>
         </Grid>
         <UniformGrid Columns="7">
           <ToggleButton Content="Mute" Classes="mute" IsChecked="{Binding Mute, Mode=TwoWay}" Margin="0,0,6,0"/>
           <ToggleButton Content="Low Cut"    IsChecked="{Binding LowCut, Mode=TwoWay}"     Margin="0,0,6,0" IsVisible="{Binding CapLowCut}"/>
+          <ToggleButton Content="{Binding SoftLowCutText}" Margin="0,0,6,0" IsVisible="{Binding ShowSoftLowCut}"
+                        IsChecked="{Binding SoftLowCutOn, Mode=OneWay}" Click="OnCycleSoftLowCut"
+                        ToolTip.Tip="Host-side low cut for this device (its DSP lives in software); cycles Off, 80 Hz, 120 Hz"/>
           <ToggleButton Content="Expander"   IsChecked="{Binding Expander, Mode=TwoWay}"   Margin="0,0,6,0" IsVisible="{Binding CapExpander}"/>
           <ToggleButton Content="Voice Tune" IsChecked="{Binding VoiceTune, Mode=TwoWay}"  Margin="0,0,6,0" IsVisible="{Binding CapVoiceTune}"/>
           <ToggleButton Content="Phantom"  IsChecked="{Binding Phantom, Mode=TwoWay}"    Margin="0,0,6,0" IsVisible="{Binding CapPhantom}"/>
@@ -232,12 +239,20 @@
           <TextBlock Grid.Column="2" Text="{Binding VoiceTuneStrengthText}" Classes="val"
                      VerticalAlignment="Center" HorizontalAlignment="Right"/>
         </Grid>
+        <Grid ColumnDefinitions="90,*,64" IsVisible="{Binding ShowDirectMonitor}"
+              ToolTip.Tip="Hear your own mic in this device's headphones (host-side loopback; the device has no hardware monitor path)">
+          <TextBlock Text="Mic monitor" Classes="h" VerticalAlignment="Center"/>
+          <Slider Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True"
+                  Value="{Binding DirectMonitor, Mode=TwoWay}"/>
+          <TextBlock Grid.Column="2" Text="{Binding DirectMonitorText}" Classes="val"
+                     VerticalAlignment="Center" HorizontalAlignment="Right"/>
+        </Grid>
 
         <!-- XLR 2 -->
         <Grid ColumnDefinitions="90,*,64" Margin="0,2,0,0" IsVisible="{Binding HasXlr2}">
           <TextBlock Text="XLR 2 gain" Classes="h" VerticalAlignment="Center"/>
           <Slider Grid.Column="1" Minimum="0" Maximum="80" TickFrequency="1" IsSnapToTickEnabled="True"
-                  Value="{Binding Gain2Db, Mode=TwoWay}"/>
+                  Value="{Binding Gain2Db, Mode=TwoWay}" IsEnabled="{Binding !GainLocked}"/>
           <TextBlock Grid.Column="2" Text="{Binding Gain2Text}" Classes="val" VerticalAlignment="Center"
                      HorizontalAlignment="Right"/>
         </Grid>

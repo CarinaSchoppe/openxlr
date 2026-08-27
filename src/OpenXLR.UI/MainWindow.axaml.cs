@@ -154,6 +154,8 @@ public partial class MainWindow : Window
         if ((sender as Button)?.Tag is DetectedDeviceItem d) _vm.SelectDevice(d);
     }
 
+    private void OnCycleSoftLowCut(object? sender, RoutedEventArgs e) => _vm.CycleSoftLowCut();
+
     private FlowWindow? _flow;
 
     private void OnFlow(object? sender, RoutedEventArgs e)

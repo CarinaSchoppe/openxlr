@@ -152,6 +152,7 @@ public partial class MainWindow : Window
     private void OnPickDevice(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is DetectedDeviceItem d) _vm.SelectDevice(d);
+        DevicePicker.Flyout?.Hide();
     }
 
     private void OnCycleSoftLowCut(object? sender, RoutedEventArgs e) => _vm.CycleSoftLowCut();

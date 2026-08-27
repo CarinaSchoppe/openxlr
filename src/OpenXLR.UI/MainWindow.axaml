@@ -141,7 +141,7 @@
                      Fill="{Binding DeviceConnected, Converter={x:Static vm:Converters.BoolToBrush}}"/>
             <TextBlock Text="{Binding StatusLine}" Classes="h" VerticalAlignment="Center"
                        IsVisible="{Binding !HasMultipleDevices}"/>
-            <DropDownButton Content="{Binding ActiveDeviceName}" FontSize="11" Padding="6,1"
+            <DropDownButton Name="DevicePicker" Content="{Binding ActiveDeviceName}" FontSize="11" Padding="6,1"
                             MinHeight="0" VerticalAlignment="Center" Background="Transparent"
                             IsVisible="{Binding HasMultipleDevices}"
                             ToolTip.Tip="More than one supported interface is attached; pick which one OpenXLR drives">

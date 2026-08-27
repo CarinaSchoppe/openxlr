@@ -30,6 +30,26 @@ public sealed class PipeWireAdapter
     /// </summary>
     private static string PropValue(string value) => '"' + value.Replace(" ", "\\ ") + '"';
 
+    /// <summary>
+    /// Unload leftover modules from a previous instance, identified by our
+    /// node-name prefix in the module arguments. Modules this instance loaded
+    /// are left alone, so it is safe to call at any point.
+    /// </summary>
+    public void UnloadStaleModules(string namePrefix)
+    {
+        string listing;
+        try { listing = Run("pactl", "list", "short", "modules"); }
+        catch (InvalidOperationException) { return; }
+        foreach (string line in listing.Split('\n'))
+        {
+            string[] cols = line.Split('\t');
+            if (cols.Length < 3 || !cols[2].Contains(namePrefix, StringComparison.Ordinal)) continue;
+            if (!uint.TryParse(cols[0], out uint id) || _modules.Contains(id)) continue;
+            try { Run("pactl", "unload-module", id.ToString()); }
+            catch (InvalidOperationException) { /* already gone */ }
+        }
+    }
+
     /// <summary>Load a null sink; returns its module id for later unload.</summary>
     public uint CreateNullSink(string nodeName, string description)
     {

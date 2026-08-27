@@ -97,6 +97,11 @@ public sealed class Mixer : IDisposable
             if (_built) TearDownLocked();
             _config = config;
 
+            // A crashed or killed daemon never runs its teardown, and loading
+            // over its leftover nodes fails the whole build with a name
+            // collision. Clear any stray OpenXLR modules first.
+            _pw.UnloadStaleModules("OpenXLR_");
+
             // WirePlumber auto-switches the default capture device to newly
             // created sources (our virtual mics). Remember the user's current
             // one so it can be put back unless a choice was passed in.

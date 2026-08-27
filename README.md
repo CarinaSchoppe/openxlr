@@ -24,13 +24,13 @@ the author's own hardware.
 | Device | USB id | Status |
 |---|---|---|
 | Wave XLR Pro | 0fd9:00b4 | full support, verified on hardware |
-| XLR Dock (Stream Deck+ module) | 0fd9:00a6 | gain, mute, headphone volume; verified on hardware |
+| XLR Dock (Stream Deck+ module) | 0fd9:00a6 | gain, mute, headphone volume via standard ALSA controls; verified on hardware |
 | Wave XLR | 0fd9:007d | gain, mute, headphone volume, low impedance; protocol proven by [openwave](https://github.com/rikkichy/openwave), needs a tester |
 | Wave XLR MK.2 | 0fd9:00b6 | gain, mute, DSP, headphone volume, crossfade; decoded from captures, needs a tester |
 
 The UI shows only the controls the connected device has. With more than
 one supported interface attached, a picker in the header chooses which
-one OpenXLR drives. Own one of the untested devices? Open an issue with
+one OpenXLR drives; the mixer's input channels move with it. Own one of the untested devices? Open an issue with
 a diagnostics archive (Options, SUPPORT, Collect diagnostics) and help
 confirm the last two rows.
 
@@ -52,8 +52,10 @@ On the others, what their protocols expose so far:
 - Wave XLR MK.2: gain, mute, low cut, expander, voice tune with strength,
   headphone volume, low impedance, crossfade
 - Wave XLR: gain, mute, headphone volume, low impedance
-- XLR Dock: gain, mute, headphone volume; the rest of its config block is
-  still being mapped
+- XLR Dock: gain, mute, headphone volume, driven entirely through the
+  kernel's standard ALSA controls (no vendor USB traffic). The dock has
+  no onboard DSP; Wave Link runs those effects host-side, so their Linux
+  home is the submixer
 
 ### Submixer
 
@@ -176,6 +178,19 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="007d", MODE="0660"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="00b6", MODE="0660", TAG+="uaccess"
 EOF
 sudo udevadm control --reload
+```
+
+XLR Dock owners need one more file. The Linux kernel starves the dock's
+capture endpoint whenever playback to it starts before capture, and the
+mic then records pure silence (Windows schedules the same duplex fine;
+the kernel also logs "bad transfer trb length" warnings from the dock's
+malformed feedback endpoint). A WirePlumber rule keeps the dock's
+capture source always active, so playback can never come first:
+
+```sh
+mkdir -p ~/.config/wireplumber/wireplumber.conf.d
+cp packaging/50-xlr-dock-capture-hold.conf ~/.config/wireplumber/wireplumber.conf.d/
+systemctl --user restart wireplumber
 ```
 
 Run the daemon (the mixer graph is opt-in so a bare run never surprises

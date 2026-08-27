@@ -111,6 +111,9 @@ public sealed class MainViewModel : ViewModelBase
     private bool _capAuxInput = true;
     public bool CapAuxInput { get => _capAuxInput; set => Set(ref _capAuxInput, value); }
 
+    private bool _capOutputRouting = true;
+    public bool CapOutputRouting { get => _capOutputRouting; set => Set(ref _capOutputRouting, value); }
+
     private bool _mute;
     public bool Mute { get => _mute; set { if (Set(ref _mute, value) && !_applying) _ = _client.SetControlAsync("mute", value); } }
 
@@ -422,6 +425,7 @@ public sealed class MainViewModel : ViewModelBase
                 CapCrossfade = Cap("crossfade");
                 CapLowImpedance = Cap("lowImpedance");
                 CapAuxInput = Cap("auxInput");
+                CapOutputRouting = Cap("outputRouting");
             }
 
             if (node["state"] is JsonNode s)
@@ -497,7 +501,7 @@ public sealed class MainViewModel : ViewModelBase
             foreach (DetectedDeviceItem d in items) DetectedDevices.Add(d);
         }
         HasMultipleDevices = items.Count > 1;
-        ActiveDeviceName = DetectedDevices.FirstOrDefault(d => d.Active)?.Name ?? "";
+        ActiveDeviceName = DetectedDevices.FirstOrDefault(d => d.Active)?.Name ?? "select device";
     }
 
     /// <summary>Saved profile names from the daemon, newest list wins.</summary>
@@ -662,6 +666,11 @@ public sealed class MainViewModel : ViewModelBase
                 m => new MixViewModel(_client, m["id"]!.GetValue<string>(), m["name"]!.GetValue<string>()));
             bool auxOn = mixer["auxPortEnabled"]?.GetValue<bool>() ?? true;
             foreach (MixViewModel mv in Mixes.Where(mv => mv.IsAuxPort)) mv.ApplyAuxPort(auxOn);
+            // The Aux mix only exists to feed the device's USB Aux port; hide
+            // it on hardware without that port (its send rows follow below,
+            // once the channels have synced).
+            foreach (MixViewModel mv in Mixes.Where(mv => mv.IsAuxPort))
+                mv.Visible = !DeviceConnected || CapOutputRouting;
         }
 
         if (mixer["channels"] is JsonArray channels)
@@ -670,6 +679,19 @@ public sealed class MainViewModel : ViewModelBase
                 (c, vm) => vm.ApplyFromDaemon(c),
                 c => new ChannelViewModel(_client, c["id"]!.GetValue<string>(), c["name"]!.GetValue<string>(),
                     [.. Mixes.Select(m => m.Id)]));
+            // Hardware input tiles only make sense for jacks the active
+            // device has; without a device, show everything as before.
+            foreach (ChannelViewModel c in Channels)
+            {
+                c.Visible = c.Id switch
+                {
+                    "xlr2" => !DeviceConnected || HasXlr2,
+                    "aux" => !DeviceConnected || CapAuxInput,
+                    _ => true,
+                };
+                foreach (SendViewModel send in c.Sends.Where(s => s.MixId == "auxout"))
+                    send.Visible = !DeviceConnected || CapOutputRouting;
+            }
         }
     }
 
@@ -797,6 +819,9 @@ public sealed class MixViewModel : ViewModelBase, IHasId
     public string Id { get; }
     public string Name { get; }
 
+    private bool _visible = true;
+    public bool Visible { get => _visible; set => Set(ref _visible, value); }
+
     private double _volume = 1.0;
     public double Volume
     {
@@ -865,6 +890,9 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
     public string Name { get; }
     public ObservableCollection<SendViewModel> Sends { get; } = [];
 
+    private bool _visible = true;
+    public bool Visible { get => _visible; set => Set(ref _visible, value); }
+
     private double _meterL;
     public double MeterL { get => _meterL; set => Set(ref _meterL, Math.Min(value, 1.0)); }
     private double _meterR;
@@ -901,6 +929,9 @@ public sealed class SendViewModel : ViewModelBase
     }
 
     public string MixId { get; }
+
+    private bool _visible = true;
+    public bool Visible { get => _visible; set => Set(ref _visible, value); }
 
     private double _level;
     public double Level

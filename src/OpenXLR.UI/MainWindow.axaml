@@ -139,7 +139,8 @@
           <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2,0,0">
             <Ellipse Width="9" Height="9" VerticalAlignment="Center"
                      Fill="{Binding DeviceConnected, Converter={x:Static vm:Converters.BoolToBrush}}"/>
-            <TextBlock Text="{Binding StatusLine}" Classes="h" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding StatusLine}" Classes="h" VerticalAlignment="Center"
+                       IsVisible="{Binding !HasMultipleDevices}"/>
             <DropDownButton Content="{Binding ActiveDeviceName}" FontSize="11" Padding="6,1"
                             MinHeight="0" VerticalAlignment="Center" Background="Transparent"
                             IsVisible="{Binding HasMultipleDevices}"
@@ -396,7 +397,8 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:MixViewModel">
-              <Border Background="#23262f" CornerRadius="6" Padding="10" Margin="0,0,8,0">
+              <Border Background="#23262f" CornerRadius="6" Padding="10" Margin="0,0,8,0"
+                      IsVisible="{Binding Visible}">
                 <StackPanel Spacing="6">
                   <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Text="{Binding Name}" Foreground="#e6e9f0" FontWeight="SemiBold"/>
@@ -436,7 +438,8 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:ChannelViewModel">
-                <Border Background="#23262f" CornerRadius="6" Padding="10" Margin="0,0,8,0" Width="132">
+                <Border Background="#23262f" CornerRadius="6" Padding="10" Margin="0,0,8,0" Width="132"
+                        IsVisible="{Binding Visible}">
                   <StackPanel Spacing="8">
                     <TextBlock Text="{Binding Name}" Foreground="#e6e9f0" FontWeight="SemiBold"
                                HorizontalAlignment="Center"/>
@@ -456,7 +459,7 @@
                     <ItemsControl ItemsSource="{Binding Sends}">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:SendViewModel">
-                          <StackPanel Margin="0,0,0,8" Spacing="1">
+                          <StackPanel Margin="0,0,0,8" Spacing="1" IsVisible="{Binding Visible}">
                             <Grid ColumnDefinitions="*,Auto">
                               <TextBlock Text="{Binding MixId}" Classes="h" FontSize="11"/>
                               <TextBlock Grid.Column="1" Text="{Binding LevelText}" Classes="val" FontSize="11"/>

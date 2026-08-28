@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=OpenXLR
+Comment=Control suite and PipeWire submixer for Elgato XLR interfaces
+Exec=openxlr
+Icon=openxlr
+Terminal=false
+Categories=AudioVideo;Audio;Mixer;
+Keywords=elgato;wave;xlr;mixer;pipewire;

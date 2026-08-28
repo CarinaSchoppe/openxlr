@@ -36,6 +36,11 @@ per-control state of every device lives in
 untested devices? Open an issue with a diagnostics archive (Options,
 SUPPORT, Collect diagnostics) and help confirm the last two rows.
 
+The submixer itself is pure PipeWire and already works with any audio
+interface; only the hardware-control layer is per-device. Backends are
+registered by USB id behind one device interface, so support for
+interfaces from other brands may be added in the future.
+
 ## Features
 
 ### Hardware control

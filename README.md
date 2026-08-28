@@ -55,7 +55,12 @@ On the others, what their protocols expose so far:
 - XLR Dock: gain, mute, headphone volume, driven entirely through the
   kernel's standard ALSA controls (no vendor USB traffic). The dock has
   no onboard DSP; Wave Link runs those effects host-side, so their Linux
-  home is the submixer
+  home is the submixer. Phantom power is not supported: a full USB audit
+  of a Wave Link session (control, interrupt, and bulk, to the dock and
+  the Stream Deck+ alike) shows its phantom toggle never reaches the
+  hardware, and the dock's three vendor blocks hold no known phantom
+  field. Until someone maps a control path with a meter on the XLR pins,
+  no software can switch it
 
 ### Software controls
 

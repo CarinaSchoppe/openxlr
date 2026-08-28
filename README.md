@@ -168,18 +168,21 @@ mixes are published as `OpenXLR Stream` / `OpenXLR Chat` capture devices;
 the Aux mix feeds the device's aux return pair so the hardware forwards it
 to the USB Aux port.
 
-### The device protocol, in one paragraph
+### The device protocols
 
-All control rides on vendor control transfers to the device's unclaimed
-interface 3 (`bmRequestType 0x41/0xC1`, `bRequest 1`, `wIndex 0x0103`,
-`wValue` = block number): a paged property bank of fixed-size blocks holding
-byte fields. Those fields are gain in dB, quarter-dB attenuators, packed
-flag bits, and the hardware mix matrix (per-mix level cells, membership
-bits, and per-output mix assignments). A write reads the whole block,
-modifies it, writes it back, and follows with a commit block. One quirk matters: the device latches its aux-return
-routing when the host playback stream starts, so enabling the aux port
-bounces the stream once. Details, offsets and the discovery story:
-[docs/wave-xlr-pro-protocol.md](docs/wave-xlr-pro-protocol.md).
+The four devices speak three different dialects:
+
+- Wave XLR Pro and MK.2: a vendor block bank on the unclaimed interface
+  (`bmRequestType 0x41/0xC1`, `bRequest 1`, `wIndex 0x0103` on the Pro,
+  `0x0203` on the MK.2). Fixed-size blocks hold gain, packed flag bits,
+  and the hardware mix matrix; a write reads the block, modifies it,
+  writes it back, and follows with a commit block. Full offsets and the
+  discovery story: [docs/wave-xlr-pro-protocol.md](docs/wave-xlr-pro-protocol.md)
+- Wave XLR (MK.1): a small class-request protocol (`bRequest 0x85/0x05`,
+  `wIndex 0x3303`) with one config block, proven by the openwave project
+- XLR Dock: no vendor traffic at all. Its whole control surface (gain,
+  mute, headphone volume) is standard ALSA, and its DSP is provided
+  host-side by the submixer
 
 ## Requirements
 

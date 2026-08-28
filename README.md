@@ -203,6 +203,21 @@ The four devices speak three different dialects:
 
 ## Install
 
+### Arch Linux (AUR)
+
+```sh
+yay -S openxlr        # or: paru -S openxlr
+systemctl --user enable --now openxlr-daemon
+openxlr               # the mixer UI, also in your application menu
+```
+
+The package ships the udev rules and the XLR Dock's WirePlumber rule;
+replug your interface once after installing so the rules apply. The
+OpenDeck plugin lands in `/usr/share/openxlr/`, copy it into
+`~/.config/opendeck/plugins/` to use it.
+
+### From source
+
 A complete deploy from source, top to bottom. Every step is explicit;
 nothing assumes an earlier OpenXLR on the machine.
 

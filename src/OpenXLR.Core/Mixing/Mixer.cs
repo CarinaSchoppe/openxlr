@@ -824,7 +824,14 @@ public sealed class Mixer : IDisposable
                                         ?? _config.Channels.FirstOrDefault();
                 if (ch is null) continue;
 
-                try { _pw.MoveStreamToSink(s.Serial, ch.SinkName); }
+                try
+                {
+                    _pw.MoveStreamToSink(s.Serial, ch.SinkName);
+                    // The mixer owns muting (sends, masters) from here on; a
+                    // per-stream mute remembered by stream-restore has no
+                    // control anywhere in OpenXLR and just reads as silence.
+                    _pw.SetSinkInputMuted(s.Serial, false);
+                }
                 catch (InvalidOperationException) { continue; }
 
                 var placed = new StreamAssignment(s.Id, s.Serial, s.Label, s.Identity, ch.Id);

@@ -30,9 +30,11 @@ the author's own hardware.
 
 The UI shows only the controls the connected device has. With more than
 one supported interface attached, a picker in the header chooses which
-one OpenXLR drives; the mixer's input channels move with it. Own one of the untested devices? Open an issue with
-a diagnostics archive (Options, SUPPORT, Collect diagnostics) and help
-confirm the last two rows.
+one OpenXLR drives; the mixer's input channels move with it. The full
+per-control state of every device lives in
+[docs/hardware-support.md](docs/hardware-support.md). Own one of the
+untested devices? Open an issue with a diagnostics archive (Options,
+SUPPORT, Collect diagnostics) and help confirm the last two rows.
 
 ## Features
 

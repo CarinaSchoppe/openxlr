@@ -1,0 +1,104 @@
+# Hardware support
+
+The current, honest state of every device OpenXLR supports. Two of the
+four need testers; the section at the bottom explains how to help.
+
+| Device | USB id | Status |
+|---|---|---|
+| Wave XLR Pro | `0fd9:00b4` | 🟢 full support, every control verified on hardware |
+| XLR Dock | `0fd9:00a6` | 🟢 supported and verified within what its hardware can do |
+| Wave XLR | `0fd9:007d` | 🟡 coded from a proven protocol, needs a tester |
+| Wave XLR MK.2 | `0fd9:00b6` | 🟡 decoded from captures, needs a tester |
+
+## Wave XLR Pro (0fd9:00b4)
+
+The daily driver behind this project. Vendor block protocol fully decoded
+and documented in [wave-xlr-pro-protocol.md](wave-xlr-pro-protocol.md):
+config blocks for both XLR inputs, headphone block, crossfade and output
+selectors, and the commit block every selector write needs.
+
+| Control | State | Notes |
+|---|---|---|
+| Gain 0 to 80 dB, mute (per XLR input) | verified | both inputs, independent structures |
+| Low cut, expander, voice tune + strength | verified | per input |
+| Phantom 48V, ClipGuard, compressor | verified | ClipGuard is an inverted byte in the protocol; handled |
+| Headphone volumes x2, low impedance | verified | independent jacks |
+| Mic and PC crossfade | verified | zero-latency direct monitor inside the device |
+| Physical output routing | verified | HP1, HP2, Line Out, USB Aux; ear-verified on both jacks |
+| USB Aux input level + lock, aux return | verified | return routing latches at stream open; the daemon bounces it |
+
+## XLR Dock (0fd9:00a6)
+
+The Stream Deck+ module. A software-defined device with no onboard memory
+or DSP: Wave Link is its brain on Windows, so on Linux OpenXLR drives it
+entirely through the kernel's standard ALSA controls, no vendor USB
+traffic at all, and provides the DSP host-side in the submixer.
+
+| Control | State | Notes |
+|---|---|---|
+| Gain 0 to 75 dB | verified | real analog preamp, confirmed by level measurement |
+| Mute, headphone volume | verified | standard ALSA controls |
+| Low cut 80 / 120 Hz | software | PipeWire high-pass in the mic path; tone-measured, textbook second-order response |
+| ClipGuard | software | hard limiter at -3 dB, tone-measured exact; needs the `swh-plugins` package |
+| Gain lock | software | the daemon rejects all gain changes while set; the dock has no physical dial to bypass it |
+| Phantom power | not supported | a full USB audit shows Wave Link's own toggle never reaches the hardware, and the dock's vendor blocks hold no known phantom field. Parked until further testing |
+| Low impedance, hardware sidetone | not present | no control path exists; a byte sweep for sidetone came back negative |
+
+Linux quirk, solved: the kernel starves the dock's capture when playback
+to it starts first, and the mic records silence. OpenXLR ships a
+WirePlumber rule
+([packaging/50-xlr-dock-capture-hold.conf](../packaging/50-xlr-dock-capture-hold.conf))
+that keeps the capture source always active, fixing it system-wide.
+
+## Wave XLR (0fd9:007d), needs a tester
+
+The original MK.1. Its class protocol comes proven from the
+[openwave](https://github.com/rikkichy/openwave) project's users, but
+OpenXLR itself has never touched one.
+
+| Control | State | Notes |
+|---|---|---|
+| Gain, mute | coded | gain scale needs one confirmation against the device's own display |
+| Headphone volume, low impedance | coded | may need a two-way ALSA sync; a tester will tell |
+| Low cut, voice DSP, crossfade | unmapped | the hardware has them; their offsets are unknown. A Wave Link USB capture from an owner would map them |
+
+## Wave XLR MK.2 (0fd9:00b6), needs a tester
+
+Decoded from USB captures of Wave Link, using the Pro's protocol family
+at its own address. Never run against real hardware.
+
+| Control | State | Notes |
+|---|---|---|
+| Gain, mute, low cut, expander, voice tune + strength | coded | from capture analysis |
+| Headphone volume, low impedance, crossfade | coded | from capture analysis |
+
+## Every device gets
+
+- Capability-driven UI: controls, channels, and mixes the device does not
+  have simply do not appear
+- Per-device profiles: named scenes of hardware state plus the whole
+  submix, recallable from the UI, the API, or a Stream Deck key
+- Multi-device switching: a header picker chooses which interface OpenXLR
+  drives; the mixer's input channels follow it
+- Safety on switch: monitor sends come up muted when the input device
+  changes, so a hot mic can never howl through the speakers
+- OpenDeck plugin: every switch, mute, and level on a Stream Deck, with
+  live state and Wave Link style touch panels
+
+## Own a Wave XLR or a MK.2? Help confirm it
+
+The two amber rows are fully coded and waiting for their first real
+device. Testing takes a few minutes and risks nothing that a replug does
+not fix:
+
+1. Build and run OpenXLR from the [README](../README.md) install steps,
+   including the udev rule.
+2. Try gain, mute, and headphone volume against what the device itself
+   shows.
+3. In the app: Options, then SUPPORT, then Collect diagnostics.
+4. Open an [issue](https://github.com/emaspa/openxlr/issues) with the
+   archive and what you observed.
+
+MK.1 owners who can record a Wave Link USB capture on Windows unlock the
+rest of their device: low cut, the voice DSP, and the crossfade are
+present in the hardware and just need their registers mapped.

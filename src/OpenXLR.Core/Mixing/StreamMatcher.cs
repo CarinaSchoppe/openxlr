@@ -111,6 +111,10 @@ public sealed record AudioStream(int Id, string? AppName, string? Binary, string
         get
         {
             string bin = Binary ?? AppName ?? MediaName ?? "unknown";
+            // Steam's audio comes from its embedded browser process; to a
+            // person both are "Steam", so they share one identity and one
+            // channel assignment.
+            if (bin.Equals("steamwebhelper", StringComparison.OrdinalIgnoreCase)) return "steam";
             bool shared = bin.Contains("wine", StringComparison.OrdinalIgnoreCase) ||
                           bin.Contains("proton", StringComparison.OrdinalIgnoreCase);
             if (!shared) return bin;
@@ -136,6 +140,8 @@ public sealed record AudioStream(int Id, string? AppName, string? Binary, string
     {
         get
         {
+            if ((Binary ?? AppName ?? "").Equals("steamwebhelper", StringComparison.OrdinalIgnoreCase))
+                return "Steam";   // matches its merged identity
             bool generic = AppName is not { Length: > 0 } || AppName == "paplay" ||
                 Array.Exists(GenericAppNames, g => AppName.Equals(g, StringComparison.OrdinalIgnoreCase));
             string name;

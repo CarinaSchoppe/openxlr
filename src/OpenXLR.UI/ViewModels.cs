@@ -693,7 +693,7 @@ public sealed class MainViewModel : ViewModelBase
                 Apps.Add(new AppStreamViewModel(_client, f.Identity, f.Label, [.. Channels.Select(c => c.Id)])
                     { ChannelId = f.Channel, Active = f.Active, Running = f.Running });
             else
-                existing.ApplyFromDaemon(f.Channel, f.Active, f.Running);
+                existing.ApplyFromDaemon(f.Channel, f.Active, f.Running, f.Label);
         }
         for (int i = Apps.Count - 1; i >= 0; i--)
             if (!fresh.Any(f => string.Equals(f.Identity, Apps[i].Identity, StringComparison.OrdinalIgnoreCase))) Apps.RemoveAt(i);
@@ -784,12 +784,14 @@ public sealed class AppStreamViewModel : ViewModelBase
 
     public AppStreamViewModel(DaemonClient client, string identity, string label, IReadOnlyList<string> channels)
     {
-        _client = client; Identity = identity; Label = label;
+        _client = client; Identity = identity; _label = label;
         foreach (string c in channels) Channels.Add(c);
     }
 
     public string Identity { get; }
-    public string Label { get; }
+
+    private string _label;
+    public string Label { get => _label; private set => Set(ref _label, value); }
     public ObservableCollection<string> Channels { get; } = [];
 
     private bool _active = true;
@@ -816,10 +818,14 @@ public sealed class AppStreamViewModel : ViewModelBase
         set { if (Set(ref _channelId, value) && !_applying && value.Length > 0) _ = _client.AssignAppAsync(Identity, value); }
     }
 
-    public void ApplyFromDaemon(string channelId, bool active, bool running)
+    public void ApplyFromDaemon(string channelId, bool active, bool running, string? label = null)
     {
         _applying = true;
-        try { ChannelId = channelId; Active = active; Running = running; }
+        try
+        {
+            ChannelId = channelId; Active = active; Running = running;
+            if (label is { Length: > 0 }) Label = label;   // labels heal (e.g. ".exe" dropped)
+        }
         finally { _applying = false; }
     }
 

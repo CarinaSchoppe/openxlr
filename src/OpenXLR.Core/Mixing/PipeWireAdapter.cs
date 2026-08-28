@@ -660,7 +660,8 @@ public sealed class PipeWireAdapter
            || identity.EndsWith("|format test stream", StringComparison.OrdinalIgnoreCase);
 
     private static readonly string[] WineBinaries =
-        ["wine", "wine64", "wine-preloader", "wine64-preloader", "wineserver"];
+        ["wine", "wine64", "wine-preloader", "wine64-preloader", "wineserver",
+         "steamwebhelper"];   // superseded identity: its audio now registers as "steam"
 
     /// <summary>
     /// Every running application that has registered with PipeWire, playing or

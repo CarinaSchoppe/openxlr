@@ -647,9 +647,20 @@ public sealed class PipeWireAdapter
         "kded5", "kded6", "kaccess", "orca", "ksmserver", "krunner",
     ];
 
-    /// <summary>True for identities that are audio plumbing, not applications.</summary>
+    /// <summary>
+    /// True for identities that are audio plumbing, not applications. A bare
+    /// translation-layer binary ("wine64-preloader") and Wine's transient
+    /// "format test stream" probe also count: they are phases of a game's
+    /// startup, not apps, and used to leave duplicate registry entries next
+    /// to the game's real identity.
+    /// </summary>
     public static bool IsPlumbingIdentity(string identity)
-        => Array.Exists(PlumbingBinaries, pb => identity.Equals(pb, StringComparison.OrdinalIgnoreCase));
+        => Array.Exists(PlumbingBinaries, pb => identity.Equals(pb, StringComparison.OrdinalIgnoreCase))
+           || Array.Exists(WineBinaries, wb => identity.Equals(wb, StringComparison.OrdinalIgnoreCase))
+           || identity.EndsWith("|format test stream", StringComparison.OrdinalIgnoreCase);
+
+    private static readonly string[] WineBinaries =
+        ["wine", "wine64", "wine-preloader", "wine64-preloader", "wineserver"];
 
     /// <summary>
     /// Every running application that has registered with PipeWire, playing or

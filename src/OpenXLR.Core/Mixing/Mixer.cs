@@ -829,7 +829,9 @@ public sealed class Mixer : IDisposable
 
                 var placed = new StreamAssignment(s.Id, s.Serial, s.Label, s.Identity, ch.Id);
                 _streams[s.Id] = placed;
-                _apps[s.Identity] = placed;
+                // Transient plumbing (Wine's probe streams, bare runtime
+                // binaries) is routed but never remembered as an app.
+                if (!PipeWireAdapter.IsPlumbingIdentity(s.Identity)) _apps[s.Identity] = placed;
                 changed = true;
             }
 
@@ -845,6 +847,7 @@ public sealed class Mixer : IDisposable
             foreach (AudioStream client in _pw.ListClients())
             {
                 string identity = client.Identity;
+                if (PipeWireAdapter.IsPlumbingIdentity(identity)) continue;
                 runningIdentities.Add(identity);
                 if (!_apps.ContainsKey(identity))
                 {

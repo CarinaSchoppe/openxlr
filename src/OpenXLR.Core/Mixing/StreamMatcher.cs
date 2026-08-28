@@ -99,8 +99,12 @@ public sealed record AudioStream(int Id, string? AppName, string? Binary, string
 
     /// <summary>
     /// Stable-ish key for remembering a per-app choice. Prefers the binary, but
-    /// for Wine and Proton the binary is shared, so the media name is folded in
-    /// to keep separate games apart.
+    /// for Wine and Proton the binary is shared by every Windows game, so the
+    /// application name (Wine sets it to the exe, e.g. "Balatro.exe") is the
+    /// stable identity there. A wine stream can surface with the binary before
+    /// the name and with probe media names, so without this a single game used
+    /// to register under several identities. The media name stays as the last
+    /// resort separator for games that never set a name.
     /// </summary>
     public string Identity
     {
@@ -109,7 +113,12 @@ public sealed record AudioStream(int Id, string? AppName, string? Binary, string
             string bin = Binary ?? AppName ?? MediaName ?? "unknown";
             bool shared = bin.Contains("wine", StringComparison.OrdinalIgnoreCase) ||
                           bin.Contains("proton", StringComparison.OrdinalIgnoreCase);
-            return shared && !string.IsNullOrWhiteSpace(MediaName) ? $"{bin}|{MediaName}" : bin;
+            if (!shared) return bin;
+            if (AppName is { Length: > 0 } &&
+                !AppName.Equals("Wine", StringComparison.OrdinalIgnoreCase) &&
+                !AppName.Contains("wine", StringComparison.OrdinalIgnoreCase))
+                return AppName;
+            return !string.IsNullOrWhiteSpace(MediaName) ? $"{bin}|{MediaName}" : bin;
         }
     }
 
@@ -129,10 +138,14 @@ public sealed record AudioStream(int Id, string? AppName, string? Binary, string
         {
             bool generic = AppName is not { Length: > 0 } || AppName == "paplay" ||
                 Array.Exists(GenericAppNames, g => AppName.Equals(g, StringComparison.OrdinalIgnoreCase));
-            if (!generic) return AppName!;
-            if (Binary is { Length: > 1 } && Binary != "paplay")
-                return char.ToUpperInvariant(Binary[0]) + Binary[1..];
-            return AppName is { Length: > 0 } ? AppName : MediaName ?? $"stream {Id}";
+            string name;
+            if (!generic) name = AppName!;
+            else if (Binary is { Length: > 1 } && Binary != "paplay")
+                name = char.ToUpperInvariant(Binary[0]) + Binary[1..];
+            else name = AppName is { Length: > 0 } ? AppName : MediaName ?? $"stream {Id}";
+            // Wine exposes the exe file name; "Balatro" reads better than
+            // "Balatro.exe". The identity keeps the full name.
+            return name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name;
         }
     }
 }

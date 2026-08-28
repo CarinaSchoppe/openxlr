@@ -89,6 +89,31 @@ public sealed class StreamMatcher
 
     private static bool IsWineLike(string? s) =>
         s is not null && WineLike.Any(w => s.Contains(w, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// A Windows game's stable key. The same game surfaces under several
+    /// spellings of its own name ("Cyberpunk 2077", "Cyberpunk2077.exe"), so
+    /// the key is the name lowercased with the .exe suffix and everything
+    /// that is not a letter or digit removed.
+    /// </summary>
+    public static string GameIdentity(string name)
+    {
+        string n = name.Trim();
+        if (n.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) n = n[..^4];
+        string key = new string(n.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+        return key.Length > 0 ? key : n.ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Bring a stored identity from an older scheme onto the current one:
+    /// identities carrying a space or an .exe suffix came from the app-name
+    /// path and collapse to their game key; plain binary identities pass
+    /// through unchanged.
+    /// </summary>
+    public static string MigrateIdentity(string identity)
+        => identity.Contains(' ') || identity.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+            ? GameIdentity(identity)
+            : identity;
 }
 
 /// <summary>One application playback stream in the graph.</summary>
@@ -121,10 +146,11 @@ public sealed record AudioStream(int Id, string? AppName, string? Binary, string
             if (AppName is { Length: > 0 } &&
                 !AppName.Equals("Wine", StringComparison.OrdinalIgnoreCase) &&
                 !AppName.Contains("wine", StringComparison.OrdinalIgnoreCase))
-                return AppName;
+                return StreamMatcher.GameIdentity(AppName);
             return !string.IsNullOrWhiteSpace(MediaName) ? $"{bin}|{MediaName}" : bin;
         }
     }
+
 
     /// <summary>
     /// Application names that identify a runtime, not the actual app: Electron

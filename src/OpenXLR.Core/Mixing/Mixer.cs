@@ -456,14 +456,14 @@ public sealed class Mixer : IDisposable
                 if (_cells.Contains(cell)) _muted.Add(cell);
 
             foreach ((string identity, string channelId) in s.AppOverrides)
-                Matcher.SetOverride(Sanitize(identity), channelId);
+                Matcher.SetOverride(StreamMatcher.MigrateIdentity(Sanitize(identity)), channelId);
 
             // Remembered apps come back inactive until a stream appears.
             // Identities saved before the "(deleted)" fix are migrated here so
             // an app does not appear twice after its binary was updated.
             foreach (SavedApp app in s.KnownApps)
             {
-                string identity = Sanitize(app.Identity);
+                string identity = StreamMatcher.MigrateIdentity(Sanitize(app.Identity));
                 if (PipeWireAdapter.IsPlumbingIdentity(identity)) continue;   // pre-filter leftovers
                 if (!_apps.ContainsKey(identity))
                     _apps[identity] = new StreamAssignment(0, 0, Sanitize(app.Label), identity, app.ChannelId) { Active = false, Running = false };

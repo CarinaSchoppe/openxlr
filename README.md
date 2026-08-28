@@ -129,10 +129,15 @@ and gain lock included; the low cut key cycles Off, 80 Hz, 120 Hz and
 shows the current setting), and dial actions with Wave Link style touch panels
 (needle, value, live level meter, mute overlay) for sends, masters,
 gains and the crossfade. A dial can hold a stack of targets and cycle
-them from a chosen gesture. Install by copying the
-plugin folder into `~/.config/opendeck/plugins/` (a symlink breaks
-OpenDeck's asset serving). Touch taps on the Stream Deck + XL need
-OpenDeck with [nekename/OpenDeck#437](https://github.com/nekename/OpenDeck/pull/437).
+them from a chosen gesture.
+
+To install: download `com.emaspa.openxlr.sdPlugin.zip` from the
+[latest release](https://github.com/emaspa/openxlr/releases/latest) and
+use OpenDeck's install-from-file, or copy the plugin folder into
+`~/.config/opendeck/plugins/` (a symlink breaks OpenDeck's asset
+serving; the AUR package ships the folder in `/usr/share/openxlr/`).
+Touch taps on the Stream Deck + XL need OpenDeck with
+[nekename/OpenDeck#437](https://github.com/nekename/OpenDeck/pull/437).
 
 ### Quality of life
 - Live Audio Flow graph of the whole routing, sources through outputs

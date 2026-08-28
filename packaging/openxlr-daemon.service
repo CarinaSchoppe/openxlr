@@ -3,7 +3,8 @@ Description=OpenXLR audio daemon
 After=pipewire-pulse.service wireplumber.service
 
 [Service]
-ExecStart=/home/emanuele/wavexlr-opendeck/src/OpenXLR.Daemon/bin/Release/net10.0/OpenXLR.Daemon
+# %h is your home directory; adjust the path to where you cloned the repo.
+ExecStart=%h/openxlr/src/OpenXLR.Daemon/bin/Release/net10.0/OpenXLR.Daemon
 Environment=OPENXLR_BUILD_MIXER=1
 TimeoutStopSec=45
 Restart=on-failure

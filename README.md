@@ -257,6 +257,25 @@ installing. The OpenDeck plugin lands in `/usr/share/openxlr/`, copy it
 into `~/.config/opendeck/plugins/` to use it. For the software
 ClipGuard on the XLR Dock, also `sudo apt install swh-plugins`.
 
+### Fedora (.rpm)
+
+Fedora 44 or newer. Download `openxlr-<version>.x86_64.rpm` from the
+[latest release](https://github.com/emaspa/openxlr/releases/latest),
+then:
+
+```sh
+sudo dnf install ./openxlr-0.1.0-1.fc44.x86_64.rpm
+systemctl --user enable --now openxlr-daemon
+openxlr               # the mixer UI, also in your application menu
+```
+
+dnf pulls in the .NET runtime and PipeWire dependencies from the
+Fedora repos. The udev rules and the XLR Dock's WirePlumber rule are
+included; replug your interface once after installing. The OpenDeck
+plugin lands in `/usr/share/openxlr/`, copy it into
+`~/.config/opendeck/plugins/` to use it. For the software ClipGuard on
+the XLR Dock, also `sudo dnf install ladspa-swh-plugins`.
+
 ### NixOS (flake)
 
 The repo is a flake with a package and a NixOS module that wires up the

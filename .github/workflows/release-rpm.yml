@@ -1,0 +1,55 @@
+name: Release .rpm
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rpm:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            rpm-build rpmlint git-core gh dotnet-sdk-10.0 systemd-rpm-macros
+
+      - uses: actions/checkout@v4
+
+      - name: Build package
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          VER=$(rpmspec -q --srpm --qf '%{version}' packaging/rpm/openxlr.spec)
+          mkdir -p rpmbuild/SOURCES dist
+          git archive --format=tar.gz --prefix="openxlr-$VER/" \
+            -o "rpmbuild/SOURCES/openxlr-$VER.tar.gz" HEAD
+          rpmbuild --define "_topdir $PWD/rpmbuild" -bb packaging/rpm/openxlr.spec
+          mv rpmbuild/RPMS/x86_64/openxlr-*.rpm dist/
+
+      - name: Lint package
+        run: rpmlint dist/openxlr-*.rpm || true
+
+      - name: Install check
+        run: |
+          dnf install -y ./dist/openxlr-*.rpm
+          rpm -q openxlr
+          test -x /usr/bin/openxlr && test -x /usr/bin/openxlr-daemon
+          test -x /usr/lib/openxlr/daemon/OpenXLR.Daemon
+          test -f /usr/lib/udev/rules.d/70-openxlr.rules
+          test -f /usr/share/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf
+          test -f /usr/lib/systemd/user/openxlr-daemon.service
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openxlr-rpm
+          path: dist/*.rpm
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload '${{ github.event.release.tag_name }}' dist/*.rpm

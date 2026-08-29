@@ -60,7 +60,8 @@ OpenXLR itself has never touched one.
 |---|---|---|
 | Gain, mute | coded | gain scale needs one confirmation against the device's own display |
 | Headphone volume, low impedance | coded | may need a two-way ALSA sync; a tester will tell |
-| Low cut, voice DSP, crossfade | unmapped | the hardware has them; their offsets are unknown. A Wave Link USB capture from an owner would map them |
+| Phantom 48V | unmapped | Wave Link only toggle, but the front LED confirms state; one [USB capture](usb-capture.md) from an owner maps it |
+| Low cut, voice DSP, crossfade | unmapped | the hardware has them; their offsets are unknown. The same [USB capture](usb-capture.md) would map them |
 
 ## Wave XLR MK.2 (0fd9:00b6), needs a tester
 
@@ -100,5 +101,7 @@ not fix:
    archive and what you observed.
 
 MK.1 owners who can record a Wave Link USB capture on Windows unlock the
-rest of their device: low cut, the voice DSP, and the crossfade are
-present in the hardware and just need their registers mapped.
+rest of their device: phantom power, low cut, the voice DSP, and the
+crossfade are present in the hardware and just need their registers
+mapped. The [USB capture guide](usb-capture.md) walks through it in
+about 15 minutes, no programming needed.

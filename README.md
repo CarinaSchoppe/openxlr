@@ -238,6 +238,28 @@ replug your interface once after installing so the rules apply. The
 OpenDeck plugin lands in `/usr/share/openxlr/`, copy it into
 `~/.config/opendeck/plugins/` to use it.
 
+### NixOS (flake)
+
+The repo is a flake with a package and a NixOS module that wires up the
+daemon, the udev rules, and the WirePlumber rule. In your system flake:
+
+```nix
+{
+  inputs.openxlr.url = "github:emaspa/openxlr";
+
+  # in your NixOS configuration:
+  imports = [ openxlr.nixosModules.default ];
+  services.openxlr.enable = true;
+}
+```
+
+Rebuild, replug the interface once so the udev rules apply, and the
+`openxlr` mixer UI is in your application menu. The module starts the
+daemon as a user service and points it at the SWH LADSPA plugins so
+ClipGuard works on the XLR Dock (`services.openxlr.clipGuard = false;`
+turns that off). The OpenDeck plugin ships in the package's
+`share/openxlr/`, copy it into `~/.config/opendeck/plugins/`.
+
 ### From source
 
 A complete deploy from source, top to bottom. Every step is explicit;

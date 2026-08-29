@@ -400,9 +400,9 @@ const GLYPHS = {
   speaker: `<path d="M42 58 h16 l20 -18 v64 l-20 -18 h-16 z" fill="currentColor"/>
         <path d="M88 56 a22 22 0 0 1 0 32 M96 46 a34 34 0 0 1 0 52"
               stroke="currentColor" stroke-width="6" fill="none" stroke-linecap="round"/>`,
-  headphones: `<path d="M40 92 v-16 a32 32 0 0 1 64 0 v16" stroke="currentColor" stroke-width="8" fill="none" stroke-linecap="round"/>
-        <rect x="34" y="86" width="16" height="26" rx="6" fill="currentColor"/>
-        <rect x="94" y="86" width="16" height="26" rx="6" fill="currentColor"/>`,
+  headphones: `<path d="M39 81 v-13 a33 33 0 0 1 66 0 v13" stroke="currentColor" stroke-width="6" fill="none" stroke-linecap="round"/>
+        <rect x="31" y="72" width="21" height="34" rx="10" fill="currentColor"/>
+        <rect x="92" y="72" width="21" height="34" rx="10" fill="currentColor"/>`,
   fader: `<g stroke="currentColor" stroke-width="6" stroke-linecap="round">
           <line x1="50" y1="40" x2="50" y2="104"/><line x1="72" y1="40" x2="72" y2="104"/>
           <line x1="94" y1="40" x2="94" y2="104"/></g>
@@ -468,55 +468,80 @@ function sevenSegText(text, x, y, h, color) {
 }
 
 function keySvg(on, muteLike, known, glyphName, badge, label) {
-  // Same material as the dial strips: a rounded card, a top-lit gradient, a
-  // fine border. State is carried by colour, not a flat frame: the accent
-  // (green engaged, red muted) tints the glyph, brightens the border, and
-  // adds a soft glow, so a lit key reads at a glance without shouting.
+  // The keys speak the touch strips' hardware language: the same faceplate
+  // material (the strip tiles' #383838 with the side-lit gradient and #505050
+  // border), a machined round button cap like the dial knob, a status LED,
+  // and for the low cut an inset LED display window.
   const accent = !known ? null : on ? (muteLike ? "#FF3C4E" : "#3ecf7a") : null;
-  const border = accent ?? "#505050";
-  const ink = !known ? "#5d6474" : accent ?? "#c7ccd6";
-  const glyph = glyphName ? GLYPHS[glyphName].replaceAll("currentColor", ink) : "";
-  const slash = muteLike && on
-    ? `<line x1="44" y1="106" x2="100" y2="40" stroke="#FF3C4E" stroke-width="9" stroke-linecap="round"/>`
-    : "";
-  const glow = accent
-    ? `<rect x="7" y="7" width="130" height="130" rx="15" fill="none" stroke="${accent}" stroke-width="12" opacity="0.16"/>`
-    : "";
-  // A key with a glyph shows it; a plain state key shows the badge big (the
-  // low-cut frequency) or, with neither, a target-style indicator dot.
-  // With an in-image label the artwork rides higher; without one it centres.
+  const ink = !known ? "#6a7080" : accent ?? "#d2d6de";
   const lines = label ? label.split("\n").slice(0, 2) : [];
-  const lift = lines.length ? -12 : 0;
-  let center;
-  if (glyphName) center = `<g transform="translate(0 ${lift})">${glyph}</g>`;
-  else if (badge)
-    center = sevenSegText(badge, 72, lines.length ? 30 : 48, lines.length ? 42 : 48, ink);
-  else
-    center = `<g transform="translate(0 ${lift})">` +
-             `<circle cx="72" cy="72" r="21" fill="none" stroke="${ink}" stroke-width="3" opacity="0.45"/>` +
-             `<circle cx="72" cy="72" r="12" fill="${ink}"/></g>`;
-  const smallBadge = glyphName && badge
-    ? `<rect x="47" y="${91 + lift}" width="50" height="26" rx="13" fill="#0d0e11"/>` +
-      sevenSegText(badge, 72, 96 + lift, 16, ink)
+
+  // Button cap (glyph keys) or LED display window (badge keys) or lamp only.
+  const capY = lines.length ? 52 : 66;
+  let face;
+  if (glyphName) {
+    const glyph = GLYPHS[glyphName].replaceAll("currentColor", ink);
+    face = `
+      <circle cx="72" cy="${capY}" r="38" fill="none" stroke="#000" stroke-opacity="0.4" stroke-width="6"/>
+      <circle cx="72" cy="${capY}" r="34" fill="url(#cap)" stroke="#5a5f68" stroke-width="4"/>
+      ${accent ? `<circle cx="72" cy="${capY}" r="37" fill="none" stroke="${accent}" stroke-width="6" opacity="0.6" filter="url(#bloom)"/>` : ""}
+      <g transform="translate(72 ${capY}) scale(0.62) translate(-72 -72)">${glyph}</g>`;
+  } else if (badge) {
+    face = `
+      <rect x="24" y="${capY - 30}" width="96" height="60" rx="8" fill="#0c0e11" stroke="#000" stroke-opacity="0.5" stroke-width="5"/>
+      ${accent ? `<g filter="url(#bloom)" opacity="0.65">${sevenSegText(badge, 72, capY - 19, 38, accent)}</g>` : ""}
+      ${sevenSegText(badge, 72, capY - 19, 38, known ? (accent ?? "#7d8494") : "#4a4f5c")}`;
+  } else {
+    const lamp = !known ? "#4a4f5c" : accent ?? "#2c2f36";
+    face = `
+      <circle cx="72" cy="${capY}" r="38" fill="none" stroke="#000" stroke-opacity="0.4" stroke-width="6"/>
+      <circle cx="72" cy="${capY}" r="34" fill="url(#cap)" stroke="#5a5f68" stroke-width="4"/>
+      ${accent ? `<circle cx="72" cy="${capY}" r="15" fill="${lamp}" filter="url(#bloom)" opacity="0.8"/>` : ""}
+      <circle cx="72" cy="${capY}" r="12" fill="${lamp}" stroke="#15161a" stroke-width="4"/>`;
+  }
+
+  const slash = muteLike && on
+    ? `<line x1="${72 - 26}" y1="${capY + 26}" x2="${72 + 26}" y2="${capY - 26}" stroke="#FF3C4E" stroke-width="8" stroke-linecap="round"/>`
     : "";
+
+  // Status LED lamp in the top-right corner, like a channel strip indicator.
+  const led = glyphName || !badge ? "" : "";
+  const lampDot = glyphName
+    ? `<circle cx="120" cy="24" r="8" fill="${!known ? "#4a4f5c" : accent ?? "#2c2f36"}" stroke="#15161a" stroke-width="3"/>` +
+      (accent ? `<circle cx="120" cy="24" r="11" fill="${accent}" opacity="0.5" filter="url(#soft)"/>` : "")
+    : "";
+
   const labelSvg = lines.map((line, i) => {
-    const size = line.length > 11 ? 17 : line.length > 8 ? 21 : 26;
+    const size = line.length > 11 ? 19 : line.length > 8 ? 22 : 26;
     const y = lines.length === 1 ? 126 : 106 + i * 24;
     return `<text x="72" y="${y}" text-anchor="middle" fill="#e8ebf2" ` +
       `stroke="#000" stroke-width="4" paint-order="stroke" stroke-linejoin="round" ` +
       `font-family="Inter, Noto Sans, DejaVu Sans, sans-serif" font-size="${size}" font-weight="700">` +
       escXml(line) + `</text>`;
   }).join("");
+
   return "data:image/svg+xml;base64," + Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="288" height="288" viewBox="0 0 144 144">
-      <defs><linearGradient id="g" x1="72" y1="8" x2="72" y2="136" gradientUnits="userSpaceOnUse">
-        <stop stop-color="#fff" stop-opacity="0.10"/><stop offset="0.5" stop-opacity="0"/>
-        <stop offset="1" stop-opacity="0.22"/></linearGradient></defs>
-      <rect x="6" y="6" width="132" height="132" rx="16" fill="#33363c"/>
-      <rect x="6" y="6" width="132" height="132" rx="16" fill="url(#g)"/>
-      ${glow}
-      <rect x="8" y="8" width="128" height="128" rx="14" fill="none" stroke="${border}" stroke-width="5"/>
-      ${center}${slash}${smallBadge}${labelSvg}
+      <defs>
+        <linearGradient id="side" x1="138" y1="72" x2="6" y2="72" gradientUnits="userSpaceOnUse">
+          <stop stop-opacity="0"/><stop offset="1" stop-opacity="0.2"/>
+        </linearGradient>
+        <radialGradient id="cap" cx="0.5" cy="0.3" r="0.9">
+          <stop offset="0" stop-color="#4a4a4a"/>
+          <stop offset="0.7" stop-color="#404040"/>
+          <stop offset="1" stop-color="#333333"/>
+        </radialGradient>
+        <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="3"/>
+        </filter>
+        <filter id="bloom" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="4.5"/>
+        </filter>
+      </defs>
+      <rect x="6" y="6" width="132" height="132" rx="14" fill="#383838"/>
+      <rect x="6" y="6" width="132" height="132" rx="14" fill="url(#side)"/>
+      <rect x="9" y="9" width="126" height="126" rx="12" fill="none" stroke="#50555e" stroke-width="4"/>
+      ${face}${slash}${led}${lampDot}${labelSvg}
     </svg>`).toString("base64");
 }
 

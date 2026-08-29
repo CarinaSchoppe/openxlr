@@ -152,8 +152,9 @@ To install: download `com.emaspa.openxlr.sdPlugin.zip` from the
 use OpenDeck's install-from-file, or copy the plugin folder into
 `~/.config/opendeck/plugins/` (a symlink breaks OpenDeck's asset
 serving; the AUR package ships the folder in `/usr/share/openxlr/`).
-Touch taps on the Stream Deck + XL need OpenDeck with
-[nekename/OpenDeck#437](https://github.com/nekename/OpenDeck/pull/437).
+Touch taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
+([nekename/OpenDeck#437](https://github.com/nekename/OpenDeck/pull/437),
+merged upstream).
 
 ### Quality of life
 - Live Audio Flow graph of the whole routing, sources through outputs

@@ -238,6 +238,25 @@ replug your interface once after installing so the rules apply. The
 OpenDeck plugin lands in `/usr/share/openxlr/`, copy it into
 `~/.config/opendeck/plugins/` to use it.
 
+### Ubuntu (.deb)
+
+Ubuntu 24.04 or newer. Download `openxlr_<version>_amd64.deb` from the
+[latest release](https://github.com/emaspa/openxlr/releases/latest),
+then:
+
+```sh
+sudo apt install ./openxlr_0.1.0_amd64.deb
+systemctl --user enable --now openxlr-daemon
+openxlr               # the mixer UI, also in your application menu
+```
+
+apt pulls in the .NET runtime and PipeWire dependencies from the
+archive. As with the AUR package, the udev rules and the XLR Dock's
+WirePlumber rule are included; replug your interface once after
+installing. The OpenDeck plugin lands in `/usr/share/openxlr/`, copy it
+into `~/.config/opendeck/plugins/` to use it. For the software
+ClipGuard on the XLR Dock, also `sudo apt install swh-plugins`.
+
 ### NixOS (flake)
 
 The repo is a flake with a package and a NixOS module that wires up the

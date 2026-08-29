@@ -11,20 +11,23 @@ function connect(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inAct
   piUuid = inPropertyInspectorUUID;
   const actionInfo = JSON.parse(inActionInfo);
   actionContext = actionInfo.context;
-  const wanted = actionInfo.payload?.settings?.target;
+  const settings = actionInfo.payload?.settings ?? {};
+  const wanted = settings.target;
 
   ws = new WebSocket("ws://localhost:" + inPort);
   ws.onopen = () => {
     ws.send(JSON.stringify({ event: inRegisterEvent, uuid: piUuid }));
     const sel = document.getElementById("target");
+    const iconSel = document.getElementById("icon");
     if (wanted) sel.value = wanted;
-    sel.addEventListener("change", () => {
-      ws.send(JSON.stringify({
-        event: "setSettings",
-        context: piUuid,
-        payload: { target: sel.value },
-      }));
-    });
+    if (iconSel && settings.icon) iconSel.value = settings.icon;
+    const save = () => {
+      settings.target = sel.value;
+      if (iconSel) settings.icon = iconSel.value;
+      ws.send(JSON.stringify({ event: "setSettings", context: piUuid, payload: settings }));
+    };
+    sel.addEventListener("change", save);
+    iconSel?.addEventListener("change", save);
     // Ask the plugin for the live output-device list.
     ws.send(JSON.stringify({
       event: "sendToPlugin",

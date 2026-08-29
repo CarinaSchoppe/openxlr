@@ -79,20 +79,22 @@ const instances = new Map();
 // lives in the key image (frame colour, glyph, and the low-cut frequency),
 // not the title, so a custom name never hides the state.
 const emptyTitle = new Set();   // contexts whose OpenDeck title is ""
-function applyDefaultTitle(context) {
-  const inst = instances.get(context);
-  if (!inst || inst.action !== "com.emaspa.openxlr.toggle") return;
-  if (!emptyTitle.has(context)) return;
-  send({ event: "setTitle", context,
-         payload: { title: daemonUp ? defaultTitle(inst.settings.target) : "OpenXLR" } });
-}
 
-// The static default label for a target (no live state; the low-cut frequency
-// and every on/off state show in the image, so the title stays stable and the
-// comparison the empty-title rule relies on never drifts).
+// The default label for a target, drawn INSIDE the key image (so it uses our
+// styling, not the host's title font). A user-typed title replaces it: the
+// host draws that on top and the image drops its own label.
 function defaultTitle(target) {
   if (target === "softLowCut") return "Low Cut";
   return toggleLabel(target);
+}
+
+// Earlier versions pushed default titles into the host's persisted title
+// field; recognise and clear those once so the in-image label takes over.
+function isLegacyDefaultTitle(inst, title) {
+  if (title === "offline" || title === "OpenXLR") return true;
+  const t = inst.settings.target ?? "";
+  if (t === "softLowCut" && title.startsWith("Low Cut")) return true;
+  return title === defaultTitle(t);
 }
 
 // A dial can hold a stack of targets; long-pressing the strip cycles them.
@@ -153,8 +155,11 @@ host.onmessage = (e) => {
       else onDialPress(m.context, inst);
       break;
     case "titleParametersDidChange": {
-      if ((m.payload?.title ?? "") === "") { emptyTitle.add(m.context); applyDefaultTitle(m.context); }
-      else emptyTitle.delete(m.context);
+      const title = m.payload?.title ?? "";
+      if (title === "") { emptyTitle.add(m.context); refresh(m.context); }
+      else if (inst && isLegacyDefaultTitle(inst, title)) {
+        send({ event: "setTitle", context: m.context, payload: { title: "" } });
+      } else { emptyTitle.delete(m.context); refresh(m.context); }
       break;
     }
     case "sendToPlugin":
@@ -388,28 +393,28 @@ function onDialPress(context, inst) {
 
 // Centered glyphs in a 144x144 viewBox, drawn in white.
 const GLYPHS = {
-  mic: `<rect x="58" y="30" width="28" height="48" rx="14" fill="#fff"/>
-        <path d="M46 62 a26 26 0 0 0 52 0" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round"/>
-        <line x1="72" y1="90" x2="72" y2="104" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
-        <line x1="56" y1="104" x2="88" y2="104" stroke="#fff" stroke-width="7" stroke-linecap="round"/>`,
-  speaker: `<path d="M42 58 h16 l20 -18 v64 l-20 -18 h-16 z" fill="#fff"/>
+  mic: `<rect x="58" y="30" width="28" height="48" rx="14" fill="currentColor"/>
+        <path d="M46 62 a26 26 0 0 0 52 0" stroke="currentColor" stroke-width="7" fill="none" stroke-linecap="round"/>
+        <line x1="72" y1="90" x2="72" y2="104" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+        <line x1="56" y1="104" x2="88" y2="104" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>`,
+  speaker: `<path d="M42 58 h16 l20 -18 v64 l-20 -18 h-16 z" fill="currentColor"/>
         <path d="M88 56 a22 22 0 0 1 0 32 M96 46 a34 34 0 0 1 0 52"
-              stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round"/>`,
-  headphones: `<path d="M40 92 v-16 a32 32 0 0 1 64 0 v16" stroke="#fff" stroke-width="8" fill="none" stroke-linecap="round"/>
-        <rect x="34" y="86" width="16" height="26" rx="6" fill="#fff"/>
-        <rect x="94" y="86" width="16" height="26" rx="6" fill="#fff"/>`,
-  fader: `<g stroke="#fff" stroke-width="6" stroke-linecap="round">
+              stroke="currentColor" stroke-width="6" fill="none" stroke-linecap="round"/>`,
+  headphones: `<path d="M40 92 v-16 a32 32 0 0 1 64 0 v16" stroke="currentColor" stroke-width="8" fill="none" stroke-linecap="round"/>
+        <rect x="34" y="86" width="16" height="26" rx="6" fill="currentColor"/>
+        <rect x="94" y="86" width="16" height="26" rx="6" fill="currentColor"/>`,
+  fader: `<g stroke="currentColor" stroke-width="6" stroke-linecap="round">
           <line x1="50" y1="40" x2="50" y2="104"/><line x1="72" y1="40" x2="72" y2="104"/>
           <line x1="94" y1="40" x2="94" y2="104"/></g>
-        <g fill="#fff"><rect x="41" y="76" width="18" height="12" rx="4"/>
+        <g fill="currentColor"><rect x="41" y="76" width="18" height="12" rx="4"/>
           <rect x="63" y="52" width="18" height="12" rx="4"/>
           <rect x="85" y="66" width="18" height="12" rx="4"/></g>`,
-  knob: `<circle cx="72" cy="72" r="34" stroke="#fff" stroke-width="7" fill="none"/>
-        <line x1="72" y1="72" x2="52" y2="50" stroke="#fff" stroke-width="8" stroke-linecap="round"/>`,
-  xfade: `<path d="M40 56 h50 m0 0 l-12 -10 m12 10 l-12 10" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M104 88 h-50 m0 0 l12 -10 m-12 10 l12 10" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
-  jack: `<circle cx="72" cy="72" r="28" stroke="#fff" stroke-width="7" fill="none"/>
-        <circle cx="72" cy="72" r="9" fill="#fff"/>`,
+  knob: `<circle cx="72" cy="72" r="34" stroke="currentColor" stroke-width="7" fill="none"/>
+        <line x1="72" y1="72" x2="52" y2="50" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>`,
+  xfade: `<path d="M40 56 h50 m0 0 l-12 -10 m12 10 l-12 10" stroke="currentColor" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M104 88 h-50 m0 0 l12 -10 m-12 10 l12 10" stroke="currentColor" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+  jack: `<circle cx="72" cy="72" r="28" stroke="currentColor" stroke-width="7" fill="none"/>
+        <circle cx="72" cy="72" r="9" fill="currentColor"/>`,
 };
 
 // Which glyph a toggle target wears; unlisted targets are word keys
@@ -424,32 +429,101 @@ function glyphFor(t) {
   return null;
 }
 
-function keySvg(on, muteLike, known, glyphName, badge) {
-  // Frame: red when a mute is engaged, light when a feature is engaged,
-  // none when off; the inner card always stays dark.
-  const frame = !known ? "#2a2a2a" : on ? (muteLike ? "#FF3C4E" : "#3ecf7a") : "#2a2a2a";
-  const glyph = glyphName ? GLYPHS[glyphName] : "";
+
+// Badge text drawn as seven-segment figures (like the LED displays on rack
+// gear), so it renders identically on every machine instead of through
+// whatever font the host's SVG rasterizer finds. Segments: a top, b top
+// right, c bottom right, d bottom, e bottom left, f top left, g middle.
+const SEGMENTS = {
+  "0": "abcdef", "1": "bc", "2": "abged", "3": "abgcd", "4": "fgbc",
+  "5": "afgcd", "6": "afgedc", "7": "abc", "8": "abcdefg", "9": "abcfgd",
+  "O": "abcdef", "F": "afge",
+};
+function sevenSegText(text, x, y, h, color) {
+  const w = h * 0.58, t = h * 0.20, gap = w * 0.40;   // digit box + stroke
+  const seg = {
+    a: [t * 0.7, 0, w - 1.4 * t, t], b: [w - t, t * 0.6, t, h / 2 - t],
+    c: [w - t, h / 2 + t * 0.4, t, h / 2 - t], d: [t * 0.7, h - t, w - 1.4 * t, t],
+    e: [0, h / 2 + t * 0.4, t, h / 2 - t], f: [0, t * 0.6, t, h / 2 - t],
+    g: [t * 0.7, (h - t) / 2, w - 1.4 * t, t],
+  };
+  const total = text.length * w + (text.length - 1) * gap;
+  const draw = (cx, names, fill, opacity) => {
+    let o = `<g fill="${fill}" opacity="${opacity}">`;
+    for (const sName of names) {
+      const [sx, sy, sw, sh] = seg[sName];
+      o += `<rect x="${(cx + sx).toFixed(1)}" y="${(y + sy).toFixed(1)}" width="${sw.toFixed(1)}" height="${sh.toFixed(1)}" rx="${(t / 2).toFixed(1)}"/>`;
+    }
+    return o + "</g>";
+  };
+  let out = "";
+  let cx = x - total / 2;
+  for (const ch of text) {
+    const lit = SEGMENTS[ch.toUpperCase()] ?? "";
+    out += draw(cx, "abcdefg", color, 0.14);   // ghost of unlit segments
+    out += draw(cx, lit, color, 1);
+    cx += w + gap;
+  }
+  return out;
+}
+
+function keySvg(on, muteLike, known, glyphName, badge, label) {
+  // Same material as the dial strips: a rounded card, a top-lit gradient, a
+  // fine border. State is carried by colour, not a flat frame: the accent
+  // (green engaged, red muted) tints the glyph, brightens the border, and
+  // adds a soft glow, so a lit key reads at a glance without shouting.
+  const accent = !known ? null : on ? (muteLike ? "#FF3C4E" : "#3ecf7a") : null;
+  const border = accent ?? "#505050";
+  const ink = !known ? "#5d6474" : accent ?? "#c7ccd6";
+  const glyph = glyphName ? GLYPHS[glyphName].replaceAll("currentColor", ink) : "";
   const slash = muteLike && on
-    ? `<line x1="42" y1="110" x2="106" y2="36" stroke="#FF3C4E" stroke-width="10" stroke-linecap="round"/>`
+    ? `<line x1="44" y1="106" x2="100" y2="40" stroke="#FF3C4E" stroke-width="9" stroke-linecap="round"/>`
     : "";
-  const led = glyphName ? "" :
-    `<circle cx="72" cy="76" r="14" fill="${!known ? "#4a4f5c" : on ? (muteLike ? "#FF3C4E" : "#3ecf7a") : "#2f333d"}"/>`;
+  const glow = accent
+    ? `<rect x="7" y="7" width="130" height="130" rx="15" fill="none" stroke="${accent}" stroke-width="12" opacity="0.16"/>`
+    : "";
+  // A key with a glyph shows it; a plain state key shows the badge big (the
+  // low-cut frequency) or, with neither, a target-style indicator dot.
+  // With an in-image label the artwork rides higher; without one it centres.
+  const lines = label ? label.split("\n").slice(0, 2) : [];
+  const lift = lines.length ? -12 : 0;
+  let center;
+  if (glyphName) center = `<g transform="translate(0 ${lift})">${glyph}</g>`;
+  else if (badge)
+    center = sevenSegText(badge, 72, lines.length ? 30 : 48, lines.length ? 42 : 48, ink);
+  else
+    center = `<g transform="translate(0 ${lift})">` +
+             `<circle cx="72" cy="72" r="21" fill="none" stroke="${ink}" stroke-width="3" opacity="0.45"/>` +
+             `<circle cx="72" cy="72" r="12" fill="${ink}"/></g>`;
+  const smallBadge = glyphName && badge
+    ? `<rect x="47" y="${91 + lift}" width="50" height="26" rx="13" fill="#0d0e11"/>` +
+      sevenSegText(badge, 72, 96 + lift, 16, ink)
+    : "";
+  const labelSvg = lines.map((line, i) => {
+    const size = line.length > 11 ? 17 : line.length > 8 ? 21 : 26;
+    const y = lines.length === 1 ? 126 : 106 + i * 24;
+    return `<text x="72" y="${y}" text-anchor="middle" fill="#e8ebf2" ` +
+      `stroke="#000" stroke-width="4" paint-order="stroke" stroke-linejoin="round" ` +
+      `font-family="Inter, Noto Sans, DejaVu Sans, sans-serif" font-size="${size}" font-weight="700">` +
+      escXml(line) + `</text>`;
+  }).join("");
   return "data:image/svg+xml;base64," + Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
-      <defs><linearGradient id="g" x1="136" y1="72" x2="8" y2="72" gradientUnits="userSpaceOnUse">
-        <stop stop-opacity="0"/><stop offset="1"/></linearGradient></defs>
-      <rect width="144" height="144" rx="16" fill="${frame}"/>
-      <rect x="8" y="8" width="128" height="128" rx="10" fill="#383838"/>
-      <rect x="8" y="8" width="128" height="128" rx="10" fill="url(#g)" fill-opacity="0.2"/>
-      ${glyph}${led}${slash}
-      ${badge ? `<text x="72" y="120" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="700" fill="#fff">${badge}</text>` : ""}
+    `<svg xmlns="http://www.w3.org/2000/svg" width="288" height="288" viewBox="0 0 144 144">
+      <defs><linearGradient id="g" x1="72" y1="8" x2="72" y2="136" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#fff" stop-opacity="0.10"/><stop offset="0.5" stop-opacity="0"/>
+        <stop offset="1" stop-opacity="0.22"/></linearGradient></defs>
+      <rect x="6" y="6" width="132" height="132" rx="16" fill="#33363c"/>
+      <rect x="6" y="6" width="132" height="132" rx="16" fill="url(#g)"/>
+      ${glow}
+      <rect x="8" y="8" width="128" height="128" rx="14" fill="none" stroke="${border}" stroke-width="5"/>
+      ${center}${slash}${smallBadge}${labelSvg}
     </svg>`).toString("base64");
 }
 
 // 24x24 white icons for the dial layout's corner slot.
 function dialIcon(t) {
   const inner = (name) => GLYPHS[name]
-    ? `<g transform="scale(0.1667)">${GLYPHS[name]}</g>` : "";
+    ? `<g transform="scale(0.1667)">${GLYPHS[name].replaceAll("currentColor", "#ffffff")}</g>` : "";
   let name = "knob";
   if (t?.startsWith("send:")) name = "fader";
   else if (t?.startsWith("mixvol:")) name = "speaker";
@@ -575,9 +649,13 @@ function refresh(context) {
   if (inst.action === "com.emaspa.openxlr.toggle") {
     const v = toggleValue(t);
     const badge = t === "softLowCut" ? (mixer()?.lowCutHz ? String(mixer().lowCutHz) : "OFF") : "";
+    const label = emptyTitle.has(context) ? (daemonUp ? defaultTitle(t) : "offline") : "";
+    // The user can pick a glyph per key (a monitor output may be headphones
+    // rather than speakers); "auto" or unset keeps the target's default.
+    const iconChoice = inst.settings.icon;
+    const glyphName = iconChoice && GLYPHS[iconChoice] ? iconChoice : glyphFor(t);
     send({ event: "setImage", context,
-           payload: { image: keySvg(v === true, isMuteLike(t), v !== null && daemonUp, glyphFor(t), badge) } });
-    applyDefaultTitle(context);
+           payload: { image: keySvg(v === true, isMuteLike(t), v !== null && daemonUp, glyphName, badge, label) } });
   } else if (inst.action === "com.emaspa.openxlr.dial") {
     const d = dialValue(t);
     const isDb = t === "gain" || t === "gain2";

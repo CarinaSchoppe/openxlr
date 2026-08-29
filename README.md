@@ -123,13 +123,29 @@ scene never rewires the desktop.
 ### OpenDeck plugin
 
 `plugin/com.emaspa.openxlr.sdPlugin` puts the whole rig on a Stream Deck
-via [OpenDeck](https://github.com/nekename/OpenDeck): toggle keys with
-live state for every switch and mute (the software low cut, ClipGuard
-and gain lock included; the low cut key cycles Off, 80 Hz, 120 Hz and
-shows the current setting), and dial actions with Wave Link style touch panels
-(needle, value, live level meter, mute overlay) for sends, masters,
-gains and the crossfade. A dial can hold a stack of targets and cycle
-them from a chosen gesture.
+via [OpenDeck](https://github.com/nekename/OpenDeck), drawn like the
+hardware it controls.
+
+Dials get Wave Link style touch panels: a knob with a moving needle, a
+live level meter, the value readout, and a mute overlay. Every send,
+mix master, gain, headphone volume, and the crossfade is a dial target,
+and one dial can hold a stack of targets cycled by tap or press.
+
+![Dial panels](docs/plugin-dials.png)
+
+Keys are drawn as buttons on the same faceplate: the icon on a machined
+cap, a status LED, red for a mute, green for an engaged feature or the
+active monitor output. Every hardware switch and mute is a key target,
+plus the software low cut (its frequency shown as LED digits, cycling
+Off, 80, 120), ClipGuard, gain lock, and monitor-output switching to a
+specific device. Each key can pick its icon (a headphone output shows
+headphones, not a speaker), and a typed title replaces the built-in
+label.
+
+![Keys](docs/plugin-keys.png)
+
+Everything reads and writes daemon state, so keys and dials stay in
+sync with the UI and the hardware at all times.
 
 To install: download `com.emaspa.openxlr.sdPlugin.zip` from the
 [latest release](https://github.com/emaspa/openxlr/releases/latest) and

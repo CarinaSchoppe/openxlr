@@ -11,3 +11,13 @@ windows-export/
 capture-analysis/
 fork/
 __pycache__/
+
+# debhelper build artifacts (dpkg-buildpackage; removed by debian/rules clean)
+debian/.debhelper/
+debian/openxlr/
+debian/out/
+debian/files
+debian/debhelper-build-stamp
+debian/*.debhelper
+debian/*.debhelper.log
+debian/*.substvars

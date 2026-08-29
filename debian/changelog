@@ -1,0 +1,9 @@
+openxlr (0.1.0) resolute; urgency=medium
+
+  * Initial Ubuntu packaging, mirroring the tested AUR package:
+    framework-dependent .NET publish of the daemon and UI into
+    /usr/lib/openxlr with wrapper scripts in /usr/bin, udev rule,
+    WirePlumber capture-hold config, per-user systemd unit, desktop
+    entry, icons and the bundled OpenDeck plugin.
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Sat, 29 Aug 2026 12:00:00 +0200

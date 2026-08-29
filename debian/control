@@ -1,0 +1,40 @@
+Source: openxlr
+Section: sound
+Priority: optional
+Maintainer: Emanuele Sparvoli <sparvoli@gmail.com>
+Build-Depends: debhelper-compat (= 13), dotnet-sdk-10.0
+Standards-Version: 4.7.0
+Homepage: https://github.com/emaspa/openxlr
+Vcs-Git: https://github.com/emaspa/openxlr.git
+Vcs-Browser: https://github.com/emaspa/openxlr
+
+Package: openxlr
+Architecture: amd64
+Depends: ${misc:Depends},
+ libc6,
+ aspnetcore-runtime-10.0,
+ pipewire,
+ pipewire-pulse,
+ wireplumber,
+ libpulse0,
+ libusb-1.0-0,
+ libfontconfig1,
+ libx11-6,
+ libice6,
+ libsm6
+Recommends: alsa-utils, pulseaudio-utils, xdg-utils
+Suggests: swh-plugins
+Description: Control suite and PipeWire submixer for Elgato XLR interfaces
+ Native Linux control for Elgato XLR interfaces over reverse-engineered
+ USB protocols: gain, DSP, phantom power, output routing and the
+ hardware mixer. Includes a Wave Link style PipeWire submixer with
+ per-application channels, virtual microphones, multi-output monitoring
+ and a dedicated mix for a second computer on the USB Aux port, plus an
+ OpenDeck plugin for Stream Deck control.
+ .
+ Supported devices: Wave XLR Pro, XLR Dock (Stream Deck+ module),
+ Wave XLR and Wave XLR MK.2.
+ .
+ After installing, enable the per-user daemon with
+ "systemctl --user enable --now openxlr-daemon" and replug the
+ interface once so the udev rule applies. See README.Debian.

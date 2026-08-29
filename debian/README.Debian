@@ -1,0 +1,17 @@
+openxlr for Ubuntu
+------------------
+
+After installing:
+
+ 1. Replug your interface once so the udev rule applies.
+ 2. Start the daemon:  systemctl --user enable --now openxlr-daemon
+ 3. Start the mixer:   openxlr   (or from your application menu)
+
+Stream Deck control via OpenDeck:
+
+    cp -r /usr/share/openxlr/com.emaspa.openxlr.sdPlugin \
+        ~/.config/opendeck/plugins/
+
+The software ClipGuard limiter for the XLR Dock needs the SWH LADSPA
+plugins (package: swh-plugins). The daemon picks them up from the
+standard LADSPA path.

@@ -1,0 +1,4 @@
+# SkiaSharp/HarfBuzzSharp ship as prebuilt NuGet native libraries; they
+# statically embed their codecs and are not built or stripped here.
+openxlr: embedded-library * [usr/lib/openxlr/*]
+openxlr: unstripped-binary-or-object [usr/lib/openxlr/*]

@@ -1,0 +1,79 @@
+#!/usr/bin/make -f
+
+export DOTNET_CLI_TELEMETRY_OPTOUT = 1
+export DOTNET_NOLOGO = 1
+export DOTNET_SKIP_FIRST_TIME_EXPERIENCE = 1
+
+OUT = $(CURDIR)/debian/out
+PKG = $(CURDIR)/debian/openxlr
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	dotnet publish src/OpenXLR.Daemon -c Release -r linux-x64 \
+		--self-contained false -o $(OUT)/daemon
+	dotnet publish src/OpenXLR.UI -c Release -r linux-x64 \
+		--self-contained false -o $(OUT)/ui
+
+override_dh_auto_install:
+	install -dm755 $(PKG)/usr/lib/openxlr
+	cp -r $(OUT)/daemon $(PKG)/usr/lib/openxlr/daemon
+	cp -r $(OUT)/ui $(PKG)/usr/lib/openxlr/ui
+	# dotnet publish marks assemblies executable; only the apphosts are.
+	find $(PKG)/usr/lib/openxlr -type f -exec chmod 644 {} +
+	chmod 755 $(PKG)/usr/lib/openxlr/daemon/OpenXLR.Daemon \
+		$(PKG)/usr/lib/openxlr/ui/OpenXLR.UI
+
+	install -dm755 $(PKG)/usr/bin
+	printf '#!/bin/sh\nexec /usr/lib/openxlr/daemon/OpenXLR.Daemon "$$@"\n' \
+		> $(PKG)/usr/bin/openxlr-daemon
+	printf '#!/bin/sh\nexec /usr/lib/openxlr/ui/OpenXLR.UI "$$@"\n' \
+		> $(PKG)/usr/bin/openxlr
+	chmod 755 $(PKG)/usr/bin/openxlr-daemon $(PKG)/usr/bin/openxlr
+
+	install -Dm644 packaging/70-openxlr.rules \
+		$(PKG)/usr/lib/udev/rules.d/70-openxlr.rules
+	install -Dm644 packaging/50-xlr-dock-capture-hold.conf \
+		$(PKG)/usr/share/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf
+
+	# The reference unit points into a source checkout; the package runs
+	# the wrapper.
+	sed 's|^ExecStart=.*|ExecStart=/usr/bin/openxlr-daemon|' \
+		packaging/openxlr-daemon.service > $(OUT)/openxlr-daemon.service
+	install -Dm644 $(OUT)/openxlr-daemon.service \
+		$(PKG)/usr/lib/systemd/user/openxlr-daemon.service
+
+	install -Dm644 packaging/openxlr.desktop \
+		$(PKG)/usr/share/applications/openxlr.desktop
+	for size in 16 32 48 64 128 256; do \
+		install -Dm644 src/OpenXLR.UI/Assets/icon-$$size.png \
+			$(PKG)/usr/share/icons/hicolor/$${size}x$${size}/apps/openxlr.png \
+		|| exit 1; \
+	done
+	install -Dm644 src/OpenXLR.UI/Assets/icon.svg \
+		$(PKG)/usr/share/icons/hicolor/scalable/apps/openxlr.svg
+
+	# OpenDeck loads plugins from the user's config dir; ship it for copying.
+	install -dm755 $(PKG)/usr/share/openxlr
+	cp -r plugin/com.emaspa.openxlr.sdPlugin $(PKG)/usr/share/openxlr/
+	find $(PKG)/usr/share/openxlr -type f -exec chmod 644 {} +
+	find $(PKG)/usr/share/openxlr -type d -exec chmod 755 {} +
+
+override_dh_auto_clean:
+	rm -rf $(OUT) src/*/bin src/*/obj
+
+override_dh_auto_test:
+
+# Starting the daemon is opt-in per user, as in the AUR package: it
+# builds the PipeWire submixer for whoever runs it, so don't enable it
+# globally for every account on the system.
+override_dh_installsystemduser:
+	dh_installsystemduser --no-enable
+
+# The publish output is prebuilt .NET; its bundled native libraries must
+# not be stripped, deduplicated or scanned for shared-library deps.
+override_dh_strip:
+override_dh_dwz:
+override_dh_shlibdeps:
+override_dh_makeshlibs:

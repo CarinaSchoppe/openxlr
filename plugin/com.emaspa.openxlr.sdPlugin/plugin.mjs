@@ -72,6 +72,29 @@ host.onclose = () => process.exit(0);
 // Visible action instances: context -> {action, settings, controller}
 const instances = new Map();
 
+// OpenDeck keeps one persisted title field per key, shared by the plugin's
+// setTitle and the user's own edits. So the plugin fills in a default title
+// only while the title is empty, and never overwrites one the user typed.
+// Clearing the title restores the default. Everything the user needs to read
+// lives in the key image (frame colour, glyph, and the low-cut frequency),
+// not the title, so a custom name never hides the state.
+const emptyTitle = new Set();   // contexts whose OpenDeck title is ""
+function applyDefaultTitle(context) {
+  const inst = instances.get(context);
+  if (!inst || inst.action !== "com.emaspa.openxlr.toggle") return;
+  if (!emptyTitle.has(context)) return;
+  send({ event: "setTitle", context,
+         payload: { title: daemonUp ? defaultTitle(inst.settings.target) : "OpenXLR" } });
+}
+
+// The static default label for a target (no live state; the low-cut frequency
+// and every on/off state show in the image, so the title stays stable and the
+// comparison the empty-title rule relies on never drifts).
+function defaultTitle(target) {
+  if (target === "softLowCut") return "Low Cut";
+  return toggleLabel(target);
+}
+
 // A dial can hold a stack of targets; long-pressing the strip cycles them.
 const targetsOf = (inst) =>
   Array.isArray(inst.settings.targets) && inst.settings.targets.length
@@ -108,6 +131,7 @@ host.onmessage = (e) => {
       break;
     case "willDisappear":
       instances.delete(m.context);
+      emptyTitle.delete(m.context);
       break;
     case "didReceiveSettings":
       if (inst) { inst.settings = m.payload?.settings ?? {}; refresh(m.context); }
@@ -128,8 +152,25 @@ host.onmessage = (e) => {
       if (cyclesOn(inst, "tap")) cycleStack(m.context, inst);
       else onDialPress(m.context, inst);
       break;
+    case "titleParametersDidChange": {
+      if ((m.payload?.title ?? "") === "") { emptyTitle.add(m.context); applyDefaultTitle(m.context); }
+      else emptyTitle.delete(m.context);
+      break;
+    }
+    case "sendToPlugin":
+      if (m.payload?.request === "outputs")
+        send({ event: "sendToPropertyInspector", context: m.context,
+               payload: { outputs: outputDevices() } });
+      break;
   }
 };
+
+// Physical output sinks the monitor mix can feed, for the PI's picker.
+function outputDevices() {
+  return (daemonState?.devices ?? [])
+    .filter((d) => d.kind === 0 && !d.isOwn)
+    .map((d) => ({ name: d.name, description: d.description }));
+}
 
 // ---------- state readers ----------
 const dev = () => daemonState?.state ?? null;
@@ -146,6 +187,10 @@ function toggleValue(target) {
     return hz == null ? null : hz > 0;
   }
   if (target === "softClipGuard") return mixer()?.softClipGuard ?? null;
+  if (target.startsWith("monitor:")) {
+    const outs = mixer()?.monitorOutputs;
+    return outs ? outs.includes(target.slice(8)) : null;
+  }
   if (target.startsWith("mixmute:")) return mixOf(target.slice(8))?.muted ?? null;
   if (target.startsWith("sendmute:")) {
     const [, ch, mix] = target.split(":");
@@ -160,6 +205,12 @@ function toggleLabel(target) {
   if (target === "softLowCut") {
     const hz = mixer()?.lowCutHz ?? 0;
     return hz ? `Low Cut\n${hz} Hz` : "Low Cut\nOff";
+  }
+  if (target.startsWith("monitor:")) {
+    const sink = target.slice(8);
+    const d = daemonState?.devices?.find((x) => x.name === sink);
+    const name = d?.description ?? sink.split(".").pop();
+    return "Monitor\n" + name;
   }
   if (target.startsWith("mixmute:")) return `${MIXES[target.slice(8)] ?? target.slice(8)}\nMute`;
   if (target.startsWith("sendmute:")) {
@@ -244,6 +295,7 @@ function onKeyDown(context, inst) {
   }
   else if (t === "softClipGuard") cmd({ cmd: "setSoftClipGuard", value: !cur });
   else if (t === "gainLocked") cmd({ cmd: "set", control: "gainLock", value: !cur });
+  else if (t.startsWith("monitor:")) cmd({ cmd: "setMonitorOutputs", devices: [t.slice(8)] });
   else if (t.startsWith("mixmute:"))
     cmd({ cmd: "setMixMuted", mix: t.slice(8), value: !cur });
   else if (t.startsWith("sendmute:")) {
@@ -367,15 +419,15 @@ function glyphFor(t) {
   if (t === "mute" || t === "mute2") return "mic";
   if (t === "outHp1" || t === "outHp2" || t === "lowImpedance") return "headphones";
   if (t === "outLineOut") return "jack";
-  if (t.startsWith("mixmute:")) return "speaker";
+  if (t.startsWith("monitor:") || t.startsWith("mixmute:")) return "speaker";
   if (t.startsWith("sendmute:")) return "fader";
   return null;
 }
 
-function keySvg(on, muteLike, known, glyphName) {
+function keySvg(on, muteLike, known, glyphName, badge) {
   // Frame: red when a mute is engaged, light when a feature is engaged,
   // none when off; the inner card always stays dark.
-  const frame = !known ? "#2a2a2a" : on ? (muteLike ? "#FF3C4E" : "#EAEAEA") : "#2a2a2a";
+  const frame = !known ? "#2a2a2a" : on ? (muteLike ? "#FF3C4E" : "#3ecf7a") : "#2a2a2a";
   const glyph = glyphName ? GLYPHS[glyphName] : "";
   const slash = muteLike && on
     ? `<line x1="42" y1="110" x2="106" y2="36" stroke="#FF3C4E" stroke-width="10" stroke-linecap="round"/>`
@@ -390,6 +442,7 @@ function keySvg(on, muteLike, known, glyphName) {
       <rect x="8" y="8" width="128" height="128" rx="10" fill="#383838"/>
       <rect x="8" y="8" width="128" height="128" rx="10" fill="url(#g)" fill-opacity="0.2"/>
       ${glyph}${led}${slash}
+      ${badge ? `<text x="72" y="120" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="700" fill="#fff">${badge}</text>` : ""}
     </svg>`).toString("base64");
 }
 
@@ -521,10 +574,10 @@ function refresh(context) {
     ? activeTarget(inst) : inst.settings.target;
   if (inst.action === "com.emaspa.openxlr.toggle") {
     const v = toggleValue(t);
+    const badge = t === "softLowCut" ? (mixer()?.lowCutHz ? String(mixer().lowCutHz) : "OFF") : "";
     send({ event: "setImage", context,
-           payload: { image: keySvg(v === true, isMuteLike(t), v !== null && daemonUp, glyphFor(t)) } });
-    send({ event: "setTitle", context,
-           payload: { title: daemonUp ? toggleLabel(t) : "offline" } });
+           payload: { image: keySvg(v === true, isMuteLike(t), v !== null && daemonUp, glyphFor(t), badge) } });
+    applyDefaultTitle(context);
   } else if (inst.action === "com.emaspa.openxlr.dial") {
     const d = dialValue(t);
     const isDb = t === "gain" || t === "gain2";

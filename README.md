@@ -25,8 +25,9 @@ the author's own hardware.
 |---|---|---|
 | Wave XLR Pro | 0fd9:00b4 | full support, verified on hardware |
 | XLR Dock (Stream Deck+ module) | 0fd9:00a6 | gain, mute, headphone volume, 48V phantom power, low impedance; verified on hardware |
-| Wave XLR | 0fd9:007d | gain, mute, headphone volume, low impedance, 48V phantom power; protocol proven by [openwave](https://github.com/rikkichy/openwave), needs a tester |
+| Wave XLR | 0fd9:007d | gain, mute, headphone volume, low impedance, 48V phantom power; verified on hardware by a community tester |
 | Wave XLR MK.2 | 0fd9:00b6 | gain, mute, DSP, headphone volume, crossfade; decoded from captures, needs a tester |
+| XLR Dock MK.2 (Stream Deck+ module) | id unknown | same Wave FX platform as the MK.2, so support is likely one small step away; owners, open an issue with your `lsusb` output |
 
 The UI shows only the controls the connected device has. With more than
 one supported interface attached, a picker in the header chooses which

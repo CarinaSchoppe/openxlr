@@ -1,14 +1,15 @@
 # Hardware support
 
-The current, honest state of every device OpenXLR supports. Two of the
-four need testers; the section at the bottom explains how to help.
+The current, honest state of every device OpenXLR supports. The last
+two rows need owners; the section at the bottom explains how to help.
 
 | Device | USB id | Status |
 |---|---|---|
 | Wave XLR Pro | `0fd9:00b4` | 🟢 full support, every control verified on hardware |
 | XLR Dock | `0fd9:00a6` | 🟢 supported and verified within what its hardware can do |
-| Wave XLR | `0fd9:007d` | 🟡 coded from a proven protocol, needs a tester |
+| Wave XLR | `0fd9:007d` | 🟢 core controls verified on hardware by a community tester |
 | Wave XLR MK.2 | `0fd9:00b6` | 🟡 decoded from captures, needs a tester |
+| XLR Dock MK.2 | unknown | ⚪ same Wave FX platform as the MK.2; an owner's `lsusb` output is the missing piece |
 
 ## Wave XLR Pro (0fd9:00b4)
 
@@ -54,17 +55,17 @@ WirePlumber rule
 ([packaging/50-xlr-dock-capture-hold.conf](../packaging/50-xlr-dock-capture-hold.conf))
 that keeps the capture source always active, fixing it system-wide.
 
-## Wave XLR (0fd9:007d), needs a tester
+## Wave XLR (0fd9:007d)
 
 The original MK.1. Its class protocol comes proven from the
-[openwave](https://github.com/rikkichy/openwave) project's users, but
-OpenXLR itself has never touched one.
+[openwave](https://github.com/rikkichy/openwave) project's users, and a
+community tester has since run OpenXLR against real hardware.
 
 | Control | State | Notes |
 |---|---|---|
-| Gain, mute | coded | scale confirmed at 256 raw units per dB ([openwave PR #8](https://github.com/rikkichy/openwave/pull/8) measured it on the shared protocol); the maximum (75 or 80 dB) still needs the device's own display |
-| Headphone volume, low impedance | coded | may need a two-way ALSA sync; a tester will tell |
-| Phantom 48V | coded | config byte 6, found by [openwave PR #8](https://github.com/rikkichy/openwave/pull/8) against the MK.1's own 48V LED; the same byte is live on the XLR Dock. A tester's LED check closes it |
+| Gain, mute | verified | community tester; scale is 256 raw units per dB ([openwave PR #8](https://github.com/rikkichy/openwave/pull/8) measured it on the shared protocol) |
+| Headphone volume, low impedance | verified | community tester |
+| Phantom 48V | coded | config byte 6, found by [openwave PR #8](https://github.com/rikkichy/openwave/pull/8) against the MK.1's own 48V LED; the same byte is verified live on the XLR Dock. Added after the tester's run, so one LED check still closes it |
 | Low cut, voice DSP, crossfade | unmapped | the hardware has them; their offsets are unknown. A [USB capture](usb-capture.md) from an owner would map them |
 
 ## Wave XLR MK.2 (0fd9:00b6), needs a tester
@@ -98,11 +99,12 @@ away.
 - OpenDeck plugin: every switch, mute, and level on a Stream Deck, with
   live state and Wave Link style touch panels
 
-## Own a Wave XLR or a MK.2? Help confirm it
+## Own an MK.2? Help confirm it
 
-The two amber rows are fully coded and waiting for their first real
-device. Testing takes a few minutes and risks nothing that a replug does
-not fix:
+The Wave XLR MK.2 (0fd9:00b6) is fully coded and waiting for its first
+real device, and the XLR Dock MK.2 just needs an owner to report its
+USB id (`lsusb`, look for `0fd9:`) before it can join. Testing takes a
+few minutes and risks nothing that a replug does not fix:
 
 1. Build and run OpenXLR from the [README](../README.md) install steps,
    including the udev rule.

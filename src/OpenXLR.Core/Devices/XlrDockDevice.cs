@@ -6,13 +6,22 @@ namespace OpenXLR.Core.Devices;
 /// <summary>
 /// The Elgato XLR Dock (0fd9:00a6), the controls-free Stream Deck+ module.
 ///
-/// Driven entirely through the kernel's standard ALSA controls instead of the
-/// vendor block protocol: the dock is a software-defined device whose gain,
-/// mute, and headphone volume the kernel already exposes ('Mic Capture
-/// Volume' 0..150 for 0..75 dB, 'Mic Capture Switch', 'PCM Playback Volume'
-/// 0..120 for -60..0 dB), backed by the same registers Wave Link drives.
-/// This backend therefore opens no USB handle and sends no vendor traffic,
-/// so nothing here can disturb the audio streams.
+/// Gain, mute, and headphone volume are driven through the kernel's standard
+/// ALSA controls ('Mic Capture Volume' 0..150 for 0..75 dB, 'Mic Capture
+/// Switch', 'PCM Playback Volume' 0..120 for -60..0 dB), backed by the same
+/// registers Wave Link drives, so those writes cannot disturb the audio
+/// streams.
+///
+/// Phantom power is the exception: the kernel exposes no control for it, but
+/// the dock also speaks the original Wave XLR's class-request dialect (read
+/// 0xA1/0x85, write 0x21/0x05, wIndex 0x3303) with a 64-byte config block,
+/// and byte 6 of that block is the 48V switch, exactly as on the MK.1 where
+/// the openwave project identified it against the front-panel 48V LED
+/// (openwave PR #8). Verified on this hardware 2026-08-30: the write is
+/// accepted, persists, changes nothing else in the block, and a condenser
+/// microphone on the dock's XLR goes live with it. Wave Link itself never
+/// writes the byte for the dock, which is why the earlier Windows capture
+/// audit found no phantom traffic.
 ///
 /// The device has no physical controls, so nothing changes state behind our
 /// back except other ALSA clients; state reads are cached briefly to keep the
@@ -27,6 +36,19 @@ public sealed class XlrDockDevice : IAudioDevice
     private const string MuteCtl = "Mic Capture Switch";
     private const string HpCtl = "PCM Playback Volume";
 
+    // The MK.1 class-request dialect, used here only for phantom power.
+    private const byte RtRead = 0xA1;
+    private const byte RtWrite = 0x21;
+    private const byte ReqRead = 0x85;
+    private const byte ReqWrite = 0x05;
+    private const ushort UsbIndex = 0x3303;
+    private const ushort BlockConfig = 0x0000;
+    private const int ConfigLen = 64;
+    private const int OffPhantom = 6;
+
+    private static IntPtr _ctx = IntPtr.Zero;
+    private IntPtr _handle = IntPtr.Zero;
+
     private int _card = -1;
     private DeviceState? _cached;
     private DateTime _cachedAt;
@@ -39,6 +61,7 @@ public sealed class XlrDockDevice : IAudioDevice
         Gain = true,
         Mute = true,
         HpVolume = true,
+        Phantom = true,
         XlrInputs = 1,
         HpOutputs = 1,
     };
@@ -56,6 +79,7 @@ public sealed class XlrDockDevice : IAudioDevice
                     && int.TryParse(Path.GetFileName(dir).Replace("card", ""), out int n))
                 {
                     _card = n;
+                    OpenUsb();
                     return;
                 }
             }
@@ -64,7 +88,20 @@ public sealed class XlrDockDevice : IAudioDevice
         throw new InvalidOperationException("XLR Dock present on USB but its ALSA card was not found");
     }
 
-    public void Disconnect() => _card = -1;
+    // Phantom is the only control that needs the USB handle; without it (no
+    // udev rule) the dock still works fully through ALSA and phantom reads
+    // false, while SetPhantom reports the real problem.
+    private void OpenUsb()
+    {
+        if (_ctx == IntPtr.Zero && LibUsb.libusb_init(out _ctx) != 0) return;
+        _handle = LibUsb.libusb_open_device_with_vid_pid(_ctx, VendorId, ProductId);
+    }
+
+    public void Disconnect()
+    {
+        _card = -1;
+        if (_handle != IntPtr.Zero) { LibUsb.libusb_close(_handle); _handle = IntPtr.Zero; }
+    }
 
     private string Amixer(params string[] args)
     {
@@ -83,6 +120,22 @@ public sealed class XlrDockDevice : IAudioDevice
         if (p.ExitCode != 0)
             throw new InvalidOperationException($"amixer {string.Join(' ', args)}: exit {p.ExitCode}");
         return outText;
+    }
+
+    private byte[] ReadConfig()
+    {
+        var buf = new byte[ConfigLen];
+        int n = LibUsb.libusb_control_transfer(
+            _handle, RtRead, ReqRead, BlockConfig, UsbIndex, buf, ConfigLen, 1000);
+        if (n < 0) throw new InvalidOperationException($"read config block: {LibUsb.StrError(n)}");
+        return buf;
+    }
+
+    private bool ReadPhantom()
+    {
+        if (_handle == IntPtr.Zero) return false;
+        try { return ReadConfig()[OffPhantom] != 0; }
+        catch (InvalidOperationException) { return false; }
     }
 
     private static readonly Regex Values = new(@": values=([A-Za-z0-9,\-]+)", RegexOptions.Compiled);
@@ -117,6 +170,7 @@ public sealed class XlrDockDevice : IAudioDevice
                 GainDb = (int)Math.Round(gainRaw / 2.0),
                 Mute = !unmuted,
                 HpVolumeDb = hpRaw / 2.0 - 60.0,
+                Phantom = ReadPhantom(),
                 Crossfade = 100,   // not a hardware feature here; neutral centre
             };
             _cachedAt = DateTime.UtcNow;
@@ -139,7 +193,23 @@ public sealed class XlrDockDevice : IAudioDevice
     public void SetVoiceTuneStrength(int value) { }
     public void SetLowImpedance(bool on) { }
     public void SetCrossfade(int value) { }
-    public void SetPhantom(bool on) { }
+
+    public void SetPhantom(bool on)
+    {
+        if (_handle == IntPtr.Zero)
+            throw new InvalidOperationException(
+                "XLR Dock USB handle not open; phantom needs the udev rule");
+        lock (_lock)
+        {
+            byte[] cfg = ReadConfig();
+            cfg[OffPhantom] = on ? (byte)1 : (byte)0;
+            int n = LibUsb.libusb_control_transfer(
+                _handle, RtWrite, ReqWrite, BlockConfig, UsbIndex, cfg, ConfigLen, 1000);
+            if (n < 0) throw new InvalidOperationException($"write config block: {LibUsb.StrError(n)}");
+            _cached = null;
+        }
+    }
+
     public void SetClipGuard(bool on) { }
     public void SetCompressor(bool on) { }
 
@@ -147,10 +217,16 @@ public sealed class XlrDockDevice : IAudioDevice
     {
         try
         {
-            return new Dictionary<string, string>
+            var blocks = new Dictionary<string, string>
             {
                 ["alsa"] = $"card={_card} gain={Get(GainCtl)} capture={Get(MuteCtl)} hp={Get(HpCtl)}",
             };
+            if (_handle != IntPtr.Zero)
+            {
+                try { blocks["config"] = Convert.ToHexString(ReadConfig()); }
+                catch (Exception ex) { blocks["config"] = $"error: {ex.Message}"; }
+            }
+            return blocks;
         }
         catch (Exception ex)
         {

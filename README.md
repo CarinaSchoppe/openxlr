@@ -24,7 +24,7 @@ the author's own hardware.
 | Device | USB id | Status |
 |---|---|---|
 | Wave XLR Pro | 0fd9:00b4 | full support, verified on hardware |
-| XLR Dock (Stream Deck+ module) | 0fd9:00a6 | gain, mute, headphone volume via standard ALSA controls; verified on hardware |
+| XLR Dock (Stream Deck+ module) | 0fd9:00a6 | gain, mute, headphone volume, 48V phantom power; verified on hardware |
 | Wave XLR | 0fd9:007d | gain, mute, headphone volume, low impedance; protocol proven by [openwave](https://github.com/rikkichy/openwave), needs a tester |
 | Wave XLR MK.2 | 0fd9:00b6 | gain, mute, DSP, headphone volume, crossfade; decoded from captures, needs a tester |
 
@@ -59,15 +59,17 @@ On the others, what their protocols expose so far:
 - Wave XLR MK.2: gain, mute, low cut, expander, voice tune with strength,
   headphone volume, low impedance, crossfade
 - Wave XLR: gain, mute, headphone volume, low impedance
-- XLR Dock: gain, mute, headphone volume, driven entirely through the
-  kernel's standard ALSA controls (no vendor USB traffic). The dock has
-  no onboard DSP; Wave Link runs those effects host-side, so their Linux
-  home is the submixer. Phantom power is not supported: a full USB audit
-  of a Wave Link session (control, interrupt, and bulk, to the dock and
-  the Stream Deck+ alike) shows its phantom toggle never reaches the
-  hardware, and the dock's three vendor blocks hold no known phantom
-  field. Until someone maps a control path with a meter on the XLR pins,
-  no software can switch it
+- XLR Dock: gain, mute, headphone volume, driven through the kernel's
+  standard ALSA controls, plus 48V phantom power over the original Wave
+  XLR's protocol dialect, which the dock turns out to speak. The
+  [openwave](https://github.com/rikkichy/openwave) project identified
+  the phantom byte on the MK.1 against its 48V LED
+  ([openwave PR #8](https://github.com/rikkichy/openwave/pull/8)); we
+  confirmed the same register live on the dock with a condenser
+  microphone. Wave Link itself never writes it for the dock, so this is
+  a control the hardware has that the official software does not offer.
+  The dock has no onboard DSP; Wave Link runs those effects host-side,
+  so their Linux home is the submixer
 
 ### Software controls
 

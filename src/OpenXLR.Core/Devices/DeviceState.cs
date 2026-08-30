@@ -20,9 +20,10 @@ public sealed record DeviceState
 
     public int Crossfade { get; init; }         // block 0x0001 off0, 0..200 (100 = centre)
 
-    // Pro-only mic DSP, all confirmed against the logged capture of 2026-08-25:
+    // Mic DSP, confirmed on the Pro against the logged capture of 2026-08-25:
     // phantom = off1 bit1, compressor = off1 bit7, ClipGuard = the struct's
     // offset-2 byte with 0x04 meaning DISABLED (stored here un-inverted).
+    // Phantom is also live on the XLR Dock (config block byte 6, MK.1 dialect).
     public bool Phantom { get; init; }
     public bool ClipGuard { get; init; }
     public bool Compressor { get; init; }

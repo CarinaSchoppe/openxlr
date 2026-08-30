@@ -1,0 +1,17 @@
+--- a/src-tauri/src/elgato.rs	2026-08-29 13:09:54.148331728 +0100
++++ b/src-tauri/src/elgato.rs	2026-08-29 13:09:54.149142177 +0100
+@@ -61,7 +61,13 @@
+ 				let (r, g, b) = extract_average_colour(&image::load_from_memory(&bytes)?);
+ 				device.set_touchpoint_color(context.position - key_count, r, g, b).await?;
+ 			} else {
+-				device.set_button_image(context.position, image::load_from_memory(&bytes)?).await?;
++				// Pre-scale to the key's native resolution with a proper filter;
++				// the device library otherwise scales with nearest-neighbour,
++				// which visibly aliases every plugin's key images.
++				let img = image::load_from_memory(&bytes)?;
++				let (kw, kh) = kind.key_image_format().size;
++				let img = img.resize_exact(kw as u32, kh as u32, image::imageops::FilterType::Lanczos3);
++				device.set_button_image(context.position, img).await?;
+ 			}
+ 		} else if context.controller == "Encoder" {
+ 			let mut img = image::DynamicImage::new_rgb8(200, 100);

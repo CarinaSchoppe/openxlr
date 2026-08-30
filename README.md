@@ -162,8 +162,7 @@ Touch taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 ([nekename/OpenDeck#437](https://github.com/nekename/OpenDeck/pull/437),
 merged upstream). Touch dragging the dial panels needs an OpenDeck
 build that turns touch strip swipes into dial ticks
-([nekename/OpenDeck#441](https://github.com/nekename/OpenDeck/pull/441),
-draft); stock OpenDeck up to 2.14.0 discards swipe gestures, so until
+([nekename/OpenDeck#441](https://github.com/nekename/OpenDeck/pull/441)); stock OpenDeck up to 2.14.0 discards swipe gestures, so until
 that lands the dials still adjust normally by rotation.
 
 ### Quality of life

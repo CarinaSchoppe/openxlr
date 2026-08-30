@@ -15,8 +15,7 @@ here until they land upstream.
   for the dial the swipe started over (horizontal delta, 12 px per
   tick). Stock OpenDeck discards swipe events entirely; with this, any
   plugin's dial value can be dragged from the touchscreen. Upstream:
-  [nekename/OpenDeck#441](https://github.com/nekename/OpenDeck/pull/441)
-  (draft).
+  [nekename/OpenDeck#441](https://github.com/nekename/OpenDeck/pull/441).
 
 The Arch build that applies them lives outside this repo (an AUR
 `opendeck` checkout with these patches added to `prepare()`); a stock

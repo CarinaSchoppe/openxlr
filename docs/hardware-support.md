@@ -32,10 +32,10 @@ selectors, and the commit block every selector write needs.
 The Stream Deck+ module. A software-defined device with no onboard memory
 or DSP: Wave Link is its brain on Windows, so on Linux OpenXLR drives
 gain, mute, and headphone volume through the kernel's standard ALSA
-controls and provides the DSP host-side in the submixer. The one
-exception is phantom power, which lives in a firmware register the
-kernel does not expose, reached over the original Wave XLR's protocol
-dialect.
+controls and provides the DSP host-side in the submixer. The exceptions
+are phantom power and headphone low impedance, which live in firmware
+registers the kernel does not expose, reached over the original Wave
+XLR's protocol dialect.
 
 | Control | State | Notes |
 |---|---|---|
@@ -45,7 +45,8 @@ dialect.
 | ClipGuard | software | hard limiter at -3 dB, tone-measured exact; needs the `swh-plugins` package |
 | Gain lock | software | the daemon rejects all gain changes while set; the dock has no physical dial to bypass it |
 | Phantom power | verified | byte 6 of the dock's config block, spoken over the original Wave XLR's protocol dialect. Identified by [openwave PR #8](https://github.com/rikkichy/openwave/pull/8) on the MK.1 against its 48V LED; confirmed here with a condenser mic on the dock's XLR. Wave Link never writes it for the dock, so on Linux OpenXLR is the only way to switch it |
-| Low impedance, hardware sidetone | not present | no control path exists; a byte sweep for sidetone came back negative |
+| Low impedance | verified | byte 33 of the same config block, ear-verified on the dock's headphone jack |
+| Hardware sidetone | not present | no control path exists; a byte sweep came back negative |
 
 Linux quirk, solved: the kernel starves the dock's capture when playback
 to it starts first, and the mic records silence. OpenXLR ships a

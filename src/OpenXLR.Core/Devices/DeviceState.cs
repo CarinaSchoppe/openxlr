@@ -76,4 +76,9 @@ public sealed record DeviceState
     /// </summary>
     public bool PhantomSettling { get; init; }
     public bool PhantomSettling2 { get; init; }
+
+    /// <summary>Whole seconds left in the settling hold (0 when not settling),
+    /// so clients can show a countdown on the held mute.</summary>
+    public int PhantomSettleSeconds { get; init; }
+    public int PhantomSettleSeconds2 { get; init; }
 }

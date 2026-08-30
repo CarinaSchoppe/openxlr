@@ -336,9 +336,18 @@ public sealed class MainViewModel : ViewModelBase
     // unmutes it itself; the daemon stamps these while that hold is active,
     // and the mute buttons disable so nobody fights the firmware.
     private bool _phantomSettling;
-    public bool PhantomSettling { get => _phantomSettling; set => Set(ref _phantomSettling, value); }
+    public bool PhantomSettling { get => _phantomSettling; set { if (Set(ref _phantomSettling, value)) Raise(nameof(MuteLabel)); } }
     private bool _phantomSettling2;
-    public bool PhantomSettling2 { get => _phantomSettling2; set => Set(ref _phantomSettling2, value); }
+    public bool PhantomSettling2 { get => _phantomSettling2; set { if (Set(ref _phantomSettling2, value)) Raise(nameof(Mute2Label)); } }
+
+    private int _phantomSettleSeconds;
+    public int PhantomSettleSeconds { get => _phantomSettleSeconds; set { if (Set(ref _phantomSettleSeconds, value)) Raise(nameof(MuteLabel)); } }
+    private int _phantomSettleSeconds2;
+    public int PhantomSettleSeconds2 { get => _phantomSettleSeconds2; set { if (Set(ref _phantomSettleSeconds2, value)) Raise(nameof(Mute2Label)); } }
+
+    // The mute button counts the hold down while the firmware settles 48V.
+    public string MuteLabel => PhantomSettling ? $"48V {PhantomSettleSeconds}s" : "Mute";
+    public string Mute2Label => PhantomSettling2 ? $"48V {PhantomSettleSeconds2}s" : "Mute";
 
     private bool _clipGuard;
     public bool ClipGuard { get => _clipGuard; set { if (Set(ref _clipGuard, value) && !_applying) _ = _client.SetControlAsync("clipGuard", value); } }
@@ -506,6 +515,8 @@ public sealed class MainViewModel : ViewModelBase
                 Phantom = s["phantom"]?.GetValue<bool>() ?? false;
                 PhantomSettling = s["phantomSettling"]?.GetValue<bool>() ?? false;
                 PhantomSettling2 = s["phantomSettling2"]?.GetValue<bool>() ?? false;
+                PhantomSettleSeconds = s["phantomSettleSeconds"]?.GetValue<int>() ?? 0;
+                PhantomSettleSeconds2 = s["phantomSettleSeconds2"]?.GetValue<int>() ?? 0;
                 ClipGuard = s["clipGuard"]?.GetValue<bool>() ?? false;
                 Compressor = s["compressor"]?.GetValue<bool>() ?? false;
                 if (!SliderSync.RecentlyTouched("gain2")) Gain2Db = s["gain2Db"]?.GetValue<int>() ?? 0;

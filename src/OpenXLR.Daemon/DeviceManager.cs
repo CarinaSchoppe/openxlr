@@ -115,12 +115,28 @@ public sealed class DeviceManager : BackgroundService
     private DateTime _phantomWroteAt = DateTime.MinValue;
     private DateTime _phantomWroteAt2 = DateTime.MinValue;
 
-    private DeviceState Stamp(DeviceState s) => s with
+    // Whole seconds left in a settle window (0 outside it). The 100 ms poll
+    // notices each one-second step, so clients get a ticking countdown from
+    // the ordinary state broadcasts.
+    private int SettleSecondsLeft(DateTime wroteAt)
     {
-        GainLocked = GainIsLocked,
-        PhantomSettling = DateTime.UtcNow - _phantomWroteAt < PhantomSettleWindow,
-        PhantomSettling2 = DateTime.UtcNow - _phantomWroteAt2 < PhantomSettleWindow,
-    };
+        double left = (PhantomSettleWindow - (DateTime.UtcNow - wroteAt)).TotalSeconds;
+        return left > 0 ? (int)Math.Ceiling(left) : 0;
+    }
+
+    private DeviceState Stamp(DeviceState s)
+    {
+        int settle1 = SettleSecondsLeft(_phantomWroteAt);
+        int settle2 = SettleSecondsLeft(_phantomWroteAt2);
+        return s with
+        {
+            GainLocked = GainIsLocked,
+            PhantomSettling = settle1 > 0,
+            PhantomSettling2 = settle2 > 0,
+            PhantomSettleSeconds = settle1,
+            PhantomSettleSeconds2 = settle2,
+        };
+    }
 
     /// <summary>Raised (off the poll loop) whenever the pushed state should change.</summary>
     public event Action<StateMessage>? StateChanged;

@@ -133,7 +133,9 @@ hardware it controls.
 Dials get Wave Link style touch panels: a knob with a moving needle, a
 live level meter, the value readout, and a mute overlay. Every send,
 mix master, gain, headphone volume, and the crossfade is a dial target,
-and one dial can hold a stack of targets cycled by tap or press.
+and one dial can hold a stack of targets cycled by tap or press. The
+panels are also touch draggable: swipe across one and the value moves
+by the drag distance when you lift your finger.
 
 ![Dial panels](docs/plugin-dials.png)
 
@@ -158,7 +160,10 @@ use OpenDeck's install-from-file, or copy the plugin folder into
 serving; the AUR package ships the folder in `/usr/share/openxlr/`).
 Touch taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 ([nekename/OpenDeck#437](https://github.com/nekename/OpenDeck/pull/437),
-merged upstream).
+merged upstream). Touch dragging the dial panels needs an OpenDeck
+build that turns touch strip swipes into dial ticks; stock OpenDeck up
+to 2.14.0 discards swipe gestures, so until that lands upstream the
+dials still adjust normally by rotation.
 
 ### Quality of life
 - Live Audio Flow graph of the whole routing, sources through outputs

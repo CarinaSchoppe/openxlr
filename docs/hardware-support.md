@@ -72,6 +72,14 @@ OpenXLR itself has never touched one.
 Decoded from USB captures of Wave Link, using the Pro's protocol family
 at its own address. Never run against real hardware.
 
+A sibling exists: the XLR Dock MK.2 for the Stream Deck+, built on the
+same Wave FX platform (80 dB gain, phantom, ClipGuard 2.0, onboard
+expander, voice tune, compressor, EQ). Its USB id is not yet known to
+this project; today's MK.1 pair turned out to share one protocol across
+two ids, and the MK.2 pair very likely does the same. Own one? Open an
+issue with your `lsusb` output and support is probably a small step
+away.
+
 | Control | State | Notes |
 |---|---|---|
 | Gain, mute, low cut, expander, voice tune + strength | coded | from capture analysis |

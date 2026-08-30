@@ -301,3 +301,17 @@ Every "the daemon breaks it" observation was this. Test streams must set
 `PULSE_PROP="node.name=OpenXLR_test"` (the matcher excludes OpenXLR-named streams) or play
 via a channel sink. The earlier "capture stream conflicts with aux forwarding" conclusion was
 an artifact of this and is WITHDRAWN.
+
+## 8. Phantom anti-thump hold (2026-08-30, measured live)
+
+The firmware mutes an XLR input around EVERY 48V transition, on and off
+alike, and unmutes it by itself. Measured on XLR 2: mute engages with the
+phantom write and releases after ~13 s; host unmute writes during the
+window are ignored. This is thump protection while the 48V rail ramps or
+discharges, and it is per input (the same flags byte, bit 0, set by the
+firmware itself).
+
+Implication for clients: a mute that appears with a phantom toggle is not
+stuck and must not be fought. The daemon stamps `phantomSettling` /
+`phantomSettling2` on the state for 15 s after each phantom write; the UI
+disables the matching mute button while the stamp is up.

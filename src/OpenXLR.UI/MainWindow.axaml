@@ -221,7 +221,9 @@
                         ToolTip.Tip="Gain lock: the daemon rejects every gain change while set"/>
         </Grid>
         <UniformGrid Columns="7">
-          <ToggleButton Content="Mute" Classes="mute" IsChecked="{Binding Mute, Mode=TwoWay}" Margin="0,0,6,0"/>
+          <ToggleButton Content="Mute" Classes="mute" IsChecked="{Binding Mute, Mode=TwoWay}" Margin="0,0,6,0"
+                        IsEnabled="{Binding !PhantomSettling}"
+                        ToolTip.Tip="The device mutes this input for about 13 seconds around every 48V change and unmutes it itself"/>
           <ToggleButton Content="Low Cut"    IsChecked="{Binding LowCut, Mode=TwoWay}"     Margin="0,0,6,0" IsVisible="{Binding CapLowCut}"/>
           <ToggleButton Content="{Binding SoftLowCutText}" Margin="0,0,6,0" IsVisible="{Binding ShowSoftLowCut}"
                         IsChecked="{Binding SoftLowCutOn, Mode=OneWay}" Click="OnCycleSoftLowCut"
@@ -252,7 +254,9 @@
                      HorizontalAlignment="Right"/>
         </Grid>
         <UniformGrid Columns="7" IsVisible="{Binding HasXlr2}">
-          <ToggleButton Content="Mute" Classes="mute" IsChecked="{Binding Mute2, Mode=TwoWay}" Margin="0,0,6,0"/>
+          <ToggleButton Content="Mute" Classes="mute" IsChecked="{Binding Mute2, Mode=TwoWay}" Margin="0,0,6,0"
+                        IsEnabled="{Binding !PhantomSettling2}"
+                        ToolTip.Tip="The device mutes this input for about 13 seconds around every 48V change and unmutes it itself"/>
           <ToggleButton Content="Low Cut"    IsChecked="{Binding LowCut2, Mode=TwoWay}"     Margin="0,0,6,0"/>
           <ToggleButton Content="Expander"   IsChecked="{Binding Expander2, Mode=TwoWay}"   Margin="0,0,6,0"/>
           <ToggleButton Content="Voice Tune" IsChecked="{Binding VoiceTune2, Mode=TwoWay}"  Margin="0,0,6,0"/>

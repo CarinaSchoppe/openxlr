@@ -66,4 +66,14 @@ public sealed record DeviceState
     /// onto every snapshot and rejects gain writes while it is set.
     /// </summary>
     public bool GainLocked { get; init; }
+
+    /// <summary>
+    /// Daemon-stamped, per XLR input: a 48V change was written within the
+    /// last 15 s. The Pro's firmware mutes the input for ~13 s around every
+    /// phantom transition (anti-thump) and unmutes it itself, ignoring host
+    /// unmutes meanwhile; clients use this to present that hold instead of a
+    /// stuck mute button.
+    /// </summary>
+    public bool PhantomSettling { get; init; }
+    public bool PhantomSettling2 { get; init; }
 }

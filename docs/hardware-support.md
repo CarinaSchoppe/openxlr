@@ -21,7 +21,7 @@ selectors, and the commit block every selector write needs.
 |---|---|---|
 | Gain 0 to 80 dB, mute (per XLR input) | verified | both inputs, independent structures |
 | Low cut, expander, voice tune + strength | verified | per input |
-| Phantom 48V, ClipGuard, compressor | verified | ClipGuard is an inverted byte in the protocol; handled |
+| Phantom 48V, ClipGuard, compressor | verified | ClipGuard is an inverted byte in the protocol; handled. The firmware mutes the input for ~13 s around every 48V change (anti-thump) and unmutes it itself; the UI shows this as a brief hold |
 | Headphone volumes x2, low impedance | verified | independent jacks |
 | Mic and PC crossfade | verified | zero-latency direct monitor inside the device |
 | Physical output routing | verified | HP1, HP2, Line Out, USB Aux; ear-verified on both jacks |

@@ -107,7 +107,20 @@ public sealed class DeviceManager : BackgroundService
 
     private bool GainIsLocked => _device is not null && _gainLocked.Contains(DevId(_device));
 
-    private DeviceState Stamp(DeviceState s) => s with { GainLocked = GainIsLocked };
+    // The Pro's firmware mutes an XLR input for ~13 s around every 48V
+    // transition (anti-thump) and unmutes it itself, ignoring host unmutes
+    // meanwhile. Stamp a settling flag for 15 s after each phantom write so
+    // clients can present that hold instead of a stuck mute button.
+    private static readonly TimeSpan PhantomSettleWindow = TimeSpan.FromSeconds(15);
+    private DateTime _phantomWroteAt = DateTime.MinValue;
+    private DateTime _phantomWroteAt2 = DateTime.MinValue;
+
+    private DeviceState Stamp(DeviceState s) => s with
+    {
+        GainLocked = GainIsLocked,
+        PhantomSettling = DateTime.UtcNow - _phantomWroteAt < PhantomSettleWindow,
+        PhantomSettling2 = DateTime.UtcNow - _phantomWroteAt2 < PhantomSettleWindow,
+    };
 
     /// <summary>Raised (off the poll loop) whenever the pushed state should change.</summary>
     public event Action<StateMessage>? StateChanged;
@@ -203,7 +216,10 @@ public sealed class DeviceManager : BackgroundService
                     case ControlNames.HpVolumeDb: _device.SetHpVolumeDb(value.GetDouble()); break;
                     case ControlNames.LowImpedance: _device.SetLowImpedance(value.GetBoolean()); break;
                     case ControlNames.Crossfade: _device.SetCrossfade(value.GetInt32()); break;
-                    case ControlNames.Phantom: _device.SetPhantom(value.GetBoolean()); break;
+                    case ControlNames.Phantom:
+                        _device.SetPhantom(value.GetBoolean());
+                        _phantomWroteAt = DateTime.UtcNow;
+                        break;
                     case ControlNames.ClipGuard: _device.SetClipGuard(value.GetBoolean()); break;
                     case ControlNames.Compressor: _device.SetCompressor(value.GetBoolean()); break;
                     case ControlNames.OutHp1: _device.SetOutHp1(value.GetBoolean()); break;
@@ -227,7 +243,10 @@ public sealed class DeviceManager : BackgroundService
                     case "expander2": _device.SetExpander2(value.GetBoolean()); break;
                     case "voiceTune2": _device.SetVoiceTune2(value.GetBoolean()); break;
                     case "voiceTuneStrength2": _device.SetVoiceTuneStrength2(value.GetInt32()); break;
-                    case "phantom2": _device.SetPhantom2(value.GetBoolean()); break;
+                    case "phantom2":
+                        _device.SetPhantom2(value.GetBoolean());
+                        _phantomWroteAt2 = DateTime.UtcNow;
+                        break;
                     case "clipGuard2": _device.SetClipGuard2(value.GetBoolean()); break;
                     case "compressor2": _device.SetCompressor2(value.GetBoolean()); break;
                     default: return $"unknown control '{control}'";
@@ -265,7 +284,7 @@ public sealed class DeviceManager : BackgroundService
                 if (s.Expander != p.Expander) _device.SetExpander(p.Expander);
                 if (s.VoiceTune != p.VoiceTune) _device.SetVoiceTune(p.VoiceTune);
                 if (s.VoiceTuneStrength != p.VoiceTuneStrength) _device.SetVoiceTuneStrength(p.VoiceTuneStrength);
-                if (s.Phantom != p.Phantom) _device.SetPhantom(p.Phantom);
+                if (s.Phantom != p.Phantom) { _device.SetPhantom(p.Phantom); _phantomWroteAt = DateTime.UtcNow; }
                 if (s.ClipGuard != p.ClipGuard) _device.SetClipGuard(p.ClipGuard);
                 if (s.Compressor != p.Compressor) _device.SetCompressor(p.Compressor);
                 if (s.Gain2Db != p.Gain2Db) _device.SetGain2Db(p.Gain2Db);
@@ -274,7 +293,7 @@ public sealed class DeviceManager : BackgroundService
                 if (s.Expander2 != p.Expander2) _device.SetExpander2(p.Expander2);
                 if (s.VoiceTune2 != p.VoiceTune2) _device.SetVoiceTune2(p.VoiceTune2);
                 if (s.VoiceTuneStrength2 != p.VoiceTuneStrength2) _device.SetVoiceTuneStrength2(p.VoiceTuneStrength2);
-                if (s.Phantom2 != p.Phantom2) _device.SetPhantom2(p.Phantom2);
+                if (s.Phantom2 != p.Phantom2) { _device.SetPhantom2(p.Phantom2); _phantomWroteAt2 = DateTime.UtcNow; }
                 if (s.ClipGuard2 != p.ClipGuard2) _device.SetClipGuard2(p.ClipGuard2);
                 if (s.Compressor2 != p.Compressor2) _device.SetCompressor2(p.Compressor2);
                 if (s.HpVolumeDb != p.HpVolumeDb) _device.SetHpVolumeDb(p.HpVolumeDb);

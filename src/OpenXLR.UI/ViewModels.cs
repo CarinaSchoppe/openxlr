@@ -332,6 +332,14 @@ public sealed class MainViewModel : ViewModelBase
     private bool _phantom;
     public bool Phantom { get => _phantom; set { if (Set(ref _phantom, value) && !_applying) _ = _client.SetControlAsync("phantom", value); } }
 
+    // The device holds the input muted for ~13 s around every 48V change and
+    // unmutes it itself; the daemon stamps these while that hold is active,
+    // and the mute buttons disable so nobody fights the firmware.
+    private bool _phantomSettling;
+    public bool PhantomSettling { get => _phantomSettling; set => Set(ref _phantomSettling, value); }
+    private bool _phantomSettling2;
+    public bool PhantomSettling2 { get => _phantomSettling2; set => Set(ref _phantomSettling2, value); }
+
     private bool _clipGuard;
     public bool ClipGuard { get => _clipGuard; set { if (Set(ref _clipGuard, value) && !_applying) _ = _client.SetControlAsync("clipGuard", value); } }
 
@@ -496,6 +504,8 @@ public sealed class MainViewModel : ViewModelBase
                 if (!SliderSync.RecentlyTouched("hp")) HpVolumeDb = s["hpVolumeDb"]?.GetValue<double>() ?? 0;
                 if (!SliderSync.RecentlyTouched("hp2")) Hp2VolumeDb = s["hp2VolumeDb"]?.GetValue<double>() ?? 0;
                 Phantom = s["phantom"]?.GetValue<bool>() ?? false;
+                PhantomSettling = s["phantomSettling"]?.GetValue<bool>() ?? false;
+                PhantomSettling2 = s["phantomSettling2"]?.GetValue<bool>() ?? false;
                 ClipGuard = s["clipGuard"]?.GetValue<bool>() ?? false;
                 Compressor = s["compressor"]?.GetValue<bool>() ?? false;
                 if (!SliderSync.RecentlyTouched("gain2")) Gain2Db = s["gain2Db"]?.GetValue<int>() ?? 0;

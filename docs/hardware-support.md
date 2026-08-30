@@ -21,7 +21,7 @@ selectors, and the commit block every selector write needs.
 |---|---|---|
 | Gain 0 to 80 dB, mute (per XLR input) | verified | both inputs, independent structures |
 | Low cut, expander, voice tune + strength | verified | per input |
-| Phantom 48V, ClipGuard, compressor | verified | ClipGuard is an inverted byte in the protocol; handled. The firmware mutes the input for ~13 s around every 48V change (anti-thump) and unmutes it itself; the UI shows this as a brief hold |
+| Phantom 48V, ClipGuard, compressor | verified | ClipGuard is an inverted byte in the protocol; handled. The firmware mutes the input for ~13 s around every 48V change (anti-thump) and unmutes it itself; the UI counts the hold down on the mute button |
 | Headphone volumes x2, low impedance | verified | independent jacks |
 | Mic and PC crossfade | verified | zero-latency direct monitor inside the device |
 | Physical output routing | verified | HP1, HP2, Line Out, USB Aux; ear-verified on both jacks |
@@ -64,8 +64,8 @@ OpenXLR itself has never touched one.
 |---|---|---|
 | Gain, mute | coded | scale confirmed at 256 raw units per dB ([openwave PR #8](https://github.com/rikkichy/openwave/pull/8) measured it on the shared protocol); the maximum (75 or 80 dB) still needs the device's own display |
 | Headphone volume, low impedance | coded | may need a two-way ALSA sync; a tester will tell |
-| Phantom 48V | unmapped | Wave Link only toggle, but the front LED confirms state; one [USB capture](usb-capture.md) from an owner maps it |
-| Low cut, voice DSP, crossfade | unmapped | the hardware has them; their offsets are unknown. The same [USB capture](usb-capture.md) would map them |
+| Phantom 48V | coded | config byte 6, found by [openwave PR #8](https://github.com/rikkichy/openwave/pull/8) against the MK.1's own 48V LED; the same byte is live on the XLR Dock. A tester's LED check closes it |
+| Low cut, voice DSP, crossfade | unmapped | the hardware has them; their offsets are unknown. A [USB capture](usb-capture.md) from an owner would map them |
 
 ## Wave XLR MK.2 (0fd9:00b6), needs a tester
 
@@ -105,7 +105,8 @@ not fix:
    archive and what you observed.
 
 MK.1 owners who can record a Wave Link USB capture on Windows unlock the
-rest of their device: phantom power, low cut, the voice DSP, and the
-crossfade are present in the hardware and just need their registers
-mapped. The [USB capture guide](usb-capture.md) walks through it in
-about 15 minutes, no programming needed.
+rest of their device: low cut, the voice DSP, and the crossfade are
+present in the hardware and just need their registers mapped (phantom is
+already coded, credit to the openwave project). The
+[USB capture guide](usb-capture.md) walks through it in about 15
+minutes, no programming needed.

@@ -311,7 +311,14 @@ window are ignored. This is thump protection while the 48V rail ramps or
 discharges, and it is per input (the same flags byte, bit 0, set by the
 firmware itself).
 
+The firmware sometimes SKIPS the mute entirely (observed on a phantom
+toggle shortly after a previous cycle, i.e. a rail still charged has no
+thump to protect against), so the hold must not be a fixed timer.
+
 Implication for clients: a mute that appears with a phantom toggle is not
 stuck and must not be fought. The daemon stamps `phantomSettling` /
-`phantomSettling2` on the state for 15 s after each phantom write; the UI
-disables the matching mute button while the stamp is up.
+`phantomSettling2` plus a `phantomSettleSeconds` countdown on the state
+after each phantom write; the hold ends the moment the firmware's own
+unmute shows up in the readback (a 15 s window is only the cap, with a
+2 s grace before the mute is first observed). The UI disables the
+matching mute button and counts the hold down on it.

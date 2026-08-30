@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.0
+Version:        0.1.5
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -128,6 +128,16 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Sun Aug 30 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.5-1
+- XLR Dock: 48V phantom power and headphone low impedance, reached over
+  the original Wave XLR's protocol dialect (discovery credit: openwave
+  PR #8) and verified on hardware.
+- Wave XLR Pro: the firmware's ~13 s anti-thump mute around every 48V
+  change is now shown as a settling hold with a live countdown on the
+  mute button, released the moment the input goes live again.
+- Mic filter nodes carry an explicit session priority so they can never
+  win the default-device election.
+
 * Sat Aug 29 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.0-1
 - Initial Fedora packaging, mirroring the tested AUR and Debian
   packages: framework-dependent .NET publish of the daemon and UI into

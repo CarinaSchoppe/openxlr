@@ -4,15 +4,13 @@ This guide is for owners of the original Wave XLR (`0fd9:007d`) who want
 to help map the rest of its protocol. No programming needed, just
 Wireshark and about 15 minutes.
 
-The prize is phantom power. On the MK.1 the +48V toggle only exists in
-Wave Link, and the device has a front LED that lights when phantom is
-actually on. That LED is what makes your capture so valuable: for every
-toggle we get both the exact USB packet and hardware confirmation that
-it worked. Once we see that packet, OpenXLR can send it too.
-
-The same session can also unlock low cut, ClipGuard, and the mic/PC
-crossfade, which the hardware has but whose registers we have never
-seen.
+The prize is the mic DSP: low cut, ClipGuard, and the mic/PC crossfade
+exist in the hardware but their registers have never been seen. (Phantom
+power used to be on this list; the
+[openwave](https://github.com/rikkichy/openwave) project found its byte,
+so OpenXLR already sends it. Your capture's phantom toggles now serve as
+confirmation, and the front 48V LED still makes them the easiest part to
+line up.)
 
 ## What you need
 

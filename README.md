@@ -25,7 +25,7 @@ the author's own hardware.
 |---|---|---|
 | Wave XLR Pro | 0fd9:00b4 | full support, verified on hardware |
 | XLR Dock (Stream Deck+ module) | 0fd9:00a6 | gain, mute, headphone volume, 48V phantom power, low impedance; verified on hardware |
-| Wave XLR | 0fd9:007d | gain, mute, headphone volume, low impedance; protocol proven by [openwave](https://github.com/rikkichy/openwave), needs a tester |
+| Wave XLR | 0fd9:007d | gain, mute, headphone volume, low impedance, 48V phantom power; protocol proven by [openwave](https://github.com/rikkichy/openwave), needs a tester |
 | Wave XLR MK.2 | 0fd9:00b6 | gain, mute, DSP, headphone volume, crossfade; decoded from captures, needs a tester |
 
 The UI shows only the controls the connected device has. With more than
@@ -58,7 +58,7 @@ XLR Pro:
 On the others, what their protocols expose so far:
 - Wave XLR MK.2: gain, mute, low cut, expander, voice tune with strength,
   headphone volume, low impedance, crossfade
-- Wave XLR: gain, mute, headphone volume, low impedance
+- Wave XLR: gain, mute, headphone volume, low impedance, phantom power
 - XLR Dock: gain, mute, headphone volume, driven through the kernel's
   standard ALSA controls, plus 48V phantom power and headphone low
   impedance over the original Wave XLR's protocol dialect, which the
@@ -208,11 +208,13 @@ The four devices speak three different dialects:
   and the hardware mix matrix; a write reads the block, modifies it,
   writes it back, and follows with a commit block. Full offsets and the
   discovery story: [docs/wave-xlr-pro-protocol.md](docs/wave-xlr-pro-protocol.md)
-- Wave XLR (MK.1): a small class-request protocol (`bRequest 0x85/0x05`,
-  `wIndex 0x3303`) with one config block, proven by the openwave project
-- XLR Dock: no vendor traffic at all. Its whole control surface (gain,
-  mute, headphone volume) is standard ALSA, and its DSP is provided
-  host-side by the submixer
+- Wave XLR (MK.1) and XLR Dock: a small class-request protocol
+  (`bRequest 0x85/0x05`, `wIndex 0x3303`) with one config block, proven
+  by the openwave project. The dock turned out to speak it too, which is
+  how it gained phantom power (config byte 6) and low impedance (byte
+  33); its everyday controls (gain, mute, headphone volume) ride the
+  kernel's standard ALSA path, and its DSP is provided host-side by the
+  submixer
 
 ## Requirements
 
@@ -248,7 +250,7 @@ Ubuntu 24.04 or newer. Download `openxlr_<version>_amd64.deb` from the
 then:
 
 ```sh
-sudo apt install ./openxlr_0.1.0_amd64.deb
+sudo apt install ./openxlr_*_amd64.deb
 systemctl --user enable --now openxlr-daemon
 openxlr               # the mixer UI, also in your application menu
 ```
@@ -267,7 +269,7 @@ Fedora 44 or newer. Download `openxlr-<version>.x86_64.rpm` from the
 then:
 
 ```sh
-sudo dnf install ./openxlr-0.1.0-1.fc44.x86_64.rpm
+sudo dnf install ./openxlr-*.x86_64.rpm
 systemctl --user enable --now openxlr-daemon
 openxlr               # the mixer UI, also in your application menu
 ```

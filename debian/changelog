@@ -1,3 +1,16 @@
+openxlr (0.1.5) resolute; urgency=medium
+
+  * XLR Dock: 48V phantom power and headphone low impedance, reached
+    over the original Wave XLR's protocol dialect (discovery credit:
+    openwave PR #8) and verified on hardware.
+  * Wave XLR Pro: the firmware's ~13 s anti-thump mute around every 48V
+    change is shown as a settling hold with a live countdown on the mute
+    button, released the moment the input goes live again.
+  * Mic filter nodes carry an explicit session priority so they can
+    never win the default-device election.
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Sun, 30 Aug 2026 17:00:00 +0100
+
 openxlr (0.1.0) resolute; urgency=medium
 
   * Initial Ubuntu packaging, mirroring the tested AUR package:

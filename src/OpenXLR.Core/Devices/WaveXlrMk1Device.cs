@@ -47,6 +47,7 @@ public abstract class Mk1ClassProtocolDevice : IAudioDevice
 
     private const int OffGain = 0;
     private const int OffMute = 4;
+    private const int OffPhantom = 6;   // 48V, 0x01 on; openwave PR #8, found against the MK.1's own LED
     private const int OffHpVol = 9;
     private const int OffLowZ = 33;
 
@@ -117,6 +118,7 @@ public abstract class Mk1ClassProtocolDevice : IAudioDevice
         {
             GainDb = (int)Math.Round(BinaryPrimitives.ReadUInt16LittleEndian(c.AsSpan(OffGain)) / 256.0),
             Mute = c[OffMute] != 0,
+            Phantom = c[OffPhantom] != 0,
             HpVolumeDb = Math.Max(-60.0, BinaryPrimitives.ReadInt16LittleEndian(c.AsSpan(OffHpVol)) / 256.0),
             LowImpedance = HasLowZ && c[OffLowZ] != 0,
             Crossfade = 100,   // not mapped in this protocol; keep the neutral centre
@@ -142,13 +144,14 @@ public abstract class Mk1ClassProtocolDevice : IAudioDevice
         if (HasLowZ) Modify(c => c[OffLowZ] = on ? (byte)1 : (byte)0);
     }
 
+    public void SetPhantom(bool on) => Modify(c => c[OffPhantom] = on ? (byte)1 : (byte)0);
+
     // Present on the hardware but not yet mapped in this protocol.
     public void SetLowCut(bool on) { }
     public void SetExpander(bool on) { }
     public void SetVoiceTune(bool on) { }
     public void SetVoiceTuneStrength(int value) { }
     public void SetCrossfade(int value) { }
-    public void SetPhantom(bool on) { }
     public void SetClipGuard(bool on) { }
     public void SetCompressor(bool on) { }
 
@@ -181,6 +184,7 @@ public sealed class WaveXlrMk1Device : Mk1ClassProtocolDevice
         Mute = true,
         HpVolume = true,
         LowImpedance = true,
+        Phantom = true,
         XlrInputs = 1,
         HpOutputs = 1,
     };

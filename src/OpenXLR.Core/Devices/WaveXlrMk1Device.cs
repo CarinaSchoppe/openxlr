@@ -17,9 +17,11 @@ namespace OpenXLR.Core.Devices;
 /// meters, block 0x0A a 51-byte device info record. Protocol from the
 /// openwave project (MIT), verified on MK.1 hardware by its users.
 ///
-/// The gain field's scale is treated as Q8.8 dB here (like the headphone
-/// field); upstream left it opaque. Verify against the device's own gain
-/// display on first contact and correct if the readout disagrees.
+/// The gain field's scale is Q8.8 dB: openwave PR #8 measured exactly 256
+/// raw units per dB at four points against the ALSA capture control (on the
+/// XLR Dock, which shares this protocol). Still open for a tester: the MK.1's
+/// maximum, clamped to 75 dB here while openwave's profile says 0x5000 = 80;
+/// the device's own gain display settles it.
 ///
 /// Crossfade, low cut, and the voice DSP exist on the hardware but their
 /// config offsets are not yet mapped, so the capabilities exclude them; a

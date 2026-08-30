@@ -225,6 +225,16 @@ public sealed class XlrDockDevice : IAudioDevice
             {
                 try { blocks["config"] = Convert.ToHexString(ReadConfig()); }
                 catch (Exception ex) { blocks["config"] = $"error: {ex.Message}"; }
+                try
+                {
+                    var buf = new byte[51];
+                    int n = LibUsb.libusb_control_transfer(
+                        _handle, RtRead, ReqRead, 0x000A, UsbIndex, buf, 51, 1000);
+                    blocks["devinfo"] = n >= 0
+                        ? Convert.ToHexString(buf.AsSpan(0, n))
+                        : $"error: {LibUsb.StrError(n)}";
+                }
+                catch (Exception ex) { blocks["devinfo"] = $"error: {ex.Message}"; }
             }
             return blocks;
         }

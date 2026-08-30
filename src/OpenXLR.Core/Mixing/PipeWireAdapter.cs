@@ -325,9 +325,11 @@ public sealed class PipeWireAdapter
             $"filter.graph = {{ nodes = [ {string.Join(' ', nodes)} ] {links}" +
             $"inputs = [ \"{inPort}\" ] outputs = [ \"{outPort}\" ] }} " +
             $"capture.props = {{ node.name = {sinkName} media.class = Audio/Sink " +
-            "audio.channels = 1 audio.position = [ MONO ] node.suspend-on-idle = false } " +
+            "audio.channels = 1 audio.position = [ MONO ] node.suspend-on-idle = false " +
+            "priority.session = 100 } " +
             $"playback.props = {{ node.name = {srcName} media.class = Audio/Source " +
-            "audio.channels = 1 audio.position = [ MONO ] node.suspend-on-idle = false } }";
+            "audio.channels = 1 audio.position = [ MONO ] node.suspend-on-idle = false " +
+            "priority.session = 100 } }";
         var psi = new ProcessStartInfo("pw-cli")
         {
             RedirectStandardOutput = true,

@@ -61,7 +61,7 @@ OpenXLR itself has never touched one.
 
 | Control | State | Notes |
 |---|---|---|
-| Gain, mute | coded | gain scale needs one confirmation against the device's own display |
+| Gain, mute | coded | scale confirmed at 256 raw units per dB ([openwave PR #8](https://github.com/rikkichy/openwave/pull/8) measured it on the shared protocol); the maximum (75 or 80 dB) still needs the device's own display |
 | Headphone volume, low impedance | coded | may need a two-way ALSA sync; a tester will tell |
 | Phantom 48V | unmapped | Wave Link only toggle, but the front LED confirms state; one [USB capture](usb-capture.md) from an owner maps it |
 | Low cut, voice DSP, crossfade | unmapped | the hardware has them; their offsets are unknown. The same [USB capture](usb-capture.md) would map them |

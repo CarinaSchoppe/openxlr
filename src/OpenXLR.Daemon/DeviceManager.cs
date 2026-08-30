@@ -124,17 +124,25 @@ public sealed class DeviceManager : BackgroundService
         return left > 0 ? (int)Math.Ceiling(left) : 0;
     }
 
+    // The hold ends when the firmware's own unmute shows up in the readback;
+    // the window is only a cap (and the grace covers the moment right after
+    // the write, before the firmware's mute is first observed).
+    private static readonly TimeSpan PhantomMuteGrace = TimeSpan.FromSeconds(2);
+
     private DeviceState Stamp(DeviceState s)
     {
-        int settle1 = SettleSecondsLeft(_phantomWroteAt);
-        int settle2 = SettleSecondsLeft(_phantomWroteAt2);
+        DateTime now = DateTime.UtcNow;
+        bool held1 = SettleSecondsLeft(_phantomWroteAt) > 0
+                     && (s.Mute || now - _phantomWroteAt < PhantomMuteGrace);
+        bool held2 = SettleSecondsLeft(_phantomWroteAt2) > 0
+                     && (s.Mute2 || now - _phantomWroteAt2 < PhantomMuteGrace);
         return s with
         {
             GainLocked = GainIsLocked,
-            PhantomSettling = settle1 > 0,
-            PhantomSettling2 = settle2 > 0,
-            PhantomSettleSeconds = settle1,
-            PhantomSettleSeconds2 = settle2,
+            PhantomSettling = held1,
+            PhantomSettling2 = held2,
+            PhantomSettleSeconds = held1 ? SettleSecondsLeft(_phantomWroteAt) : 0,
+            PhantomSettleSeconds2 = held2 ? SettleSecondsLeft(_phantomWroteAt2) : 0,
         };
     }
 

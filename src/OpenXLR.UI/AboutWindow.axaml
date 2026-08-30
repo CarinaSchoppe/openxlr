@@ -29,10 +29,10 @@
     </StackPanel>
 
     <TextBlock TextWrapping="Wrap" Foreground="#b9bfcc" FontSize="13"
-               Text="Open-source control suite for the Elgato Wave XLR Pro on Linux: hardware control over a reverse-engineered vendor protocol, a Wave Link style PipeWire submixer with per-application channels and virtual microphones, multi-output monitoring, and a dedicated mix for a second computer on the USB Aux port."/>
+               Text="Open-source control suite for Elgato XLR interfaces on Linux (Wave XLR Pro, XLR Dock, Wave XLR, Wave XLR MK.2): hardware control over reverse-engineered protocols, a Wave Link style PipeWire submixer with per-application channels and virtual microphones, multi-output monitoring, a dedicated mix for a second computer on the USB Aux port, and an OpenDeck plugin for Stream Deck control."/>
 
     <TextBlock TextWrapping="Wrap" Foreground="#6b7285" FontSize="11"
-               Text="Not affiliated with or endorsed by Elgato. Built by reverse engineering on the author's own hardware."/>
+               Text="Not affiliated with or endorsed by Elgato. Built by protocol analysis on the author's own hardware, with credit to the openwave project for the Wave XLR dialect."/>
 
     <StackPanel Spacing="2" Margin="0,4,0,0">
       <Button Classes="link" Content="github.com/emaspa/openxlr" Click="OnRepo"/>

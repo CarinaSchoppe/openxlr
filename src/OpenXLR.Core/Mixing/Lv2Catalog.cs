@@ -74,6 +74,10 @@ public static class Lv2Catalog
     {
         string? uri = Lilv.Str(Lilv.lilv_node_as_uri(Lilv.lilv_plugin_get_uri(plugin)));
         if (uri is null) return null;
+        // Plugin hosts wrapped as LV2 (Carla's rack and patchbay) need their
+        // own GUI and bridges; inside a headless filter-chain they are dead
+        // weight, and their declared features look like any other plugin's.
+        if (uri.StartsWith("http://kxstudio.sf.net/carla", StringComparison.Ordinal)) return null;
         string name = Lilv.OwnedString(Lilv.lilv_plugin_get_name(plugin)) ?? uri;
         string category = "";
         IntPtr cls = Lilv.lilv_plugin_get_class(plugin);

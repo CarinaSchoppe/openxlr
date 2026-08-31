@@ -1,3 +1,17 @@
+openxlr (0.1.7) resolute; urgency=medium
+
+  * OpenDeck plugin: inserts on the deck. Keys toggle one insert's bypass
+    (green in the path, red bypassed) or a whole chain; dials take any
+    control of any insert, stepping along its own scale, with the bypass
+    on the press. Choices are listed live from the daemon, and a key or
+    dial follows its insert by id with a same-plugin fallback after a
+    profile recall rebuilds the chain.
+  * Wave XLR Pro: the UCM profile parking now retries until the card
+    settles, fixing a silent microphone after a reboot (at boot the USB
+    device appears before the PipeWire card exists).
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Mon, 31 Aug 2026 17:50:00 +0100
+
 openxlr (0.1.6) resolute; urgency=medium
 
   * Plugin inserts: LV2 plugin chains on each XLR input (mono) and on

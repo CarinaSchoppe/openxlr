@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.6
+Version:        0.1.7
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -137,6 +137,17 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Mon Aug 31 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.7-1
+- OpenDeck plugin: inserts on the deck. Keys toggle one insert's bypass
+  (green in the path, red bypassed) or a whole chain; dials take any
+  control of any insert, stepping along its own scale, with the bypass
+  on the press. Choices are listed live from the daemon, and a key or
+  dial follows its insert by id with a same-plugin fallback after a
+  profile recall rebuilds the chain.
+- Wave XLR Pro: the UCM profile parking now retries until the card
+  settles, fixing a silent microphone after a reboot (at boot the USB
+  device appears before the PipeWire card exists).
+
 * Mon Aug 31 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.6-1
 - Plugin inserts: LV2 plugin chains on each XLR input (mono) and on
   every mix (stereo), with a plugin picker, per-plugin control windows

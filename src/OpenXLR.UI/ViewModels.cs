@@ -39,12 +39,17 @@ public sealed class MainViewModel : ViewModelBase
     {
         _client = client;
         Inserts = new InsertsViewModel(client, "xlr1");
+        Inserts2 = new InsertsViewModel(client, "xlr2");
         _client.StateReceived += node => Dispatcher.UIThread.Post(() => Apply(node));
         _client.ConnectionChanged += up => Dispatcher.UIThread.Post(() =>
         {
             DaemonConnected = up;
-            if (!up) { DeviceConnected = false; Status = "daemon not running"; Inserts.ResetForNewConnection(); }
-            else Inserts.EnsurePluginsLoaded();
+            if (!up)
+            {
+                DeviceConnected = false; Status = "daemon not running";
+                Inserts.ResetForNewConnection(); Inserts2.ResetForNewConnection();
+            }
+            else { Inserts.EnsurePluginsLoaded(); Inserts2.EnsurePluginsLoaded(); }
         });
         _client.ErrorReceived += msg => Dispatcher.UIThread.Post(() => Status = msg);
         _client.MetersReceived += levels => Dispatcher.UIThread.Post(() => ApplyMeters(levels));
@@ -734,8 +739,9 @@ public sealed class MainViewModel : ViewModelBase
         Raise(nameof(HasApps));
     }
 
-    /// <summary>Plugin insert chain of the first XLR channel.</summary>
+    /// <summary>Plugin insert chains of the two XLR channels.</summary>
     public InsertsViewModel Inserts { get; }
+    public InsertsViewModel Inserts2 { get; }
 
     private void ApplyMixer(JsonNode? mixer)
     {
@@ -744,6 +750,7 @@ public sealed class MainViewModel : ViewModelBase
         SoftLowCutHz = mixer["lowCutHz"]?.GetValue<int>() ?? 0;
         SoftClipGuard = mixer["softClipGuard"]?.GetValue<bool>() ?? false;
         Inserts.Apply(mixer["inserts"]?["xlr1"]);
+        Inserts2.Apply(mixer["inserts"]?["xlr2"]);
 
         if (mixer["mixes"] is JsonArray mixes)
         {

@@ -163,9 +163,11 @@ public partial class MainWindow : Window
 
     private async void OnAddInsert(object? sender, RoutedEventArgs e)
     {
-        var picker = new PluginPickerWindow { DataContext = _vm.Inserts };
+        // The button's Tag names the channel: "xlr2" for the second input.
+        InsertsViewModel chain = (sender as Control)?.Tag as string == "xlr2" ? _vm.Inserts2 : _vm.Inserts;
+        var picker = new PluginPickerWindow { DataContext = chain };
         PluginChoice? choice = await picker.ShowDialog<PluginChoice?>(this);
-        if (choice is not null) _vm.Inserts.Add(choice);
+        if (choice is not null) chain.Add(choice);
     }
 
     private void OnInsertControls(object? sender, RoutedEventArgs e)
@@ -184,17 +186,17 @@ public partial class MainWindow : Window
 
     private void OnInsertUp(object? sender, RoutedEventArgs e)
     {
-        if ((sender as Control)?.DataContext is InsertViewModel ins) _vm.Inserts.Move(ins, -1);
+        if ((sender as Control)?.DataContext is InsertViewModel ins) ins.Owner.Move(ins, -1);
     }
 
     private void OnInsertDown(object? sender, RoutedEventArgs e)
     {
-        if ((sender as Control)?.DataContext is InsertViewModel ins) _vm.Inserts.Move(ins, +1);
+        if ((sender as Control)?.DataContext is InsertViewModel ins) ins.Owner.Move(ins, +1);
     }
 
     private void OnInsertRemove(object? sender, RoutedEventArgs e)
     {
-        if ((sender as Control)?.DataContext is InsertViewModel ins) _vm.Inserts.Remove(ins);
+        if ((sender as Control)?.DataContext is InsertViewModel ins) ins.Owner.Remove(ins);
     }
 
     private FlowWindow? _flow;

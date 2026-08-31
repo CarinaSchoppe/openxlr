@@ -190,6 +190,9 @@ public sealed class InsertViewModel : ViewModelBase
     public string Plugin { get; }
     public string Label { get; }
 
+    /// <summary>The channel chain this insert belongs to (row buttons route through it).</summary>
+    public InsertsViewModel Owner => _owner;
+
     private readonly Dictionary<string, double> _params = [];
 
     private bool _bypass;

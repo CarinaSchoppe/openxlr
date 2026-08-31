@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.7
+Version:        0.1.8
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -137,6 +137,12 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Mon Aug 31 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.8-1
+- Mixer wiring pairs ports by channel and ignores duplicated port
+  listings. A USB sink caught mid re-enumeration lists its ports twice,
+  which used to produce a crossed link (right channel into the left
+  speaker) on every selected monitor output.
+
 * Mon Aug 31 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.7-1
 - OpenDeck plugin: inserts on the deck. Keys toggle one insert's bypass
   (green in the path, red bypassed) or a whole chain; dials take any

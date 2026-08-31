@@ -22,12 +22,19 @@ public sealed class WebSocketHub
     private readonly MixerService _mixer;
     private readonly ILogger<WebSocketHub> _log;
     private readonly ConcurrentDictionary<Guid, Client> _clients = new();
+    // Receive loops must observe shutdown: an open socket otherwise keeps
+    // Kestrel's graceful stop waiting for the whole host timeout (30 s), long
+    // enough for systemd to SIGKILL the daemon before the other services
+    // ever get to tear down.
+    private readonly CancellationToken _stopping;
 
-    public WebSocketHub(DeviceManager devices, MixerService mixer, ILogger<WebSocketHub> log)
+    public WebSocketHub(DeviceManager devices, MixerService mixer, ILogger<WebSocketHub> log,
+        IHostApplicationLifetime lifetime)
     {
         _devices = devices;
         _mixer = mixer;
         _log = log;
+        _stopping = lifetime.ApplicationStopping;
         // Either half changing pushes the combined state, so clients always see
         // device and mixer consistently in one message.
         _devices.StateChanged += ignored => { _ = BroadcastAsync(Snapshot()); };
@@ -76,7 +83,17 @@ public sealed class WebSocketHub
             WebSocketReceiveResult res;
             do
             {
-                res = await client.Socket.ReceiveAsync(buf, CancellationToken.None);
+                try
+                {
+                    res = await client.Socket.ReceiveAsync(buf, _stopping);
+                }
+                catch (OperationCanceledException) when (_stopping.IsCancellationRequested)
+                {
+                    using var grace = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    try { await client.Socket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, "daemon stopping", grace.Token); }
+                    catch (Exception) { /* the client may already be gone */ }
+                    return;
+                }
                 if (res.MessageType == WebSocketMessageType.Close)
                 {
                     await client.Socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);

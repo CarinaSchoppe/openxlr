@@ -80,6 +80,8 @@ install -Dm644 packaging/70-openxlr.rules \
     %{buildroot}%{_udevrulesdir}/70-openxlr.rules
 install -Dm644 packaging/50-xlr-dock-capture-hold.conf \
     %{buildroot}%{_datadir}/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf
+install -Dm644 packaging/51-openxlr-pro-raw-names.conf \
+    %{buildroot}%{_datadir}/wireplumber/wireplumber.conf.d/51-openxlr-pro-raw-names.conf
 
 # The reference unit points into a source checkout; the package runs
 # the wrapper.
@@ -122,6 +124,7 @@ MSG
 %{_bindir}/openxlr-daemon
 %{_udevrulesdir}/70-openxlr.rules
 %{_datadir}/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf
+%{_datadir}/wireplumber/wireplumber.conf.d/51-openxlr-pro-raw-names.conf
 %{_userunitdir}/openxlr-daemon.service
 %{_datadir}/applications/openxlr.desktop
 %{_datadir}/icons/hicolor/*/apps/openxlr.*

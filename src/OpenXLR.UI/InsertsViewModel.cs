@@ -22,14 +22,27 @@ public sealed class InsertsViewModel : ViewModelBase
 {
     private readonly DaemonClient _client;
     private readonly string _channel;
+    private readonly int _channels;
     private bool _applying;
     private bool _pluginsRequested;
 
-    public InsertsViewModel(DaemonClient client, string channel)
+    /// <param name="channel">Insert key: "xlr1", "xlr2", or "mix:&lt;id&gt;".</param>
+    /// <param name="channels">1 for the mono mic path, 2 for a stereo mix.</param>
+    public InsertsViewModel(DaemonClient client, string channel, int channels = 1, string? title = null)
     {
         _client = client;
         _channel = channel;
+        _channels = channels;
+        Title = title ?? channel;
     }
+
+    /// <summary>What the chain belongs to, for window titles ("XLR 1", "Stream mix").</summary>
+    public string Title { get; }
+
+    /// <summary>Picker header: which plugins fit this chain.</summary>
+    public string PickerHint => _channels == 1
+        ? "LV2 plugins that fit the mono mic path (one input, one output)"
+        : "LV2 plugins that fit a stereo mix (two inputs, two outputs)";
 
     public ObservableCollection<InsertViewModel> Items { get; } = [];
     public ObservableCollection<PluginChoice> PluginChoices { get; } = [];
@@ -43,6 +56,9 @@ public sealed class InsertsViewModel : ViewModelBase
         1 => "1 plugin",
         int n => $"{n} plugins in chain",
     };
+
+    /// <summary>Label for a compact button that opens the chain window.</summary>
+    public string ButtonText => Items.Count == 0 ? "Inserts…" : $"Inserts ({Items.Count})…";
 
     private PluginChoice? _selectedPlugin;
     public PluginChoice? SelectedPlugin
@@ -71,17 +87,21 @@ public sealed class InsertsViewModel : ViewModelBase
             foreach (JsonNode? p in arr)
             {
                 if (p is null) continue;
-                // The mic path is mono: only mono in / mono out plugins fit.
-                if ((p["audioIns"]?.GetValue<int>() ?? 0) != 1 || (p["audioOuts"]?.GetValue<int>() ?? 0) != 1) continue;
+                // Mono chains take mono in / mono out plugins; stereo chains take
+                // plugins with at least two ins and two outs (extra ports stay unlinked).
+                int ins = p["audioIns"]?.GetValue<int>() ?? 0, outs = p["audioOuts"]?.GetValue<int>() ?? 0;
+                bool fits = _channels == 1 ? ins == 1 && outs == 1 : ins >= 2 && outs >= 2;
+                if (!fits) continue;
                 PluginChoices.Add(new PluginChoice(
                     p["plugin"]!.GetValue<string>(),
                     p["name"]?.GetValue<string>() ?? p["plugin"]!.GetValue<string>(),
                     p["category"]?.GetValue<string>() ?? "",
                     p["params"] ?? new JsonArray()));
             }
+            string width = _channels == 1 ? "mono" : "stereo";
             Note = PluginChoices.Count == 0
-                ? "No mono LV2 plugins found (install e.g. lsp-plugins-lv2 or x42-plugins)"
-                : $"{PluginChoices.Count} mono LV2 plugins available";
+                ? $"No {width} LV2 plugins found (install e.g. lsp-plugins-lv2 or x42-plugins)"
+                : $"{PluginChoices.Count} {width} LV2 plugins available";
         });
     }
 
@@ -114,6 +134,7 @@ public sealed class InsertsViewModel : ViewModelBase
                 foreach (InsertViewModel vm in next) Items.Add(vm);
                 Raise(nameof(HasItems));
                 Raise(nameof(Summary));
+                Raise(nameof(ButtonText));
             }
         }
         finally { _applying = false; }

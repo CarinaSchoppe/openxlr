@@ -1,0 +1,52 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:OpenXLR.UI"
+        x:Class="OpenXLR.UI.MixInsertsWindow"
+        x:DataType="vm:InsertsViewModel"
+        Title="{Binding Title, StringFormat='{}{0} inserts'}" Width="560" Height="360" MinWidth="440" MinHeight="220"
+        WindowStartupLocation="CenterOwner"
+        Background="#16181d">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.h">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="#8b93a7"/>
+    </Style>
+  </Window.Styles>
+
+  <DockPanel Margin="16">
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+      <StackPanel>
+        <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="Bold" Foreground="#e6e9f0"/>
+        <TextBlock Text="Stereo LV2 plugins, in order, before this mix reaches its outputs" Classes="h" FontSize="11"/>
+      </StackPanel>
+      <Button Grid.Column="1" Content="Add plugin…" Padding="12,4" VerticalAlignment="Top" Click="OnAddInsert"/>
+    </Grid>
+    <Button DockPanel.Dock="Bottom" Content="Close" HorizontalAlignment="Right" Padding="18,6" Margin="0,10,0,0" Click="OnClose"/>
+    <TextBlock DockPanel.Dock="Top" Text="No inserts yet." Classes="h" IsVisible="{Binding !HasItems}"/>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" AllowAutoHide="False">
+      <ItemsControl ItemsSource="{Binding Items}" Margin="0,0,10,0">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:InsertViewModel">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" Margin="0,0,0,4">
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Ellipse Width="9" Height="9" VerticalAlignment="Center"
+                         Fill="{Binding IsActive, Converter={x:Static vm:Converters.ActiveLed}}"/>
+                <TextBlock Text="{Binding Label}" Foreground="#e6e9f0" FontSize="12"/>
+                <TextBlock Text="{Binding StateText}" Classes="h" FontSize="11"/>
+                <TextBlock Text="{Binding Error}" Foreground="#e0a05a" FontSize="11" IsVisible="{Binding HasError}"/>
+              </StackPanel>
+              <Button Grid.Column="1" Content="Controls" Padding="8,1" MinHeight="0" FontSize="11" Margin="0,0,4,0" Click="OnInsertControls"/>
+              <ToggleButton Grid.Column="2" Content="Bypass" IsChecked="{Binding Bypass, Mode=TwoWay}"
+                            Padding="8,1" MinHeight="0" FontSize="11" Margin="0,0,4,0"/>
+              <Button Grid.Column="3" Content="▲" Padding="6,1" MinHeight="0" FontSize="10" Margin="0,0,2,0" Click="OnInsertUp"/>
+              <Button Grid.Column="4" Content="▼" Padding="6,1" MinHeight="0" FontSize="10" Margin="0,0,4,0" Click="OnInsertDown"/>
+              <Button Grid.Column="5" Content="✕" Padding="6,1" MinHeight="0" FontSize="10" Click="OnInsertRemove"/>
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

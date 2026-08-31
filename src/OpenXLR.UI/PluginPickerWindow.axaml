@@ -16,8 +16,7 @@
   </Window.Styles>
 
   <DockPanel Margin="16">
-    <TextBlock DockPanel.Dock="Top" Text="LV2 plugins that fit the mono mic path (one input, one output)"
-               Classes="h" Margin="0,0,0,8"/>
+    <TextBlock DockPanel.Dock="Top" Text="{Binding PickerHint}" Classes="h" Margin="0,0,0,8"/>
     <TextBox DockPanel.Dock="Top" Name="Filter" Watermark="Search by name or category" Margin="0,0,0,8"/>
     <TextBlock DockPanel.Dock="Top" Text="{Binding Note}" Classes="h" FontSize="11" Margin="0,0,0,6"/>
     <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto" Margin="0,10,0,0">

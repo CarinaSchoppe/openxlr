@@ -157,10 +157,8 @@ public partial class MainWindow : Window
 
     private void OnCycleSoftLowCut(object? sender, RoutedEventArgs e) => _vm.CycleSoftLowCut();
 
-    // Plugin inserts on XLR 1: the picker is a modal dialog, each insert's
-    // controls live in their own window (one per insert, reused while open).
-    private readonly System.Collections.Generic.Dictionary<string, InsertControlsWindow> _insertWindows = new();
-
+    // Plugin inserts: the picker is a modal dialog; each insert's controls
+    // and each mix's chain live in their own windows (see InsertWindows).
     private async void OnAddInsert(object? sender, RoutedEventArgs e)
     {
         // The button's Tag names the channel: "xlr2" for the second input.
@@ -172,16 +170,12 @@ public partial class MainWindow : Window
 
     private void OnInsertControls(object? sender, RoutedEventArgs e)
     {
-        if ((sender as Control)?.DataContext is not InsertViewModel ins) return;
-        if (_insertWindows.TryGetValue(ins.Id, out InsertControlsWindow? open))
-        {
-            open.Activate();
-            return;
-        }
-        var w = new InsertControlsWindow { DataContext = ins };
-        w.Closed += (_, _) => _insertWindows.Remove(ins.Id);
-        _insertWindows[ins.Id] = w;
-        w.Show(this);
+        if ((sender as Control)?.DataContext is InsertViewModel ins) InsertWindows.OpenControls(this, ins);
+    }
+
+    private void OnMixInserts(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is MixViewModel mix) InsertWindows.OpenChain(this, mix.Inserts, $"mix:{mix.Id}");
     }
 
     private void OnInsertUp(object? sender, RoutedEventArgs e)

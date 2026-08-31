@@ -38,8 +38,8 @@ public sealed class MainViewModel : ViewModelBase
     public MainViewModel(DaemonClient client)
     {
         _client = client;
-        Inserts = new InsertsViewModel(client, "xlr1");
-        Inserts2 = new InsertsViewModel(client, "xlr2");
+        Inserts = new InsertsViewModel(client, "xlr1", 1, "XLR 1");
+        Inserts2 = new InsertsViewModel(client, "xlr2", 1, "XLR 2");
         _client.StateReceived += node => Dispatcher.UIThread.Post(() => Apply(node));
         _client.ConnectionChanged += up => Dispatcher.UIThread.Post(() =>
         {
@@ -48,6 +48,7 @@ public sealed class MainViewModel : ViewModelBase
             {
                 DeviceConnected = false; Status = "daemon not running";
                 Inserts.ResetForNewConnection(); Inserts2.ResetForNewConnection();
+                foreach (MixViewModel mv in Mixes) mv.Inserts.ResetForNewConnection();
             }
             else { Inserts.EnsurePluginsLoaded(); Inserts2.EnsurePluginsLoaded(); }
         });
@@ -764,6 +765,8 @@ public sealed class MainViewModel : ViewModelBase
             // once the channels have synced).
             foreach (MixViewModel mv in Mixes.Where(mv => mv.IsAuxPort))
                 mv.Visible = !DeviceConnected || CapOutputRouting;
+            foreach (MixViewModel mv in Mixes)
+                mv.Inserts.Apply(mixer["inserts"]?[$"mix:{mv.Id}"]);
         }
 
         if (mixer["channels"] is JsonArray channels)
@@ -913,10 +916,14 @@ public sealed class MixViewModel : ViewModelBase, IHasId
     public MixViewModel(DaemonClient client, string id, string name)
     {
         _client = client; Id = id; Name = name;
+        Inserts = new InsertsViewModel(client, $"mix:{id}", channels: 2, title: $"{name} mix");
     }
 
     public string Id { get; }
     public string Name { get; }
+
+    /// <summary>This mix's stereo plugin insert chain.</summary>
+    public InsertsViewModel Inserts { get; }
 
     private bool _visible = true;
     public bool Visible { get => _visible; set => Set(ref _visible, value); }

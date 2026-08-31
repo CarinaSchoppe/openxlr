@@ -300,7 +300,20 @@ public sealed class InsertViewModel : ViewModelBase
             foreach ((string k, JsonNode? v) in po)
                 if (v is not null) _params[k] = v.GetValue<double>();
         foreach (InsertParamViewModel p in Params)
+        {
+            // While a control is being dragged the daemon's echo lags the
+            // slider; applying it would make the thumb jitter (the mixer's
+            // faders use the same guard).
+            if (SliderSync.RecentlyTouched($"ins:{Id}:{p.Symbol}")) continue;
             if (_params.TryGetValue(p.Symbol, out double v)) p.ApplyFromDaemon(v);
+        }
+    }
+
+    /// <summary>Put every control back to the plugin's declared default, live.</summary>
+    public void ResetToDefaults()
+    {
+        EnsureParams();
+        foreach (InsertParamViewModel p in Params) p.Value = p.Default;
     }
 
     private void BuildParams()
@@ -358,6 +371,7 @@ public sealed class InsertParamViewModel : ViewModelBase
         Toggled = toggled;
         Integer = integer;
         Logarithmic = logarithmic;
+        Default = def;
         _value = def;
     }
 
@@ -365,6 +379,7 @@ public sealed class InsertParamViewModel : ViewModelBase
     public string Name { get; }
     public double Min { get; }
     public double Max { get; }
+    public double Default { get; }
     public bool Toggled { get; }
     public bool Integer { get; }
     public bool Logarithmic { get; }

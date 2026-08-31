@@ -15,5 +15,7 @@ public partial class InsertControlsWindow : Window
         Opened += (_, _) => (DataContext as InsertViewModel)?.EnsureParams();
     }
 
+    private void OnDefaults(object? sender, RoutedEventArgs e) => (DataContext as InsertViewModel)?.ResetToDefaults();
+
     private void OnClose(object? sender, RoutedEventArgs e) => Close();
 }

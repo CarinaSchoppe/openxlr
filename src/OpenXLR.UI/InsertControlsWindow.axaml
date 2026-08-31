@@ -49,8 +49,11 @@
         <TextBlock Text="{Binding Plugin}" Classes="h" FontSize="11"/>
         <TextBlock Text="{Binding Error}" Foreground="#e0a05a" FontSize="11" IsVisible="{Binding HasError}"/>
       </StackPanel>
-      <ToggleButton Grid.Column="1" Content="Bypass" IsChecked="{Binding Bypass, Mode=TwoWay}"
-                    Padding="12,4" VerticalAlignment="Top"/>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+        <Button Content="Defaults" Padding="12,4" Click="OnDefaults"
+                ToolTip.Tip="Put every control back to the plugin's own defaults"/>
+        <ToggleButton Content="Bypass" IsChecked="{Binding Bypass, Mode=TwoWay}" Padding="12,4"/>
+      </StackPanel>
     </Grid>
     <Button DockPanel.Dock="Bottom" Content="Close" HorizontalAlignment="Right" Padding="18,6" Margin="0,10,0,0" Click="OnClose"/>
     <!-- AllowAutoHide off: the scrollbar reserves its own column instead

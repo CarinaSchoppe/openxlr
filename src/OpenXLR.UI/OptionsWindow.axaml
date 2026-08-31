@@ -36,9 +36,9 @@
                   IsChecked="{Binding MinimizeToTray, Mode=TwoWay}"/>
         <CheckBox Content="Start minimized to tray"
                   IsChecked="{Binding StartMinimized, Mode=TwoWay}"/>
-        <CheckBox Content="Submixer (per-app channels, mixes, virtual microphones)"
+        <CheckBox Content="Submixer (per-app channels, mixes, virtual microphones, inserts)"
                   IsChecked="{Binding Submixer, Mode=TwoWay}"
-                  ToolTip.Tip="Off: OpenXLR controls the hardware only and leaves the sound card in its stock PipeWire layout (the UCM profile where one exists). Toggling restarts the daemon."/>
+                  ToolTip.Tip="Off: OpenXLR controls the hardware only and leaves the sound card in its stock PipeWire layout (the UCM profile where one exists). Plugin inserts go with the submixer. Toggling restarts the daemon."/>
         <TextBlock Text="{Binding SubmixerNote}" Foreground="#8b93a7" FontSize="11" TextWrapping="Wrap"
                    Margin="26,0,0,0" IsVisible="{Binding SubmixerNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
       </StackPanel>

@@ -114,7 +114,7 @@ public sealed class OptionsViewModel : ViewModelBase
             }
             SubmixerNote = StartupIntegration.RestartDaemon()
                 ? (value ? "Daemon restarted with the submixer on."
-                         : "Daemon restarted in hardware-control mode; the sound card keeps its stock layout.")
+                         : "Daemon restarted in hardware-control mode; the sound card keeps its stock layout and inserts are not loaded.")
                 : "Saved. Restart the daemon to apply (systemctl --user restart openxlr-daemon).";
         }
     }

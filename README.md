@@ -132,6 +132,17 @@ Plugins that ship a custom GUI still work, you get the generated
 controls instead of their window. VST and CLAP plugins cannot be loaded
 yet; that needs a plugin host and is planned.
 
+The submixer can be switched off in Options. The daemon then controls
+the hardware only, restarts itself, and leaves the sound card in its
+stock PipeWire layout; mixes, virtual microphones and inserts go away
+with it. For the Wave XLR Pro there is an experimental ALSA UCM profile
+in `packaging/ucm/` that splits the raw 17/18-channel card into named
+PipeWire devices (Monitor, Line 1 to 3, XLR 1, XLR 2) for exactly that
+mode, or for running without OpenXLR at all. It is a manual root
+install with a matching revert script, not shipped by any package yet;
+while the submixer runs, the daemon parks the card on its pro-audio
+profile and puts the split back when it stops.
+
 ### Application routing
 - OpenXLR detects every running audio-capable app through its PipeWire
   client registration and routes it to a channel by rules; it remembers

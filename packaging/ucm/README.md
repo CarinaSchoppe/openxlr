@@ -34,5 +34,7 @@ is not running.
 
 ## Status
 
-Branch experiment. Not shipped by any package yet; upstreaming to
-alsa-ucm-conf is the goal once it has soaked locally.
+In the repo, manual install only: no package ships these files, and
+removing OpenXLR leaves the profile in place until revert.sh is run
+(the split is useful on its own). Upstreaming to alsa-ucm-conf is the
+goal once a second Pro owner has confirmed the split.

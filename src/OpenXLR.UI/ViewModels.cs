@@ -64,7 +64,7 @@ public sealed class MainViewModel : ViewModelBase
     /// <summary>What the empty SUBMIXER tile says: the two reasons differ.</summary>
     public string MixerPlaceholder => !DaemonConnected
         ? "Daemon not running."
-        : "Submixer is off. Turn it on in Options for per-app channels, mixes, and virtual microphones; OpenXLR is controlling the hardware only.";
+        : "Submixer is off. Turn it on in Options for per-app channels, mixes, virtual microphones and inserts; OpenXLR is controlling the hardware only.";
 
     private bool _deviceConnected;
     public bool DeviceConnected { get => _deviceConnected; private set { if (Set(ref _deviceConnected, value)) Raise(nameof(StatusLine)); } }

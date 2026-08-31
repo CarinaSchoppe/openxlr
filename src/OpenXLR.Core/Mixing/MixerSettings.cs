@@ -43,6 +43,9 @@ public sealed record MixerSettings
     /// <summary>Software ClipGuard (hard limiter) on the first XLR channel.</summary>
     public bool SoftClipGuard { get; init; }
 
+    /// <summary>Plugin insert chains by channel id.</summary>
+    public Dictionary<string, List<InsertDefinition>> Inserts { get; init; } = [];
+
     /// <summary>
     /// Whether the Aux mix feeds the USB Aux port. Null in files written before
     /// the Aux mix existed; migrated from the old monitor-destination choice.

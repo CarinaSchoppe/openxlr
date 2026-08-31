@@ -123,6 +123,10 @@ public sealed record MixerState
     /// <summary>Software ClipGuard (hard limiter) on the first XLR channel.</summary>
     public bool SoftClipGuard { get; init; }
 
+    /// <summary>Plugin insert chains by channel id, with live load status.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<InsertStatus>> Inserts { get; init; }
+        = new Dictionary<string, IReadOnlyList<InsertStatus>>();
+
     /// <summary>Enforced system default devices; null = not enforced.</summary>
     public string? EnforcedDefaultSink { get; init; }
     public string? EnforcedDefaultSource { get; init; }

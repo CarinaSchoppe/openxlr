@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using OpenXLR.Core.Devices;
+using OpenXLR.Core.Mixing;
 
 namespace OpenXLR.Core;
 
@@ -24,6 +25,8 @@ public sealed record MixerScene
     public int? LowCutHz { get; init; }
     /// <summary>Software ClipGuard; absent in older profiles.</summary>
     public bool? SoftClipGuard { get; init; }
+    /// <summary>Plugin insert chains by channel; absent in older profiles.</summary>
+    public Dictionary<string, List<InsertDefinition>>? Inserts { get; init; }
 }
 
 /// <summary>

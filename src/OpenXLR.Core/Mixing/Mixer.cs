@@ -195,10 +195,30 @@ public sealed class Mixer : IDisposable
         {
             bool lc = _lowCutHz > 0 && _lowCutApplicable;
             bool cg = _softClipGuard && _clipGuardApplicable;
-            if (ch.InputPair == 0 && (lc || cg))
+            List<InsertDefinition> inserts = ActiveInsertsLocked();
+            bool anyInsert = inserts.Any(i => !i.Bypass && Lv2Catalog.Find(i.Plugin) is not null);
+            if (ch.InputPair == 0 && (lc || cg || anyInsert))
             {
                 // Route the mic through the filter chain instead of straight in.
-                _lowCut = _pw.CreateMicFilter("xlr1", lc ? _lowCutHz : 0, cg);
+                _insertError = null;
+                try
+                {
+                    _lowCut = _pw.CreateMicFilter("xlr1", lc ? _lowCutHz : 0, cg, inserts);
+                }
+                catch (Exception ex) when (anyInsert)
+                {
+                    // A plugin the chain cannot load must not cost the low cut
+                    // and ClipGuard (or the mic itself): rebuild without inserts
+                    // and report it on every insert of the chain.
+                    _insertError = ex.Message;
+                    if (!lc && !cg)
+                    {
+                        PortLink plain = _pw.RouteInputToChannel(_inputDevice, ch.SinkName, ch.InputPair!.Value);
+                        if (plain.Pairs.Count > 0) _inputFeeds.Add(plain);
+                        continue;
+                    }
+                    _lowCut = _pw.CreateMicFilter("xlr1", lc ? _lowCutHz : 0, cg);
+                }
                 _pw.UnlinkNodes(_inputDevice, ch.SinkName);   // clear any stale bypass
                 PortLink into = _pw.RouteInputToChannel(_inputDevice, _lowCut.SinkName, 0);
                 if (into.Pairs.Count > 0) _inputFeeds.Add(into);
@@ -313,6 +333,17 @@ public sealed class Mixer : IDisposable
     private FilterHandle? _lowCut;
     private PortLink? _lowCutOut;          // filter source half into the channel sink
 
+    // Plugin insert chains by channel id. Only the first XLR channel's chain
+    // is wired today (it shares the mic filter-chain with the soft low cut
+    // and ClipGuard); the others are stored so the model is ready for them.
+    private readonly Dictionary<string, List<InsertDefinition>> _inserts = new();
+    private string? _insertError;          // why the last chain build fell back to no inserts
+
+    private const string InsertChannel = "xlr1";
+
+    private List<InsertDefinition> ActiveInsertsLocked()
+        => _inserts.TryGetValue(InsertChannel, out List<InsertDefinition>? l) ? l : [];
+
     /// <summary>Software low cut frequency (0, 80, or 120 Hz; 0 = off).</summary>
     public int LowCutHz { get { lock (_gate) return _lowCutHz; } }
 
@@ -379,6 +410,68 @@ public sealed class Mixer : IDisposable
         }
     }
 
+    // --- plugin inserts ---
+
+    /// <summary>Replace a channel's insert chain (order matters); rewires when built.</summary>
+    public void SetInserts(string channel, IReadOnlyList<InsertDefinition> inserts)
+    {
+        lock (_gate)
+        {
+            _inserts[channel] = [.. inserts.Select(i => i with { Params = new Dictionary<string, double>(i.Params) })];
+            if (_built && channel == InsertChannel) WireInputFeedsLocked();
+        }
+    }
+
+    /// <summary>Bypass or re-enable one insert; rewires when built.</summary>
+    public void SetInsertBypass(string channel, string insertId, bool bypass)
+    {
+        lock (_gate)
+        {
+            if (!_inserts.TryGetValue(channel, out List<InsertDefinition>? list)) return;
+            int idx = list.FindIndex(i => i.Id == insertId);
+            if (idx < 0 || list[idx].Bypass == bypass) return;
+            list[idx] = list[idx] with { Bypass = bypass };
+            if (_built && channel == InsertChannel) WireInputFeedsLocked();
+        }
+    }
+
+    /// <summary>
+    /// Set one control of an insert. Applied live to the running chain when
+    /// possible (no dropout); a chain that cannot take it is rebuilt.
+    /// </summary>
+    public void SetInsertParam(string channel, string insertId, string symbol, double value)
+    {
+        lock (_gate)
+        {
+            if (!_inserts.TryGetValue(channel, out List<InsertDefinition>? list)) return;
+            int idx = list.FindIndex(i => i.Id == insertId);
+            if (idx < 0) return;
+            list[idx].Params[symbol] = value;
+            if (!_built || channel != InsertChannel || _lowCut is null || list[idx].Bypass || _insertError is not null) return;
+            // The chain names LV2 stages i0, i1, ... in the order of the
+            // non-bypassed, loadable inserts, so find this insert's stage index.
+            int k = 0;
+            for (int j = 0; j < idx; j++)
+                if (!list[j].Bypass && list[j].Kind == "lv2" && Lv2Catalog.Find(list[j].Plugin) is not null) k++;
+            try { _pw.SetFilterControl(_lowCut, $"i{k}:{symbol}", value); }
+            catch (InvalidOperationException) { WireInputFeedsLocked(); }
+        }
+    }
+
+    /// <summary>Insert chains with live status, for the state push.</summary>
+    private Dictionary<string, IReadOnlyList<InsertStatus>> InsertStatusLocked()
+    {
+        var result = new Dictionary<string, IReadOnlyList<InsertStatus>>();
+        foreach ((string channel, List<InsertDefinition> list) in _inserts)
+        {
+            result[channel] = [.. list.Select(i => new InsertStatus(i,
+                Lv2Catalog.Find(i.Plugin) is null ? "plugin not installed"
+                : channel == InsertChannel && !i.Bypass ? _insertError
+                : null))];
+        }
+        return result;
+    }
+
     /// <summary>
     /// Name fragment of the interface whose capture should feed the input
     /// channels (the daemon's active device). A change re-wires the feeds.
@@ -433,6 +526,7 @@ public sealed class Mixer : IDisposable
                 AuxPortEnabled = _auxPortEnabled,
                 LowCutHz = _lowCutHz,
                 SoftClipGuard = _softClipGuard,
+                Inserts = _inserts.ToDictionary(e => e.Key, e => e.Value.ToList()),
             };
         }
     }
@@ -498,6 +592,12 @@ public sealed class Mixer : IDisposable
                 _softClipGuard = true;
                 rewire = true;
             }
+            if (s.Inserts.Count > 0)
+            {
+                foreach ((string channel, List<InsertDefinition> list) in s.Inserts)
+                    _inserts[channel] = [.. list];
+                rewire = true;
+            }
             if (rewire) WireInputFeedsLocked();
         }
     }
@@ -518,6 +618,7 @@ public sealed class Mixer : IDisposable
                 OutputVolume = _outputVolume,
                 LowCutHz = _lowCutHz,
                 SoftClipGuard = _softClipGuard,
+                Inserts = _inserts.ToDictionary(e => e.Key, e => e.Value.ToList()),
             };
         }
     }
@@ -559,6 +660,13 @@ public sealed class Mixer : IDisposable
             if (s.SoftClipGuard is bool scg && _softClipGuard != scg)
             {
                 _softClipGuard = scg;
+                rewire = true;
+            }
+            if (s.Inserts is not null)
+            {
+                _inserts.Clear();
+                foreach ((string channel, List<InsertDefinition> list) in s.Inserts)
+                    _inserts[channel] = [.. list];
                 rewire = true;
             }
             if (rewire) WireInputFeedsLocked();
@@ -976,6 +1084,7 @@ public sealed class Mixer : IDisposable
                 OutputVolume = _outputVolume,
                 LowCutHz = _lowCutHz,
                 SoftClipGuard = _softClipGuard,
+                Inserts = InsertStatusLocked(),
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
                 AuxPortEnabled = _auxPortEnabled,

@@ -303,26 +303,39 @@ public sealed class PipeWireAdapter
     /// process (kill = unload). The filter appears as a sink half (feed the
     /// mic into it) and a source half (link onward to the channel).
     /// </summary>
-    public FilterHandle CreateMicFilter(string id, int lowCutHz, bool clipGuard)
+    public FilterHandle CreateMicFilter(string id, int lowCutHz, bool clipGuard,
+        IReadOnlyList<InsertDefinition>? inserts = null)
     {
-        if (lowCutHz <= 0 && !clipGuard)
+        // Every stage in chain order as (node definition, input port, output port).
+        var stages = new List<(string Node, string In, string Out)>();
+        if (lowCutHz > 0)
+            stages.Add(($"{{ type = builtin name = hp label = bq_highpass control = {{ \"Freq\" = {lowCutHz}.0 }} }}", "hp:In", "hp:Out"));
+        if (clipGuard)
+            stages.Add(("{ type = ladspa name = lim plugin = hard_limiter_1413 label = hardLimiter " +
+                "control = { \"dB limit\" = -3.0 \"Wet level\" = 1.0 \"Residue level\" = 0.0 } }", "lim:Input", "lim:Output"));
+        int k = 0;
+        foreach (InsertDefinition ins in inserts ?? [])
+        {
+            if (ins.Bypass || ins.Kind != "lv2") continue;
+            PluginInfo? info = Lv2Catalog.Find(ins.Plugin);
+            if (info is null) continue;   // unknown plugin: skipped, reported by the caller
+            string name = $"i{k++}";
+            string controls = ins.Params.Count == 0 ? "" :
+                " control = { " + string.Join(' ', ins.Params.Select(p => $"\"{p.Key}\" = {p.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}")) + " }";
+            stages.Add(($"{{ type = lv2 name = {name} plugin = \"{ins.Plugin}\"{controls} }}",
+                $"{name}:{info.InputSymbol}", $"{name}:{info.OutputSymbol}"));
+        }
+        if (stages.Count == 0)
             throw new ArgumentException("mic filter needs at least one stage");
         string sinkName = $"OpenXLR_lc_{id}_in";
         string srcName = $"OpenXLR_lc_{id}_out";
-        var nodes = new List<string>();
-        if (lowCutHz > 0)
-            nodes.Add($"{{ type = builtin name = hp label = bq_highpass control = {{ \"Freq\" = {lowCutHz}.0 }} }}");
-        if (clipGuard)
-            nodes.Add("{ type = ladspa name = lim plugin = hard_limiter_1413 label = hardLimiter " +
-                "control = { \"dB limit\" = -3.0 \"Wet level\" = 1.0 \"Residue level\" = 0.0 } }");
-        string links = lowCutHz > 0 && clipGuard
-            ? "links = [ { output = \"hp:Out\" input = \"lim:Input\" } ] "
-            : "";
-        string inPort = lowCutHz > 0 ? "hp:In" : "lim:Input";
-        string outPort = clipGuard ? "lim:Output" : "hp:Out";
+        string links = stages.Count < 2 ? "" :
+            "links = [ " + string.Join(' ', stages.Zip(stages.Skip(1), (a, b) => $"{{ output = \"{a.Out}\" input = \"{b.In}\" }}")) + " ] ";
+        string inPort = stages[0].In;
+        string outPort = stages[^1].Out;
         string spa =
             "{ node.description = \"OpenXLR Mic Filter\" " +
-            $"filter.graph = {{ nodes = [ {string.Join(' ', nodes)} ] {links}" +
+            $"filter.graph = {{ nodes = [ {string.Join(' ', stages.Select(s => s.Node))} ] {links}" +
             $"inputs = [ \"{inPort}\" ] outputs = [ \"{outPort}\" ] }} " +
             $"capture.props = {{ node.name = {sinkName} media.class = Audio/Sink " +
             "audio.channels = 1 audio.position = [ MONO ] node.suspend-on-idle = false " +
@@ -346,6 +359,18 @@ public sealed class PipeWireAdapter
         WaitForPorts(sinkName, "playback", output: false, TimeSpan.FromSeconds(3));
         WaitForPorts(srcName, "capture", output: true, TimeSpan.FromSeconds(3));
         return new FilterHandle(id, sinkName, srcName, p);
+    }
+
+    /// <summary>
+    /// Change one control of a running filter-chain live: the chain exposes
+    /// its plugins' controls as "node:symbol" entries of the Props param on
+    /// its sink half. Throws when the node is gone or PipeWire refuses.
+    /// </summary>
+    public void SetFilterControl(FilterHandle f, string control, double value)
+    {
+        int id = FindNodeId(f.SinkName) ?? throw new InvalidOperationException($"filter node {f.SinkName} not found");
+        string v = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        Run("pw-cli", "set-param", id.ToString(), "Props", $"{{ params = [ \"{control}\" {v} ] }}");
     }
 
     /// <summary>Unload a filter by killing its holder process.</summary>

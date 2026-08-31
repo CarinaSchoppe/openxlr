@@ -67,6 +67,11 @@ public sealed class WebSocketHub
             await client.SendAsync(Serialize(Snapshot()));   // initial state
             await ReceiveLoop(client);
         }
+        catch (WebSocketException)
+        {
+            // A client that vanished without a close handshake (killed
+            // process, dropped connection) is an ordinary disconnect.
+        }
         finally
         {
             _clients.TryRemove(client.Id, out _);
@@ -121,6 +126,11 @@ public sealed class WebSocketHub
             case "getDiagnostics":
                 await client.SendAsync(Serialize(new DiagnosticsMessage(_devices.DumpBlocks())));
                 break;
+            case "listPlugins":
+                // The first call may block on lilv's scan; keep it off the socket loop's thread.
+                IReadOnlyList<OpenXLR.Core.Mixing.PluginInfo> plugins = await Task.Run(() => OpenXLR.Core.Mixing.Lv2Catalog.Plugins);
+                await client.SendAsync(Serialize(new PluginsMessage(plugins)));
+                break;
             case "set":
                 if (cmd.Control is null) { await client.SendAsync(Serialize(new ErrorMessage("set: missing 'control'"))); break; }
                 string? err = _devices.Apply(cmd.Control, cmd.Value);  // broadcasts on success
@@ -140,6 +150,9 @@ public sealed class WebSocketHub
             case "setAuxPortEnabled":
             case "setLowCutHz":
             case "setSoftClipGuard":
+            case "setInserts":
+            case "setInsertBypass":
+            case "setInsertParam":
                 string? mixErr = _mixer.Apply(cmd);                     // broadcasts on success
                 if (mixErr is not null) await client.SendAsync(Serialize(new ErrorMessage(mixErr)));
                 break;

@@ -89,6 +89,7 @@ public sealed class MixerService : IHostedService, IDisposable
             _log.LogInformation("submixer not enabled (pass --mixer or OPENXLR_BUILD_MIXER=1)");
             return Task.CompletedTask;
         }
+        OpenXLR.Core.Mixing.Lv2Catalog.Warm();   // plugin inserts: scan LV2 bundles off the startup path
 
         // Optional: the physical sink the monitor mix feeds. Without it the
         // monitor mix exists but isn't routed anywhere audible.
@@ -276,6 +277,22 @@ public sealed class MixerService : IHostedService, IDisposable
                     break;
                 case "setSoftClipGuard":
                     _mixer.SetSoftClipGuard(cmd.Value.GetBoolean());
+                    break;
+                case "setInserts":
+                    if (cmd.Channel is null || cmd.Inserts is null) return "setInserts: need 'channel' and 'inserts'";
+                    foreach (InsertDefinition i in cmd.Inserts)
+                        if (string.IsNullOrWhiteSpace(i.Id) || i.Kind != "lv2" || string.IsNullOrWhiteSpace(i.Plugin))
+                            return "setInserts: every insert needs an id, kind 'lv2', and a plugin URI";
+                    _mixer.SetInserts(cmd.Channel, cmd.Inserts);
+                    break;
+                case "setInsertBypass":
+                    if (cmd.Channel is null || cmd.InsertId is null) return "setInsertBypass: need 'channel' and 'insertId'";
+                    _mixer.SetInsertBypass(cmd.Channel, cmd.InsertId, cmd.Value.GetBoolean());
+                    break;
+                case "setInsertParam":
+                    if (cmd.Channel is null || cmd.InsertId is null || cmd.Symbol is null)
+                        return "setInsertParam: need 'channel', 'insertId', and 'symbol'";
+                    _mixer.SetInsertParam(cmd.Channel, cmd.InsertId, cmd.Symbol, cmd.Value.GetDouble());
                     break;
                 default:
                     return $"unknown mixer command '{cmd.Cmd}'";

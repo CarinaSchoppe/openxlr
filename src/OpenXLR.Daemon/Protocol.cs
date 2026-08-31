@@ -56,6 +56,24 @@ public sealed record Command
 
     /// <summary>"saveProfile" / "loadProfile" / "deleteProfile": the profile name.</summary>
     [JsonPropertyName("name")] public string? Name { get; init; }
+
+    /// <summary>"setInserts": the channel's whole insert chain, in order.</summary>
+    [JsonPropertyName("inserts")] public List<InsertDefinition>? Inserts { get; init; }
+
+    /// <summary>"setInsertParam" / "setInsertBypass": which insert.</summary>
+    [JsonPropertyName("insertId")] public string? InsertId { get; init; }
+
+    /// <summary>"setInsertParam": the control port symbol.</summary>
+    [JsonPropertyName("symbol")] public string? Symbol { get; init; }
+}
+
+/// <summary>Reply to "listPlugins": everything the insert picker can offer.</summary>
+public sealed record PluginsMessage
+{
+    public PluginsMessage(IReadOnlyList<PluginInfo> plugins) => Plugins = plugins;
+
+    [JsonPropertyName("type")] public string Type => "plugins";
+    [JsonPropertyName("plugins")] public IReadOnlyList<PluginInfo> Plugins { get; }
 }
 
 /// <summary>Full-state push from the daemon to all clients.</summary>

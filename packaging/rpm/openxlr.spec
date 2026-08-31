@@ -84,6 +84,8 @@ install -Dm644 packaging/50-xlr-dock-capture-hold.conf \
     %{buildroot}%{_datadir}/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf
 install -Dm644 packaging/51-openxlr-pro-raw-names.conf \
     %{buildroot}%{_datadir}/wireplumber/wireplumber.conf.d/51-openxlr-pro-raw-names.conf
+install -Dm644 packaging/60-openxlr-port.conf \
+    %{buildroot}%{_sysctldir}/60-openxlr.conf
 
 # The reference unit points into a source checkout; the package runs
 # the wrapper.
@@ -110,6 +112,7 @@ find %{buildroot}%{_datadir}/openxlr -type d -exec chmod 755 {} +
 %post
 /usr/bin/udevadm control --reload 2>/dev/null || :
 /usr/bin/udevadm trigger 2>/dev/null || :
+%sysctl_apply 60-openxlr.conf
 cat <<'MSG'
 OpenXLR: replug your interface once so the udev rule applies.
 Start the daemon:  systemctl --user enable --now openxlr-daemon
@@ -127,6 +130,7 @@ MSG
 %{_udevrulesdir}/70-openxlr.rules
 %{_datadir}/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf
 %{_datadir}/wireplumber/wireplumber.conf.d/51-openxlr-pro-raw-names.conf
+%{_sysctldir}/60-openxlr.conf
 %{_userunitdir}/openxlr-daemon.service
 %{_datadir}/applications/openxlr.desktop
 %{_datadir}/icons/hicolor/*/apps/openxlr.*

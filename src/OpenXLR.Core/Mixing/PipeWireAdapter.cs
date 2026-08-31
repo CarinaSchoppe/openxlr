@@ -443,7 +443,11 @@ public sealed class PipeWireAdapter
             outs = [.. outs.Take(2)];
         if (toPairOffset > 0 && ins.Count > toPairOffset * 2)
             ins = [.. ins.Skip(toPairOffset * 2).Take(2)];
-        else if (ins.Count > 2 && toPairOffset == 0 && toNode.Contains("multichannel", StringComparison.Ordinal))
+        // Raw multichannel sinks are named multichannel-output on a stock
+        // system and pro-output-N once the card has a UCM profile.
+        else if (ins.Count > 2 && toPairOffset == 0
+                 && (toNode.Contains("multichannel", StringComparison.Ordinal)
+                     || toNode.Contains(".pro-output-", StringComparison.Ordinal)))
             ins = [.. ins.Take(2)];
 
         var pairs = new List<(string From, string To)>();

@@ -44,6 +44,19 @@ public sealed class DaemonClient : IAsyncDisposable
         return done == tcs.Task ? tcs.Task.Result : null;
     }
 
+    private TaskCompletionSource<JsonNode>? _pluginsWaiter;
+
+    /// <summary>Request the daemon's plugin catalog (the "plugins" array); null on timeout.</summary>
+    public async Task<JsonNode?> RequestPluginsAsync(TimeSpan timeout)
+    {
+        var tcs = new TaskCompletionSource<JsonNode>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pluginsWaiter = tcs;
+        await SendAsync(new Dictionary<string, object> { ["cmd"] = "listPlugins" });
+        Task done = await Task.WhenAny(tcs.Task, Task.Delay(timeout));
+        _pluginsWaiter = null;
+        return done == tcs.Task ? tcs.Task.Result : null;
+    }
+
     /// <summary>Raised when an error message arrives from the daemon.</summary>
     public event Action<string>? ErrorReceived;
 
@@ -107,6 +120,7 @@ public sealed class DaemonClient : IAsyncDisposable
             if (type == "error") ErrorReceived?.Invoke(node["message"]?.GetValue<string>() ?? "unknown error");
             else if (type == "state") { LastStateJson = text; StateReceived?.Invoke(node); }
             else if (type == "diagnostics") _diagnosticsWaiter?.TrySetResult(node);
+            else if (type == "plugins" && node["plugins"] is JsonNode plugins) _pluginsWaiter?.TrySetResult(plugins);
             else if (type == "meters" && node["levels"] is JsonNode levels) MetersReceived?.Invoke(levels);
         }
     }
@@ -174,6 +188,18 @@ public sealed class DaemonClient : IAsyncDisposable
     /// <summary>Software ClipGuard (host-side limiter) on or off.</summary>
     public Task SetSoftClipGuardAsync(bool on)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setSoftClipGuard", ["value"] = on });
+
+    /// <summary>Replace a channel's plugin insert chain (ordered).</summary>
+    public Task SetInsertsAsync(string channel, IReadOnlyList<object> inserts)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "setInserts", ["channel"] = channel, ["inserts"] = inserts });
+
+    public Task SetInsertBypassAsync(string channel, string insertId, bool bypass)
+        => SendAsync(new Dictionary<string, object>
+        { ["cmd"] = "setInsertBypass", ["channel"] = channel, ["insertId"] = insertId, ["value"] = bypass });
+
+    public Task SetInsertParamAsync(string channel, string insertId, string symbol, double value)
+        => SendAsync(new Dictionary<string, object>
+        { ["cmd"] = "setInsertParam", ["channel"] = channel, ["insertId"] = insertId, ["symbol"] = symbol, ["value"] = value });
 
     /// <summary>Remove an app from the registry and forget its override.</summary>
     public Task ForgetAppAsync(string identity)

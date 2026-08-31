@@ -38,11 +38,13 @@ public sealed class MainViewModel : ViewModelBase
     public MainViewModel(DaemonClient client)
     {
         _client = client;
+        Inserts = new InsertsViewModel(client, "xlr1");
         _client.StateReceived += node => Dispatcher.UIThread.Post(() => Apply(node));
         _client.ConnectionChanged += up => Dispatcher.UIThread.Post(() =>
         {
             DaemonConnected = up;
-            if (!up) { DeviceConnected = false; Status = "daemon not running"; }
+            if (!up) { DeviceConnected = false; Status = "daemon not running"; Inserts.ResetForNewConnection(); }
+            else Inserts.EnsurePluginsLoaded();
         });
         _client.ErrorReceived += msg => Dispatcher.UIThread.Post(() => Status = msg);
         _client.MetersReceived += levels => Dispatcher.UIThread.Post(() => ApplyMeters(levels));
@@ -732,12 +734,16 @@ public sealed class MainViewModel : ViewModelBase
         Raise(nameof(HasApps));
     }
 
+    /// <summary>Plugin insert chain of the first XLR channel.</summary>
+    public InsertsViewModel Inserts { get; }
+
     private void ApplyMixer(JsonNode? mixer)
     {
         if (mixer is null) { HasMixer = false; return; }
         HasMixer = true;
         SoftLowCutHz = mixer["lowCutHz"]?.GetValue<int>() ?? 0;
         SoftClipGuard = mixer["softClipGuard"]?.GetValue<bool>() ?? false;
+        Inserts.Apply(mixer["inserts"]?["xlr1"]);
 
         if (mixer["mixes"] is JsonArray mixes)
         {

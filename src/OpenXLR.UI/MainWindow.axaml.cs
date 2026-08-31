@@ -157,6 +157,25 @@ public partial class MainWindow : Window
 
     private void OnCycleSoftLowCut(object? sender, RoutedEventArgs e) => _vm.CycleSoftLowCut();
 
+    // Plugin inserts on XLR 1: the per-row buttons find their insert through
+    // the row's DataContext.
+    private void OnAddInsert(object? sender, RoutedEventArgs e) => _vm.Inserts.Add();
+
+    private void OnInsertUp(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is InsertViewModel ins) _vm.Inserts.Move(ins, -1);
+    }
+
+    private void OnInsertDown(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is InsertViewModel ins) _vm.Inserts.Move(ins, +1);
+    }
+
+    private void OnInsertRemove(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is InsertViewModel ins) _vm.Inserts.Remove(ins);
+    }
+
     private FlowWindow? _flow;
 
     private void OnFlow(object? sender, RoutedEventArgs e)

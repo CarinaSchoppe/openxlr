@@ -214,8 +214,55 @@ public sealed class InsertViewModel : ViewModelBase
 
     public ObservableCollection<InsertParamViewModel> Params { get; } = [];
 
+    /// <summary>
+    /// Controls grouped for the window. LV2 has no control-port grouping in
+    /// practice (LSP groups only its audio ports), so groups come from a
+    /// name heuristic; a plugin with few controls stays one flat list.
+    /// </summary>
+    public ObservableCollection<InsertParamGroup> Groups { get; } = [];
+
     /// <summary>Build the control view models on first use (the controls window opening).</summary>
     public void EnsureParams() { if (Params.Count == 0) BuildParams(); }
+
+    private static readonly (string Group, string[] Keys)[] GroupRules =
+    [
+        ("Display",   ["show", "overlay", "visib", "meter", "graph", "pause", "clear", "zoom", " ui", "display"]),
+        ("Sidechain", ["sidechain", "link", "listen"]),
+        ("Filter",    ["filter", "frequency", "-pass", "cutoff", "eq ", "equaliz", "band"]),
+        ("Dynamics",  ["attack", "release", "threshold", "ratio", "knee", "hold", "hysteresis", "curve", "zone",
+                       "reduction", "boost", "compress", "expan", "gate", "limit", "envelope", "lookahead"]),
+        ("Levels",    ["gain", "level", "makeup", "dry", "wet", "balance", "mix", "volume", "preamp", "trim", "pan"]),
+    ];
+
+    private static readonly string[] GroupOrder = ["General", "Levels", "Dynamics", "Sidechain", "Filter", "Display"];
+
+    private static string GroupFor(string name)
+    {
+        string n = " " + name.ToLowerInvariant();
+        foreach ((string group, string[] keys) in GroupRules)
+            if (keys.Any(k => n.Contains(k, StringComparison.Ordinal))) return group;
+        return "General";
+    }
+
+    private void RebuildGroups()
+    {
+        Groups.Clear();
+        if (Params.Count <= 12)
+        {
+            Groups.Add(new InsertParamGroup("", false, [.. Params]));
+            return;
+        }
+        var buckets = new Dictionary<string, List<InsertParamViewModel>>();
+        foreach (InsertParamViewModel p in Params)
+        {
+            string g = GroupFor(p.Name);
+            if (!buckets.TryGetValue(g, out List<InsertParamViewModel>? l)) buckets[g] = l = [];
+            l.Add(p);
+        }
+        foreach (string g in GroupOrder)
+            if (buckets.TryGetValue(g, out List<InsertParamViewModel>? l))
+                Groups.Add(new InsertParamGroup(g, true, l));
+    }
 
     public void ApplyFromDaemon(JsonNode ins, string? error)
     {
@@ -247,6 +294,7 @@ public sealed class InsertViewModel : ViewModelBase
             if (_params.TryGetValue(sym, out double cur)) vm.ApplyFromDaemon(cur);
             Params.Add(vm);
         }
+        RebuildGroups();
     }
 
     internal void SendParam(string symbol, double value)
@@ -265,6 +313,9 @@ public sealed class InsertViewModel : ViewModelBase
         ["params"] = new Dictionary<string, double>(_params),
     };
 }
+
+/// <summary>A titled run of controls in the controls window.</summary>
+public sealed record InsertParamGroup(string Name, bool ShowHeader, IReadOnlyList<InsertParamViewModel> Params);
 
 /// <summary>One control port as a slider or switch.</summary>
 public sealed class InsertParamViewModel : ViewModelBase

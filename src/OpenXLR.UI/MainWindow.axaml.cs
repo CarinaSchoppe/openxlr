@@ -157,9 +157,30 @@ public partial class MainWindow : Window
 
     private void OnCycleSoftLowCut(object? sender, RoutedEventArgs e) => _vm.CycleSoftLowCut();
 
-    // Plugin inserts on XLR 1: the per-row buttons find their insert through
-    // the row's DataContext.
-    private void OnAddInsert(object? sender, RoutedEventArgs e) => _vm.Inserts.Add();
+    // Plugin inserts on XLR 1: the picker is a modal dialog, each insert's
+    // controls live in their own window (one per insert, reused while open).
+    private readonly System.Collections.Generic.Dictionary<string, InsertControlsWindow> _insertWindows = new();
+
+    private async void OnAddInsert(object? sender, RoutedEventArgs e)
+    {
+        var picker = new PluginPickerWindow { DataContext = _vm.Inserts };
+        PluginChoice? choice = await picker.ShowDialog<PluginChoice?>(this);
+        if (choice is not null) _vm.Inserts.Add(choice);
+    }
+
+    private void OnInsertControls(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is not InsertViewModel ins) return;
+        if (_insertWindows.TryGetValue(ins.Id, out InsertControlsWindow? open))
+        {
+            open.Activate();
+            return;
+        }
+        var w = new InsertControlsWindow { DataContext = ins };
+        w.Closed += (_, _) => _insertWindows.Remove(ins.Id);
+        _insertWindows[ins.Id] = w;
+        w.Show(this);
+    }
 
     private void OnInsertUp(object? sender, RoutedEventArgs e)
     {

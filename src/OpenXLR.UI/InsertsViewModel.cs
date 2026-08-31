@@ -36,6 +36,14 @@ public sealed class InsertsViewModel : ViewModelBase
 
     public bool HasItems => Items.Count > 0;
 
+    /// <summary>One-line state for the strip: count, or a hint when empty.</summary>
+    public string Summary => Items.Count switch
+    {
+        0 => "none",
+        1 => "1 plugin",
+        int n => $"{n} plugins in chain",
+    };
+
     private PluginChoice? _selectedPlugin;
     public PluginChoice? SelectedPlugin
     {
@@ -105,6 +113,7 @@ public sealed class InsertsViewModel : ViewModelBase
                 Items.Clear();
                 foreach (InsertViewModel vm in next) Items.Add(vm);
                 Raise(nameof(HasItems));
+                Raise(nameof(Summary));
             }
         }
         finally { _applying = false; }
@@ -112,16 +121,17 @@ public sealed class InsertsViewModel : ViewModelBase
 
     // --- edits, all expressed as a new whole chain ---
 
-    public void Add()
+    public void Add() { if (_selectedPlugin is not null) Add(_selectedPlugin); }
+
+    public void Add(PluginChoice plugin)
     {
-        if (_selectedPlugin is null) return;
         var chain = Snapshot();
         chain.Add(new Dictionary<string, object?>
         {
             ["id"] = Guid.NewGuid().ToString("N")[..8],
             ["kind"] = "lv2",
-            ["plugin"] = _selectedPlugin.Uri,
-            ["label"] = _selectedPlugin.Name,
+            ["plugin"] = plugin.Uri,
+            ["label"] = plugin.Name,
             ["bypass"] = false,
             ["params"] = new Dictionary<string, double>(),
         });
@@ -195,14 +205,10 @@ public sealed class InsertViewModel : ViewModelBase
 
     public string StateText => HasError ? "problem" : Bypass ? "bypassed" : "active";
 
-    private bool _expanded;
-    public bool Expanded
-    {
-        get => _expanded;
-        set { if (Set(ref _expanded, value) && value && Params.Count == 0) BuildParams(); }
-    }
-
     public ObservableCollection<InsertParamViewModel> Params { get; } = [];
+
+    /// <summary>Build the control view models on first use (the controls window opening).</summary>
+    public void EnsureParams() { if (Params.Count == 0) BuildParams(); }
 
     public void ApplyFromDaemon(JsonNode ins, string? error)
     {

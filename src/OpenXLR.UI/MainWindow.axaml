@@ -260,6 +260,8 @@
               <DataTemplate x:DataType="vm:InsertViewModel">
                 <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" Margin="0,0,0,3">
                   <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Ellipse Width="9" Height="9" VerticalAlignment="Center"
+                             Fill="{Binding IsActive, Converter={x:Static vm:Converters.ActiveLed}}"/>
                     <TextBlock Text="{Binding Label}" Foreground="#e6e9f0" FontSize="12"/>
                     <TextBlock Text="{Binding StateText}" Classes="h" FontSize="11"/>
                     <TextBlock Text="{Binding Error}" Foreground="#e0a05a" FontSize="11" IsVisible="{Binding HasError}"/>

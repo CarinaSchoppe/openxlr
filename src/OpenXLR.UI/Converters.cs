@@ -20,6 +20,11 @@ public static class Converters
         new FuncValueConverter<bool, IBrush>(on =>
             new SolidColorBrush(on ? Color.Parse("#3ecf7a") : Color.Parse("#4a4f5c")));
 
+    /// <summary>Insert LED: green while processing, red when bypassed or failed.</summary>
+    public static readonly IValueConverter ActiveLed =
+        new FuncValueConverter<bool, IBrush>(on =>
+            new SolidColorBrush(on ? Color.Parse("#3ecf7a") : Color.Parse("#ff3c4e")));
+
     /// <summary>Tile-header chevron: up when the tile is expanded.</summary>
     public static readonly IValueConverter Chevron =
         new FuncValueConverter<bool, string>(expanded => expanded ? "⌃" : "⌄");

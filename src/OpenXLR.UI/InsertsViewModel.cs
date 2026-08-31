@@ -196,14 +196,21 @@ public sealed class InsertViewModel : ViewModelBase
     public bool Bypass
     {
         get => _bypass;
-        set { if (Set(ref _bypass, value)) { Raise(nameof(StateText)); _owner.SendBypass(this, value); } }
+        set { if (Set(ref _bypass, value)) { Raise(nameof(StateText)); Raise(nameof(IsActive)); _owner.SendBypass(this, value); } }
     }
 
     private string? _error;
-    public string? Error { get => _error; private set { if (Set(ref _error, value)) { Raise(nameof(HasError)); Raise(nameof(StateText)); } } }
+    public string? Error
+    {
+        get => _error;
+        private set { if (Set(ref _error, value)) { Raise(nameof(HasError)); Raise(nameof(StateText)); Raise(nameof(IsActive)); } }
+    }
     public bool HasError => _error is not null;
 
     public string StateText => HasError ? "problem" : Bypass ? "bypassed" : "active";
+
+    /// <summary>Green LED: in the chain and processing. Red otherwise (bypassed or failed).</summary>
+    public bool IsActive => !Bypass && !HasError;
 
     public ObservableCollection<InsertParamViewModel> Params { get; } = [];
 
@@ -214,6 +221,8 @@ public sealed class InsertViewModel : ViewModelBase
     {
         _bypass = ins["bypass"]?.GetValue<bool>() ?? false;
         Raise(nameof(Bypass));
+        Raise(nameof(StateText));
+        Raise(nameof(IsActive));
         Error = error;
         _params.Clear();
         if (ins["params"] is JsonObject po)

@@ -1,3 +1,24 @@
+openxlr (0.1.6) resolute; urgency=medium
+
+  * Plugin inserts: LV2 plugin chains on each XLR input (mono) and on
+    every mix (stereo), with a plugin picker, per-plugin control windows
+    with grouped parameters and a Defaults button, and bypass LEDs. Saved
+    with the mixer and recalled by profiles. Needs liblilv; lsp-plugins-lv2
+    is a good starter set.
+  * Submixer on/off toggle in Options: off leaves the sound card in its
+    stock PipeWire layout and restarts the daemon in hardware-control mode.
+  * Wave XLR Pro: coexistence with an ALSA UCM split profile (experimental
+    profile in packaging/ucm, manual install): the daemon parks the card
+    on pro-audio while it runs and restores the split when it stops or
+    switches device. Readable names for the raw multichannel nodes.
+  * Daemon: stop takes about a second instead of 30 (WebSocket loops
+    observe shutdown); a busy API port is waited for instead of
+    crash-looping, and the package reserves port 37890 from the kernel's
+    ephemeral range.
+  * Mixer: input feeds heal when their source node vanishes.
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Mon, 31 Aug 2026 09:15:00 +0100
+
 openxlr (0.1.5) resolute; urgency=medium
 
   * XLR Dock: 48V phantom power and headphone low impedance, reached

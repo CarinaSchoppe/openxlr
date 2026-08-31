@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.5
+Version:        0.1.6
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -137,6 +137,24 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Mon Aug 31 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.6-1
+- Plugin inserts: LV2 plugin chains on each XLR input (mono) and on
+  every mix (stereo), with a plugin picker, per-plugin control windows
+  with grouped parameters and a Defaults button, and bypass LEDs. Saved
+  with the mixer and recalled by profiles. Needs lilv; lsp-plugins-lv2
+  is a good starter set.
+- Submixer on/off toggle in Options: off leaves the sound card in its
+  stock PipeWire layout and restarts the daemon in hardware-control mode.
+- Wave XLR Pro: coexistence with an ALSA UCM split profile (experimental
+  profile in packaging/ucm, manual install): the daemon parks the card
+  on pro-audio while it runs and restores the split when it stops or
+  switches device. Readable names for the raw multichannel nodes.
+- Daemon: stop takes about a second instead of 30 (WebSocket loops
+  observe shutdown); a busy API port is waited for instead of
+  crash-looping, and the package reserves port 37890 from the kernel's
+  ephemeral range.
+- Mixer: input feeds heal when their source node vanishes.
+
 * Sun Aug 30 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.5-1
 - XLR Dock: 48V phantom power and headphone low impedance, reached over
   the original Wave XLR's protocol dialect (discovery credit: openwave

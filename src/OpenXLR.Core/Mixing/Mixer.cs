@@ -171,8 +171,13 @@ public sealed class Mixer : IDisposable
         foreach (PortLink feed in _inputFeeds) _pw.Unlink(feed);
         _inputFeeds.Clear();
         RemoveLowCutLocked();
+        // UCM split sources (".HiFi__Mic2__source" and friends) rank last: the
+        // channels are wired by pair offset on the raw multichannel node, and
+        // a split's first match could be the wrong input entirely.
         var sources = _pw.ListDevices()
-            .Where(d => d.Kind == AudioNodeKind.Source && !d.IsOwn).ToList();
+            .Where(d => d.Kind == AudioNodeKind.Source && !d.IsOwn)
+            .OrderBy(d => d.Name.Contains(".HiFi__", StringComparison.Ordinal) ? 1 : 0)
+            .ToList();
         // Prefer the interface the daemon actively drives (the hint), so a
         // device switch moves the channel feeds with it; fall back to any
         // Wave XLR so the mixer still works when no device is connected.
@@ -603,7 +608,13 @@ public sealed class Mixer : IDisposable
     {
         lock (_gate)
         {
-            if (!_built || _inputFeeds.Count > 0) return false;
+            if (!_built) return false;
+            // No feeds at all (device absent at build), or feeds whose source
+            // node has since vanished (a card profile change renames every
+            // node under it): both mean re-resolve the input and re-wire.
+            bool broken = _inputFeeds.Count == 0
+                || _inputFeeds.Any(f => _pw.EnsureLinks(f) == LinkHealth.Broken);
+            if (!broken) return false;
             WireInputFeedsLocked();
             return _inputFeeds.Count > 0;
         }

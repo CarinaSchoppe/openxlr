@@ -509,6 +509,25 @@
                   <Button Content="{Binding Inserts.ButtonText}" HorizontalAlignment="Stretch"
                           HorizontalContentAlignment="Center" Padding="8,4" FontSize="12" Click="OnMixInserts"
                           ToolTip.Tip="Stereo LV2 plugins processing this mix before it reaches its outputs"/>
+                  <!-- the chain at a glance: LED, name, bypass, controls; adding,
+                       ordering and removing live in the chain window -->
+                  <ItemsControl ItemsSource="{Binding Inserts.Items}" IsVisible="{Binding Inserts.HasItems}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:InsertViewModel">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,2,0,0">
+                          <Ellipse Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,6,0"
+                                   Fill="{Binding IsActive, Converter={x:Static vm:Converters.ActiveLed}}"/>
+                          <TextBlock Grid.Column="1" Text="{Binding Label}" Foreground="#e6e9f0" FontSize="11"
+                                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}"/>
+                          <ToggleButton Grid.Column="2" Content="B" IsChecked="{Binding Bypass, Mode=TwoWay}"
+                                        Padding="6,0" MinHeight="0" MinWidth="0" FontSize="10" Margin="4,0,2,0"
+                                        HorizontalAlignment="Right" ToolTip.Tip="Bypass"/>
+                          <Button Grid.Column="3" Content="⚙" Padding="6,0" MinHeight="0" MinWidth="0" FontSize="10"
+                                  Click="OnInsertControls" ToolTip.Tip="Open this plugin's controls"/>
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
                   <ToggleButton Content="To USB Aux port" IsChecked="{Binding AuxPortEnabled, Mode=TwoWay}"
                                 IsVisible="{Binding IsAuxPort}"
                                 ToolTip.Tip="Send this mix to the second computer on the USB Aux port. Enabling briefly interrupts the interface's audio while its stream restarts."/>

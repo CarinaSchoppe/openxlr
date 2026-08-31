@@ -58,6 +58,7 @@ public sealed class DeviceManager : BackgroundService
                 try { _device.Disconnect(); } catch { /* releasing anyway */ }
                 _device = null;
                 _last = null;
+                RestoreCardProfile();   // the parked UCM split comes back with the device released
                 RaiseFromLocked();   // show the handoff instead of stale state
             }
         }

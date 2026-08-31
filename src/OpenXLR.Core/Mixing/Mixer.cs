@@ -135,9 +135,15 @@ public sealed class Mixer : IDisposable
             // Push initial fader values.
             foreach (MixDefinition mix in config.Mixes) ReapplyMixLocked(mix.Id);
 
-            // Publish non-monitor mixes as selectable capture devices.
+            // Publish non-monitor mixes as selectable capture devices. Each
+            // reads a post sink fed from the mix (directly, or through the
+            // mix's insert chain), so adding inserts later never recreates
+            // the capture device an app is recording from.
             foreach (MixDefinition mix in config.Mixes.Where(m => m.Kind == MixKind.VirtualMic))
-                _pw.CreateVirtualMic(mix.VirtualMicName, $"{mix.SinkName}.monitor", $"OpenXLR {mix.Name}");
+            {
+                _pw.CreateNullSink(mix.PostSinkName, $"OpenXLR {mix.Name} (post)");
+                _pw.CreateVirtualMic(mix.VirtualMicName, $"{mix.PostSinkName}.monitor", $"OpenXLR {mix.Name}");
+            }
 
             // Meter every channel and mix so the UI can show what is flowing.
             foreach (ChannelDefinition ch in config.Channels) _meters.Add($"ch:{ch.Id}", ch.SinkName);
@@ -150,6 +156,7 @@ public sealed class Mixer : IDisposable
             _ = defaultSource;           // input channels are hardware-wired, not selectable
             WireInputFeedsLocked();
             WireAuxRouteLocked();
+            foreach (MixDefinition mix in config.Mixes) WireMixChainLocked(mix);
         }
     }
 
@@ -236,10 +243,27 @@ public sealed class Mixer : IDisposable
 
     private void RemoveLowCutLocked()
     {
+        // Input chains only; mix chains are owned by WireMixChainLocked.
         foreach (PortLink link in _chainOuts.Values) _pw.Unlink(link);
         _chainOuts.Clear();
-        foreach (FilterHandle chain in _chains.Values) _pw.StopFilter(chain);
-        _chains.Clear();
+        foreach (string key in _chains.Keys.Where(k => !k.StartsWith("mix:", StringComparison.Ordinal)).ToList())
+        {
+            _pw.StopFilter(_chains[key]);
+            _chains.Remove(key);
+        }
+    }
+
+    private void RemoveMixChainsLocked()
+    {
+        foreach (PortLink link in _mixTaps.Values) _pw.Unlink(link);
+        foreach (PortLink link in _mixPostLinks.Values) _pw.Unlink(link);
+        _mixTaps.Clear();
+        _mixPostLinks.Clear();
+        foreach (string key in _chains.Keys.Where(k => k.StartsWith("mix:", StringComparison.Ordinal)).ToList())
+        {
+            _pw.StopFilter(_chains[key]);
+            _chains.Remove(key);
+        }
     }
 
     /// <summary>
@@ -251,11 +275,21 @@ public sealed class Mixer : IDisposable
         lock (_gate)
         {
             if (!_built || _chains.Count == 0) return false;
-            bool broken = _chains.Values.Any(c => c.Process.HasExited)
+            bool changed = false;
+            // Mix chains heal individually; input chains re-wire the whole input path.
+            foreach (MixDefinition mix in _config.Mixes)
+            {
+                string key = MixKey(mix);
+                if (_chains.TryGetValue(key, out FilterHandle? c) && c.Process.HasExited)
+                {
+                    WireMixChainLocked(mix);
+                    changed = true;
+                }
+            }
+            bool inputBroken = _chains.Where(e => !e.Key.StartsWith("mix:", StringComparison.Ordinal)).Any(e => e.Value.Process.HasExited)
                 || _chainOuts.Values.Any(l => _pw.EnsureLinks(l) == LinkHealth.Broken);
-            if (!broken) return false;
-            WireInputFeedsLocked();
-            return true;
+            if (inputBroken) { WireInputFeedsLocked(); changed = true; }
+            return changed;
         }
     }
 
@@ -279,7 +313,8 @@ public sealed class Mixer : IDisposable
             .Select(d => { int m = d.Name.IndexOf('#'); return m < 0 ? d.Name : d.Name[..m]; })
             .FirstOrDefault();
         if (proSink is null) return;
-        PortLink route = _pw.RouteMixToOutput(aux.SinkName, proSink + "#usbaux");
+        (string tapNode, string tapPrefix) = MixTapLocked(aux);
+        PortLink route = _pw.RouteTapToOutput(tapNode, tapPrefix, proSink + "#usbaux");
         if (route.Pairs.Count > 0) { _auxRoute = route; _auxTargetSink = proSink; }
     }
 
@@ -336,19 +371,76 @@ public sealed class Mixer : IDisposable
 
     private string? _inputHint;
     private int _lowCutHz;                 // 0 = off; software low cut on the first XLR channel
-    // One mono filter-chain per hardware input channel that needs one: the
-    // first XLR channel's carries the soft low cut and ClipGuard plus its
-    // inserts, the other mono channels carry inserts only.
+    // Filter-chains by insert key. Input keys ("xlr1", "xlr2") hold a mono
+    // chain per hardware input that needs one (the first XLR channel's also
+    // carries the soft low cut and ClipGuard); mix keys ("mix:stream") hold
+    // a stereo chain spliced between the mix and its consumers.
     private readonly Dictionary<string, FilterHandle> _chains = new();
-    private readonly Dictionary<string, PortLink> _chainOuts = new();   // chain source half into the channel sink
+    private readonly Dictionary<string, PortLink> _chainOuts = new();   // input chains: source half into the channel sink
+    private readonly Dictionary<string, PortLink> _mixTaps = new();     // mix key: mix monitor into chain or post sink
+    private readonly Dictionary<string, PortLink> _mixPostLinks = new(); // mix key: chain source into the post sink
 
-    // Plugin insert chains by channel id, and why a channel's last build fell
-    // back to running without its inserts.
+    // Plugin insert chains by key, and why a key's last build fell back to
+    // running without its inserts.
     private readonly Dictionary<string, List<InsertDefinition>> _inserts = new();
     private readonly Dictionary<string, string> _insertErrors = new();
 
-    /// <summary>Channels that can host inserts: the mono XLR inputs (Aux In is stereo).</summary>
-    private static bool IsInsertChannel(string channelId) => channelId is "xlr1" or "xlr2";
+    /// <summary>Insert keys: the mono XLR inputs (Aux In is stereo) and "mix:&lt;id&gt;" for every mix.</summary>
+    private bool IsInsertChannel(string key) => key is "xlr1" or "xlr2" || MixForKey(key) is not null;
+
+    private MixDefinition? MixForKey(string key)
+        => key.StartsWith("mix:", StringComparison.Ordinal) ? _config.Mixes.FirstOrDefault(m => m.Id == key[4..]) : null;
+
+    private static string MixKey(MixDefinition mix) => $"mix:{mix.Id}";
+
+    /// <summary>Where a mix's consumers should read from: its insert chain when one runs, else its own monitor.</summary>
+    private (string Node, string Prefix) MixTapLocked(MixDefinition mix)
+        => _chains.TryGetValue(MixKey(mix), out FilterHandle? chain) ? (chain.SourceName, "capture") : (mix.SinkName, "monitor");
+
+    /// <summary>
+    /// (Re)build one mix's insert chain and re-point everything that reads
+    /// the mix: the post sink behind a virtual mic, the monitor routes, or
+    /// the aux route. Without inserts the mix feeds them directly.
+    /// </summary>
+    private void WireMixChainLocked(MixDefinition mix)
+    {
+        string key = MixKey(mix);
+        if (_mixTaps.Remove(key, out PortLink? tap)) _pw.Unlink(tap);
+        if (_mixPostLinks.Remove(key, out PortLink? post)) _pw.Unlink(post);
+        if (_chains.Remove(key, out FilterHandle? old)) _pw.StopFilter(old);
+        _insertErrors.Remove(key);
+
+        List<InsertDefinition> inserts = InsertsFor(key);
+        bool anyInsert = inserts.Any(i => !i.Bypass && Lv2Catalog.Find(i.Plugin) is { } p && p.AudioIns >= 2 && p.AudioOuts >= 2);
+        if (anyInsert)
+        {
+            try
+            {
+                FilterHandle chain = _pw.CreateMixChain(mix.Id, $"OpenXLR {mix.Name} Inserts", inserts);
+                _chains[key] = chain;
+                _mixTaps[key] = _pw.LinkNodes(mix.SinkName, "monitor", chain.SinkName, "playback");
+            }
+            catch (Exception ex)
+            {
+                _insertErrors[key] = ex.Message;   // the mix keeps flowing without its inserts
+            }
+        }
+        (string node, string prefix) = MixTapLocked(mix);
+        switch (mix.Kind)
+        {
+            case MixKind.VirtualMic:
+                // The virtual mic reads the post sink, so its identity never
+                // changes when a chain comes or goes.
+                _mixPostLinks[key] = _pw.LinkNodes(node, prefix, mix.PostSinkName, "playback");
+                break;
+            case MixKind.Monitor:
+                SetMonitorOutputsLocked([.. _monitorOutputs]);
+                break;
+            case MixKind.AuxPort:
+                WireAuxRouteLocked();
+                break;
+        }
+    }
 
     private List<InsertDefinition> InsertsFor(string channelId)
         => _inserts.TryGetValue(channelId, out List<InsertDefinition>? l) ? l : [];
@@ -427,7 +519,7 @@ public sealed class Mixer : IDisposable
         lock (_gate)
         {
             _inserts[channel] = [.. inserts.Select(i => i with { Params = new Dictionary<string, double>(i.Params) })];
-            if (_built && IsInsertChannel(channel)) WireInputFeedsLocked();
+            if (_built) RewireInsertKeyLocked(channel);
         }
     }
 
@@ -440,8 +532,14 @@ public sealed class Mixer : IDisposable
             int idx = list.FindIndex(i => i.Id == insertId);
             if (idx < 0 || list[idx].Bypass == bypass) return;
             list[idx] = list[idx] with { Bypass = bypass };
-            if (_built && IsInsertChannel(channel)) WireInputFeedsLocked();
+            if (_built) RewireInsertKeyLocked(channel);
         }
+    }
+
+    private void RewireInsertKeyLocked(string key)
+    {
+        if (MixForKey(key) is MixDefinition mix) WireMixChainLocked(mix);
+        else if (IsInsertChannel(key)) WireInputFeedsLocked();
     }
 
     /// <summary>
@@ -464,7 +562,7 @@ public sealed class Mixer : IDisposable
             for (int j = 0; j < idx; j++)
                 if (!list[j].Bypass && list[j].Kind == "lv2" && Lv2Catalog.Find(list[j].Plugin) is not null) k++;
             try { _pw.SetFilterControl(chain, $"i{k}:{symbol}", value); }
-            catch (InvalidOperationException) { WireInputFeedsLocked(); }
+            catch (InvalidOperationException) { RewireInsertKeyLocked(channel); }
         }
     }
 
@@ -807,8 +905,9 @@ public sealed class Mixer : IDisposable
         }
         MixDefinition? monitor = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor);
         if (monitor is null) return;
+        (string tapNode, string tapPrefix) = MixTapLocked(monitor);
         foreach ((string key, string target) in MonitorRouteTargetsLocked())
-            _monitorRoutes[key] = _pw.RouteMixToOutput(monitor.SinkName, target);
+            _monitorRoutes[key] = _pw.RouteTapToOutput(tapNode, tapPrefix, target);
     }
 
     /// <summary>
@@ -851,7 +950,8 @@ public sealed class Mixer : IDisposable
                     if (health == LinkHealth.Relinked) { changed = true; continue; }
                     _pw.Unlink(route);   // Broken: the port names themselves are stale
                 }
-                _monitorRoutes[key] = _pw.RouteMixToOutput(monitor.SinkName, target);
+                (string tapNode, string tapPrefix) = MixTapLocked(monitor);
+                _monitorRoutes[key] = _pw.RouteTapToOutput(tapNode, tapPrefix, target);
                 changed |= _monitorRoutes[key].Pairs.Count > 0;
             }
             return changed;
@@ -1146,6 +1246,7 @@ public sealed class Mixer : IDisposable
         foreach (PortLink feed in _inputFeeds) _pw.Unlink(feed);
         _inputFeeds.Clear();
         RemoveLowCutLocked();
+        RemoveMixChainsLocked();
         _inputDevice = null;
         _pw.TearDown();     // unloads modules in reverse order: combines, then mixes
         _combineModules.Clear();

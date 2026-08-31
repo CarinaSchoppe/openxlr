@@ -305,43 +305,61 @@ public sealed class PipeWireAdapter
     /// </summary>
     public FilterHandle CreateMicFilter(string id, int lowCutHz, bool clipGuard,
         IReadOnlyList<InsertDefinition>? inserts = null)
+        => CreateFilterChain($"OpenXLR_lc_{id}_in", $"OpenXLR_lc_{id}_out", "OpenXLR Mic Filter", 1, lowCutHz, clipGuard, inserts);
+
+    /// <summary>A stereo insert chain for a mix, spliced between the mix and its consumers.</summary>
+    public FilterHandle CreateMixChain(string id, string description, IReadOnlyList<InsertDefinition> inserts)
+        => CreateFilterChain($"OpenXLR_ins_{id}_in", $"OpenXLR_ins_{id}_out", description, 2, 0, false, inserts);
+
+    /// <summary>
+    /// Build and hold a filter-chain: the builtin low cut and LADSPA limiter
+    /// (mono chains only), then the LV2 inserts as stages i0, i1, ... in
+    /// order, each channel linked stage to stage. Mono chains link a plugin's
+    /// first audio in and out; stereo chains link its first two.
+    /// </summary>
+    private FilterHandle CreateFilterChain(string sinkName, string srcName, string description, int channels,
+        int lowCutHz, bool clipGuard, IReadOnlyList<InsertDefinition>? inserts)
     {
-        // Every stage in chain order as (node definition, input port, output port).
-        var stages = new List<(string Node, string In, string Out)>();
-        if (lowCutHz > 0)
-            stages.Add(($"{{ type = builtin name = hp label = bq_highpass control = {{ \"Freq\" = {lowCutHz}.0 }} }}", "hp:In", "hp:Out"));
-        if (clipGuard)
+        // Every stage in chain order as (node definition, input ports, output ports), one port per channel.
+        var stages = new List<(string Node, string[] In, string[] Out)>();
+        if (channels == 1 && lowCutHz > 0)
+            stages.Add(($"{{ type = builtin name = hp label = bq_highpass control = {{ \"Freq\" = {lowCutHz}.0 }} }}", ["hp:In"], ["hp:Out"]));
+        if (channels == 1 && clipGuard)
             stages.Add(("{ type = ladspa name = lim plugin = hard_limiter_1413 label = hardLimiter " +
-                "control = { \"dB limit\" = -3.0 \"Wet level\" = 1.0 \"Residue level\" = 0.0 } }", "lim:Input", "lim:Output"));
+                "control = { \"dB limit\" = -3.0 \"Wet level\" = 1.0 \"Residue level\" = 0.0 } }", ["lim:Input"], ["lim:Output"]));
         int k = 0;
         foreach (InsertDefinition ins in inserts ?? [])
         {
             if (ins.Bypass || ins.Kind != "lv2") continue;
             PluginInfo? info = Lv2Catalog.Find(ins.Plugin);
-            if (info is null) continue;   // unknown plugin: skipped, reported by the caller
+            if (info is null || info.InputSymbols.Count < channels || info.OutputSymbols.Count < channels)
+                continue;   // unknown or wrong-width plugin: skipped, reported by the caller
             string name = $"i{k++}";
             string controls = ins.Params.Count == 0 ? "" :
                 " control = { " + string.Join(' ', ins.Params.Select(p => $"\"{p.Key}\" = {p.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}")) + " }";
             stages.Add(($"{{ type = lv2 name = {name} plugin = \"{ins.Plugin}\"{controls} }}",
-                $"{name}:{info.InputSymbol}", $"{name}:{info.OutputSymbol}"));
+                [.. info.InputSymbols.Take(channels).Select(s => $"{name}:{s}")],
+                [.. info.OutputSymbols.Take(channels).Select(s => $"{name}:{s}")]));
         }
         if (stages.Count == 0)
-            throw new ArgumentException("mic filter needs at least one stage");
-        string sinkName = $"OpenXLR_lc_{id}_in";
-        string srcName = $"OpenXLR_lc_{id}_out";
-        string links = stages.Count < 2 ? "" :
-            "links = [ " + string.Join(' ', stages.Zip(stages.Skip(1), (a, b) => $"{{ output = \"{a.Out}\" input = \"{b.In}\" }}")) + " ] ";
-        string inPort = stages[0].In;
-        string outPort = stages[^1].Out;
+            throw new ArgumentException("filter chain needs at least one stage");
+        var linkList = new List<string>();
+        for (int s = 1; s < stages.Count; s++)
+            for (int c = 0; c < channels; c++)
+                linkList.Add($"{{ output = \"{stages[s - 1].Out[c]}\" input = \"{stages[s].In[c]}\" }}");
+        string links = linkList.Count == 0 ? "" : "links = [ " + string.Join(' ', linkList) + " ] ";
+        string inputs = string.Join(' ', stages[0].In.Select(p => $"\"{p}\""));
+        string outputs = string.Join(' ', stages[^1].Out.Select(p => $"\"{p}\""));
+        string position = channels == 1 ? "[ MONO ]" : "[ FL FR ]";
         string spa =
-            "{ node.description = \"OpenXLR Mic Filter\" " +
+            $"{{ node.description = \"{description}\" " +
             $"filter.graph = {{ nodes = [ {string.Join(' ', stages.Select(s => s.Node))} ] {links}" +
-            $"inputs = [ \"{inPort}\" ] outputs = [ \"{outPort}\" ] }} " +
+            $"inputs = [ {inputs} ] outputs = [ {outputs} ] }} " +
             $"capture.props = {{ node.name = {sinkName} media.class = Audio/Sink " +
-            "audio.channels = 1 audio.position = [ MONO ] node.suspend-on-idle = false " +
+            $"audio.channels = {channels} audio.position = {position} node.suspend-on-idle = false " +
             "priority.session = 100 } " +
             $"playback.props = {{ node.name = {srcName} media.class = Audio/Source " +
-            "audio.channels = 1 audio.position = [ MONO ] node.suspend-on-idle = false " +
+            $"audio.channels = {channels} audio.position = {position} node.suspend-on-idle = false " +
             "priority.session = 100 } }";
         var psi = new ProcessStartInfo("pw-cli")
         {
@@ -358,7 +376,7 @@ public sealed class PipeWireAdapter
         // yields an empty PortLink, so wait for both halves' ports.
         WaitForPorts(sinkName, "playback", output: false, TimeSpan.FromSeconds(3));
         WaitForPorts(srcName, "capture", output: true, TimeSpan.FromSeconds(3));
-        return new FilterHandle(id, sinkName, srcName, p);
+        return new FilterHandle(sinkName, sinkName, srcName, p);
     }
 
     /// <summary>
@@ -546,6 +564,14 @@ public sealed class PipeWireAdapter
     /// capture; the aux port receives no audio from the Personal mix pairs).
     /// </summary>
     public PortLink RouteMixToOutput(string mixSink, string outputSink)
+        => RouteTapToOutput(mixSink, "monitor", outputSink);
+
+    /// <summary>
+    /// Route a tap (a mix sink's monitor, or an insert chain's source half)
+    /// into an output; "#usbaux" and "#hp1"-style markers select the device's
+    /// return pair.
+    /// </summary>
+    public PortLink RouteTapToOutput(string fromNode, string fromPrefix, string outputSink)
     {
         int pair = 0;
         int marker = outputSink.IndexOf('#');
@@ -555,7 +581,7 @@ public sealed class PipeWireAdapter
             pair = suffix == "usbaux" ? 5 : 1;   // aux mix return vs monitor-bus return
             outputSink = outputSink[..marker];
         }
-        return LinkNodes(mixSink, "monitor", outputSink, "playback", pair);
+        return LinkNodes(fromNode, fromPrefix, outputSink, "playback", pair);
     }
 
     /// <summary>

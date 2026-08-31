@@ -78,6 +78,12 @@ public sealed record MixDefinition(string Id, string Name, MixKind Kind)
     public string SinkName => $"OpenXLR_mix_{Id}";
     /// <summary>PipeWire node name of the published virtual capture device.</summary>
     public string VirtualMicName => $"OpenXLR_{Id}";
+    /// <summary>
+    /// Virtual-mic mixes: the sink the capture device actually reads, fed
+    /// from the mix directly or through its insert chain, so inserts can
+    /// come and go without recreating the device an app records from.
+    /// </summary>
+    public string PostSinkName => $"OpenXLR_post_{Id}";
 }
 
 public sealed record ChannelDefinition(string Id, string Name)

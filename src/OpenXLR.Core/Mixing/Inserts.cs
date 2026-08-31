@@ -46,4 +46,7 @@ public sealed record PluginInfo(
     /// <summary>Symbols of the first audio input and output ports (filter-chain link endpoints).</summary>
     string InputSymbol, string OutputSymbol,
     IReadOnlyList<PluginParam> Params,
-    IReadOnlyList<string> RequiredFeatures);
+    IReadOnlyList<string> RequiredFeatures,
+    /// <summary>All audio input and output port symbols, in port order (stereo chains link both).</summary>
+    IReadOnlyList<string> InputSymbols,
+    IReadOnlyList<string> OutputSymbols);

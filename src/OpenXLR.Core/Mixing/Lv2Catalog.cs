@@ -86,6 +86,8 @@ public static class Lv2Catalog
 
         int audioIns = 0, audioOuts = 0;
         string? inSym = null, outSym = null;
+        var inSyms = new List<string>();
+        var outSyms = new List<string>();
         var pars = new List<PluginParam>();
         for (uint i = 0; i < n; i++)
         {
@@ -95,8 +97,8 @@ public static class Lv2Catalog
             string sym = Lilv.Str(Lilv.lilv_node_as_string(Lilv.lilv_port_get_symbol(plugin, port))) ?? $"port{i}";
             if (Lilv.lilv_port_is_a(plugin, port, audioPort))
             {
-                if (isIn) { audioIns++; inSym ??= sym; }
-                else if (Lilv.lilv_port_is_a(plugin, port, outputPort)) { audioOuts++; outSym ??= sym; }
+                if (isIn) { audioIns++; inSym ??= sym; inSyms.Add(sym); }
+                else if (Lilv.lilv_port_is_a(plugin, port, outputPort)) { audioOuts++; outSym ??= sym; outSyms.Add(sym); }
                 continue;
             }
             if (!isIn || !Lilv.lilv_port_is_a(plugin, port, controlPort)) continue;
@@ -139,7 +141,7 @@ public static class Lv2Catalog
             }
             Lilv.lilv_nodes_free(req);
         }
-        return new PluginInfo("lv2", uri, name, category, audioIns, audioOuts, inSym, outSym, pars, features);
+        return new PluginInfo("lv2", uri, name, category, audioIns, audioOuts, inSym, outSym, pars, features, inSyms, outSyms);
     }
 
     /// <summary>The slice of liblilv this catalog uses.</summary>

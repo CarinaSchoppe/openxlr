@@ -24,24 +24,51 @@ function connect(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inAct
     const save = () => {
       settings.target = sel.value;
       if (iconSel) settings.icon = iconSel.value;
+      // Insert options carry {plugin, index} so the key survives a chain
+      // rebuild that hands the insert a new id.
+      const opt = sel.selectedOptions[0];
+      if (opt?.dataset.meta) {
+        settings.meta = settings.meta ?? {};
+        settings.meta[sel.value] = JSON.parse(opt.dataset.meta);
+      }
       ws.send(JSON.stringify({ event: "setSettings", context: piUuid, payload: settings }));
     };
     sel.addEventListener("change", save);
     iconSel?.addEventListener("change", save);
-    // Ask the plugin for the live output-device list.
-    ws.send(JSON.stringify({
-      event: "sendToPlugin",
-      context: actionContext,
-      payload: { request: "outputs" },
-    }));
+    // Ask the plugin for the live output-device list and the insert chains.
+    for (const request of ["outputs", "inserts"])
+      ws.send(JSON.stringify({ event: "sendToPlugin", context: actionContext, payload: { request } }));
   };
 
   ws.onmessage = (e) => {
     let m;
     try { m = JSON.parse(e.data); } catch { return; }
-    if (m.event === "sendToPropertyInspector" && Array.isArray(m.payload?.outputs))
-      fillMonitors(m.payload.outputs, wanted);
+    if (m.event !== "sendToPropertyInspector") return;
+    if (Array.isArray(m.payload?.outputs)) fillMonitors(m.payload.outputs, wanted);
+    if (Array.isArray(m.payload?.inserts)) {
+      fillGroup("insert-group", "Insert bypass", m.payload.inserts, wanted);
+      fillGroup("chain-group", "Insert chain bypass (all plugins)", m.payload.chains ?? [], wanted);
+    }
   };
+}
+
+// A group of live options {target, label, meta?}; re-applies the saved
+// selection once the option it refers to exists.
+function fillGroup(id, title, items, wanted) {
+  const sel = document.getElementById("target");
+  if (!sel || document.getElementById(id) || !items.length) return;
+  const group = document.createElement("optgroup");
+  group.id = id;
+  group.label = title;
+  for (const it of items) {
+    const opt = document.createElement("option");
+    opt.value = it.target;
+    opt.textContent = it.label;
+    if (it.meta) opt.dataset.meta = JSON.stringify(it.meta);
+    group.appendChild(opt);
+  }
+  sel.appendChild(group);
+  if (wanted) sel.value = wanted;
 }
 
 function fillMonitors(outputs, wanted) {

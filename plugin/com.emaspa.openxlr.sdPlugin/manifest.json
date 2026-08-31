@@ -25,7 +25,7 @@
 			"Name": "Toggle",
 			"UUID": "com.emaspa.openxlr.toggle",
 			"Icon": "icons/toggle",
-			"Tooltip": "Toggle a hardware switch, a mix mute, or a channel send mute",
+			"Tooltip": "Toggle a hardware switch, a mix mute, a channel send mute, or an insert plugin's bypass",
 			"Controllers": [
 				"Keypad"
 			],
@@ -41,7 +41,7 @@
 			"Name": "Dial",
 			"UUID": "com.emaspa.openxlr.dial",
 			"Icon": "icons/dial",
-			"Tooltip": "Adjust a level on a dial: channel sends, mix masters, gain, headphones, crossfade",
+			"Tooltip": "Adjust a level on a dial: channel sends, mix masters, gain, headphones, crossfade, insert plugin controls",
 			"Controllers": [
 				"Encoder"
 			],

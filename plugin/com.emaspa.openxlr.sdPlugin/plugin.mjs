@@ -45,15 +45,24 @@ let daemon = null;
 let daemonState = null;   // last full {"type":"state"} message
 let daemonUp = false;
 let meterLevels = null;   // last {"type":"meters"} levels, keyed ch:/mix:
+let catalog = new Map();  // LV2 plugin URI -> PluginInfo (names and ranges of the params)
 
 function connectDaemon() {
   daemon = new WebSocket("ws://127.0.0.1:37890/ws");
-  daemon.onopen = () => { daemonUp = true; refreshAll(); };
+  daemon.onopen = () => {
+    daemonUp = true;
+    daemon.send(JSON.stringify({ cmd: "listPlugins" }));
+    refreshAll();
+  };
   daemon.onmessage = (e) => {
     let m;
     try { m = JSON.parse(e.data); } catch { return; }
     if (m.type === "state") { daemonState = m; refreshAll(); }
     else if (m.type === "meters") { meterLevels = m.levels; refreshMeters(); }
+    else if (m.type === "plugins") {
+      catalog = new Map((m.plugins ?? []).map((p) => [p.plugin, p]));
+      refreshAll();
+    }
   };
   daemon.onclose = () => {
     daemonUp = false; daemonState = null; refreshAll();
@@ -86,6 +95,100 @@ const emptyTitle = new Set();   // contexts whose OpenDeck title is ""
 function defaultTitle(target) {
   if (target === "softLowCut") return "Low Cut";
   return toggleLabel(target);
+}
+
+// ---------- inserts ----------
+// Insert targets use "|" as the separator because a mix chain's channel key
+// ("mix:monitor") already contains a colon:
+//   insert|<channel>|<insertId>            key: bypass one insert
+//   inschain|<channel>                     key: bypass the whole chain
+//   insparam|<channel>|<insertId>|<symbol> dial: one plugin control
+const isInsertTarget = (t) =>
+  !!t && (t.startsWith("insert|") || t.startsWith("inschain|") || t.startsWith("insparam|"));
+
+// Chains the daemon exposes, in the order the UI shows them.
+const chainName = (ch) =>
+  ch.startsWith("mix:") ? `${MIXES[ch.slice(4)] ?? ch.slice(4)} mix` : CHANNELS[ch] ?? ch;
+const chainShort = (ch) =>
+  ch.startsWith("mix:") ? `${MIX_SHORT[ch.slice(4)] ?? ch.slice(4)} mix` : CHANNELS[ch] ?? ch;
+const insertsOf = (ch) => (mixer()?.inserts?.[ch] ?? []).map((s) => s.insert ?? s);
+
+// A short plugin name for a key face: drop the vendor prefix and the
+// channel-count suffix ("LSP Compressor Mono" -> "Compressor").
+function pluginShort(label, uri) {
+  let s = label || catalog.get(uri)?.name || uri?.split("/").pop() || "Plugin";
+  s = s.replace(/^LSP\s+/i, "").replace(/\s+(Mono|Stereo|MidSide|LR|MS|x\d)$/i, "");
+  return s;
+}
+
+// Find an insert by id; when the id is gone (chain rebuilt by a profile
+// recall) fall back to the same plugin in the same chain, preferring the
+// slot the key was made for. meta = {plugin, index} saved by the PI.
+function resolveInsert(ch, id, meta) {
+  const list = insertsOf(ch);
+  const byId = list.find((i) => i.id === id);
+  if (byId) return byId;
+  if (!meta?.plugin) return null;
+  const same = list.filter((i) => i.plugin === meta.plugin);
+  if (!same.length) return null;
+  return list[meta.index]?.plugin === meta.plugin ? list[meta.index] : same[0];
+}
+const metaOf = (inst, t) => inst?.settings?.meta?.[t];
+
+// The catalog's description of one control, or null before the catalog
+// arrived (or when the plugin is not installed any more).
+const paramInfo = (uri, symbol) => catalog.get(uri)?.params?.find((p) => p.symbol === symbol) ?? null;
+
+// Value to 0..100 along the control's own scale.
+function paramPct(p, v) {
+  if (p.toggled) return v > 0 ? 100 : 0;
+  if (p.logarithmic && p.min > 0 && p.max > p.min)
+    return Math.round((Math.log(v / p.min) / Math.log(p.max / p.min)) * 100);
+  if (p.max === p.min) return 0;
+  return Math.round(((v - p.min) / (p.max - p.min)) * 100);
+}
+function paramText(p, v) {
+  if (p.toggled) return v > 0 ? "ON" : "OFF";
+  const sp = p.scalePoints?.find((s) => Math.abs(s.value - v) < 1e-6);
+  if (sp) return sp.label;
+  if (p.integer) return String(Math.round(v));
+  const a = Math.abs(v);
+  return v.toFixed(a >= 100 ? 0 : a >= 10 ? 1 : 2);
+}
+// One dial tick along the control's scale; enumerations step through
+// their scale points, toggles flip on any movement.
+function paramStep(p, v, ticks) {
+  const clamp = (x) => Math.min(p.max, Math.max(p.min, x));
+  if (p.toggled) return ticks > 0 ? 1 : 0;
+  if (p.enumeration && p.scalePoints?.length) {
+    const pts = [...p.scalePoints].sort((a, b) => a.value - b.value);
+    let i = pts.findIndex((s) => Math.abs(s.value - v) < 1e-6);
+    if (i < 0) i = 0;
+    return pts[Math.min(pts.length - 1, Math.max(0, i + Math.sign(ticks)))].value;
+  }
+  if (p.integer) return clamp(Math.round(v) + ticks);
+  if (p.logarithmic && p.min > 0 && p.max > p.min)
+    return clamp(v * Math.pow(p.max / p.min, ticks / 100));
+  return clamp(v + ((p.max - p.min) / 100) * ticks);
+}
+
+// Everything the property inspectors can offer, built from live state.
+function insertChoices() {
+  const inserts = [], chains = [], params = [];
+  for (const ch of Object.keys(mixer()?.inserts ?? {})) {
+    const list = insertsOf(ch);
+    if (list.length)
+      chains.push({ target: `inschain|${ch}`, label: `${chainName(ch)}: whole chain` });
+    list.forEach((ins, index) => {
+      const name = pluginShort(ins.label, ins.plugin);
+      const meta = { plugin: ins.plugin, index };
+      inserts.push({ target: `insert|${ch}|${ins.id}`, label: `${chainName(ch)}: ${name}`, meta });
+      for (const p of catalog.get(ins.plugin)?.params ?? [])
+        params.push({ target: `insparam|${ch}|${ins.id}|${p.symbol}`,
+                      label: `${chainName(ch)}: ${name}: ${p.name}`, meta });
+    });
+  }
+  return { inserts, chains, params };
 }
 
 // Earlier versions pushed default titles into the host's persisted title
@@ -166,6 +269,9 @@ host.onmessage = (e) => {
       if (m.payload?.request === "outputs")
         send({ event: "sendToPropertyInspector", context: m.context,
                payload: { outputs: outputDevices() } });
+      else if (m.payload?.request === "inserts")
+        send({ event: "sendToPropertyInspector", context: m.context,
+               payload: insertChoices() });
       break;
   }
 };
@@ -183,9 +289,19 @@ const mixer = () => daemonState?.mixer ?? null;
 const mixOf = (id) => mixer()?.mixes?.find((x) => x.id === id);
 const chOf = (id) => mixer()?.channels?.find((x) => x.id === id);
 
-// A toggle target's current boolean, or null when unknown.
-function toggleValue(target) {
+// A toggle target's current boolean, or null when unknown. Insert targets
+// need the key's saved meta for id fallback, so they take the instance.
+function toggleValue(target, inst) {
   if (!target) return null;
+  if (target.startsWith("insert|")) {
+    const [, ch, id] = target.split("|");
+    const ins = resolveInsert(ch, id, metaOf(inst, target));
+    return ins ? !ins.bypass : null;        // ON = the plugin is in the path
+  }
+  if (target.startsWith("inschain|")) {
+    const list = insertsOf(target.slice(9));
+    return list.length ? list.some((i) => !i.bypass) : null;
+  }
   if (target === "auxPort") return mixer()?.auxPortEnabled ?? null;
   if (target === "softLowCut") {
     const hz = mixer()?.lowCutHz;
@@ -204,8 +320,15 @@ function toggleValue(target) {
   return dev()?.[target] ?? null;
 }
 
-function toggleLabel(target) {
+function toggleLabel(target, inst) {
   if (!target) return "OpenXLR";
+  if (target.startsWith("insert|")) {
+    const [, ch, id] = target.split("|");
+    const ins = resolveInsert(ch, id, metaOf(inst, target));
+    const name = ins ? pluginShort(ins.label, ins.plugin) : (metaOf(inst, target)?.plugin ? pluginShort(null, metaOf(inst, target).plugin) : "Insert");
+    return `${chainShort(ch)}\n${name}`;
+  }
+  if (target.startsWith("inschain|")) return `${chainShort(target.slice(9))}\nInserts`;
   if (target === "auxPort") return "Aux\nPort";
   if (target === "softLowCut") {
     const hz = mixer()?.lowCutHz ?? 0;
@@ -229,9 +352,18 @@ const isMuteLike = (t) =>
   MUTE_LIKE.has(t) || t?.startsWith("mixmute:") || t?.startsWith("sendmute:");
 
 // A dial target as {label, pct 0..100, text, muted}, or null when unknown.
-function dialValue(target) {
+function dialValue(target, inst) {
   if (!daemonState || !target) return null;
   const pct = (v) => Math.round(v * 100);
+  if (target.startsWith("insparam|")) {
+    const [, ch, id, symbol] = target.split("|");
+    const ins = resolveInsert(ch, id, metaOf(inst, target));
+    const p = ins ? paramInfo(ins.plugin, symbol) : null;
+    if (!ins || !p) return null;
+    const v = ins.params?.[symbol] ?? p.default;
+    return { pin: pluginShort(ins.label, ins.plugin), scroll: p.name,
+             pct: paramPct(p, v), text: ins.bypass ? "BYPASS" : paramText(p, v), muted: !!ins.bypass };
+  }
   if (target.startsWith("send:")) {
     const [, chId, mix] = target.split(":");
     const ch = chOf(chId);
@@ -291,9 +423,19 @@ function dialValue(target) {
 // ---------- input handlers ----------
 function onKeyDown(context, inst) {
   const t = inst.settings.target;
-  const cur = toggleValue(t);
+  const cur = toggleValue(t, inst);
   if (cur === null) { send({ event: "showAlert", context }); return; }
-  if (t === "auxPort") cmd({ cmd: "setAuxPortEnabled", value: !cur });
+  if (t.startsWith("insert|")) {
+    const [, ch, id] = t.split("|");
+    const ins = resolveInsert(ch, id, metaOf(inst, t));
+    cmd({ cmd: "setInsertBypass", channel: ch, insertId: ins.id, value: cur });   // cur = active, so bypass it
+  }
+  else if (t.startsWith("inschain|")) {
+    const ch = t.slice(9);
+    for (const ins of insertsOf(ch))
+      cmd({ cmd: "setInsertBypass", channel: ch, insertId: ins.id, value: cur });
+  }
+  else if (t === "auxPort") cmd({ cmd: "setAuxPortEnabled", value: !cur });
   else if (t === "softLowCut") {
     const hz = mixer()?.lowCutHz ?? 0;
     cmd({ cmd: "setLowCutHz", value: hz === 0 ? 80 : hz === 80 ? 120 : 0 });
@@ -313,7 +455,14 @@ function onDialRotate(context, inst, ticks) {
   const t = activeTarget(inst);
   if (!t || !daemonState) return;
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-  if (t.startsWith("send:")) {
+  if (t.startsWith("insparam|")) {
+    const [, ch, id, symbol] = t.split("|");
+    const ins = resolveInsert(ch, id, metaOf(inst, t));
+    const p = ins ? paramInfo(ins.plugin, symbol) : null;
+    if (!ins || !p) return;
+    const v = ins.params?.[symbol] ?? p.default;
+    cmd({ cmd: "setInsertParam", channel: ch, insertId: ins.id, symbol, value: paramStep(p, v, ticks) });
+  } else if (t.startsWith("send:")) {
     const [, ch, mix] = t.split(":");
     const levels = chOf(ch)?.levels;
     if (!levels) return;
@@ -353,7 +502,12 @@ function onDialRotate(context, inst, ticks) {
 function onDialPress(context, inst) {
   const t = activeTarget(inst);
   if (!t) return;
-  if (t.startsWith("send:")) {
+  if (t.startsWith("insparam|")) {
+    // the press is the insert's bypass, like a dial's mute
+    const [, ch, id] = t.split("|");
+    const ins = resolveInsert(ch, id, metaOf(inst, t));
+    if (ins) cmd({ cmd: "setInsertBypass", channel: ch, insertId: ins.id, value: !ins.bypass });
+  } else if (t.startsWith("send:")) {
     const [, ch, mix] = t.split(":");
     const c = chOf(ch);
     if (!c) return;
@@ -467,12 +621,13 @@ function sevenSegText(text, x, y, h, color) {
   return out;
 }
 
-function keySvg(on, muteLike, known, glyphName, badge, label) {
+function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null) {
   // The keys speak the touch strips' hardware language: the same faceplate
   // material (the strip tiles' #383838 with the side-lit gradient and #505050
   // border), a machined round button cap like the dial knob, a status LED,
-  // and for the low cut an inset LED display window.
-  const accent = !known ? null : on ? (muteLike ? "#FF3C4E" : "#3ecf7a") : null;
+  // and for the low cut an inset LED display window. offColor lights the
+  // OFF state too (an insert's bypass shows red, like the UI's LED).
+  const accent = !known ? null : on ? (muteLike ? "#FF3C4E" : "#3ecf7a") : offColor;
   const ink = !known ? "#6a7080" : accent ?? "#d2d6de";
   const lines = label ? label.split("\n").slice(0, 2) : [];
 
@@ -581,6 +736,10 @@ function meterKeyFor(t) {
   if (t === "gain") return "ch:xlr1";
   if (t === "gain2") return "ch:xlr2";
   if (t === "auxLevel") return "ch:aux";
+  if (t.startsWith("insparam|")) {
+    const ch = t.split("|")[1];
+    return ch.startsWith("mix:") ? ch : `ch:${ch}`;
+  }
   return "mix:monitor";   // outputVolume, hp, hp2, crossfade
 }
 
@@ -672,17 +831,19 @@ function refresh(context) {
   const t = inst.action === "com.emaspa.openxlr.dial"
     ? activeTarget(inst) : inst.settings.target;
   if (inst.action === "com.emaspa.openxlr.toggle") {
-    const v = toggleValue(t);
+    const v = toggleValue(t, inst);
     const badge = t === "softLowCut" ? (mixer()?.lowCutHz ? String(mixer().lowCutHz) : "OFF") : "";
-    const label = emptyTitle.has(context) ? (daemonUp ? defaultTitle(t) : "offline") : "";
+    const label = emptyTitle.has(context)
+      ? (daemonUp ? (isInsertTarget(t) ? toggleLabel(t, inst) : defaultTitle(t)) : "offline") : "";
     // The user can pick a glyph per key (a monitor output may be headphones
     // rather than speakers); "auto" or unset keeps the target's default.
     const iconChoice = inst.settings.icon;
     const glyphName = iconChoice && GLYPHS[iconChoice] ? iconChoice : glyphFor(t);
+    const offColor = isInsertTarget(t) ? "#FF3C4E" : null;   // bypassed = red, as in the UI
     send({ event: "setImage", context,
-           payload: { image: keySvg(v === true, isMuteLike(t), v !== null && daemonUp, glyphName, badge, label) } });
+           payload: { image: keySvg(v === true, isMuteLike(t), v !== null && daemonUp, glyphName, badge, label, offColor) } });
   } else if (inst.action === "com.emaspa.openxlr.dial") {
-    const d = dialValue(t);
+    const d = dialValue(t, inst);
     const isDb = t === "gain" || t === "gain2";
     send({ event: "setFeedback", context, payload: d
       ? { title: marqueeTitle(context, d.pin ?? "", d.scroll ?? d.label),

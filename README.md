@@ -184,6 +184,15 @@ label.
 
 ![Keys](docs/plugin-keys.png)
 
+Inserts are on the deck too. The property inspector lists every loaded
+plugin from live state: a key toggles one insert's bypass (LED green
+when in the path, red when bypassed, like the UI) or a whole chain at
+once, and a dial takes any control of any insert, stepping along the
+control's own scale (log, integer, enumeration, toggle), with its
+name and value on the panel and the insert's bypass on the press. A
+key or dial follows its insert by id, and falls back to the same
+plugin in the same chain when a profile recall rebuilds the chain.
+
 Everything reads and writes daemon state, so keys and dials stay in
 sync with the UI and the hardware at all times.
 

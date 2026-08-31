@@ -59,7 +59,12 @@ public sealed class MainViewModel : ViewModelBase
     // --- connection / device identity ---
 
     private bool _daemonConnected;
-    public bool DaemonConnected { get => _daemonConnected; private set { if (Set(ref _daemonConnected, value)) Raise(nameof(StatusLine)); } }
+    public bool DaemonConnected { get => _daemonConnected; private set { if (Set(ref _daemonConnected, value)) { Raise(nameof(StatusLine)); Raise(nameof(MixerPlaceholder)); } } }
+
+    /// <summary>What the empty SUBMIXER tile says: the two reasons differ.</summary>
+    public string MixerPlaceholder => !DaemonConnected
+        ? "Daemon not running."
+        : "Submixer is off. Turn it on in Options for per-app channels, mixes, and virtual microphones; OpenXLR is controlling the hardware only.";
 
     private bool _deviceConnected;
     public bool DeviceConnected { get => _deviceConnected; private set { if (Set(ref _deviceConnected, value)) Raise(nameof(StatusLine)); } }
@@ -475,7 +480,7 @@ public sealed class MainViewModel : ViewModelBase
     public string OutputVolumeText => $"{_outputVolume * 100:0}%";
 
     private bool _hasMixer;
-    public bool HasMixer { get => _hasMixer; private set => Set(ref _hasMixer, value); }
+    public bool HasMixer { get => _hasMixer; private set { if (Set(ref _hasMixer, value)) Raise(nameof(MixerPlaceholder)); } }
 
     /// <summary>Apply a state push from the daemon without echoing it back.</summary>
     private void Apply(JsonNode node)

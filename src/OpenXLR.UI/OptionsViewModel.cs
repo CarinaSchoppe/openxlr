@@ -31,6 +31,9 @@ public sealed class OptionsViewModel : ViewModelBase
         _openWindowAtLogin = s.OpenWindowAtLogin;
         _minimizeToTray = s.MinimizeToTray;
         _startMinimized = s.StartMinimized;
+        // No saved choice means the daemon runs whatever its unit asked for,
+        // which for every shipped unit is the submixer on.
+        _submixer = DaemonPrefs.Load().Submixer ?? true;
 
         BuildChoices();
         _applying = true;
@@ -89,6 +92,38 @@ public sealed class OptionsViewModel : ViewModelBase
             if (!Set(ref _startMinimized, value)) return;
             Persist();
         }
+    }
+
+    // --- submixer on/off (daemon-side setting, applied by restarting it) ---
+
+    private bool _submixer;
+    public bool Submixer
+    {
+        get => _submixer;
+        set
+        {
+            if (!Set(ref _submixer, value)) return;
+            try
+            {
+                new DaemonPrefs { Submixer = value }.Save();
+            }
+            catch (Exception ex)
+            {
+                SubmixerNote = $"Could not save the setting: {ex.Message}";
+                return;
+            }
+            SubmixerNote = StartupIntegration.RestartDaemon()
+                ? (value ? "Daemon restarted with the submixer on."
+                         : "Daemon restarted in hardware-control mode; the sound card keeps its stock layout.")
+                : "Saved. Restart the daemon to apply (systemctl --user restart openxlr-daemon).";
+        }
+    }
+
+    private string? _submixerNote;
+    public string? SubmixerNote
+    {
+        get => _submixerNote;
+        private set => Set(ref _submixerNote, value);
     }
 
     private void Persist() => new UiSettings

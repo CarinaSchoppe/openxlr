@@ -19,12 +19,20 @@ public sealed class DeviceManager : BackgroundService
     private IReadOnlyList<DeviceInfo> _detected = [];
     private ushort? _preferredPid;
 
-    public DeviceManager(ILogger<DeviceManager> log)
+    // Whether this run builds the submixer (same decision MixerService
+    // makes). Only then does the card need the pro-audio profile; in
+    // hardware-control mode the stock layout (UCM split) stays in place.
+    private readonly bool _submixer;
+
+    public DeviceManager(ILogger<DeviceManager> log, IConfiguration config)
     {
         _log = log;
         string? want = Environment.GetEnvironmentVariable("OPENXLR_DEVICE");
         if (want is not null && ushort.TryParse(want, System.Globalization.NumberStyles.HexNumber, null, out ushort pid))
             _preferredPid = pid;
+        bool launchDefault = config.GetValue("mixer", false) ||
+                             Environment.GetEnvironmentVariable("OPENXLR_BUILD_MIXER") == "1";
+        _submixer = OpenXLR.Core.DaemonSettings.SubmixerEnabled(launchDefault);
     }
 
     /// <summary>Every supported interface currently attached, for client pickers.</summary>
@@ -58,6 +66,7 @@ public sealed class DeviceManager : BackgroundService
                 try { _device.Disconnect(); } catch { /* releasing anyway */ }
                 _device = null;
                 _last = null;
+                RestoreCardProfile();   // the parked UCM split comes back with the device released
                 RaiseFromLocked();   // show the handoff instead of stale state
             }
         }
@@ -183,6 +192,7 @@ public sealed class DeviceManager : BackgroundService
             await Task.Delay(100, stop).ContinueWith(_ => { }, TaskScheduler.Default);
         }
         Drop();
+        RestoreCardProfile();
     }
 
     private void EnsureConnected()
@@ -200,8 +210,61 @@ public sealed class DeviceManager : BackgroundService
             _device = dev;
             _last = null;
             _log.LogInformation("connected {dev}", dev.Info.DisplayName);
+            EnsureCardProfile(dev.Info);
             RaiseFromLocked();                          // push the initial state
         }
+    }
+
+    // UCM coexistence: a card with a UCM split profile hides the raw
+    // multichannel nodes the mixer links against, so drive it in pro-audio
+    // while connected and restore the split on graceful shutdown.
+    private string? _profileRestore;
+    private string? _profileCardFragment;
+
+    private void EnsureCardProfile(DeviceInfo info)
+    {
+        if (!_submixer) return;   // hardware-control mode leaves the card's layout alone
+        string fragment = info.Model.Replace(' ', '_');
+        try
+        {
+            string? previous = OpenXLR.Core.Mixing.CardProfile.EnsureProAudio(fragment);
+            if (previous is not null)
+            {
+                _profileRestore = previous;
+                _profileCardFragment = fragment;
+                _log.LogInformation("card {frag}: UCM profile {prev} parked, pro-audio active", fragment, previous);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning("card profile check: {msg}", ex.Message);
+        }
+    }
+
+    // Restore at the START of shutdown: the teardown of the rest of the
+    // daemon can take many seconds, and the profile flip must not depend
+    // on it completing. RestoreCardProfile is idempotent, so the post-loop
+    // call in ExecuteAsync stays as a fallback for non-host exits.
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        RestoreCardProfile();
+        await base.StopAsync(cancellationToken);
+    }
+
+    private void RestoreCardProfile()
+    {
+        if (_profileRestore is null || _profileCardFragment is null) return;
+        try
+        {
+            OpenXLR.Core.Mixing.CardProfile.SetProfile(_profileCardFragment, _profileRestore);
+            _log.LogInformation("card {frag}: restored UCM profile {prev}", _profileCardFragment, _profileRestore);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning("card profile restore: {msg}", ex.Message);
+        }
+        _profileRestore = null;
+        _profileCardFragment = null;
     }
 
     private void PollOnce()

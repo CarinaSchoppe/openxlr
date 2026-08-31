@@ -474,7 +474,7 @@
       <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="SUBMIXER" Classes="h"/></Expander.Header>
       <DockPanel>
-        <TextBlock DockPanel.Dock="Top" Text="Mixer not running. Start the daemon with OPENXLR_BUILD_MIXER=1"
+        <TextBlock DockPanel.Dock="Top" Text="{Binding MixerPlaceholder}" TextWrapping="Wrap"
                    Foreground="#6b7285" IsVisible="{Binding !HasMixer}"/>
 
         <!-- master row -->

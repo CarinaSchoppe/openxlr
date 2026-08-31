@@ -82,11 +82,12 @@ public sealed class MixerService : IHostedService, IDisposable
 
     public Task StartAsync(CancellationToken ct)
     {
-        bool wanted = _config.GetValue("mixer", false) ||
-                      Environment.GetEnvironmentVariable("OPENXLR_BUILD_MIXER") == "1";
+        bool launchDefault = _config.GetValue("mixer", false) ||
+                             Environment.GetEnvironmentVariable("OPENXLR_BUILD_MIXER") == "1";
+        bool wanted = OpenXLR.Core.DaemonSettings.SubmixerEnabled(launchDefault);
         if (!wanted)
         {
-            _log.LogInformation("submixer not enabled (pass --mixer or OPENXLR_BUILD_MIXER=1)");
+            _log.LogInformation("submixer off (daemon.json, --mixer, or OPENXLR_BUILD_MIXER=1 turn it on); hardware control only");
             return Task.CompletedTask;
         }
 

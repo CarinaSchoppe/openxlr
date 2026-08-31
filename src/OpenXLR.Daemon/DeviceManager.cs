@@ -19,12 +19,20 @@ public sealed class DeviceManager : BackgroundService
     private IReadOnlyList<DeviceInfo> _detected = [];
     private ushort? _preferredPid;
 
-    public DeviceManager(ILogger<DeviceManager> log)
+    // Whether this run builds the submixer (same decision MixerService
+    // makes). Only then does the card need the pro-audio profile; in
+    // hardware-control mode the stock layout (UCM split) stays in place.
+    private readonly bool _submixer;
+
+    public DeviceManager(ILogger<DeviceManager> log, IConfiguration config)
     {
         _log = log;
         string? want = Environment.GetEnvironmentVariable("OPENXLR_DEVICE");
         if (want is not null && ushort.TryParse(want, System.Globalization.NumberStyles.HexNumber, null, out ushort pid))
             _preferredPid = pid;
+        bool launchDefault = config.GetValue("mixer", false) ||
+                             Environment.GetEnvironmentVariable("OPENXLR_BUILD_MIXER") == "1";
+        _submixer = OpenXLR.Core.DaemonSettings.SubmixerEnabled(launchDefault);
     }
 
     /// <summary>Every supported interface currently attached, for client pickers.</summary>
@@ -215,6 +223,7 @@ public sealed class DeviceManager : BackgroundService
 
     private void EnsureCardProfile(DeviceInfo info)
     {
+        if (!_submixer) return;   // hardware-control mode leaves the card's layout alone
         string fragment = info.Model.Replace(' ', '_');
         try
         {

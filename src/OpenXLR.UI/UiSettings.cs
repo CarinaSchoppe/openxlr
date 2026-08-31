@@ -61,6 +61,44 @@ public sealed record UiSettings
 }
 
 /// <summary>
+/// The daemon's own preference file (~/.config/openxlr/daemon.json), mirrored
+/// here so the window can write it without referencing the daemon's code.
+/// Keep the shape in step with OpenXLR.Core.DaemonSettings. A null Submixer
+/// means "not chosen": the daemon falls back to its unit's environment.
+/// </summary>
+public sealed record DaemonPrefs
+{
+    public bool? Submixer { get; init; }
+
+    private static readonly JsonSerializerOptions Json = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    private static string FilePath => Path.Combine(UiSettings.ConfigDir, "daemon.json");
+
+    public static DaemonPrefs Load()
+    {
+        try
+        {
+            if (File.Exists(FilePath))
+                return JsonSerializer.Deserialize<DaemonPrefs>(File.ReadAllText(FilePath), Json) ?? new DaemonPrefs();
+        }
+        catch (Exception) { /* corrupt file: behave as unset */ }
+        return new DaemonPrefs();
+    }
+
+    public void Save()
+    {
+        Directory.CreateDirectory(UiSettings.ConfigDir);
+        string tmp = FilePath + ".tmp";
+        File.WriteAllText(tmp, JsonSerializer.Serialize(this, Json));
+        File.Move(tmp, FilePath, overwrite: true);
+    }
+}
+
+/// <summary>
 /// Applies startup preferences to the system: a systemd user unit for the
 /// daemon, an XDG autostart entry for the window. Paths point at the build
 /// output; packaging will replace them with installed binaries later.
@@ -138,7 +176,14 @@ public static class StartupIntegration
         }
     }
 
-    private static void Systemctl(params string[] args)
+    /// <summary>
+    /// Restart the daemon's user service so a daemon-side setting takes
+    /// effect. False when systemd does not manage it (source builds run by
+    /// hand), so the caller can tell the user to restart it themselves.
+    /// </summary>
+    public static bool RestartDaemon() => Systemctl("restart", "openxlr-daemon.service");
+
+    private static bool Systemctl(params string[] args)
     {
         try
         {
@@ -146,8 +191,10 @@ public static class StartupIntegration
             psi.ArgumentList.Add("--user");
             foreach (string a in args) psi.ArgumentList.Add(a);
             using Process? p = Process.Start(psi);
-            p?.WaitForExit(5000);
+            if (p is null) return false;
+            p.WaitForExit(15000);
+            return p.HasExited && p.ExitCode == 0;
         }
-        catch (Exception) { /* best effort */ }
+        catch (Exception) { return false; }
     }
 }

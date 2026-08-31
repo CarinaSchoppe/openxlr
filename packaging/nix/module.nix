@@ -21,6 +21,18 @@ in
         ClipGuard limiter works on devices that need it (XLR Dock).
       '';
     };
+
+    lv2Plugins = lib.mkOption {
+      type = lib.types.listOf lib.types.package;
+      default = [ pkgs.lsp-plugins ];
+      defaultText = lib.literalExpression "[ pkgs.lsp-plugins ]";
+      example = lib.literalExpression "[ pkgs.lsp-plugins pkgs.x42-plugins pkgs.calf ]";
+      description = ''
+        LV2 plugin packages offered as inserts on the XLR inputs and the
+        mixes. They are put on the daemon's LV2_PATH together with
+        ~/.lv2 and the system profile's lib/lv2.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -40,6 +52,11 @@ in
       wantedBy = [ "default.target" ];
       environment = {
         OPENXLR_BUILD_MIXER = "1";
+        # Plugins load inside pw-cli, a child of the daemon, so this one
+        # variable covers both the catalog scan and the filter chains.
+        LV2_PATH = lib.concatStringsSep ":" (
+          [ "%h/.lv2" "/run/current-system/sw/lib/lv2" ]
+          ++ map (p: "${p}/lib/lv2") cfg.lv2Plugins);
       } // lib.optionalAttrs cfg.clipGuard {
         LADSPA_PATH = "${pkgs.ladspaPlugins}/lib/ladspa";
       };

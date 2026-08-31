@@ -25,6 +25,7 @@ Requires:       pipewire-pulseaudio
 Requires:       wireplumber
 Requires:       pulseaudio-libs
 Requires:       libusb1
+Requires:       lilv-libs
 Requires:       fontconfig
 Requires:       libX11
 Requires:       libICE
@@ -33,6 +34,7 @@ Recommends:     alsa-utils
 Recommends:     pulseaudio-utils
 Recommends:     xdg-utils
 Suggests:       ladspa-swh-plugins
+Suggests:       lsp-plugins-lv2
 
 %description
 Native Linux control for Elgato XLR interfaces over reverse-engineered

@@ -18,12 +18,13 @@ Depends: ${misc:Depends},
  wireplumber,
  libpulse0,
  libusb-1.0-0,
+ liblilv-0-0,
  libfontconfig1,
  libx11-6,
  libice6,
  libsm6
 Recommends: alsa-utils, pulseaudio-utils, xdg-utils
-Suggests: swh-plugins
+Suggests: swh-plugins, lsp-plugins-lv2
 Description: Control suite and PipeWire submixer for Elgato XLR interfaces
  Native Linux control for Elgato XLR interfaces over reverse-engineered
  USB protocols: gain, DSP, phantom power, output routing and the

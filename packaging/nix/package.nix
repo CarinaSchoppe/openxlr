@@ -5,8 +5,11 @@
 , icu
 , libpulseaudio
 , libusb1
+, lilv
 , pipewire
-, xorg
+, libx11
+, libice
+, libsm
 , alsa-utils
 , pulseaudio
 , xdg-utils
@@ -34,10 +37,11 @@ buildDotnetModule {
     icu
     libpulseaudio
     libusb1
+    lilv          # the daemon reads the LV2 plugin catalog through liblilv
     pipewire
-    xorg.libX11
-    xorg.libICE
-    xorg.libSM
+    libx11
+    libice
+    libsm
   ];
 
   # The daemon shells out to amixer, parec, pw-cli and pw-loopback; the UI

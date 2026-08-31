@@ -108,6 +108,30 @@ Pure PipeWire, no custom drivers or kernel modules:
   included
 - Live level meters throughout, dB-scaled
 
+### Inserts
+
+LV2 plugins in the signal path, the way Wave Link hosts VSTs. Each XLR
+input carries a mono chain and each mix (Monitor, Stream, Chat, Aux) a
+stereo one. An Inserts row under the channel or mix lists what is
+loaded: a green or red LED for active or bypassed, a bypass button, and
+a gear that opens the plugin's controls in their own window. The picker
+shows every installed LV2 plugin that fits the slot (mono for inputs,
+stereo for mixes), grouped by category. The controls window is generated
+from the plugin's port descriptions, grouped by parameter family, with a
+Defaults button. Chains are saved with the mixer and recalled by
+profiles.
+
+Every chain is a PipeWire filter-chain node, the same engine behind the
+low cut and ClipGuard, so plugins run inside PipeWire's graph with no
+extra process and add latency only while a chain has something in it.
+Plugins are found in the standard LV2 directories (`/usr/lib/lv2`,
+`~/.lv2`, or wherever `LV2_PATH` points); the daemon reads them through
+lilv. `lsp-plugins-lv2` is a good first set (gate, compressor, EQ,
+de-esser, limiter); `x42-plugins` and `calf` are also worth having.
+Plugins that ship a custom GUI still work, you get the generated
+controls instead of their window. VST and CLAP plugins cannot be loaded
+yet; that needs a plugin host and is planned.
+
 ### Application routing
 - OpenXLR detects every running audio-capable app through its PipeWire
   client registration and routes it to a channel by rules; it remembers
@@ -119,7 +143,8 @@ Pure PipeWire, no custom drivers or kernel modules:
 ### Profiles
 
 Named scenes: every hardware setting plus the whole submix (send levels,
-mutes, masters, monitor outputs, aux state). Saved per device, recalled
+mutes, masters, monitor outputs, aux state, insert chains with their
+parameters). Saved per device, recalled
 from the header or over the API, so a Stream Deck key can switch scenes.
 App routing and system defaults stay global on purpose: recalling a
 scene never rewires the desktop.
@@ -223,6 +248,8 @@ The four devices speak three different dialects:
   and WirePlumber; `pactl`, `pw-cli`, `pw-link`, `pw-dump`, `parec` on PATH
 - `swh-plugins` (LADSPA) for the software ClipGuard; everything else
   works without it
+- `lilv` and some LV2 plugins for the inserts (`lsp-plugins-lv2` to
+  start); without lilv the plugin picker is simply empty
 - .NET 10 SDK to build (runtime to run)
 - libusb 1.0
 - A supported Elgato interface (see the table above); the submixer works
@@ -242,7 +269,8 @@ openxlr               # the mixer UI, also in your application menu
 The package ships the udev rules and the XLR Dock's WirePlumber rule;
 replug your interface once after installing so the rules apply. The
 OpenDeck plugin lands in `/usr/share/openxlr/`, copy it into
-`~/.config/opendeck/plugins/` to use it.
+`~/.config/opendeck/plugins/` to use it. For inserts, install some LV2
+plugins: `sudo pacman -S lsp-plugins-lv2`.
 
 ### Ubuntu (.deb)
 
@@ -261,7 +289,8 @@ archive. As with the AUR package, the udev rules and the XLR Dock's
 WirePlumber rule are included; replug your interface once after
 installing. The OpenDeck plugin lands in `/usr/share/openxlr/`, copy it
 into `~/.config/opendeck/plugins/` to use it. For the software
-ClipGuard on the XLR Dock, also `sudo apt install swh-plugins`.
+ClipGuard on the XLR Dock, also `sudo apt install swh-plugins`; for
+inserts, `sudo apt install lsp-plugins-lv2`.
 
 ### Fedora (.rpm)
 
@@ -280,7 +309,8 @@ Fedora repos. The udev rules and the XLR Dock's WirePlumber rule are
 included; replug your interface once after installing. The OpenDeck
 plugin lands in `/usr/share/openxlr/`, copy it into
 `~/.config/opendeck/plugins/` to use it. For the software ClipGuard on
-the XLR Dock, also `sudo dnf install ladspa-swh-plugins`.
+the XLR Dock, also `sudo dnf install ladspa-swh-plugins`; for inserts,
+`sudo dnf install lsp-plugins-lv2`.
 
 ### NixOS (flake)
 
@@ -301,8 +331,11 @@ Rebuild, replug the interface once so the udev rules apply, and the
 `openxlr` mixer UI is in your application menu. The module starts the
 daemon as a user service and points it at the SWH LADSPA plugins so
 ClipGuard works on the XLR Dock (`services.openxlr.clipGuard = false;`
-turns that off). The OpenDeck plugin ships in the package's
-`share/openxlr/`, copy it into `~/.config/opendeck/plugins/`.
+turns that off), and at the LV2 plugins listed in
+`services.openxlr.lv2Plugins` (default `[ pkgs.lsp-plugins ]`; add
+`pkgs.x42-plugins`, `pkgs.calf` or your own) so they show up as
+inserts. The OpenDeck plugin ships in the package's `share/openxlr/`,
+copy it into `~/.config/opendeck/plugins/`.
 
 ### From source
 
@@ -317,14 +350,14 @@ by distribution:
 ```sh
 # Arch
 sudo pacman -S --needed dotnet-sdk pipewire pipewire-pulse wireplumber libusb
-# optional, enables the software ClipGuard for the XLR Dock:
-sudo pacman -S --needed swh-plugins
+# optional: software ClipGuard for the XLR Dock, and LV2 plugins for inserts
+sudo pacman -S --needed swh-plugins lilv lsp-plugins-lv2
 
 # Fedora
-sudo dnf install dotnet-sdk-10.0 pipewire pipewire-pulseaudio wireplumber libusb1 ladspa-swh-plugins
+sudo dnf install dotnet-sdk-10.0 pipewire pipewire-pulseaudio wireplumber libusb1 ladspa-swh-plugins lilv-libs lsp-plugins-lv2
 
 # Debian / Ubuntu (dotnet from Microsoft's feed if the distro lacks 10.0)
-sudo apt install dotnet-sdk-10.0 pipewire pipewire-pulse wireplumber libusb-1.0-0 swh-plugins
+sudo apt install dotnet-sdk-10.0 pipewire pipewire-pulse wireplumber libusb-1.0-0 swh-plugins liblilv-0-0 lsp-plugins-lv2
 ```
 
 Verify the audio stack is PipeWire before going further:
@@ -465,6 +498,10 @@ are single JSON objects:
 | `setMonitorOutputs` | `devices[]` | every sink the monitor mix feeds |
 | `setAuxPortEnabled` | `value` | send the Aux mix to the USB Aux port |
 | `setOutputVolume` | `value` | volume of the selected monitor devices |
+| `listPlugins` | none | the installed LV2 plugins, answered with a `{"type":"plugins"}` message |
+| `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is `xlr1`, `xlr2` or `mix:<id>`, each insert is `{id, kind:"lv2", plugin:<uri>, label?, bypass?, params?}` |
+| `setInsertBypass` | `channel`, `insertId`, `value` | bypass one insert |
+| `setInsertParam` | `channel`, `insertId`, `symbol`, `value` | one plugin control, by its LV2 port symbol |
 | `assignApp` | `identity`, `channel`, `label?` | route an app (creates a registry entry if unseen) |
 | `forgetApp` | `identity` | drop an app and its remembered channel |
 | `setEnforcedDefaults` | `sink`, `source` | system defaults to hold |
@@ -479,7 +516,9 @@ does, a script can do too.
 
 - `~/.config/openxlr/mixer.json` holds every mixer decision: levels, mutes,
   device choices, the app registry, enforced defaults, the software low
-  cut (the daemon writes it)
+  cut, the insert chains (the daemon writes it)
+- `~/.config/openxlr/profiles/<vid-pid>/<name>.json` holds the named
+  scenes, one file each
 - `~/.config/openxlr/gainlock.json` holds which devices have the gain lock set
 - `~/.config/openxlr/ui.json` holds window preferences (tray, autostart)
 
@@ -497,7 +536,7 @@ src/            .NET solution: Core (device + mixer), Daemon, UI, Probe
 plugin/         the OpenDeck (Stream Deck) plugin
 docs/           protocol documentation, research log, capture methodology
 tools/          proprobe.py, a standalone python probe for the vendor protocol
-packaging/      systemd user unit
+packaging/      systemd unit, udev rule, WirePlumber rules, rpm and nix packaging
 ```
 
 ## Status

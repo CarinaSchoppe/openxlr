@@ -471,8 +471,11 @@ public sealed class PipeWireAdapter
         // multichannel interfaces like the Wave XLR Pro), so discover the real
         // ports rather than assuming, then pair them in order. A mono source
         // into a stereo sink gets its one port linked to both inputs.
-        List<string> outs = ListPorts(fromNode, fromPortPrefix, output: true);
-        List<string> ins = ListPorts(toNode, toPortPrefix, output: false);
+        // pw-link addresses ports by their printed name, and a duplicated
+        // node (a USB sink caught mid re-enumeration lists every port twice)
+        // must not yield duplicate pairs, so identical names collapse first.
+        List<string> outs = [.. ListPorts(fromNode, fromPortPrefix, output: true).Distinct()];
+        List<string> ins = [.. ListPorts(toNode, toPortPrefix, output: false).Distinct()];
         if (fromPairOffset > 0)
         {
             // A source without that pair feeds nothing. Falling back to the
@@ -493,11 +496,22 @@ public sealed class PipeWireAdapter
                      || toNode.Contains(".pro-output-", StringComparison.Ordinal)))
             ins = [.. ins.Take(2)];
 
+        // Pair by channel suffix where both sides have one (FL to FL, FR to
+        // FR, whatever the listing order); the positional fallback keeps a
+        // mono source feeding both inputs of a stereo sink. A crossed link
+        // (FR into FL) once slipped through here via index clamping and put
+        // the right channel on both speakers.
+        static string Chan(string port)
+        {
+            int i = port.LastIndexOf('_');
+            return i < 0 ? "" : port[(i + 1)..];
+        }
         var pairs = new List<(string From, string To)>();
         for (int i = 0; i < ins.Count && (outs.Count > 0); i++)
         {
-            string from = outs[Math.Min(i, outs.Count - 1)];
             string to = ins[i];
+            string from = outs.FirstOrDefault(o => Chan(o) != "" && Chan(o) == Chan(to))
+                ?? outs[Math.Min(i, outs.Count - 1)];
             try { Run("pw-link", from, to); pairs.Add((from, to)); }
             catch (InvalidOperationException) { /* racing a disappearing port */ }
         }

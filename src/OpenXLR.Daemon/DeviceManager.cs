@@ -183,6 +183,7 @@ public sealed class DeviceManager : BackgroundService
             {
                 EnsureConnected();
                 PollOnce();
+                TryParkCardProfile();
             }
             catch (Exception ex)
             {
@@ -220,25 +221,47 @@ public sealed class DeviceManager : BackgroundService
     // while connected and restore the split on graceful shutdown.
     private string? _profileRestore;
     private string? _profileCardFragment;
+    private int _profileChecksLeft;
+    private DateTime _profileNextCheck;
 
     private void EnsureCardProfile(DeviceInfo info)
     {
         if (!_submixer) return;   // hardware-control mode leaves the card's layout alone
-        string fragment = info.Model.Replace(' ', '_');
+        // The USB device is visible to libusb before WirePlumber has created
+        // (and profiled) the card, so a single check at connect misses the
+        // boot case entirely: keep checking until the card settles.
+        _profileCardFragment = info.Model.Replace(' ', '_');
+        _profileChecksLeft = 60;
+        _profileNextCheck = DateTime.UtcNow;
+        TryParkCardProfile();
+    }
+
+    private void TryParkCardProfile()
+    {
+        if (_profileChecksLeft <= 0 || DateTime.UtcNow < _profileNextCheck) return;
+        string? fragment = _profileCardFragment;
+        if (fragment is null) { _profileChecksLeft = 0; return; }
         try
         {
-            string? previous = OpenXLR.Core.Mixing.CardProfile.EnsureProAudio(fragment);
-            if (previous is not null)
+            (string? active, string? parked) = OpenXLR.Core.Mixing.CardProfile.EnsureProAudio(fragment);
+            if (parked is not null)
             {
-                _profileRestore = previous;
-                _profileCardFragment = fragment;
-                _log.LogInformation("card {frag}: UCM profile {prev} parked, pro-audio active", fragment, previous);
+                _profileRestore = parked;
+                _log.LogInformation("card {frag}: UCM profile {prev} parked, pro-audio active", fragment, parked);
             }
+            // Settled: we parked it, or it already runs pro-audio. Anything
+            // else (card absent, or still "off" while the session manager
+            // brings it up) gets another look.
+            if (parked is not null || active == "pro-audio") { _profileChecksLeft = 0; return; }
         }
         catch (Exception ex)
         {
             _log.LogWarning("card profile check: {msg}", ex.Message);
         }
+        _profileChecksLeft--;
+        _profileNextCheck = DateTime.UtcNow.AddSeconds(2);
+        if (_profileChecksLeft == 0)
+            _log.LogWarning("card {frag}: gave up waiting for a pro-audio profile", fragment);
     }
 
     // Restore at the START of shutdown: the teardown of the rest of the
@@ -253,6 +276,7 @@ public sealed class DeviceManager : BackgroundService
 
     private void RestoreCardProfile()
     {
+        _profileChecksLeft = 0;
         if (_profileRestore is null || _profileCardFragment is null) return;
         try
         {

@@ -19,17 +19,19 @@ public static class CardProfile
     /// <summary>
     /// If the card whose device.name contains <paramref name="nameFragment"/>
     /// is in a UCM profile and offers pro-audio, switch it there. Returns
-    /// the previous profile name when a switch happened, else null.
+    /// the card's active profile name (null when the card is not in the
+    /// PipeWire graph yet, which at boot can lag the USB device by seconds)
+    /// and the previous profile name when a switch happened.
     /// </summary>
-    public static string? EnsureProAudio(string nameFragment)
+    public static (string? Active, string? Parked) EnsureProAudio(string nameFragment)
     {
         var card = FindCard(nameFragment);
-        if (card is null) return null;
+        if (card is null) return (null, null);
         (uint id, string active, Dictionary<string, int> profiles) = card.Value;
-        if (active is not ("HiFi" or "Direct")) return null;   // not UCM-split; leave alone
-        if (!profiles.TryGetValue("pro-audio", out int index)) return null;
+        if (active is not ("HiFi" or "Direct")) return (active, null);   // not UCM-split; leave alone
+        if (!profiles.TryGetValue("pro-audio", out int index)) return (active, null);
         Run("wpctl", "set-profile", id.ToString(), index.ToString());
-        return active;
+        return (active, active);
     }
 
     /// <summary>Set the card back to a named profile (best effort).</summary>

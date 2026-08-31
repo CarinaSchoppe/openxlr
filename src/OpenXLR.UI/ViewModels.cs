@@ -766,7 +766,10 @@ public sealed class MainViewModel : ViewModelBase
             foreach (MixViewModel mv in Mixes.Where(mv => mv.IsAuxPort))
                 mv.Visible = !DeviceConnected || CapOutputRouting;
             foreach (MixViewModel mv in Mixes)
+            {
                 mv.Inserts.Apply(mixer["inserts"]?[$"mix:{mv.Id}"]);
+                mv.Inserts.EnsurePluginsLoaded();   // shared fetch; cheap after the first
+            }
         }
 
         if (mixer["channels"] is JsonArray channels)

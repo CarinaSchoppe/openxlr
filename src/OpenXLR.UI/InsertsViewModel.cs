@@ -73,17 +73,25 @@ public sealed class InsertsViewModel : ViewModelBase
     /// <summary>Picker status: scanning, count, or why nothing is offered.</summary>
     public string? Note { get => _note; private set => Set(ref _note, value); }
 
+    // One catalog fetch per daemon connection, shared by every chain (the
+    // XLR strips and all the mixes), so the controls windows can build their
+    // sliders from restored state without anyone opening a picker first.
+    private static Task<JsonNode?>? _catalogTask;
+
+    private static Task<JsonNode?> CatalogAsync(DaemonClient client)
+        => _catalogTask ??= client.RequestPluginsAsync(TimeSpan.FromSeconds(20));
+
     /// <summary>Fetch the catalog once per connection (lilv's scan can take a moment).</summary>
     public async void EnsurePluginsLoaded()
     {
         if (_pluginsRequested) return;
         _pluginsRequested = true;
         Note = "Scanning LV2 plugins…";
-        JsonNode? plugins = await _client.RequestPluginsAsync(TimeSpan.FromSeconds(20));
+        JsonNode? plugins = await CatalogAsync(_client);
         Dispatcher.UIThread.Post(() =>
         {
             PluginChoices.Clear();
-            if (plugins is not JsonArray arr) { Note = "Plugin list unavailable"; _pluginsRequested = false; return; }
+            if (plugins is not JsonArray arr) { Note = "Plugin list unavailable"; _pluginsRequested = false; _catalogTask = null; return; }
             foreach (JsonNode? p in arr)
             {
                 if (p is null) continue;
@@ -105,7 +113,10 @@ public sealed class InsertsViewModel : ViewModelBase
         });
     }
 
-    public void ResetForNewConnection() => _pluginsRequested = false;
+    public void ResetForNewConnection() { _pluginsRequested = false; _catalogTask = null; }
+
+    /// <summary>Whether the catalog has arrived for this chain.</summary>
+    public bool CatalogReady => PluginChoices.Count > 0;
 
     /// <summary>Apply the daemon's view of this channel's chain.</summary>
     public void Apply(JsonNode? chain)
@@ -245,8 +256,24 @@ public sealed class InsertViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<InsertParamGroup> Groups { get; } = [];
 
-    /// <summary>Build the control view models on first use (the controls window opening).</summary>
-    public void EnsureParams() { if (Params.Count == 0) BuildParams(); }
+    /// <summary>
+    /// Build the control view models on first use (the controls window
+    /// opening). If the catalog is not here yet, ask for it and build as
+    /// soon as it lands.
+    /// </summary>
+    public void EnsureParams()
+    {
+        if (Params.Count > 0) return;
+        if (_owner.CatalogReady) { BuildParams(); return; }
+        void OnCatalog(object? s, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (!_owner.CatalogReady || Params.Count > 0) return;
+            _owner.PluginChoices.CollectionChanged -= OnCatalog;
+            BuildParams();
+        }
+        _owner.PluginChoices.CollectionChanged += OnCatalog;
+        _owner.EnsurePluginsLoaded();
+    }
 
     private static readonly (string Group, string[] Keys)[] GroupRules =
     [

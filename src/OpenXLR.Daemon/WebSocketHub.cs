@@ -53,6 +53,7 @@ public sealed class WebSocketHub
     private StateMessage Snapshot() =>
         _devices.Snapshot() with
         {
+            DaemonVersion = OpenXLR.Daemon.DaemonVersion.Current,
             Mixer = _mixer.Snapshot(),
             Devices = _mixer.Devices(),
             Profiles = ActiveDeviceId() is string devId ? OpenXLR.Core.ProfileStore.List(devId) : [],

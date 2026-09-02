@@ -59,7 +59,7 @@ public sealed class MainViewModel : ViewModelBase
     // --- connection / device identity ---
 
     private bool _daemonConnected;
-    public bool DaemonConnected { get => _daemonConnected; private set { if (Set(ref _daemonConnected, value)) { Raise(nameof(StatusLine)); Raise(nameof(MixerPlaceholder)); } } }
+    public bool DaemonConnected { get => _daemonConnected; private set { if (SetAndRaiseMismatch(ref _daemonConnected, value)) { Raise(nameof(StatusLine)); Raise(nameof(MixerPlaceholder)); } } }
 
     /// <summary>What the empty SUBMIXER tile says: the two reasons differ.</summary>
     public string MixerPlaceholder => !DaemonConnected
@@ -500,6 +500,32 @@ public sealed class MainViewModel : ViewModelBase
     private bool _hasMixer;
     public bool HasMixer { get => _hasMixer; private set { if (Set(ref _hasMixer, value)) Raise(nameof(MixerPlaceholder)); } }
 
+    private bool SetAndRaiseMismatch(ref bool field, bool value)
+    {
+        bool changed = Set(ref field, value);
+        if (changed) Raise(nameof(DaemonVersionMismatch));
+        return changed;
+    }
+
+    private string? _daemonVersion;
+    /// <summary>The running daemon's version, or null for one older than 0.1.13.</summary>
+    public string? DaemonVersion
+    {
+        get => _daemonVersion;
+        private set { if (Set(ref _daemonVersion, value)) { Raise(nameof(DaemonVersionMismatch)); Raise(nameof(DaemonVersionNote)); } }
+    }
+
+    /// <summary>
+    /// True when the daemon is not the same build as this window: a package
+    /// upgrade leaves the old daemon running, and the controls it offers are
+    /// those of the old version.
+    /// </summary>
+    public bool DaemonVersionMismatch => DaemonConnected && (DaemonVersion ?? "") != AppVersion.Current;
+
+    public string DaemonVersionNote =>
+        $"The daemon is {(DaemonVersion is null ? "an older version" : "v" + DaemonVersion)}; this window is v{AppVersion.Current}. " +
+        "Restart the daemon to run the installed version.";
+
     /// <summary>Apply a state push from the daemon without echoing it back.</summary>
     private void Apply(JsonNode node)
     {
@@ -507,6 +533,7 @@ public sealed class MainViewModel : ViewModelBase
         try
         {
             DaemonConnected = true;
+            DaemonVersion = node["daemonVersion"]?.GetValue<string>();
             DeviceConnected = node["connected"]?.GetValue<bool>() ?? false;
             if (node["device"] is JsonNode dev)
                 DeviceName = $"{dev["vendor"]?.GetValue<string>()} {dev["model"]?.GetValue<string>()}".Trim();

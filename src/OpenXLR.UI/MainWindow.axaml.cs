@@ -202,4 +202,12 @@ public partial class MainWindow : Window
         _flow = new FlowWindow(_vm);
         _flow.Show(this);
     }
+
+    private void OnRestartDaemon(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        // Managed by systemd on packaged installs; a hand-started daemon has
+        // to be restarted by hand, and the banner stays until it is.
+        if (sender is Avalonia.Controls.Button b)
+            b.Content = StartupIntegration.RestartDaemon() ? "Restarting…" : "Not managed by systemd: restart it by hand";
+    }
 }

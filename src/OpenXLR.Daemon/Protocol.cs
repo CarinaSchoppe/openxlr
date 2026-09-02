@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json.Serialization;
 using OpenXLR.Core.Devices;
 using OpenXLR.Core.Mixing;
@@ -80,6 +81,12 @@ public sealed record PluginsMessage
 public sealed record StateMessage
 {
     [JsonPropertyName("type")] public string Type => "state";
+    /// <summary>
+    /// The daemon's own version, so a client can tell when it is talking to
+    /// a daemon left running across a package upgrade (the UI shows a
+    /// restart prompt; a daemon older than 0.1.13 omits the field).
+    /// </summary>
+    [JsonPropertyName("daemonVersion")] public string? DaemonVersion { get; init; }
     [JsonPropertyName("connected")] public bool Connected { get; init; }
     [JsonPropertyName("device")] public DeviceDescriptor? Device { get; init; }
     [JsonPropertyName("capabilities")] public DeviceCapabilities? Capabilities { get; init; }
@@ -154,4 +161,13 @@ public static class ControlNames
 public sealed record DiagnosticsMessage(IReadOnlyDictionary<string, string> Blocks)
 {
     [System.Text.Json.Serialization.JsonPropertyName("type")] public string Type => "diagnostics";
+}
+
+/// <summary>The daemon's version as stamped by the build (Directory.Build.props).</summary>
+public static class DaemonVersion
+{
+    public static readonly string Current =
+        typeof(DaemonVersion).Assembly
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion.Split('+')[0] ?? "0.0.0";
 }

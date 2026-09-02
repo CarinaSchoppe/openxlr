@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json.Serialization;
 using OpenXLR.Core.Devices;
 using OpenXLR.Core.Mixing;
@@ -14,9 +15,9 @@ namespace OpenXLR.Daemon;
 public sealed record Command
 {
     /// <summary>
-    /// "getState" | "set" (device control) | "setLevel" | "setChannelMuted" |
-    /// "setMixVolume" | "setMixMuted" | "assignStream" | "setMonitorOutput" |
-    /// "setMicInput" | "setOutputVolume" | "setInputVolume" | "setEnforcedDefaults".
+    /// Command name. <see cref="WebSocketHub"/> owns dispatch; the root README's
+    /// WebSocket table is the canonical public list so this DTO cannot drift
+    /// into a second protocol specification.
     /// </summary>
     [JsonPropertyName("cmd")] public string Cmd { get; init; } = "";
 
@@ -36,8 +37,8 @@ public sealed record Command
     [JsonPropertyName("streamId")] public int? StreamId { get; init; }
 
     /// <summary>
-    /// "setMonitorOutput" / "setMicInput": the PipeWire node.name to select, or
-    /// null to disconnect that route.
+    /// "setMonitorOutput": PipeWire node.name (null disconnects); or
+    /// "setActiveDevice": the interface's vvvv:pppp id.
     /// </summary>
     [JsonPropertyName("device")] public string? Device { get; init; }
 
@@ -80,6 +81,12 @@ public sealed record PluginsMessage
 public sealed record StateMessage
 {
     [JsonPropertyName("type")] public string Type => "state";
+    /// <summary>
+    /// The daemon's own version, so a client can tell when it is talking to
+    /// a daemon left running across a package upgrade (the UI shows a
+    /// restart prompt; a daemon older than 0.1.13 omits the field).
+    /// </summary>
+    [JsonPropertyName("daemonVersion")] public string? DaemonVersion { get; init; }
     [JsonPropertyName("connected")] public bool Connected { get; init; }
     [JsonPropertyName("device")] public DeviceDescriptor? Device { get; init; }
     [JsonPropertyName("capabilities")] public DeviceCapabilities? Capabilities { get; init; }
@@ -95,6 +102,12 @@ public sealed record StateMessage
 
     /// <summary>Saved profile names, so any client can offer recall.</summary>
     [JsonPropertyName("profiles")] public IReadOnlyList<string>? Profiles { get; init; }
+    /// <summary>
+    /// The profile last recalled or saved for the active device, or null.
+    /// A bookkeeping value: later manual changes do not clear it, so a
+    /// client shows it as "last recalled", not "state matches".
+    /// </summary>
+    [JsonPropertyName("activeProfile")] public string? ActiveProfile { get; init; }
 
     /// <summary>Every attached supported interface, so clients can offer a picker.</summary>
     [JsonPropertyName("detected")] public IReadOnlyList<DetectedDevice>? Detected { get; init; }
@@ -154,4 +167,13 @@ public static class ControlNames
 public sealed record DiagnosticsMessage(IReadOnlyDictionary<string, string> Blocks)
 {
     [System.Text.Json.Serialization.JsonPropertyName("type")] public string Type => "diagnostics";
+}
+
+/// <summary>The daemon's version as stamped by the build (Directory.Build.props).</summary>
+public static class DaemonVersion
+{
+    public static readonly string Current =
+        typeof(DaemonVersion).Assembly
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion.Split('+')[0] ?? "0.0.0";
 }

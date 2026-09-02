@@ -8,17 +8,25 @@ namespace OpenXLR.Core.Mixing;
 /// goes through here, using the primitives verified on hardware:
 ///   - null sink            : pactl load-module module-null-sink
 ///   - virtual capture device: pactl load-module module-remap-source
-///   - fader                : pw-loopback (channel monitor -> mix) whose playback
-///                            node volume is set live with wpctl
+///   - channel fan-out      : module-combine-sink, whose per-slave streams are
+///                            the faders
+///   - physical routes      : direct pw-link port connections, clocked by the
+///                            hardware sink
 ///   - discovery            : pw-dump (JSON graph)
-/// Loopback volume is set explicitly after spawn, because the channelVolumes launch
-/// property does not reliably take effect.
 /// </summary>
 public sealed class PipeWireAdapter
 {
+    private const string ClipGuardPluginFile = "hard_limiter_1413.so";
+
+    private readonly Func<DspFeatureAvailability>? _clipGuardAvailabilityOverride;
     private readonly List<uint> _modules = [];
     private readonly List<Process> _loopbacks = [];
     private readonly List<Process> _filters = [];
+
+    public PipeWireAdapter() { }
+
+    internal PipeWireAdapter(Func<DspFeatureAvailability> clipGuardAvailabilityOverride)
+        => _clipGuardAvailabilityOverride = clipGuardAvailabilityOverride;
 
     /// <summary>
     /// pactl joins its arguments into one module-argument string and re-splits on
@@ -30,6 +38,69 @@ public sealed class PipeWireAdapter
     /// "OpenXLR" in pavucontrol, OBS, and Discord.
     /// </summary>
     private static string PropValue(string value) => '"' + value.Replace(" ", "\\ ") + '"';
+
+    /// <summary>
+    /// Check the optional LADSPA dependency before changing a live graph. PipeWire
+    /// otherwise starts a short-lived holder process and only reports the missing
+    /// plugin after the old microphone route has already been removed.
+    /// </summary>
+    public DspFeatureAvailability GetSoftwareClipGuardAvailability()
+    {
+        if (_clipGuardAvailabilityOverride is not null) return _clipGuardAvailabilityOverride();
+        string? plugin = FindLadspaPlugin(ClipGuardPluginFile, LadspaSearchDirectories());
+        return plugin is not null
+            ? new DspFeatureAvailability(true, null)
+            : new DspFeatureAvailability(false,
+                "software ClipGuard is unavailable: LADSPA plugin hard_limiter_1413 was not found; " +
+                "install swh-plugins and restart OpenXLR");
+    }
+
+    /// <summary>Find one LADSPA module without trying to load it into the live graph.</summary>
+    internal static string? FindLadspaPlugin(string fileName, IEnumerable<string> directories)
+    {
+        foreach (string directory in directories.Where(d => !string.IsNullOrWhiteSpace(d)).Distinct())
+        {
+            try
+            {
+                string candidate = Path.Combine(directory, fileName);
+                if (File.Exists(candidate)) return candidate;
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+            {
+                // An invalid user-supplied LADSPA_PATH entry is skipped; the
+                // remaining standard directories may still contain the plugin.
+            }
+        }
+        return null;
+    }
+
+    private static IReadOnlyList<string> LadspaSearchDirectories()
+    {
+        var result = new List<string>();
+        string? configured = Environment.GetEnvironmentVariable("LADSPA_PATH");
+        if (!string.IsNullOrWhiteSpace(configured))
+            result.AddRange(configured.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries));
+
+        string? home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(home)) result.Add(Path.Combine(home, ".ladspa"));
+        result.AddRange([
+            "/usr/lib/ladspa", "/usr/lib64/ladspa",
+            "/usr/local/lib/ladspa", "/usr/local/lib64/ladspa",
+        ]);
+
+        // Debian multiarch puts LADSPA modules below paths such as
+        // /usr/lib/x86_64-linux-gnu/ladspa. Distribution packages normally set
+        // no LADSPA_PATH, so include those directories explicitly.
+        try
+        {
+            if (Directory.Exists("/usr/lib"))
+                foreach (string multiarch in Directory.EnumerateDirectories("/usr/lib", "*-linux-gnu"))
+                    result.Add(Path.Combine(multiarch, "ladspa"));
+        }
+        catch (IOException) { /* directory changed while enumerating */ }
+        catch (UnauthorizedAccessException) { /* unusual sandbox; standard paths remain */ }
+        return result;
+    }
 
     /// <summary>
     /// Unload leftover modules from a previous instance, identified by our
@@ -296,7 +367,7 @@ public sealed class PipeWireAdapter
     /// <summary>
     /// Insert the mono mic filter (the software DSP for devices whose own
     /// DSP lives host-side): an optional high-pass (the low cut) and an
-    /// optional hard limiter (ClipGuard; LADSPA hardLimiter from
+    /// optional post-ADC hard limiter (ClipGuard; LADSPA hardLimiter from
     /// swh-plugins), chained when both are active. module-filter-chain is
     /// not reachable through the PulseAudio emulation, so it is loaded by a
     /// held "pw-cli -m" process: the module lives exactly as long as the
@@ -320,6 +391,12 @@ public sealed class PipeWireAdapter
     private FilterHandle CreateFilterChain(string sinkName, string srcName, string description, int channels,
         int lowCutHz, bool clipGuard, IReadOnlyList<InsertDefinition>? inserts)
     {
+        if (clipGuard)
+        {
+            DspFeatureAvailability support = GetSoftwareClipGuardAvailability();
+            if (!support.Available) throw new InvalidOperationException(support.Error);
+        }
+
         // Every stage in chain order as (node definition, input ports, output ports), one port per channel.
         var stages = new List<(string Node, string[] In, string[] Out)>();
         if (channels == 1 && lowCutHz > 0)
@@ -371,12 +448,28 @@ public sealed class PipeWireAdapter
         psi.ArgumentList.Add("libpipewire-module-filter-chain");
         psi.ArgumentList.Add(spa);
         var p = Process.Start(psi) ?? throw new InvalidOperationException("failed to start pw-cli");
+        // pw-cli -m intentionally lives for the module's lifetime. Drain both
+        // pipes continuously: leaving redirected output unread can fill the OS
+        // pipe and freeze the holder process (and every graph operation waiting
+        // behind the mixer's lock).
+        Task<string> stdoutTask = p.StandardOutput.ReadToEndAsync();
+        Task<string> stderrTask = p.StandardError.ReadToEndAsync();
         _filters.Add(p);
+        var handle = new FilterHandle(sinkName, sinkName, srcName, p);
         // Ports lag node registration; linking a port-less node silently
-        // yields an empty PortLink, so wait for both halves' ports.
-        WaitForPorts(sinkName, "playback", output: false, TimeSpan.FromSeconds(3));
-        WaitForPorts(srcName, "capture", output: true, TimeSpan.FromSeconds(3));
-        return new FilterHandle(sinkName, sinkName, srcName, p);
+        // yields an empty PortLink. A dead holder is detected immediately, and
+        // a half-created module is removed instead of being returned as usable.
+        bool sinkReady = WaitForPorts(sinkName, "playback", output: false, TimeSpan.FromSeconds(3), p);
+        bool sourceReady = sinkReady && WaitForPorts(srcName, "capture", output: true, TimeSpan.FromSeconds(3), p);
+        if (!sinkReady || !sourceReady)
+        {
+            string detail = StopFailedFilter(handle, stdoutTask, stderrTask);
+            string missing = !sinkReady ? sinkName : srcName;
+            throw new InvalidOperationException(
+                $"PipeWire filter chain did not create the required ports for {missing}" +
+                (detail.Length == 0 ? "" : $": {detail}"));
+        }
+        return handle;
     }
 
     /// <summary>
@@ -400,15 +493,35 @@ public sealed class PipeWireAdapter
         f.Process.Dispose();
     }
 
-    private bool WaitForPorts(string node, string prefix, bool output, TimeSpan timeout)
+    private bool WaitForPorts(string node, string prefix, bool output, TimeSpan timeout, Process owner)
     {
         DateTime end = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < end)
         {
+            if (owner.HasExited) return false;
             if (ListPorts(node, prefix, output).Count > 0) return true;
             Thread.Sleep(100);
         }
         return false;
+    }
+
+    private string StopFailedFilter(FilterHandle handle, Task<string> stdoutTask, Task<string> stderrTask)
+    {
+        Process p = handle.Process;
+        try
+        {
+            if (!p.HasExited) p.Kill(entireProcessTree: true);
+            p.WaitForExit(2000);
+        }
+        catch (Exception) { /* already gone */ }
+
+        string stderr = "";
+        string stdout = "";
+        try { stderr = stderrTask.GetAwaiter().GetResult().Trim(); } catch (Exception) { }
+        try { stdout = stdoutTask.GetAwaiter().GetResult().Trim(); } catch (Exception) { }
+        _filters.Remove(p);
+        p.Dispose();
+        return stderr.Length > 0 ? stderr : stdout;
     }
 
     /// <summary>
@@ -481,14 +594,17 @@ public sealed class PipeWireAdapter
             // A source without that pair feeds nothing. Falling back to the
             // first pair here used to duplicate a mono capture into every
             // channel, which made the channel mutes ineffective.
-            outs = outs.Count > fromPairOffset * 2
-                ? [.. outs.Skip(fromPairOffset * 2).Take(2)]
-                : [];
+            outs = SelectPair(outs, fromPairOffset);
         }
         else if (outs.Count > 2)
             outs = [.. outs.Take(2)];
-        if (toPairOffset > 0 && ins.Count > toPairOffset * 2)
-            ins = [.. ins.Skip(toPairOffset * 2).Take(2)];
+        if (toPairOffset > 0)
+        {
+            // A target without the requested return pair must receive
+            // nothing. Keeping its first pair here routed the Pro-only Aux
+            // mix into the normal speakers of stereo Wave XLR models.
+            ins = SelectPair(ins, toPairOffset);
+        }
         // Raw multichannel sinks are named multichannel-output on a stock
         // system and pro-output-N once the card has a UCM profile.
         else if (ins.Count > 2 && toPairOffset == 0
@@ -516,6 +632,18 @@ public sealed class PipeWireAdapter
             catch (InvalidOperationException) { /* racing a disappearing port */ }
         }
         return new PortLink(pairs);
+    }
+
+    /// <summary>
+    /// Select a stereo pair from an ordered port list. Missing pairs never
+    /// fall back to pair zero; a final mono port is kept so mono devices can
+    /// still be addressed deliberately.
+    /// </summary>
+    internal static List<string> SelectPair(IReadOnlyList<string> ports, int pairOffset)
+    {
+        if (pairOffset < 0) throw new ArgumentOutOfRangeException(nameof(pairOffset));
+        int start = checked(pairOffset * 2);
+        return ports.Count > start ? [.. ports.Skip(start).Take(2)] : [];
     }
 
     /// <summary>Ports of a node whose name starts with a prefix, in pw-link order.</summary>
@@ -629,7 +757,8 @@ public sealed class PipeWireAdapter
     /// Monitor sources are excluded: they are the tap side of a sink, not a
     /// device a user would pick as a microphone.
     /// </summary>
-    public IReadOnlyList<AudioNode> ListDevices()
+    public IReadOnlyList<AudioNode> ListDevices(
+        bool exposeHardwareMonitorOutputs = false, string? hardwareSinkHint = null)
     {
         var found = new List<AudioNode>();
         string json = Run("pw-dump");
@@ -671,8 +800,12 @@ public sealed class PipeWireAdapter
         // Each output is advertised as its own pseudo-sink; the daemon flips
         // the matching hardware selector when one is chosen as the monitor.
         // Headphones jack 1 is on the front of the unit, jack 2 on the back.
-        AudioNode? pro = found.FirstOrDefault(n =>
-            n.Kind == AudioNodeKind.Sink && n.Name.Contains("Wave_XLR", StringComparison.Ordinal));
+        AudioNode? pro = exposeHardwareMonitorOutputs
+            ? found.FirstOrDefault(n =>
+                n.Kind == AudioNodeKind.Sink &&
+                (hardwareSinkHint is null ||
+                 n.Name.Contains(hardwareSinkHint, StringComparison.OrdinalIgnoreCase)))
+            : null;
         if (pro is not null)
         {
             found.Add(new AudioNode($"{pro.Name}#hp1", "Headphones 1 (front)",
@@ -894,9 +1027,16 @@ public sealed class PipeWireAdapter
         var psi = new ProcessStartInfo(exe) { RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (string a in args) psi.ArgumentList.Add(a);
         using Process p = Process.Start(psi) ?? throw new InvalidOperationException($"failed to start {exe}");
-        string stdout = p.StandardOutput.ReadToEnd();
-        string stderr = p.StandardError.ReadToEnd();
-        p.WaitForExit(5000);
+        Task<string> stdoutTask = p.StandardOutput.ReadToEndAsync();
+        Task<string> stderrTask = p.StandardError.ReadToEndAsync();
+        if (!p.WaitForExit(5000))
+        {
+            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            throw new InvalidOperationException(
+                $"{exe} {string.Join(' ', args)} timed out after 5 seconds");
+        }
+        string stdout = stdoutTask.GetAwaiter().GetResult();
+        string stderr = stderrTask.GetAwaiter().GetResult();
         if (p.ExitCode != 0)
             throw new InvalidOperationException($"{exe} {string.Join(' ', args)} failed: {stderr.Trim()}");
         return stdout;
@@ -909,6 +1049,9 @@ public sealed record LoopbackHandle(string Id, string CaptureNodeName, string Pl
 /// <summary>A loaded filter-chain: sink half (input), source half (output),
 /// and the pw-cli process whose lifetime is the module's.</summary>
 public sealed record FilterHandle(string Id, string SinkName, string SourceName, Process Process);
+
+/// <summary>Whether an optional host-side DSP feature can be loaded safely.</summary>
+public sealed record DspFeatureAvailability(bool Available, string? Error);
 
 /// <summary>A set of direct port links between two nodes.</summary>
 public sealed record PortLink(IReadOnlyList<(string From, string To)> Pairs);

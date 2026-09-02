@@ -1,7 +1,10 @@
 # Wave XLR Pro USB protocol capture plan
 
-The plan used for the captures behind [wave-xlr-pro-protocol.md](wave-xlr-pro-protocol.md),
-kept as the methodology for capturing another device.
+Status: completed historical procedure. The ordered follow-up capture
+resolved the control map; use
+[wave-xlr-pro-protocol.md, section 6](wave-xlr-pro-protocol.md#6-capture-2-xlrpro2pcapng-2026-08-25-with-ordered-action-log-outputs-mic-dsp-usb-aux)
+for current offsets. The steps below are retained as the methodology for
+capturing another device, not as the current protocol specification.
 
 Goal: capture every USB control transfer Wave Link sends to the Wave XLR Pro so its vendor
 protocol can be reimplemented in a Linux backend. The device has

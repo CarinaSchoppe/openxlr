@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -22,6 +23,7 @@ public partial class MainWindow : Window
         _client.Start();          // connects, and keeps retrying if the daemon isn't up yet
         HeaderVersion.Text = $"v{AppVersion.Current}";
         SetupTray();
+        RestoreSectionState();
 
         // Start hidden in the tray when configured (and a tray actually
         // exists; otherwise the window must show or nothing is reachable).
@@ -201,5 +203,45 @@ public partial class MainWindow : Window
         if (_flow is { IsVisible: true }) { _flow.Activate(); return; }
         _flow = new FlowWindow(_vm);
         _flow.Show(this);
+    }
+
+    private void OnRestartDaemon(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        // Managed by systemd on packaged installs; a hand-started daemon has
+        // to be restarted by hand, and the banner stays until it is.
+        if (sender is Avalonia.Controls.Button b)
+            b.Content = StartupIntegration.RestartDaemon() ? "Restarting…" : "Not managed by systemd: restart it by hand";
+    }
+
+    // ---- collapsed tiles, remembered in ui.json ----
+    private static readonly string[] SectionTiles =
+        ["InputsTile", "HeadphonesTile", "MonitorTile", "ApplicationsTile", "SubmixerTile"];
+    private bool _restoringSections;
+
+    private void RestoreSectionState()
+    {
+        var collapsed = new HashSet<string>(UiSettings.Load().CollapsedSections, StringComparer.Ordinal);
+        _restoringSections = true;
+        try
+        {
+            foreach (string name in SectionTiles)
+            {
+                if (this.FindControl<Expander>(name) is not Expander tile) continue;
+                tile.IsExpanded = !collapsed.Contains(name);
+                tile.PropertyChanged += (_, e) =>
+                {
+                    if (e.Property == Expander.IsExpandedProperty && !_restoringSections) SaveSectionState();
+                };
+            }
+        }
+        finally { _restoringSections = false; }
+    }
+
+    private void SaveSectionState()
+    {
+        List<string> collapsed = [];
+        foreach (string name in SectionTiles)
+            if (this.FindControl<Expander>(name) is { IsExpanded: false }) collapsed.Add(name);
+        (UiSettings.Load() with { CollapsedSections = collapsed }).Save();
     }
 }

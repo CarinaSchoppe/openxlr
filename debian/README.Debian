@@ -14,7 +14,9 @@ Stream Deck control via OpenDeck:
 
 The software ClipGuard limiter for the XLR Dock needs the SWH LADSPA
 plugins (package: swh-plugins). The daemon picks them up from the
-standard LADSPA path.
+standard LADSPA path. Without that optional package the ClipGuard control
+is disabled; all other controls and the existing microphone route continue
+to work.
 
 Inserts (per-channel and per-mix plugin chains) offer whatever LV2
 plugins are installed in /usr/lib/lv2 or ~/.lv2; lsp-plugins-lv2 is a

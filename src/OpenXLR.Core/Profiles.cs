@@ -18,7 +18,11 @@ public sealed record MixerScene
     /// <summary>"channel|mix" to level.</summary>
     public Dictionary<string, double> Levels { get; init; } = [];
     public List<string> ChannelMuted { get; init; } = [];
-    public List<string> MonitorOutputs { get; init; } = [];
+    /// <summary>
+    /// Null in profiles written before monitor routing was stored; an explicit
+    /// empty list means disconnect every monitor output.
+    /// </summary>
+    public List<string>? MonitorOutputs { get; init; }
     public bool AuxPortEnabled { get; init; }
     public double? OutputVolume { get; init; }
     /// <summary>Software low cut (0, 80, or 120 Hz); absent in older profiles.</summary>

@@ -46,15 +46,32 @@ let daemonState = null;   // last full {"type":"state"} message
 let daemonUp = false;
 let meterLevels = null;   // last {"type":"meters"} levels, keyed ch:/mix:
 let catalog = new Map();  // LV2 plugin URI -> PluginInfo (names and ranges of the params)
+let reconnectTimer = null;
+let reconnectDelayMs = 500;
+let connectionGeneration = 0;
+
+function scheduleDaemonReconnect(generation) {
+  if (generation !== connectionGeneration || reconnectTimer) return;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectDaemon();
+  }, reconnectDelayMs);
+  reconnectDelayMs = Math.min(reconnectDelayMs * 2, 10000);
+}
 
 function connectDaemon() {
-  daemon = new WebSocket("ws://127.0.0.1:37890/ws");
-  daemon.onopen = () => {
+  const socket = new WebSocket("ws://127.0.0.1:37890/ws");
+  const generation = ++connectionGeneration;
+  daemon = socket;
+  socket.onopen = () => {
+    if (daemon !== socket) return;
     daemonUp = true;
-    daemon.send(JSON.stringify({ cmd: "listPlugins" }));
+    reconnectDelayMs = 500;
+    cmd({ cmd: "listPlugins" });
     refreshAll();
   };
-  daemon.onmessage = (e) => {
+  socket.onmessage = (e) => {
+    if (daemon !== socket) return;
     let m;
     try { m = JSON.parse(e.data); } catch { return; }
     if (m.type === "state") { daemonState = m; refreshAll(); }
@@ -63,14 +80,26 @@ function connectDaemon() {
       catalog = new Map((m.plugins ?? []).map((p) => [p.plugin, p]));
       refreshAll();
     }
+    else if (m.type === "error") console.error("OpenXLR daemon:", m.message);
   };
-  daemon.onclose = () => {
+  socket.onclose = () => {
+    if (daemon !== socket) return;
     daemonUp = false; daemonState = null; refreshAll();
-    setTimeout(connectDaemon, 2000);
+    scheduleDaemonReconnect(generation);
   };
-  daemon.onerror = () => { /* onclose follows */ };
+  socket.onerror = () => { /* onclose follows */ };
 }
-const cmd = (o) => { if (daemonUp) daemon.send(JSON.stringify(o)); };
+const cmd = (o) => {
+  if (!daemonUp || !daemon || daemon.readyState !== WebSocket.OPEN) return false;
+  try {
+    daemon.send(JSON.stringify(o));
+    return true;
+  } catch {
+    daemonUp = false;
+    try { daemon.close(); } catch { /* onclose/retry handles the rest */ }
+    return false;
+  }
+};
 
 // ---------- OpenDeck host connection ----------
 const host = new WebSocket(`ws://localhost:${port}`);
@@ -272,9 +301,21 @@ host.onmessage = (e) => {
       else if (m.payload?.request === "inserts")
         send({ event: "sendToPropertyInspector", context: m.context,
                payload: insertChoices() });
+      else if (m.payload?.request === "profiles")
+        send({ event: "sendToPropertyInspector", context: m.context,
+               payload: { profiles: profileChoices() } });
       break;
   }
 };
+
+// Saved profiles of the active device, for the PI's picker. A key made for
+// one is looked up by name, so a profile saved again under the same name
+// keeps its key.
+//   profile|<name>   key: recall the profile; lit while it is the last recalled
+function profileChoices() {
+  return (daemonState?.profiles ?? []).map((name) => ({ target: `profile|${name}`, label: name }));
+}
+const isProfileTarget = (t) => !!t && t.startsWith("profile|");
 
 // Physical output sinks the monitor mix can feed, for the PI's picker.
 function outputDevices() {
@@ -288,6 +329,30 @@ const dev = () => daemonState?.state ?? null;
 const mixer = () => daemonState?.mixer ?? null;
 const mixOf = (id) => mixer()?.mixes?.find((x) => x.id === id);
 const chOf = (id) => mixer()?.channels?.find((x) => x.id === id);
+
+function deviceTargetSupported(target) {
+  const c = daemonState?.capabilities;
+  if (!c) return false;
+  const secondXlr = new Set([
+    "gain2", "mute2", "phantom2", "lowCut2", "expander2",
+    "voiceTune2", "clipGuard2", "compressor2",
+  ]).has(target);
+  if (secondXlr && (c.xlrInputs ?? 1) < 2) return false;
+  if (target === "hp2" && (c.hpOutputs ?? 1) < 2) return false;
+  const capability = {
+    gain: "gain", gain2: "gain", mute: "mute", mute2: "mute",
+    phantom: "phantom", phantom2: "phantom", lowCut: "lowCut", lowCut2: "lowCut",
+    expander: "expander", expander2: "expander",
+    voiceTune: "voiceTune", voiceTune2: "voiceTune",
+    clipGuard: "clipGuard", clipGuard2: "clipGuard",
+    compressor: "compressor", compressor2: "compressor",
+    lowImpedance: "lowImpedance", hp: "hpVolume", hp2: "hpVolume",
+    crossfade: "crossfade",
+    outHp1: "outputRouting", outHp2: "outputRouting",
+    outLineOut: "outputRouting", auxLevel: "auxInput", auxLevelLock: "auxInput",
+  }[target];
+  return capability ? c[capability] === true : target === "gainLocked";
+}
 
 // A toggle target's current boolean, or null when unknown. Insert targets
 // need the key's saved meta for id fallback, so they take the instance.
@@ -303,11 +368,21 @@ function toggleValue(target, inst) {
     return list.length ? list.some((i) => !i.bypass) : null;
   }
   if (target === "auxPort") return mixer()?.auxPortEnabled ?? null;
+  if (isProfileTarget(target)) {
+    // Unknown (grey) while the daemon is down or the profile was deleted.
+    const name = target.slice(8);
+    if (!daemonState?.profiles?.includes(name)) return null;
+    return daemonState.activeProfile === name;
+  }
   if (target === "softLowCut") {
     const hz = mixer()?.lowCutHz;
     return hz == null ? null : hz > 0;
   }
-  if (target === "softClipGuard") return mixer()?.softClipGuard ?? null;
+  // A missing LADSPA limiter is a disabled target, not an optimistic OFF
+  // state. Pressing it would otherwise send a command that cannot be applied
+  // and leave the deck face out of sync with the audible graph.
+  if (target === "softClipGuard")
+    return mixer()?.softClipGuardAvailable === true ? mixer()?.softClipGuard ?? false : null;
   if (target.startsWith("monitor:")) {
     const outs = mixer()?.monitorOutputs;
     return outs ? outs.includes(target.slice(8)) : null;
@@ -317,6 +392,7 @@ function toggleValue(target, inst) {
     const [, ch, mix] = target.split(":");
     return chOf(ch)?.mutedIn?.includes(mix) ?? null;
   }
+  if (Object.hasOwn(DEVICE_TOGGLES, target) && !deviceTargetSupported(target)) return null;
   return dev()?.[target] ?? null;
 }
 
@@ -329,6 +405,7 @@ function toggleLabel(target, inst) {
     return `${chainShort(ch)}\n${name}`;
   }
   if (target.startsWith("inschain|")) return `${chainShort(target.slice(9))}\nInserts`;
+  if (isProfileTarget(target)) return `Profile\n${target.slice(8)}`;
   if (target === "auxPort") return "Aux\nPort";
   if (target === "softLowCut") {
     const hz = mixer()?.lowCutHz ?? 0;
@@ -390,6 +467,7 @@ function dialValue(target, inst) {
       return { label: "Monitor", pct: pct(v), text: muted ? "MUTED" : `${pct(v)}%`, muted };
     }
     case "gain": case "gain2": {
+      if (!deviceTargetSupported(target)) return null;
       const db = target === "gain" ? s?.gainDb : s?.gain2Db;
       const muted = target === "gain" ? s?.mute : s?.mute2;
       if (db == null) return null;
@@ -397,6 +475,7 @@ function dialValue(target, inst) {
                pct: Math.round((db / 80) * 100), text: muted ? "MUTED" : `${db} dB`, muted };
     }
     case "hp": case "hp2": {
+      if (!deviceTargetSupported(target)) return null;
       const db = target === "hp" ? s?.hpVolumeDb : s?.hp2VolumeDb;
       if (db == null) return null;
       const p = Math.round(((60 + db) / 60) * 100);
@@ -405,12 +484,14 @@ function dialValue(target, inst) {
                text: jackOff ? "MUTED" : `${p}%`, muted: jackOff };
     }
     case "auxLevel": {
+      if (!deviceTargetSupported(target)) return null;
       const db = s?.auxLevelDb;
       if (db == null) return null;
       const p = Math.round(((60 + db) / 60) * 100);
       return { label: "Aux In level", pct: p, text: `${p}%`, muted: false };
     }
     case "crossfade": {
+      if (!deviceTargetSupported(target)) return null;
       const v = s?.crossfade;
       if (v == null) return null;
       const text = v === 100 ? "centre" : v < 100 ? `mic +${100 - v}` : `pc +${v - 100}`;
@@ -436,6 +517,7 @@ function onKeyDown(context, inst) {
       cmd({ cmd: "setInsertBypass", channel: ch, insertId: ins.id, value: cur });
   }
   else if (t === "auxPort") cmd({ cmd: "setAuxPortEnabled", value: !cur });
+  else if (isProfileTarget(t)) cmd({ cmd: "loadProfile", name: t.slice(8) });   // re-applies when already lit
   else if (t === "softLowCut") {
     const hz = mixer()?.lowCutHz ?? 0;
     cmd({ cmd: "setLowCutHz", value: hz === 0 ? 80 : hz === 80 ? 120 : 0 });
@@ -454,6 +536,11 @@ function onKeyDown(context, inst) {
 function onDialRotate(context, inst, ticks) {
   const t = activeTarget(inst);
   if (!t || !daemonState) return;
+  if (["gain", "gain2", "hp", "hp2", "auxLevel", "crossfade"].includes(t) &&
+      !deviceTargetSupported(t)) {
+    send({ event: "showAlert", context });
+    return;
+  }
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   if (t.startsWith("insparam|")) {
     const [, ch, id, symbol] = t.split("|");
@@ -569,6 +656,10 @@ const GLYPHS = {
         <path d="M104 88 h-50 m0 0 l12 -10 m-12 10 l12 10" stroke="currentColor" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
   jack: `<circle cx="72" cy="72" r="28" stroke="currentColor" stroke-width="7" fill="none"/>
         <circle cx="72" cy="72" r="9" fill="currentColor"/>`,
+  // a stack of scene cards, for profile keys
+  scene: `<rect x="44" y="52" width="56" height="40" rx="6" fill="none" stroke="currentColor" stroke-width="6"/>
+        <path d="M52 44 h52 a6 6 0 0 1 6 6 v34" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+        <path d="M56 78 l10 -12 l9 8 l8 -14 l11 18" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>`,
 };
 
 // Which glyph a toggle target wears; unlisted targets are word keys
@@ -580,6 +671,7 @@ function glyphFor(t) {
   if (t === "outLineOut") return "jack";
   if (t.startsWith("monitor:") || t.startsWith("mixmute:")) return "speaker";
   if (t.startsWith("sendmute:")) return "fader";
+  if (isProfileTarget(t)) return "scene";
   return null;
 }
 
@@ -834,7 +926,7 @@ function refresh(context) {
     const v = toggleValue(t, inst);
     const badge = t === "softLowCut" ? (mixer()?.lowCutHz ? String(mixer().lowCutHz) : "OFF") : "";
     const label = emptyTitle.has(context)
-      ? (daemonUp ? (isInsertTarget(t) ? toggleLabel(t, inst) : defaultTitle(t)) : "offline") : "";
+      ? (daemonUp ? (isInsertTarget(t) || isProfileTarget(t) ? toggleLabel(t, inst) : defaultTitle(t)) : "offline") : "";
     // The user can pick a glyph per key (a monitor output may be headphones
     // rather than speakers); "auto" or unset keeps the target's default.
     const iconChoice = inst.settings.icon;

@@ -168,7 +168,7 @@
               <Flyout Placement="BottomEdgeAlignedRight">
                 <StackPanel MinWidth="240" Spacing="6">
                   <Grid ColumnDefinitions="*,Auto">
-                    <TextBox Name="ProfileNameBox" Watermark="profile name" FontSize="12"/>
+                    <TextBox Name="ProfileNameBox" PlaceholderText="profile name" FontSize="12"/>
                     <Button Grid.Column="1" Content="Save" Margin="6,0,0,0" FontSize="12"
                             Click="OnProfileSave"/>
                   </Grid>
@@ -202,9 +202,20 @@
       </Grid>
     </Border>
 
+    <!-- a daemon left running across an upgrade offers the old version's controls -->
+    <Border Classes="card" Margin="0,0,0,8" IsVisible="{Binding DaemonVersionMismatch}">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Content="Restart daemon" Padding="10,3" FontSize="12"
+                VerticalAlignment="Center" Click="OnRestartDaemon"
+                ToolTip.Tip="systemctl --user restart openxlr-daemon"/>
+        <TextBlock Text="{Binding DaemonVersionNote}" Classes="h" TextWrapping="Wrap"
+                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+      </DockPanel>
+    </Border>
+
     <!-- device controls -->
     <Border Classes="card" Margin="0,0,0,8">
-      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
+      <Expander Name="InputsTile" Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="INPUTS" Classes="h"/></Expander.Header>
       <StackPanel Classes="dev" Spacing="4">
 
@@ -230,7 +241,8 @@
                         ToolTip.Tip="Host-side low cut for this device (its DSP lives in software); cycles Off, 80 Hz, 120 Hz"/>
           <ToggleButton Content="ClipGuard" Margin="0,0,6,0" IsVisible="{Binding ShowSoftClipGuard}"
                         IsChecked="{Binding SoftClipGuard, Mode=TwoWay}"
-                        ToolTip.Tip="Host-side ClipGuard for this device: a hard limiter at -3 dB on the mic channel"/>
+                        IsEnabled="{Binding SoftClipGuardAvailable}"
+                        ToolTip.Tip="{Binding SoftClipGuardTip}"/>
           <ToggleButton Content="Expander"   IsChecked="{Binding Expander, Mode=TwoWay}"   Margin="0,0,6,0" IsVisible="{Binding CapExpander}"/>
           <ToggleButton Content="Voice Tune" IsChecked="{Binding VoiceTune, Mode=TwoWay}"  Margin="0,0,6,0" IsVisible="{Binding CapVoiceTune}"/>
           <ToggleButton Content="Phantom"  IsChecked="{Binding Phantom, Mode=TwoWay}"    Margin="0,0,6,0" IsVisible="{Binding CapPhantom}"/>
@@ -361,7 +373,7 @@
 
     <!-- headphone outputs (jack 1 on the front of the unit, jack 2 on the back) -->
     <Border Classes="card" Margin="0,0,0,8">
-      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
+      <Expander Name="HeadphonesTile" Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="HEADPHONES" Classes="h"/></Expander.Header>
       <StackPanel Classes="dev" Spacing="4">
         <Grid ColumnDefinitions="90,*,64,20,90,*,64">
@@ -397,7 +409,7 @@
 
     <!-- monitor destination: the device you hear the Monitor mix on -->
     <Border Classes="card" Margin="0,0,0,8" IsVisible="{Binding HasMixer}">
-      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
+      <Expander Name="MonitorTile" Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header>
           <StackPanel Orientation="Horizontal" Spacing="6">
             <TextBlock Text="MONITOR" Classes="h" VerticalAlignment="Center"/>
@@ -436,7 +448,7 @@
 
     <!-- running applications and the channel each is routed to -->
     <Border Classes="card" Margin="0,0,0,8" IsVisible="{Binding HasMixer}">
-      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
+      <Expander Name="ApplicationsTile" Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="APPLICATIONS" Classes="h"/></Expander.Header>
       <StackPanel Spacing="8">
         <ItemsControl ItemsSource="{Binding ActiveApps}">
@@ -471,7 +483,7 @@
 
     <!-- mixer -->
     <Border Classes="card">
-      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
+      <Expander Name="SubmixerTile" Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="SUBMIXER" Classes="h"/></Expander.Header>
       <DockPanel>
         <TextBlock DockPanel.Dock="Top" Text="{Binding MixerPlaceholder}" TextWrapping="Wrap"

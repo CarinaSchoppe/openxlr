@@ -29,8 +29,9 @@ phantom byte was identified by the
 [openwave](https://github.com/rikkichy/openwave) project on the Wave XLR
 ([openwave PR #8](https://github.com/rikkichy/openwave/pull/8)) and
 confirmed on the dock with a condenser microphone. Wave Link does not
-write it for the dock. The dock has no onboard DSP; Wave Link runs those
-effects host-side, and on Linux the submixer provides them (below).
+write it for the dock. The dock has no onboard voice-processing DSP;
+Wave Link runs those effects host-side, and on Linux the submixer
+provides them (below).
 
 ## Software controls
 
@@ -40,9 +41,13 @@ For devices without the hardware version, the PipeWire layer provides:
   cycled from a button on the XLR 1 strip. Its response was measured
   with test tones as a second-order high-pass. The node is re-created
   if it disappears from the graph.
-- ClipGuard: a hard limiter at -3 dB in the same filter chain, so a
-  loud transient cannot clip the recording. Needs the swh-plugins LADSPA
-  package.
+- ClipGuard: a post-ADC hard limiter at -3 dB in the same filter chain.
+  It protects the downstream PipeWire mixes from overload, but cannot
+  repair clipping that has already happened in the analogue preamp or
+  ADC; microphone gain still needs headroom. It needs the `swh-plugins`
+  LADSPA package. If that plugin is unavailable, enabling ClipGuard is
+  rejected, the control stays disabled, and the existing microphone
+  route remains live.
 - Gain lock: the daemon rejects every gain change while the lock is set,
   from any client, and stores the lock per device in `gainlock.json`.
   Shown only for devices without a physical gain dial, which would
@@ -122,8 +127,8 @@ restores the split profile when it stops.
 
 Named scenes: every hardware setting plus the whole submix (send
 levels, mutes, masters, monitor outputs, aux state, insert chains with
-their parameters). Saved per device and recalled from the header or over
-the API. App routing and the enforced system defaults are global and
+their parameters). Saved per device and recalled from the header, over
+the API, or from a Stream Deck key. App routing and the enforced system defaults are global and
 not part of a profile, so recalling one does not rewire the desktop.
 
 ## OpenDeck plugin
@@ -150,6 +155,10 @@ can pick its icon, and a typed title replaces the built-in label.
 
 ![Keys](plugin-keys.png)
 
+Profiles: a key can recall one of the active device's saved profiles,
+listed live in the property inspector; it lights while that profile is
+the last one recalled or saved.
+
 Inserts: the property inspector lists every loaded plugin from live
 state. A key toggles one insert's bypass (LED green in the path, red
 bypassed) or a whole chain; a dial takes any control of any insert,
@@ -170,7 +179,9 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 ## Other
 
 - Audio Flow window: a graph of the current routing, sources through
-  outputs
+  outputs, with the filter chains (built-in low cut and ClipGuard, LV2
+  inserts) drawn where they sit in the path and each stage marked active,
+  bypassed or broken
 - Enforced defaults: the daemon re-asserts the chosen system default
   sink and source on its one-second sweep, undoing WirePlumber's
   auto-switch to newly created nodes

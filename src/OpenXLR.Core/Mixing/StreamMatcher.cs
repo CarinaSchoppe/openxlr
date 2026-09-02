@@ -71,7 +71,7 @@ public sealed class StreamMatcher
         if (_overrides.TryGetValue(stream.Identity, out string? pinned)) return pinned;
 
         // Binary first, then app name, then the media name.
-        foreach (string field in new[] { stream.Binary, stream.AppName, stream.MediaName })
+        foreach (string? field in new[] { stream.Binary, stream.AppName, stream.MediaName })
         {
             if (string.IsNullOrWhiteSpace(field)) continue;
             foreach (Rule rule in _rules)

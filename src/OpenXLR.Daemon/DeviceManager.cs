@@ -1,4 +1,5 @@
 using System.Text.Json;
+using OpenXLR.Core;
 using OpenXLR.Core.Devices;
 
 namespace OpenXLR.Daemon;
@@ -185,6 +186,10 @@ public sealed class DeviceManager : BackgroundService
                 PollOnce();
                 TryParkCardProfile();
             }
+            catch (UsbHungException ex)
+            {
+                NoteHung(ex);
+            }
             catch (Exception ex)
             {
                 _log.LogWarning("device loop: {msg}", ex.Message);
@@ -196,6 +201,38 @@ public sealed class DeviceManager : BackgroundService
         RestoreCardProfile();
     }
 
+    // After a transfer that never returned, the worker thread is still parked
+    // in libusb on the old handle. Reconnecting straight away would hang the
+    // same way and leak a thread every few seconds, so wait before retrying.
+    private static readonly TimeSpan HungReconnectDelay = TimeSpan.FromSeconds(10);
+    private DateTime _reconnectNotBefore = DateTime.MinValue;
+
+    /// <summary>
+    /// The last transfer that never returned, kept for the diagnostics
+    /// archive (Options, SUPPORT, Collect diagnostics) so a tester can hand
+    /// over the exact setup packet, payload, timing and versions without
+    /// digging through the journal.
+    /// </summary>
+    private string? _lastUsbFault;
+
+    private void NoteHung(UsbHungException ex)
+    {
+        string device = _device is null ? "no device"
+            : $"{_device.Info.DisplayName} {_device.Info.VendorId:x4}:{_device.Info.ProductId:x4}";
+        _lastUsbFault = $"{DateTime.UtcNow:O} {device}, kernel {KernelRelease()}: {ex.Message}";
+        _log.LogError("{fault}. The device is dropped and reconnected in {s} s. " +
+                      "Please collect diagnostics (Options, SUPPORT) and attach the archive to an issue.",
+            _lastUsbFault, (int)HungReconnectDelay.TotalSeconds);
+        _reconnectNotBefore = DateTime.UtcNow + HungReconnectDelay;
+        Drop();
+    }
+
+    private static string KernelRelease()
+    {
+        try { return File.ReadAllText("/proc/sys/kernel/osrelease").Trim(); }
+        catch (Exception) { return "unknown"; }
+    }
+
     private void EnsureConnected()
     {
         lock (_gate)
@@ -203,6 +240,7 @@ public sealed class DeviceManager : BackgroundService
             IReadOnlyList<IAudioDevice> all = DeviceRegistry.DetectAll();
             _detected = [.. all.Select(d => d.Info)];
             if (_device is { Connected: true }) return;
+            if (DateTime.UtcNow < _reconnectNotBefore) return;
             IAudioDevice? dev = _preferredPid is ushort pid
                 ? all.FirstOrDefault(d => d.Info.ProductId == pid) ?? (all.Count > 0 ? all[0] : null)
                 : all.Count > 0 ? all[0] : null;
@@ -211,7 +249,11 @@ public sealed class DeviceManager : BackgroundService
             _device = dev;
             _last = null;
             _log.LogInformation("connected {dev}", dev.Info.DisplayName);
-            EnsureCardProfile(dev.Info);
+            // The UCM split profile that hides the raw multichannel nodes exists
+            // for the Wave XLR Pro only; on the other devices the check would
+            // poll wpctl for two minutes and then warn about a profile that
+            // never exists.
+            if (dev.Capabilities.OutputRouting) EnsureCardProfile(dev.Info);
             RaiseFromLocked();                          // push the initial state
         }
     }
@@ -311,6 +353,8 @@ public sealed class DeviceManager : BackgroundService
         lock (_gate)
         {
             if (_device is null || !_device.Connected) return "no device connected";
+            string? unsupported = UnsupportedControlReason(_device.Capabilities, control);
+            if (unsupported is not null) return unsupported;
             try
             {
                 switch (control)
@@ -363,6 +407,11 @@ public sealed class DeviceManager : BackgroundService
                     default: return $"unknown control '{control}'";
                 }
             }
+            catch (UsbHungException ex)
+            {
+                NoteHung(ex);
+                return ex.Message;
+            }
             catch (Exception ex)
             {
                 return ex.Message;
@@ -373,6 +422,47 @@ public sealed class DeviceManager : BackgroundService
             RaiseFromLocked();
             return null;
         }
+    }
+
+    /// <summary>
+    /// Reject controls a device does not advertise. The device interface keeps
+    /// no-op defaults for source compatibility, but treating a no-op as success
+    /// is unsafe for remote clients: a Stream Deck key must not appear to have
+    /// enabled 48 V or muted an input when the hardware ignored the command.
+    /// </summary>
+    internal static string? UnsupportedControlReason(DeviceCapabilities c, string control)
+    {
+        bool supported = control switch
+        {
+            ControlNames.Gain => c.Gain,
+            ControlNames.Mute => c.Mute,
+            ControlNames.LowCut => c.LowCut,
+            ControlNames.Expander => c.Expander,
+            ControlNames.VoiceTune or ControlNames.VoiceTuneStrength => c.VoiceTune,
+            ControlNames.HpVolumeDb => c.HpVolume,
+            ControlNames.LowImpedance => c.LowImpedance,
+            ControlNames.Crossfade => c.Crossfade,
+            ControlNames.Phantom => c.Phantom,
+            ControlNames.ClipGuard => c.ClipGuard,
+            ControlNames.Compressor => c.Compressor,
+            ControlNames.OutHp1 or ControlNames.OutHp2 or ControlNames.OutUsbAux or
+                ControlNames.OutLineOut => c.OutputRouting,
+            ControlNames.AuxLevelDb or ControlNames.AuxLevelLock => c.AuxInput,
+            "gain2" => c.Gain && c.XlrInputs > 1,
+            "mute2" => c.Mute && c.XlrInputs > 1,
+            "lowCut2" => c.LowCut && c.XlrInputs > 1,
+            "expander2" => c.Expander && c.XlrInputs > 1,
+            "voiceTune2" or "voiceTuneStrength2" => c.VoiceTune && c.XlrInputs > 1,
+            "phantom2" => c.Phantom && c.XlrInputs > 1,
+            "clipGuard2" => c.ClipGuard && c.XlrInputs > 1,
+            "compressor2" => c.Compressor && c.XlrInputs > 1,
+            "hp2VolumeDb" => c.HpVolume && c.HpOutputs > 1,
+            // Software gain lock is daemon-owned and deliberately available
+            // even when the hardware also has physical controls.
+            "gainLock" => true,
+            _ => true, // the command switch reports unknown names precisely
+        };
+        return supported ? null : $"control '{control}' is not supported by the active device";
     }
 
     /// <summary>
@@ -387,32 +477,36 @@ public sealed class DeviceManager : BackgroundService
         {
             if (_device is null || !_device.Connected) return "no device connected";
             DeviceState s = _last ?? Stamp(_device.ReadState());
+            DeviceCapabilities c = _device.Capabilities;
+            bool gainBlocked = GainIsLocked &&
+                (c.Gain && s.GainDb != p.GainDb ||
+                 c.Gain && c.XlrInputs > 1 && s.Gain2Db != p.Gain2Db);
             try
             {
-                if (s.GainDb != p.GainDb) _device.SetGainDb(p.GainDb);
-                if (s.Mute != p.Mute) _device.SetMute(p.Mute);
-                if (s.LowCut != p.LowCut) _device.SetLowCut(p.LowCut);
-                if (s.Expander != p.Expander) _device.SetExpander(p.Expander);
-                if (s.VoiceTune != p.VoiceTune) _device.SetVoiceTune(p.VoiceTune);
-                if (s.VoiceTuneStrength != p.VoiceTuneStrength) _device.SetVoiceTuneStrength(p.VoiceTuneStrength);
-                if (s.Phantom != p.Phantom) { _device.SetPhantom(p.Phantom); _phantomWroteAt = DateTime.UtcNow; }
-                if (s.ClipGuard != p.ClipGuard) _device.SetClipGuard(p.ClipGuard);
-                if (s.Compressor != p.Compressor) _device.SetCompressor(p.Compressor);
-                if (s.Gain2Db != p.Gain2Db) _device.SetGain2Db(p.Gain2Db);
-                if (s.Mute2 != p.Mute2) _device.SetMute2(p.Mute2);
-                if (s.LowCut2 != p.LowCut2) _device.SetLowCut2(p.LowCut2);
-                if (s.Expander2 != p.Expander2) _device.SetExpander2(p.Expander2);
-                if (s.VoiceTune2 != p.VoiceTune2) _device.SetVoiceTune2(p.VoiceTune2);
-                if (s.VoiceTuneStrength2 != p.VoiceTuneStrength2) _device.SetVoiceTuneStrength2(p.VoiceTuneStrength2);
-                if (s.Phantom2 != p.Phantom2) { _device.SetPhantom2(p.Phantom2); _phantomWroteAt2 = DateTime.UtcNow; }
-                if (s.ClipGuard2 != p.ClipGuard2) _device.SetClipGuard2(p.ClipGuard2);
-                if (s.Compressor2 != p.Compressor2) _device.SetCompressor2(p.Compressor2);
-                if (s.HpVolumeDb != p.HpVolumeDb) _device.SetHpVolumeDb(p.HpVolumeDb);
-                if (s.Hp2VolumeDb != p.Hp2VolumeDb) _device.SetHp2VolumeDb(p.Hp2VolumeDb);
-                if (s.LowImpedance != p.LowImpedance) _device.SetLowImpedance(p.LowImpedance);
-                if (s.Crossfade != p.Crossfade) _device.SetCrossfade(p.Crossfade);
-                if (s.AuxLevelDb != p.AuxLevelDb) _device.SetAuxLevelDb(p.AuxLevelDb);
-                if (s.AuxLevelLock != p.AuxLevelLock) _device.SetAuxLevelLock(p.AuxLevelLock);
+                if (c.Gain && !GainIsLocked && s.GainDb != p.GainDb) _device.SetGainDb(p.GainDb);
+                if (c.Mute && s.Mute != p.Mute) _device.SetMute(p.Mute);
+                if (c.LowCut && s.LowCut != p.LowCut) _device.SetLowCut(p.LowCut);
+                if (c.Expander && s.Expander != p.Expander) _device.SetExpander(p.Expander);
+                if (c.VoiceTune && s.VoiceTune != p.VoiceTune) _device.SetVoiceTune(p.VoiceTune);
+                if (c.VoiceTune && s.VoiceTuneStrength != p.VoiceTuneStrength) _device.SetVoiceTuneStrength(p.VoiceTuneStrength);
+                if (c.Phantom && s.Phantom != p.Phantom) { _device.SetPhantom(p.Phantom); _phantomWroteAt = DateTime.UtcNow; }
+                if (c.ClipGuard && s.ClipGuard != p.ClipGuard) _device.SetClipGuard(p.ClipGuard);
+                if (c.Compressor && s.Compressor != p.Compressor) _device.SetCompressor(p.Compressor);
+                if (c.Gain && c.XlrInputs > 1 && !GainIsLocked && s.Gain2Db != p.Gain2Db) _device.SetGain2Db(p.Gain2Db);
+                if (c.Mute && c.XlrInputs > 1 && s.Mute2 != p.Mute2) _device.SetMute2(p.Mute2);
+                if (c.LowCut && c.XlrInputs > 1 && s.LowCut2 != p.LowCut2) _device.SetLowCut2(p.LowCut2);
+                if (c.Expander && c.XlrInputs > 1 && s.Expander2 != p.Expander2) _device.SetExpander2(p.Expander2);
+                if (c.VoiceTune && c.XlrInputs > 1 && s.VoiceTune2 != p.VoiceTune2) _device.SetVoiceTune2(p.VoiceTune2);
+                if (c.VoiceTune && c.XlrInputs > 1 && s.VoiceTuneStrength2 != p.VoiceTuneStrength2) _device.SetVoiceTuneStrength2(p.VoiceTuneStrength2);
+                if (c.Phantom && c.XlrInputs > 1 && s.Phantom2 != p.Phantom2) { _device.SetPhantom2(p.Phantom2); _phantomWroteAt2 = DateTime.UtcNow; }
+                if (c.ClipGuard && c.XlrInputs > 1 && s.ClipGuard2 != p.ClipGuard2) _device.SetClipGuard2(p.ClipGuard2);
+                if (c.Compressor && c.XlrInputs > 1 && s.Compressor2 != p.Compressor2) _device.SetCompressor2(p.Compressor2);
+                if (c.HpVolume && s.HpVolumeDb != p.HpVolumeDb) _device.SetHpVolumeDb(p.HpVolumeDb);
+                if (c.HpVolume && c.HpOutputs > 1 && s.Hp2VolumeDb != p.Hp2VolumeDb) _device.SetHp2VolumeDb(p.Hp2VolumeDb);
+                if (c.LowImpedance && s.LowImpedance != p.LowImpedance) _device.SetLowImpedance(p.LowImpedance);
+                if (c.Crossfade && s.Crossfade != p.Crossfade) _device.SetCrossfade(p.Crossfade);
+                if (c.AuxInput && s.AuxLevelDb != p.AuxLevelDb) _device.SetAuxLevelDb(p.AuxLevelDb);
+                if (c.AuxInput && s.AuxLevelLock != p.AuxLevelLock) _device.SetAuxLevelLock(p.AuxLevelLock);
             }
             catch (Exception ex)
             {
@@ -420,6 +514,9 @@ public sealed class DeviceManager : BackgroundService
             }
             _last = Stamp(_device.ReadState());
             RaiseFromLocked();
+            // Not an error: the profile loaded and the state was broadcast.
+            // The lock is visible to every client in the state itself.
+            if (gainBlocked) _log.LogInformation("profile loaded; gain left unchanged because the gain lock is active");
             return null;
         }
     }
@@ -465,9 +562,16 @@ public sealed class DeviceManager : BackgroundService
     {
         lock (_gate)
         {
-            if (_device is null || !_device.Connected) return new Dictionary<string, string>();
-            try { return _device.DumpBlocks(); }
-            catch (Exception ex) { return new Dictionary<string, string> { ["error"] = ex.Message }; }
+            var blocks = new Dictionary<string, string>();
+            if (_lastUsbFault is not null) blocks["usbFault"] = _lastUsbFault;
+            if (_device is null || !_device.Connected) return blocks;
+            try
+            {
+                foreach ((string k, string v) in _device.DumpBlocks()) blocks[k] = v;
+            }
+            catch (UsbHungException ex) { NoteHung(ex); blocks["error"] = ex.Message; }
+            catch (Exception ex) { blocks["error"] = ex.Message; }
+            return blocks;
         }
     }
 

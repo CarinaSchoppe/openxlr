@@ -24,8 +24,8 @@ the author's own hardware.
 |---|---|---|
 | Wave XLR Pro | 0fd9:00b4 | full support, verified on hardware |
 | XLR Dock (Stream Deck+ module) | 0fd9:00a6 | gain, mute, headphone volume, 48V phantom power, low impedance; verified on hardware |
-| Wave XLR | 0fd9:007d | gain, mute, headphone volume, low impedance, 48V phantom power; verified on hardware by a community tester |
-| Wave XLR MK.2 | 0fd9:00b6 | gain, mute, DSP, headphone volume, crossfade; decoded from captures, needs a tester |
+| Wave XLR | 0fd9:007d | gain, mute, headphone volume, low impedance, 48V phantom power; verified on hardware by community testers |
+| Wave XLR MK.2 | 0fd9:00b6 | gain, mute, phantom power, DSP, ClipGuard, compressor, headphone volume, crossfade; verified on hardware by a community tester |
 | XLR Dock MK.2 (Stream Deck+ module) | 0fd9:00c7 | registered on the MK.2 backend (its USB descriptor matches the MK.2's); needs a tester |
 
 The UI shows only the controls the connected device has, and a picker
@@ -59,7 +59,7 @@ Collect diagnostics).
   process binary rather than the "Chromium" name they report.
 - **Profiles**: named scenes holding the hardware settings and the
   whole submix (levels, mutes, outputs, insert chains), saved per device
-  and recalled from the UI or the API.
+  and recalled from the UI, the API or a Stream Deck key.
 - **OpenDeck plugin**: key and dial actions for every switch, mute,
   level and insert, rendered with level meters and status LEDs. It is a
   client of the daemon's API, so it reflects changes made in the UI or
@@ -158,6 +158,8 @@ user service, the sysctl port reservation, updating and uninstalling:
 
 ## Documentation
 
+- [Manual](docs/manual.md): first run, the concepts behind the mixer,
+  step-by-step tasks, the Stream Deck plugin, troubleshooting
 - [Features](docs/features.md): every control, the submixer, inserts,
   routing, profiles and the OpenDeck plugin in detail
 - [Installing from source](docs/install-from-source.md): prerequisites

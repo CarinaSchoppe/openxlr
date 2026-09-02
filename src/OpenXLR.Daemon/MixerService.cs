@@ -20,6 +20,16 @@ public sealed class MixerService : IHostedService, IDisposable
     private Timer? _streamSweep;
     private Timer? _saveDebounce;
     private Timer? _meterPush;
+    // System.Threading.Timer fires a new callback every period regardless of
+    // whether the previous one finished. If one tick runs long (a slow
+    // PipeWire round-trip, e.g. spawning a filter-chain module), overlapping
+    // ticks pile up, and since Mixer's internal lock gives no fairness
+    // guarantee, a steady stream of these freshly-arriving threads can starve
+    // out an unrelated waiter (e.g. a client's Snapshot() call, or
+    // EnsureInputFeeds() itself) indefinitely. Skip a tick outright rather
+    // than let it stack up.
+    private int _sweepRunning;
+    private string? _lastSweepError;
 
     public MixerService(ILogger<MixerService> log, IConfiguration config, DeviceManager devices)
     {
@@ -134,21 +144,43 @@ public sealed class MixerService : IHostedService, IDisposable
             // before a user notices, without polling the graph hard.
             _streamSweep = new Timer(_ =>
             {
+                if (Interlocked.CompareExchange(ref _sweepRunning, 1, 0) != 0) return;
                 try
                 {
                     // Channel feeds follow the actively driven interface; the
                     // node name contains the model with underscores for spaces.
-                    _mixer.SetInputDeviceHint(_devices.ActiveInfo?.Model.Replace(' ', '_'));
+                    _mixer.SetInputDeviceHint(
+                        _devices.ActiveInfo?.Model.Replace(' ', '_'),
+                        _devices.ActiveCapabilities?.OutputRouting ?? false);
                     // Software DSP only for devices without the hardware version.
                     _mixer.SetLowCutApplicable(!(_devices.ActiveCapabilities?.LowCut ?? false));
                     _mixer.SetClipGuardApplicable(!(_devices.ActiveCapabilities?.ClipGuard ?? false));
                     if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()
                         | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()
-                        | _mixer.EnsureLowCutRoutes()
+                        | _mixer.EnsureFilterRoutes()
                         | _mixer.EnsureMonitorRoutes()) Changed?.Invoke();
                     SyncOutputSelectors();
+                    if (_lastSweepError is not null)
+                    {
+                        _lastSweepError = null;
+                        _log.LogInformation("stream sweep recovered");
+                    }
                 }
-                catch (Exception ex) { _log.LogDebug("stream sweep: {msg}", ex.Message); }
+                catch (Exception ex)
+                {
+                    // A wiring failure repeats every second (a filter chain
+                    // that cannot be built leaves the microphone unwired, with
+                    // no other trace at the default log level). Say it once
+                    // per distinct message at warning so it reaches the
+                    // journal and the diagnostics archive, then keep quiet.
+                    if (ex.Message != _lastSweepError)
+                    {
+                        _lastSweepError = ex.Message;
+                        _log.LogWarning("stream sweep: {msg} (repeats logged at debug level)", ex.Message);
+                    }
+                    else _log.LogDebug("stream sweep: {msg}", ex.Message);
+                }
+                finally { Volatile.Write(ref _sweepRunning, 0); }
             }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
 
             // Meters refresh far more often than state; 15 Hz looks smooth
@@ -191,13 +223,20 @@ public sealed class MixerService : IHostedService, IDisposable
 
     private static string Run(string exe, params string[] args)
     {
-        var psi = new System.Diagnostics.ProcessStartInfo(exe) { RedirectStandardOutput = true };
+        var psi = new System.Diagnostics.ProcessStartInfo(exe)
+            { RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (string a in args) psi.ArgumentList.Add(a);
         using var p = System.Diagnostics.Process.Start(psi)!;
-        string o = p.StandardOutput.ReadToEnd().Trim();
-        p.WaitForExit(3000);
-        if (p.ExitCode != 0) throw new InvalidOperationException($"{exe} failed");
-        return o;
+        Task<string> outTask = p.StandardOutput.ReadToEndAsync();
+        Task<string> errTask = p.StandardError.ReadToEndAsync();
+        if (!p.WaitForExit(3000))
+        {
+            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            throw new TimeoutException($"{exe} timed out after 3 seconds");
+        }
+        string err = errTask.GetAwaiter().GetResult();
+        if (p.ExitCode != 0) throw new InvalidOperationException($"{exe} failed: {err.Trim()}");
+        return outTask.GetAwaiter().GetResult().Trim();
     }
 
     public Task StopAsync(CancellationToken ct)

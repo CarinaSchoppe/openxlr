@@ -8,8 +8,8 @@ help.
 |---|---|---|
 | Wave XLR Pro | `0fd9:00b4` | every control verified on hardware |
 | XLR Dock | `0fd9:00a6` | every control the hardware has, verified on hardware |
-| Wave XLR | `0fd9:007d` | core controls verified on hardware by a community tester |
-| Wave XLR MK.2 | `0fd9:00b6` | decoded from captures, not run on hardware |
+| Wave XLR | `0fd9:007d` | core controls verified on hardware by community testers on two units (0.1.13) |
+| Wave XLR MK.2 | `0fd9:00b6` | every control verified on hardware by a community tester |
 | XLR Dock MK.2 | `0fd9:00c7` | registered on the MK.2 backend, not run on hardware |
 
 ## Wave XLR Pro (0fd9:00b4)
@@ -31,8 +31,8 @@ the commit block every selector write needs.
 
 ## XLR Dock (0fd9:00a6)
 
-The Stream Deck+ module. It has no onboard memory or DSP: Wave Link
-runs its processing host-side on Windows. On Linux OpenXLR drives gain,
+The Stream Deck+ module. It has no onboard voice-processing DSP: Wave
+Link is its processing host on Windows. On Linux OpenXLR drives gain,
 mute and headphone volume through the kernel's standard ALSA controls
 and provides the DSP host-side in the submixer. Phantom power and
 headphone low impedance live in firmware registers the kernel does not
@@ -43,7 +43,7 @@ expose, reached over the original Wave XLR's protocol dialect.
 | Gain 0 to 75 dB | verified | analog preamp; confirmed by level measurement |
 | Mute, headphone volume | verified | standard ALSA controls |
 | Low cut 80 / 120 Hz | software | PipeWire high-pass in the mic path; response measured with test tones as second-order |
-| ClipGuard | software | hard limiter at -3 dB, measured with test tones; needs the `swh-plugins` package |
+| ClipGuard | software | post-ADC hard limiter at -3 dB, measured with test tones; needs `swh-plugins` and cannot repair analogue/ADC clipping. If the plugin is missing, the control is disabled and the current mic route remains live |
 | Gain lock | software | the daemon rejects all gain changes while set; the dock has no physical dial to bypass it |
 | Phantom power | verified | byte 6 of the dock's config block over the original Wave XLR's protocol dialect. Identified by [openwave PR #8](https://github.com/rikkichy/openwave/pull/8) on the MK.1 against its 48V LED; confirmed here with a condenser microphone on the dock's XLR. Wave Link does not write it for the dock |
 | Low impedance | verified | byte 33 of the same config block, verified by listening on the dock's headphone jack |
@@ -59,8 +59,12 @@ start first.
 ## Wave XLR (0fd9:007d)
 
 The original MK.1. Its class protocol was documented by the
-[openwave](https://github.com/rikkichy/openwave) project, and a
-community tester has run OpenXLR against real hardware.
+[openwave](https://github.com/rikkichy/openwave) project, and community
+testers have run OpenXLR against two units. A daemon stall reported on
+one of them ([issue #6](https://github.com/emaspa/openxlr/issues/6))
+turned out not to be the USB write, which completes in milliseconds,
+but the daemon's stream sweep starving its own clients; fixed in
+0.1.13 by the reporter's own change ([PR #7](https://github.com/emaspa/openxlr/pull/7)).
 
 | Control | State | Notes |
 |---|---|---|
@@ -72,7 +76,16 @@ community tester has run OpenXLR against real hardware.
 ## Wave XLR MK.2 (0fd9:00b6) and XLR Dock MK.2 (0fd9:00c7), need testers
 
 Decoded from USB captures of Wave Link, using the Pro's protocol family
-at its own address. Not run on hardware.
+at its own address. On 2026-09-02 a community tester
+([issue #2](https://github.com/emaspa/openxlr/issues/2)) ran OpenXLR
+0.1.10 against a Wave XLR MK.2: the daemon connected, all three blocks
+read at the expected lengths (38, 2 and 6 bytes), and every exposed
+control changed the device, with the device's own gain mark following
+the software and the physical dial reflected back. The settings block's
+bytes 1 and 2 follow the Pro's per-input structure (bit 1 phantom, bit 7
+compressor, byte 2 = 0x04 for ClipGuard off); those three controls were
+exposed at the Pro's positions in 0.1.12 and the same tester confirmed
+each of them works.
 
 The XLR Dock MK.2 for the Stream Deck+ is built on the same Wave FX
 platform (80 dB gain, phantom, ClipGuard 2.0, onboard expander, voice
@@ -85,15 +98,16 @@ awaiting a first run on hardware.
 
 | Control | State | Notes |
 |---|---|---|
-| Gain, mute, low cut, expander, voice tune + strength | coded | from capture analysis |
-| Headphone volume, low impedance, crossfade | coded | from capture analysis |
+| Gain, mute, low cut, expander, voice tune + strength | verified | community tester, reads and writes |
+| Headphone volume, low impedance, crossfade | verified | community tester |
+| Phantom 48V, ClipGuard, compressor | verified | at the Pro's bit positions; community tester, 0.1.12 |
 
 ## Every device gets
 
 - Capability-driven UI: controls, channels, and mixes the device does
   not have are not shown
 - Per-device profiles: named scenes of hardware state plus the whole
-  submix, recalled from the UI or the API
+  submix, recalled from the UI, the API or a Stream Deck key
 - Multi-device switching: a header picker chooses which interface
   OpenXLR drives; the mixer's input channels follow it
 - On switch, the hardware channels' monitor sends come up muted, so the

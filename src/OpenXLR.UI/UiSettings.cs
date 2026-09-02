@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -17,6 +18,8 @@ public sealed record UiSettings
     public bool OpenWindowAtLogin { get; init; }
     public bool MinimizeToTray { get; init; }
     public bool StartMinimized { get; init; }
+    /// <summary>Names of the main window's tiles the user collapsed (INPUTS, HEADPHONES, ...).</summary>
+    public IReadOnlyList<string> CollapsedSections { get; init; } = [];
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -228,6 +231,12 @@ public static class StartupIntegration
                     TimeoutStopSec=45
                     Restart=on-failure
                     RestartSec=3
+                    NoNewPrivileges=true
+                    PrivateTmp=true
+                    ProtectSystem=strict
+                    ProtectControlGroups=true
+                    ProtectKernelTunables=true
+                    RestrictSUIDSGID=true
 
                     [Install]
                     WantedBy=default.target

@@ -232,7 +232,6 @@ public static class StartupIntegration
                     PrivateTmp=true
                     ProtectSystem=strict
                     ProtectControlGroups=true
-                    ProtectKernelModules=true
                     ProtectKernelTunables=true
                     RestrictSUIDSGID=true
 

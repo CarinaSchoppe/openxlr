@@ -74,7 +74,6 @@ in
         PrivateTmp = true;
         ProtectSystem = "strict";
         ProtectControlGroups = true;
-        ProtectKernelModules = true;
         ProtectKernelTunables = true;
         RestrictSUIDSGID = true;
       };

@@ -29,6 +29,7 @@ public sealed class MixerService : IHostedService, IDisposable
     // EnsureInputFeeds() itself) indefinitely. Skip a tick outright rather
     // than let it stack up.
     private int _sweepRunning;
+    private string? _lastSweepError;
 
     public MixerService(ILogger<MixerService> log, IConfiguration config, DeviceManager devices)
     {
@@ -160,7 +161,26 @@ public sealed class MixerService : IHostedService, IDisposable
                         | _mixer.EnsureMonitorRoutes()) Changed?.Invoke();
                     SyncOutputSelectors();
                 }
-                catch (Exception ex) { _log.LogDebug("stream sweep: {msg}", ex.Message); }
+                catch (Exception ex)
+                {
+                    // A wiring failure repeats every second (a filter chain
+                    // that cannot be built leaves the microphone unwired, with
+                    // no other trace at the default log level). Say it once
+                    // per distinct message at warning so it reaches the
+                    // journal and the diagnostics archive, then keep quiet.
+                    if (ex.Message != _lastSweepError)
+                    {
+                        _lastSweepError = ex.Message;
+                        _log.LogWarning("stream sweep: {msg} (repeats logged at debug level)", ex.Message);
+                    }
+                    else _log.LogDebug("stream sweep: {msg}", ex.Message);
+                    return;
+                }
+                if (_lastSweepError is not null)
+                {
+                    _lastSweepError = null;
+                    _log.LogInformation("stream sweep recovered");
+                }
                 finally { Volatile.Write(ref _sweepRunning, 0); }
             }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
 

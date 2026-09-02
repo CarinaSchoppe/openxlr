@@ -249,7 +249,11 @@ public sealed class DeviceManager : BackgroundService
             _device = dev;
             _last = null;
             _log.LogInformation("connected {dev}", dev.Info.DisplayName);
-            EnsureCardProfile(dev.Info);
+            // The UCM split profile that hides the raw multichannel nodes exists
+            // for the Wave XLR Pro only; on the other devices the check would
+            // poll wpctl for two minutes and then warn about a profile that
+            // never exists.
+            if (dev.Capabilities.OutputRouting) EnsureCardProfile(dev.Info);
             RaiseFromLocked();                          // push the initial state
         }
     }

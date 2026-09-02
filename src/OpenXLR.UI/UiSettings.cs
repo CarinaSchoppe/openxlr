@@ -131,27 +131,29 @@ public static class StartupIntegration
     ];
 
     /// <summary>
-    /// The daemon binary for installs without a packaged unit: an unpacked
-    /// <prefix>/lib/openxlr/{ui,daemon} layout, else the source tree. Null
-    /// when neither exists, so no unit is ever written with a bad ExecStart.
+    /// The daemon to run for installs without a packaged unit. The installed
+    /// wrapper first (Nix: <prefix>/lib/openxlr next to <prefix>/bin; the
+    /// distro packages: <prefix>/lib/openxlr/ui under <prefix>/bin), then an
+    /// unpacked <prefix>/lib/openxlr/{ui,daemon} layout, then the source
+    /// tree. Null when none exists, so no unit is ever written with a bad
+    /// ExecStart.
     /// </summary>
-    private static string? DaemonBinary
-    {
-        get
-        {
-            string baseDir = AppContext.BaseDirectory;
-            string[] candidates =
-            [
-                Path.GetFullPath(Path.Combine(baseDir, "..", "daemon", "OpenXLR.Daemon")),
-                Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..",
-                    "OpenXLR.Daemon", "bin", "Release", "net10.0", "OpenXLR.Daemon")),
-            ];
-            return Array.Find(candidates, File.Exists);
-        }
-    }
+    private static string? DaemonBinary => FirstExisting(
+        Path.Combine("..", "..", "bin", "openxlr-daemon"),
+        Path.Combine("..", "..", "..", "bin", "openxlr-daemon"),
+        Path.Combine("..", "daemon", "OpenXLR.Daemon"),
+        Path.Combine("..", "..", "..", "..", "OpenXLR.Daemon", "bin", "Release", "net10.0", "OpenXLR.Daemon"));
 
-    private static string UiBinary =>
-        Path.Combine(AppContext.BaseDirectory, "OpenXLR.UI");
+    /// <summary>The window for the autostart entry: the installed wrapper, else this binary.</summary>
+    private static string UiBinary => FirstExisting(
+        Path.Combine("..", "..", "bin", "openxlr"),
+        Path.Combine("..", "..", "..", "bin", "openxlr"))
+        ?? Path.Combine(AppContext.BaseDirectory, "OpenXLR.UI");
+
+    private static string? FirstExisting(params string[] relativeToBaseDir) =>
+        relativeToBaseDir
+            .Select(r => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, r)))
+            .FirstOrDefault(File.Exists);
 
     private static string UnitPath => Path.Combine(ConfigHome, "systemd", "user", UnitName);
 

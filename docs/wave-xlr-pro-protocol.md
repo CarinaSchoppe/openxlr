@@ -13,9 +13,16 @@ below are directly observed and solid.
 The shipping implementation of this protocol is
 `src/OpenXLR.Core/Devices/WaveXlrProDevice.cs` (libusb control transfers,
 read-modify-write of the blocks below, commit block after selector
-writes). The daemon control names it exposes are listed in
-[api.md](api.md). An earlier prototype written into a fork of openwave was
-used to validate the transport and is not maintained.
+writes): both XLR structures, both headphone volumes, the USB Aux input
+stage, the physical output selectors and the commit sequence. The mic map
+as finally verified (section 6): flags bit 1 = phantom, bit 4 = low cut,
+bit 5 = expander, bit 6 = voice tune, bit 7 = compressor; ClipGuard is the
+inverted `0x04` value at structure offset 2. There is no polarity control.
+Sections 3 to 5 keep the first capture's provisional labels as the record
+of how the map was found; where they disagree with section 6, section 6
+is right. The daemon control names are listed in [api.md](api.md). An
+earlier prototype written into a fork of openwave was used to validate the
+transport and is not maintained.
 
 ## 0. HARDWARE-CONFIRMED (2026-08-25, live on the device)
 
@@ -38,7 +45,7 @@ Confidence upgraded below from this: gain and mute are now **CONFIRMED**; low-cu
 voice-tune/HP/low-Z/crossfade inherit **HIGH** from the MK.2 field identity; only the Pro-only
 extra bits (phantom / ClipGuard / polarity) remain to be labeled by ear, see §4.
 
-## 1. Transport (a block/property-bank scheme, a THIRD family, not MK.1 or MK.2)
+## 1. Transport (the Pro dialect of the MK.2-style block/property bank)
 
 All device control rides on **vendor control transfers to interface 3** (the vendor-specific
 interface, class 0xFF, that has no kernel driver, so no audio-driver detach needed):
@@ -61,7 +68,7 @@ read or written as one unit; individual controls are byte fields at fixed offset
 |-------|------|----------|--------|--------|------|
 | 0x0001 | 108 B | R/W | 9832 | 146 | main config/state (toggles + a large tail array) |
 | 0x0002 | 150 B | R only | 9872 | 0 | **telemetry / meters** (polled, never written) |
-| 0x0003 | 12 B  | W     | 0    | 57  | mode block (constant `04 00…` in this capture) |
+| 0x0003 | 12 B  | W     | 0    | 57  | write-only commit block (constant `04 00…` in this capture; role established in section 6) |
 | 0x0004 | 80 B  | R/W   | 9828 | 168 | config: a 0–100 fader + a packed-flags byte + an enum |
 | 0x0005 | 8 B   | R/W   | 9790 | 131 | **two independent one-byte level faders** |
 | 0x0006 | 29 B  | R only| 9837 | 0   | status/telemetry |
@@ -203,7 +210,7 @@ structures cleanly (all verified bidirectionally against ALSA on hardware):
   (0x50) is still unlabeled.
 
 Implemented in OpenXLR end to end (device layer, daemon controls gain2/mute2/lowCut2/
-expander2/voiceTune2/voiceTuneStrength2/phantom2/clipGuard2/polarity2/hp2VolumeDb, UI
+expander2/voiceTune2/voiceTuneStrength2/phantom2/clipGuard2/compressor2/hp2VolumeDb, UI
 strips for XLR 1 / XLR 2 and Phones 1 / Phones 2), with gain2 and hp2 verified live.
 
 ## 6. Capture 2 (xlrpro2.pcapng, 2026-08-25, WITH ordered action log): outputs, mic DSP, USB Aux

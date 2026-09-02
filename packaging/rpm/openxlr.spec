@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.8
+Version:        0.1.9
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -137,6 +137,14 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Wed Sep 02 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.9-1
+- UI: "Start daemon at login" on packaged installs wrote a user unit with
+  a build-tree ExecStart that does not exist, shadowing the packaged unit:
+  the daemon ran until the next reboot, then failed with 203/EXEC in a
+  restart loop. The option now enables the packaged unit instead, and a
+  stale unit left by an earlier version is repaired the next time the UI
+  starts.
+
 * Mon Aug 31 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.8-1
 - Mixer wiring pairs ports by channel and ignores duplicated port
   listings. A USB sink caught mid re-enumeration lists its ports twice,

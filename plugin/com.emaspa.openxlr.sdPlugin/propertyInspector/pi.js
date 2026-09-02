@@ -35,8 +35,9 @@ function connect(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inAct
     };
     sel.addEventListener("change", save);
     iconSel?.addEventListener("change", save);
-    // Ask the plugin for the live output-device list and the insert chains.
-    for (const request of ["outputs", "inserts"])
+    // Ask the plugin for the live output-device list, the insert chains and
+    // the saved profiles.
+    for (const request of ["outputs", "inserts", "profiles"])
       ws.send(JSON.stringify({ event: "sendToPlugin", context: actionContext, payload: { request } }));
   };
 
@@ -49,6 +50,8 @@ function connect(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inAct
       fillGroup("insert-group", "Insert bypass", m.payload.inserts, wanted);
       fillGroup("chain-group", "Insert chain bypass (all plugins)", m.payload.chains ?? [], wanted);
     }
+    if (Array.isArray(m.payload?.profiles))
+      fillGroup("profile-group", "Profiles (recall)", m.payload.profiles, wanted);
   };
 }
 

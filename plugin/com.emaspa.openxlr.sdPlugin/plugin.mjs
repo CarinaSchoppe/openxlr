@@ -301,9 +301,21 @@ host.onmessage = (e) => {
       else if (m.payload?.request === "inserts")
         send({ event: "sendToPropertyInspector", context: m.context,
                payload: insertChoices() });
+      else if (m.payload?.request === "profiles")
+        send({ event: "sendToPropertyInspector", context: m.context,
+               payload: { profiles: profileChoices() } });
       break;
   }
 };
+
+// Saved profiles of the active device, for the PI's picker. A key made for
+// one is looked up by name, so a profile saved again under the same name
+// keeps its key.
+//   profile|<name>   key: recall the profile; lit while it is the last recalled
+function profileChoices() {
+  return (daemonState?.profiles ?? []).map((name) => ({ target: `profile|${name}`, label: name }));
+}
+const isProfileTarget = (t) => !!t && t.startsWith("profile|");
 
 // Physical output sinks the monitor mix can feed, for the PI's picker.
 function outputDevices() {
@@ -356,6 +368,12 @@ function toggleValue(target, inst) {
     return list.length ? list.some((i) => !i.bypass) : null;
   }
   if (target === "auxPort") return mixer()?.auxPortEnabled ?? null;
+  if (isProfileTarget(target)) {
+    // Unknown (grey) while the daemon is down or the profile was deleted.
+    const name = target.slice(8);
+    if (!daemonState?.profiles?.includes(name)) return null;
+    return daemonState.activeProfile === name;
+  }
   if (target === "softLowCut") {
     const hz = mixer()?.lowCutHz;
     return hz == null ? null : hz > 0;
@@ -387,6 +405,7 @@ function toggleLabel(target, inst) {
     return `${chainShort(ch)}\n${name}`;
   }
   if (target.startsWith("inschain|")) return `${chainShort(target.slice(9))}\nInserts`;
+  if (isProfileTarget(target)) return `Profile\n${target.slice(8)}`;
   if (target === "auxPort") return "Aux\nPort";
   if (target === "softLowCut") {
     const hz = mixer()?.lowCutHz ?? 0;
@@ -498,6 +517,7 @@ function onKeyDown(context, inst) {
       cmd({ cmd: "setInsertBypass", channel: ch, insertId: ins.id, value: cur });
   }
   else if (t === "auxPort") cmd({ cmd: "setAuxPortEnabled", value: !cur });
+  else if (isProfileTarget(t)) cmd({ cmd: "loadProfile", name: t.slice(8) });   // re-applies when already lit
   else if (t === "softLowCut") {
     const hz = mixer()?.lowCutHz ?? 0;
     cmd({ cmd: "setLowCutHz", value: hz === 0 ? 80 : hz === 80 ? 120 : 0 });
@@ -636,6 +656,10 @@ const GLYPHS = {
         <path d="M104 88 h-50 m0 0 l12 -10 m-12 10 l12 10" stroke="currentColor" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
   jack: `<circle cx="72" cy="72" r="28" stroke="currentColor" stroke-width="7" fill="none"/>
         <circle cx="72" cy="72" r="9" fill="currentColor"/>`,
+  // a stack of scene cards, for profile keys
+  scene: `<rect x="44" y="52" width="56" height="40" rx="6" fill="none" stroke="currentColor" stroke-width="6"/>
+        <path d="M52 44 h52 a6 6 0 0 1 6 6 v34" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+        <path d="M56 78 l10 -12 l9 8 l8 -14 l11 18" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>`,
 };
 
 // Which glyph a toggle target wears; unlisted targets are word keys
@@ -647,6 +671,7 @@ function glyphFor(t) {
   if (t === "outLineOut") return "jack";
   if (t.startsWith("monitor:") || t.startsWith("mixmute:")) return "speaker";
   if (t.startsWith("sendmute:")) return "fader";
+  if (isProfileTarget(t)) return "scene";
   return null;
 }
 
@@ -901,7 +926,7 @@ function refresh(context) {
     const v = toggleValue(t, inst);
     const badge = t === "softLowCut" ? (mixer()?.lowCutHz ? String(mixer().lowCutHz) : "OFF") : "";
     const label = emptyTitle.has(context)
-      ? (daemonUp ? (isInsertTarget(t) ? toggleLabel(t, inst) : defaultTitle(t)) : "offline") : "";
+      ? (daemonUp ? (isInsertTarget(t) || isProfileTarget(t) ? toggleLabel(t, inst) : defaultTitle(t)) : "offline") : "";
     // The user can pick a glyph per key (a monitor output may be headphones
     // rather than speakers); "auto" or unset keeps the target's default.
     const iconChoice = inst.settings.icon;

@@ -50,10 +50,14 @@ public sealed class WebSocketHub
     }
 
     /// <summary>Device state plus mixer state, as one message.</summary>
+    // Last recalled or saved profile per device id, for the state message.
+    private readonly ConcurrentDictionary<string, string> _activeProfile = new();
+
     private StateMessage Snapshot() =>
         _devices.Snapshot() with
         {
             DaemonVersion = OpenXLR.Daemon.DaemonVersion.Current,
+            ActiveProfile = ActiveDeviceId() is string apId && _activeProfile.TryGetValue(apId, out string? ap) ? ap : null,
             Mixer = _mixer.Snapshot(),
             Devices = _mixer.Devices(),
             Profiles = ActiveDeviceId() is string devId ? OpenXLR.Core.ProfileStore.List(devId) : [],
@@ -217,6 +221,7 @@ public sealed class WebSocketHub
                         Device = _devices.Snapshot().State,
                         Mixer = _mixer.ExportScene(),
                     });
+                    _activeProfile[devId] = name;
                     return null;
                 case "loadProfile":
                     OpenXLR.Core.Profile? p = OpenXLR.Core.ProfileStore.Load(devId, name);
@@ -226,8 +231,11 @@ public sealed class WebSocketHub
                     // the mixer scene (and the other way round).
                     string? devErr = p.Device is null ? null : _devices.ApplyProfile(p.Device);
                     string? mixErr = p.Mixer is null ? null : _mixer.ApplyScene(p.Mixer);
+                    if (devErr is null && mixErr is null) _activeProfile[devId] = name;
                     return devErr ?? mixErr;
                 case "deleteProfile":
+                    if (_activeProfile.TryGetValue(devId, out string? current) && current == name)
+                        _activeProfile.TryRemove(devId, out _);
                     return OpenXLR.Core.ProfileStore.Delete(devId, name) ? null : $"no profile named '{name}'";
                 default:
                     return $"unknown profile command '{cmd.Cmd}'";

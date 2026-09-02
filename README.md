@@ -59,7 +59,7 @@ Collect diagnostics).
   process binary rather than the "Chromium" name they report.
 - **Profiles**: named scenes holding the hardware settings and the
   whole submix (levels, mutes, outputs, insert chains), saved per device
-  and recalled from the UI or the API.
+  and recalled from the UI, the API or a Stream Deck key.
 - **OpenDeck plugin**: key and dial actions for every switch, mute,
   level and insert, rendered with level meters and status LEDs. It is a
   client of the daemon's API, so it reflects changes made in the UI or

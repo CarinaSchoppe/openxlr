@@ -102,6 +102,12 @@ public sealed record StateMessage
 
     /// <summary>Saved profile names, so any client can offer recall.</summary>
     [JsonPropertyName("profiles")] public IReadOnlyList<string>? Profiles { get; init; }
+    /// <summary>
+    /// The profile last recalled or saved for the active device, or null.
+    /// A bookkeeping value: later manual changes do not clear it, so a
+    /// client shows it as "last recalled", not "state matches".
+    /// </summary>
+    [JsonPropertyName("activeProfile")] public string? ActiveProfile { get; init; }
 
     /// <summary>Every attached supported interface, so clients can offer a picker.</summary>
     [JsonPropertyName("detected")] public IReadOnlyList<DetectedDevice>? Detected { get; init; }

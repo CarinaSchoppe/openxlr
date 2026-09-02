@@ -127,8 +127,8 @@ restores the split profile when it stops.
 
 Named scenes: every hardware setting plus the whole submix (send
 levels, mutes, masters, monitor outputs, aux state, insert chains with
-their parameters). Saved per device and recalled from the header or over
-the API. App routing and the enforced system defaults are global and
+their parameters). Saved per device and recalled from the header, over
+the API, or from a Stream Deck key. App routing and the enforced system defaults are global and
 not part of a profile, so recalling one does not rewire the desktop.
 
 ## OpenDeck plugin
@@ -154,6 +154,10 @@ lock, and switching the monitor output to a specific device. Each key
 can pick its icon, and a typed title replaces the built-in label.
 
 ![Keys](plugin-keys.png)
+
+Profiles: a key can recall one of the active device's saved profiles,
+listed live in the property inspector; it lights while that profile is
+the last one recalled or saved.
 
 Inserts: the property inspector lists every loaded plugin from live
 state. A key toggles one insert's bypass (LED green in the path, red

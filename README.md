@@ -158,6 +158,8 @@ user service, the sysctl port reservation, updating and uninstalling:
 
 ## Documentation
 
+- [Manual](docs/manual.md): first run, the concepts behind the mixer,
+  step-by-step tasks, the Stream Deck plugin, troubleshooting
 - [Features](docs/features.md): every control, the submixer, inserts,
   routing, profiles and the OpenDeck plugin in detail
 - [Installing from source](docs/install-from-source.md): prerequisites

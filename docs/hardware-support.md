@@ -9,7 +9,7 @@ help.
 | Wave XLR Pro | `0fd9:00b4` | every control verified on hardware |
 | XLR Dock | `0fd9:00a6` | every control the hardware has, verified on hardware |
 | Wave XLR | `0fd9:007d` | core controls verified on hardware by a community tester; a second unit (firmware 1.35) hangs on every write, under investigation in [issue #6](https://github.com/emaspa/openxlr/issues/6) |
-| Wave XLR MK.2 | `0fd9:00b6` | verified on hardware by a community tester; phantom, ClipGuard and compressor coded, awaiting verification |
+| Wave XLR MK.2 | `0fd9:00b6` | every control verified on hardware by a community tester |
 | XLR Dock MK.2 | `0fd9:00c7` | registered on the MK.2 backend, not run on hardware |
 
 ## Wave XLR Pro (0fd9:00b4)
@@ -79,8 +79,9 @@ read at the expected lengths (38, 2 and 6 bytes), and every exposed
 control changed the device, with the device's own gain mark following
 the software and the physical dial reflected back. The settings block's
 bytes 1 and 2 follow the Pro's per-input structure (bit 1 phantom, bit 7
-compressor, byte 2 = 0x04 for ClipGuard off), so those three controls are
-exposed from 0.1.12 at the Pro's positions and await the same tester.
+compressor, byte 2 = 0x04 for ClipGuard off); those three controls were
+exposed at the Pro's positions in 0.1.12 and the same tester confirmed
+each of them works.
 
 The XLR Dock MK.2 for the Stream Deck+ is built on the same Wave FX
 platform (80 dB gain, phantom, ClipGuard 2.0, onboard expander, voice
@@ -95,7 +96,7 @@ awaiting a first run on hardware.
 |---|---|---|
 | Gain, mute, low cut, expander, voice tune + strength | verified | community tester, reads and writes |
 | Headphone volume, low impedance, crossfade | verified | community tester |
-| Phantom 48V, ClipGuard, compressor | coded | at the Pro's bit positions, which the tester's block dump matched; awaiting verification (0.1.12) |
+| Phantom 48V, ClipGuard, compressor | verified | at the Pro's bit positions; community tester, 0.1.12 |
 
 ## Every device gets
 

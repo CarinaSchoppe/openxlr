@@ -1,3 +1,12 @@
+openxlr (0.1.12) resolute; urgency=medium
+
+  * Wave XLR MK.2: phantom power, ClipGuard and compressor exposed at the
+    Pro's bit positions, which a tester's block dump matched; the other
+    controls were verified on hardware by that tester (issue #2). The XLR
+    Dock MK.2 shares the backend.
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Wed, 02 Sep 2026 12:59:43 +0100
+
 openxlr (0.1.11) resolute; urgency=medium
 
   * A USB control transfer that never returns (a Wave XLR MK.1 unit hangs

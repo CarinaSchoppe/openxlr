@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.11
+Version:        0.1.12
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -137,6 +137,12 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Wed Sep 02 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.12-1
+- Wave XLR MK.2: phantom power, ClipGuard and compressor exposed at the
+  Pro's bit positions, which a tester's block dump matched; the other
+  controls were verified on hardware by that tester (issue #2). The XLR
+  Dock MK.2 shares the backend.
+
 * Wed Sep 02 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.11-1
 - A USB control transfer that never returns (a Wave XLR MK.1 unit hangs
   on every write, issue #6) no longer freezes the daemon and its API: the

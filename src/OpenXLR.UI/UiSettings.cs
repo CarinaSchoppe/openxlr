@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 
 namespace OpenXLR.UI;
@@ -100,55 +101,142 @@ public sealed record DaemonPrefs
 
 /// <summary>
 /// Applies startup preferences to the system: a systemd user unit for the
-/// daemon, an XDG autostart entry for the window. Paths point at the build
-/// output; packaging will replace them with installed binaries later.
+/// daemon, an XDG autostart entry for the window.
+///
+/// Packaged installs (AUR, .deb, Nix) ship their own daemon unit in a system
+/// unit directory. The UI must enable that one rather than write a copy into
+/// ~/.config/systemd/user: that directory has the highest precedence, so a
+/// copy there shadows the packaged unit, and its ExecStart goes stale as soon
+/// as the package layout differs from the build tree. Only source builds,
+/// which have no packaged unit, get one written here.
 /// </summary>
 public static class StartupIntegration
 {
+    private const string UnitName = "openxlr-daemon.service";
+
     private static string HomeDir => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-    private static string DaemonBinary =>
-        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..",
-            "OpenXLR.Daemon", "bin", "Release", "net10.0", "OpenXLR.Daemon"));
+    private static string ConfigHome =>
+        Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } x
+            ? x : Path.Combine(HomeDir, ".config");
+
+    /// <summary>System unit directories, highest precedence first (systemd.unit(5)).</summary>
+    private static readonly string[] SystemUnitDirs =
+    [
+        "/etc/systemd/user",
+        "/run/systemd/user",
+        "/usr/local/lib/systemd/user",
+        "/usr/lib/systemd/user",
+        "/lib/systemd/user",
+    ];
+
+    /// <summary>
+    /// The daemon binary for installs without a packaged unit: an unpacked
+    /// <prefix>/lib/openxlr/{ui,daemon} layout, else the source tree. Null
+    /// when neither exists, so no unit is ever written with a bad ExecStart.
+    /// </summary>
+    private static string? DaemonBinary
+    {
+        get
+        {
+            string baseDir = AppContext.BaseDirectory;
+            string[] candidates =
+            [
+                Path.GetFullPath(Path.Combine(baseDir, "..", "daemon", "OpenXLR.Daemon")),
+                Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..",
+                    "OpenXLR.Daemon", "bin", "Release", "net10.0", "OpenXLR.Daemon")),
+            ];
+            return Array.Find(candidates, File.Exists);
+        }
+    }
 
     private static string UiBinary =>
         Path.Combine(AppContext.BaseDirectory, "OpenXLR.UI");
 
-    private static string UnitPath => Path.Combine(
-        Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } x
-            ? x : Path.Combine(HomeDir, ".config"),
-        "systemd", "user", "openxlr-daemon.service");
+    private static string UnitPath => Path.Combine(ConfigHome, "systemd", "user", UnitName);
 
-    private static string AutostartPath => Path.Combine(
-        Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } x
-            ? x : Path.Combine(HomeDir, ".config"),
-        "autostart", "openxlr.desktop");
+    private static string AutostartPath => Path.Combine(ConfigHome, "autostart", "openxlr.desktop");
+
+    /// <summary>Path of the unit a package installed, or null on a source build.</summary>
+    public static string? PackagedUnit =>
+        SystemUnitDirs.Select(d => Path.Combine(d, UnitName)).FirstOrDefault(File.Exists);
+
+    /// <summary>
+    /// True when ~/.config holds a unit that must not be there: any copy on a
+    /// packaged install (it shadows the packaged unit), or one whose ExecStart
+    /// binary does not exist. Earlier OpenXLR versions wrote exactly that on
+    /// packaged installs, leaving the daemon looping on 203/EXEC after every
+    /// reboot.
+    /// </summary>
+    public static bool HasStaleUserUnit()
+    {
+        if (!File.Exists(UnitPath)) return false;
+        if (PackagedUnit is not null) return true;
+        try
+        {
+            foreach (string line in File.ReadLines(UnitPath))
+            {
+                if (!line.StartsWith("ExecStart=", StringComparison.Ordinal)) continue;
+                string exe = line["ExecStart=".Length..].Trim().Split(' ')[0];
+                return exe.Length > 0 && !File.Exists(exe);
+            }
+        }
+        catch (IOException) { /* unreadable: leave it alone */ }
+        return false;
+    }
+
+    /// <summary>
+    /// Run at startup when daemon-at-login is on: replaces a stale unit left
+    /// by an earlier version and starts the daemon, without waiting for the
+    /// user to toggle the option again.
+    /// </summary>
+    public static void RepairDaemonUnit()
+    {
+        try
+        {
+            if (!HasStaleUserUnit()) return;
+            SetDaemonAtLogin(true);
+            Systemctl("start", UnitName);
+        }
+        catch (Exception) { /* best effort */ }
+    }
 
     public static void SetDaemonAtLogin(bool enabled)
     {
         if (enabled)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(UnitPath)!);
-            File.WriteAllText(UnitPath, $"""
-                [Unit]
-                Description=OpenXLR audio daemon
-                After=pipewire-pulse.service wireplumber.service
+            if (PackagedUnit is not null)
+            {
+                // Any copy in ~/.config would shadow the packaged unit.
+                try { File.Delete(UnitPath); } catch (IOException) { }
+            }
+            else
+            {
+                // No binary anywhere we know of: a unit would only loop on 203/EXEC.
+                if (DaemonBinary is not { } daemon) return;
+                Directory.CreateDirectory(Path.GetDirectoryName(UnitPath)!);
+                File.WriteAllText(UnitPath, $"""
+                    [Unit]
+                    Description=OpenXLR audio daemon
+                    After=pipewire-pulse.service wireplumber.service
 
-                [Service]
-                ExecStart={DaemonBinary}
-                Environment=OPENXLR_BUILD_MIXER=1
-                Restart=on-failure
-                RestartSec=3
+                    [Service]
+                    ExecStart={daemon}
+                    Environment=OPENXLR_BUILD_MIXER=1
+                    TimeoutStopSec=45
+                    Restart=on-failure
+                    RestartSec=3
 
-                [Install]
-                WantedBy=default.target
-                """);
+                    [Install]
+                    WantedBy=default.target
+                    """);
+            }
             Systemctl("daemon-reload");
-            Systemctl("enable", "openxlr-daemon.service");
+            Systemctl("enable", UnitName);
         }
         else
         {
-            Systemctl("disable", "openxlr-daemon.service");
+            Systemctl("disable", UnitName);
             try { File.Delete(UnitPath); } catch (IOException) { }
             Systemctl("daemon-reload");
         }

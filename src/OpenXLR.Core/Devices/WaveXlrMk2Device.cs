@@ -7,15 +7,19 @@ namespace OpenXLR.Core.Devices;
 ///   read : bmRequestType=0xC1, bRequest=0x01, wValue=block, wIndex=0x0203
 ///   write: bmRequestType=0x41, bRequest=0x01, wValue=block, wIndex=0x0203
 ///
-/// Block 0x0004 (38 bytes) is one input struct: gain dB at 0 (0..80), a flag
-/// byte at 1 (bit0 mute, bit4 low cut, bit5 expander, bit6 voice tune), voice
-/// tune strength at 10. Block 0x0005 (2 bytes): headphone attenuation at 0
+/// Block 0x0004 (38 bytes) is one input struct, the same layout as each of
+/// the Pro's two: gain dB at 0 (0..80), a flag byte at 1 (bit0 mute, bit1
+/// phantom, bit4 low cut, bit5 expander, bit6 voice tune, bit7 compressor),
+/// ClipGuard at 2 (0x04 set = disabled, inverted like the Pro), voice tune
+/// strength at 10. Block 0x0005 (2 bytes): headphone attenuation at 0
 /// (quarter-dB steps, 0 = loudest, 240 = -60 dB) and bit1 of byte 1 = low
 /// impedance. Block 0x0001 (6 bytes): crossfade at 0 (0..200, 100 = centre).
 /// Decoded from a Wave Link USB capture during the Pro reverse engineering;
-/// unlike the Pro, no commit block is known to be required. Untested on MK.2
-/// hardware so far: if a tester reports reads working but writes not sticking,
-/// try following each write with the Pro's block 0x0003 commit.
+/// no commit block is needed. Gain, mute, low cut, expander, voice tune,
+/// headphone volume, low impedance and crossfade were verified on hardware
+/// by a community tester (issue #2, 0.1.10); phantom, ClipGuard and
+/// compressor follow the Pro's bit positions, which the tester's block dump
+/// matched, and await the same verification.
 ///
 /// The XLR Dock MK.2 (<see cref="XlrDockMk2Device"/>) presents the same USB
 /// descriptor layout (five interfaces, vendor interface 3 without endpoints)
@@ -38,10 +42,15 @@ public class WaveXlrMk2Device : IAudioDevice
     private const int SettingsLen = 38;
     private const int HpLen = 2;
 
+    private const int ClipGuardOffset = 2;
+    private const byte ClipGuardOffMask = 0x04;   // set = ClipGuard disabled
+
     private const byte MuteMask = 0x01;
+    private const byte PhantomMask = 0x02;
     private const byte LowCutMask = 0x10;
     private const byte ExpanderMask = 0x20;
     private const byte VoiceTuneMask = 0x40;
+    private const byte CompressorMask = 0x80;
     private const byte LowZMask = 0x02;
 
     private static IntPtr _ctx = IntPtr.Zero;
@@ -70,6 +79,9 @@ public class WaveXlrMk2Device : IAudioDevice
             HpVolume = true,
             LowImpedance = true,
             Crossfade = true,
+            Phantom = true,
+            ClipGuard = true,
+            Compressor = true,
             XlrInputs = 1,
             HpOutputs = 1,
         };
@@ -147,6 +159,9 @@ public class WaveXlrMk2Device : IAudioDevice
             LowCut = (s[1] & LowCutMask) != 0,
             Expander = (s[1] & ExpanderMask) != 0,
             VoiceTune = (s[1] & VoiceTuneMask) != 0,
+            Phantom = (s[1] & PhantomMask) != 0,
+            Compressor = (s[1] & CompressorMask) != 0,
+            ClipGuard = (s[ClipGuardOffset] & ClipGuardOffMask) == 0,
             VoiceTuneStrength = s[10],
             HpVolumeDb = -hp[0] / 4.0,
             LowImpedance = (hp[1] & LowZMask) != 0,
@@ -177,10 +192,13 @@ public class WaveXlrMk2Device : IAudioDevice
     public void SetCrossfade(int value)
         => Modify(BlockCrossfade, CrossfadeLen, b => b[0] = (byte)Math.Clamp(value, 0, 200));
 
-    // Not present on the MK.2.
-    public void SetPhantom(bool on) { }
-    public void SetClipGuard(bool on) { }
-    public void SetCompressor(bool on) { }
+    public void SetPhantom(bool on) => Flag(PhantomMask, on);
+    public void SetCompressor(bool on) => Flag(CompressorMask, on);
+
+    public void SetClipGuard(bool on)
+        => Modify(BlockSettings, SettingsLen, b => b[ClipGuardOffset] = on
+            ? (byte)(b[ClipGuardOffset] & ~ClipGuardOffMask)
+            : (byte)(b[ClipGuardOffset] | ClipGuardOffMask));
 
     public IReadOnlyDictionary<string, string> DumpBlocks()
     {

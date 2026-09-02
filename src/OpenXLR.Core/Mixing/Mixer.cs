@@ -249,8 +249,8 @@ public sealed class Mixer : IDisposable
                             else
                             {
                                 PortLink plain = _pw.RouteInputToChannel(nextInput, ch.SinkName, ch.InputPair!.Value);
-                                if (plain.Pairs.Count == 0)
-                                    throw new InvalidOperationException($"could not route {nextInput} to {ch.SinkName}");
+                                // No such capture pair on this device (see below): silent channel.
+                                if (plain.Pairs.Count == 0) continue;
                                 nextFeeds[ch.Id] = plain;
                             }
                             continue;
@@ -258,11 +258,23 @@ public sealed class Mixer : IDisposable
                         chain = _pw.CreateMicFilter(chainId + "_builtin", lc ? _lowCutHz : 0, cg);
                     }
 
-                    nextChains[ch.Id] = chain;
                     PortLink into = _pw.RouteInputToChannel(nextInput, chain.SinkName, ch.InputPair!.Value);
+                    if (into.Pairs.Count == 0)
+                    {
+                        // The device has no capture pair at this offset (a
+                        // stereo interface has no XLR 2 or Aux In pair): the
+                        // channel stays silent, and the chain built for it is
+                        // not needed.
+                        _pw.StopFilter(chain);
+                        continue;
+                    }
+                    nextChains[ch.Id] = chain;
                     PortLink onward = _pw.LinkNodes(chain.SourceName, "capture", ch.SinkName, "playback");
-                    if (into.Pairs.Count == 0 || onward.Pairs.Count == 0)
+                    if (onward.Pairs.Count == 0)
+                    {
+                        nextFeeds[ch.Id] = into;   // rolled back with the rest
                         throw new InvalidOperationException($"could not connect the filter chain for {ch.Id}");
+                    }
                     nextFeeds[ch.Id] = into;
                     nextChainOuts[ch.Id] = onward;
                     continue;
@@ -279,8 +291,13 @@ public sealed class Mixer : IDisposable
                     continue;
                 }
                 PortLink feed = _pw.RouteInputToChannel(nextInput, ch.SinkName, ch.InputPair!.Value);
-                if (feed.Pairs.Count == 0)
-                    throw new InvalidOperationException($"could not route {nextInput} to {ch.SinkName}");
+                // The default config always defines XLR 1, XLR 2 and Aux In
+                // (pairs 0, 1, 2); a device with fewer capture pairs has no
+                // ports at the higher offsets and RouteInputToChannel makes
+                // no links. That is a silent channel, not a failure: every
+                // stereo interface (XLR Dock, Wave XLR, MK.2) would otherwise
+                // fail the whole build here.
+                if (feed.Pairs.Count == 0) continue;
                 nextFeeds[ch.Id] = feed;
             }
         }

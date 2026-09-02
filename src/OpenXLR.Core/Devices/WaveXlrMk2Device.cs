@@ -101,8 +101,11 @@ public class WaveXlrMk2Device : IAudioDevice
         {
             int n = LibUsb.libusb_control_transfer(_handle, RtRead, VReq, block, VIndex, buf, (ushort)length, 1000);
             if (n < 0) throw new InvalidOperationException($"read block {block:x4}: {LibUsb.StrError(n)}");
-            if (n != length)
-                throw new InvalidOperationException($"read block {block:x4}: got {n} bytes, expected {length}");
+            // The block lengths come from a Wave Link capture and this family
+            // (Wave XLR MK.2, XLR Dock MK.2) has not been run on hardware, so a
+            // short read is tolerated: ReadState only indexes the low offsets,
+            // and DumpBlocks shows the real length in diagnostics.
+            if (n != length) Array.Resize(ref buf, n);
         }
         return buf;
     }

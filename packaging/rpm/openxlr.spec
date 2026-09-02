@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.10
+Version:        0.1.11
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -137,6 +137,14 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Wed Sep 02 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.11-1
+- A USB control transfer that never returns (a Wave XLR MK.1 unit hangs
+  on every write, issue #6) no longer freezes the daemon and its API: the
+  transfer fails after the libusb timeout plus 3 s, the device is dropped
+  and reconnected after 10 s, and the fault (setup packet, payload,
+  timing, libusb and kernel versions) is logged and included in the
+  diagnostics archive.
+
 * Wed Sep 02 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.10-1
 - XLR Dock MK.2 (0fd9:00c7): registered on the Wave XLR MK.2 backend
   after a reported USB descriptor matched the MK.2's; udev rule added.

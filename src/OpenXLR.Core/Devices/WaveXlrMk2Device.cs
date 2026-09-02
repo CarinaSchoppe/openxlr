@@ -87,7 +87,8 @@ public sealed class WaveXlrMk2Device : IAudioDevice
         {
             int n = LibUsb.libusb_control_transfer(_handle, RtRead, VReq, block, VIndex, buf, (ushort)length, 1000);
             if (n < 0) throw new InvalidOperationException($"read block {block:x4}: {LibUsb.StrError(n)}");
-            if (n != length) Array.Resize(ref buf, n);
+            if (n != length)
+                throw new InvalidOperationException($"read block {block:x4}: got {n} bytes, expected {length}");
         }
         return buf;
     }
@@ -98,6 +99,8 @@ public sealed class WaveXlrMk2Device : IAudioDevice
         {
             int n = LibUsb.libusb_control_transfer(_handle, RtWrite, VReq, block, VIndex, data, (ushort)data.Length, 1000);
             if (n < 0) throw new InvalidOperationException($"write block {block:x4}: {LibUsb.StrError(n)}");
+            if (n != data.Length)
+                throw new InvalidOperationException($"write block {block:x4}: accepted {n} bytes, expected {data.Length}");
         }
     }
 

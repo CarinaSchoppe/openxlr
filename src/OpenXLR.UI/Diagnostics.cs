@@ -3,7 +3,9 @@ using System.Diagnostics;
 using System.Formats.Tar;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace OpenXLR.UI;
@@ -19,8 +21,10 @@ public static class Diagnostics
     public static async Task<string> CollectAsync(DaemonClient client)
     {
         string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-        string work = Path.Combine(Path.GetTempPath(), $"openxlr-diag-{stamp}");
-        Directory.CreateDirectory(work);
+        string work = Directory.CreateTempSubdirectory("openxlr-diag-").FullName;
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(work, UnixFileMode.UserRead | UnixFileMode.UserWrite |
+                                       UnixFileMode.UserExecute);
         try
         {
             var meta = new StringBuilder();
@@ -30,10 +34,18 @@ public static class Diagnostics
             meta.AppendLine($"os-release: {TryReadFile("/etc/os-release")}");
             meta.AppendLine($"dotnet: {Environment.Version}");
             await File.WriteAllTextAsync(Path.Combine(work, "meta.txt"), meta.ToString());
+            await File.WriteAllTextAsync(Path.Combine(work, "PRIVACY.txt"), """
+                This archive is created locally and is never uploaded automatically.
+                It contains OpenXLR state, USB control blocks, PipeWire topology,
+                recent openxlr-daemon journal entries, application audio metadata,
+                configuration files, and system version information. Common home,
+                user, host, process-id, and device-serial fields are redacted, but
+                review the archive before attaching it to a public issue.
+                """);
 
             // Daemon views: the newest state push plus a fresh vendor-block dump.
             await File.WriteAllTextAsync(Path.Combine(work, "daemon-state.json"),
-                client.LastStateJson ?? "no state received (daemon not running?)");
+                Redact(client.LastStateJson ?? "no state received (daemon not running?)"));
             var blocks = await client.RequestDiagnosticsAsync(TimeSpan.FromSeconds(5));
             await File.WriteAllTextAsync(Path.Combine(work, "device-blocks.json"),
                 blocks?.ToJsonString() ?? "unavailable (daemon not running or no device)");
@@ -49,9 +61,10 @@ public static class Diagnostics
             await WriteCmd(work, "journal.txt", "journalctl", "--user", "-u", "openxlr-daemon",
                 "--since", "2 hours ago", "--no-pager");
 
-            // Configs (device names only, nothing sensitive).
-            CopyIfExists(UiSettings.ConfigDir, "mixer.json", work);
-            CopyIfExists(UiSettings.ConfigDir, "ui.json", work);
+            // Configs may include remembered application identities and device
+            // names; redact common personal fields and disclose them above.
+            CopyRedactedIfExists(UiSettings.ConfigDir, "mixer.json", work);
+            CopyRedactedIfExists(UiSettings.ConfigDir, "ui.json", work);
 
             string outPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -82,9 +95,9 @@ public static class Diagnostics
             Task<string> errTask = p.StandardError.ReadToEndAsync();
             if (await Task.WhenAny(p.WaitForExitAsync(), Task.Delay(15000)) is { } && !p.HasExited)
             { try { p.Kill(); } catch (InvalidOperationException) { } }
-            return await outTask + await errTask;
+            return Redact(await outTask + await errTask);
         }
-        catch (Exception ex) { return $"failed to run {exe}: {ex.Message}"; }
+        catch (Exception ex) { return Redact($"failed to run {exe}: {ex.Message}"); }
     }
 
     private static string TryReadFile(string path)
@@ -94,9 +107,27 @@ public static class Diagnostics
         catch (UnauthorizedAccessException) { return "unreadable"; }
     }
 
-    private static void CopyIfExists(string dir, string file, string dest)
+    internal static string Redact(string text)
+    {
+        foreach (string value in new[]
+                 {
+                     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                     Environment.UserName,
+                     Environment.MachineName,
+                 }.Where(v => !string.IsNullOrWhiteSpace(v) && v.Length >= 3).Distinct())
+            text = text.Replace(value, "<redacted>", StringComparison.Ordinal);
+
+        return Regex.Replace(text,
+            "(\\\"(?:device\\.serial|object\\.serial|application\\.process\\.id|" +
+            "application\\.process\\.user|application\\.process\\.host)\\\"\\s*:\\s*)" +
+            "(?:\\\"[^\\\"]*\\\"|[0-9]+)",
+            "$1\"<redacted>\"", RegexOptions.IgnoreCase);
+    }
+
+    private static void CopyRedactedIfExists(string dir, string file, string dest)
     {
         string src = Path.Combine(dir, file);
-        if (File.Exists(src)) File.Copy(src, Path.Combine(dest, file), overwrite: true);
+        if (File.Exists(src))
+            File.WriteAllText(Path.Combine(dest, file), Redact(File.ReadAllText(src)));
     }
 }

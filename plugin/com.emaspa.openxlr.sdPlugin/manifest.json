@@ -10,14 +10,6 @@
 	"OS": [
 		{
 			"Platform": "linux"
-		},
-		{
-			"Platform": "windows",
-			"MinimumVersion": "10"
-		},
-		{
-			"Platform": "mac",
-			"MinimumVersion": "10.11"
 		}
 	],
 	"Actions": [

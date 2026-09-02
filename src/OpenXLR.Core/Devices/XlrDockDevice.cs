@@ -118,10 +118,17 @@ public sealed class XlrDockDevice : IAudioDevice
         foreach (string a in args) psi.ArgumentList.Add(a);
         using var p = Process.Start(psi)
             ?? throw new InvalidOperationException("could not start amixer");
-        string outText = p.StandardOutput.ReadToEnd();
-        p.WaitForExit(2000);
+        Task<string> outTask = p.StandardOutput.ReadToEndAsync();
+        Task<string> errTask = p.StandardError.ReadToEndAsync();
+        if (!p.WaitForExit(2000))
+        {
+            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            throw new TimeoutException($"amixer {string.Join(' ', args)} timed out");
+        }
+        string outText = outTask.GetAwaiter().GetResult();
+        string errText = errTask.GetAwaiter().GetResult();
         if (p.ExitCode != 0)
-            throw new InvalidOperationException($"amixer {string.Join(' ', args)}: exit {p.ExitCode}");
+            throw new InvalidOperationException($"amixer {string.Join(' ', args)}: {errText.Trim()}");
         return outText;
     }
 
@@ -131,6 +138,8 @@ public sealed class XlrDockDevice : IAudioDevice
         int n = LibUsb.libusb_control_transfer(
             _handle, RtRead, ReqRead, BlockConfig, UsbIndex, buf, ConfigLen, 1000);
         if (n < 0) throw new InvalidOperationException($"read config block: {LibUsb.StrError(n)}");
+        if (n != ConfigLen)
+            throw new InvalidOperationException($"read config block: got {n} bytes, expected {ConfigLen}");
         return buf;
     }
 
@@ -157,6 +166,8 @@ public sealed class XlrDockDevice : IAudioDevice
             int n = LibUsb.libusb_control_transfer(
                 _handle, RtWrite, ReqWrite, BlockConfig, UsbIndex, cfg, ConfigLen, 1000);
             if (n < 0) throw new InvalidOperationException($"write config block: {LibUsb.StrError(n)}");
+            if (n != ConfigLen)
+                throw new InvalidOperationException($"write config block: accepted {n} bytes, expected {ConfigLen}");
             _cached = null;
         }
     }

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 
 namespace OpenXLR.Daemon;
 
@@ -12,6 +13,7 @@ namespace OpenXLR.Daemon;
 /// </summary>
 public sealed class WebSocketHub
 {
+    private const int MaxCommandBytes = 64 * 1024;
     private static readonly JsonSerializerOptions Json = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -37,13 +39,13 @@ public sealed class WebSocketHub
         _stopping = lifetime.ApplicationStopping;
         // Either half changing pushes the combined state, so clients always see
         // device and mixer consistently in one message.
-        _devices.StateChanged += ignored => { _ = BroadcastAsync(Snapshot()); };
-        _mixer.Changed += () => { _ = BroadcastAsync(Snapshot()); };
+        _devices.StateChanged += ignored => Broadcast(Snapshot());
+        _mixer.Changed += () => Broadcast(Snapshot());
         _mixer.MetersUpdated += () =>
         {
             if (_clients.IsEmpty) return;                    // nobody watching
             IReadOnlyDictionary<string, double[]>? levels = _mixer.Meters();
-            if (levels is { Count: > 0 }) _ = BroadcastAsync(new MetersMessage(levels));
+            if (levels is { Count: > 0 }) Broadcast(new MetersMessage(levels));
         };
     }
 
@@ -60,7 +62,7 @@ public sealed class WebSocketHub
     /// <summary>Serve one client for the life of its socket.</summary>
     public async Task HandleAsync(WebSocket socket)
     {
-        var client = new Client(socket);
+        var client = new Client(socket, _stopping);
         _clients[client.Id] = client;
         try
         {
@@ -102,6 +104,18 @@ public sealed class WebSocketHub
                 if (res.MessageType == WebSocketMessageType.Close)
                 {
                     await client.Socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+                    return;
+                }
+                if (res.MessageType != WebSocketMessageType.Text)
+                {
+                    await client.Socket.CloseAsync(WebSocketCloseStatus.InvalidMessageType,
+                        "text messages only", CancellationToken.None);
+                    return;
+                }
+                if (ms.Length + res.Count > MaxCommandBytes)
+                {
+                    await client.Socket.CloseAsync(WebSocketCloseStatus.MessageTooBig,
+                        $"command exceeds {MaxCommandBytes} bytes", CancellationToken.None);
                     return;
                 }
                 ms.Write(buf, 0, res.Count);
@@ -166,7 +180,7 @@ public sealed class WebSocketHub
             case "deleteProfile":
                 string? profErr = HandleProfile(cmd);
                 if (profErr is not null) await client.SendAsync(Serialize(new ErrorMessage(profErr)));
-                else await BroadcastAsync(Snapshot());   // list (and loaded state) changed
+                else Broadcast(Snapshot());   // list (and loaded state) changed
                 break;
             default:
                 await client.SendAsync(Serialize(new ErrorMessage($"unknown cmd '{cmd.Cmd}'")));
@@ -215,7 +229,7 @@ public sealed class WebSocketHub
         }
     }
 
-    private async Task BroadcastAsync(object message)
+    private void Broadcast(object message)
     {
         string text;
         try { text = Serialize(message); }
@@ -228,28 +242,98 @@ public sealed class WebSocketHub
         }
         foreach (Client c in _clients.Values)
         {
-            try { await c.SendAsync(text); }
-            catch (Exception ex) { _log.LogDebug("drop client {id}: {msg}", c.Id, ex.Message); }
+            // State is level-triggered and meters are transient, so dropping a
+            // frame for a client that cannot keep up is safer than accumulating
+            // unbounded tasks and memory. Its next state frame catches it up.
+            if (!c.TrySend(text))
+                _log.LogDebug("client {id} send queue full; dropping {type}",
+                    c.Id, message.GetType().Name);
         }
     }
 
     private static string Serialize(object o) => JsonSerializer.Serialize(o, Json);
 
-    /// <summary>A single connection with a send-lock (WebSocket forbids concurrent sends).</summary>
-    private sealed class Client(WebSocket socket) : IDisposable
+    /// <summary>
+    /// A connection with one bounded send pump. WebSocket forbids concurrent
+    /// sends; the bounded channel also prevents a slow or suspended local
+    /// client from growing the daemon's memory indefinitely.
+    /// </summary>
+    private sealed class Client : IDisposable
     {
-        public Guid Id { get; } = Guid.NewGuid();
-        public WebSocket Socket { get; } = socket;
-        private readonly SemaphoreSlim _sendLock = new(1, 1);
+        private const int QueueCapacity = 32;
+        private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(5);
 
-        public async Task SendAsync(string text)
+        public Guid Id { get; } = Guid.NewGuid();
+        public WebSocket Socket { get; }
+        private readonly Channel<PendingSend> _outgoing;
+        private readonly CancellationTokenSource _lifetime;
+        private readonly Task _sendPump;
+
+        public Client(WebSocket socket, CancellationToken stopping)
         {
-            if (Socket.State != WebSocketState.Open) return;
-            await _sendLock.WaitAsync();
-            try { await Socket.SendAsync(Encoding.UTF8.GetBytes(text), WebSocketMessageType.Text, true, CancellationToken.None); }
-            finally { _sendLock.Release(); }
+            Socket = socket;
+            _lifetime = CancellationTokenSource.CreateLinkedTokenSource(stopping);
+            _outgoing = Channel.CreateBounded<PendingSend>(new BoundedChannelOptions(QueueCapacity)
+            {
+                SingleReader = true,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait,
+            });
+            _sendPump = Task.Run(SendPumpAsync);
         }
 
-        public void Dispose() => _sendLock.Dispose();
+        public bool TrySend(string text)
+            => Socket.State == WebSocketState.Open &&
+               _outgoing.Writer.TryWrite(new PendingSend(text, null));
+
+        public Task SendAsync(string text)
+        {
+            if (Socket.State != WebSocketState.Open) return Task.CompletedTask;
+            var sent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            return _outgoing.Writer.TryWrite(new PendingSend(text, sent))
+                ? sent.Task
+                : Task.FromException(new InvalidOperationException("client send queue is full"));
+        }
+
+        private async Task SendPumpAsync()
+        {
+            Exception? failure = null;
+            PendingSend? active = null;
+            try
+            {
+                await foreach (PendingSend pending in _outgoing.Reader.ReadAllAsync(_lifetime.Token))
+                {
+                    active = pending;
+                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+                    timeout.CancelAfter(SendTimeout);
+                    await Socket.SendAsync(Encoding.UTF8.GetBytes(pending.Text),
+                        WebSocketMessageType.Text, true, timeout.Token);
+                    pending.Completion?.TrySetResult();
+                    active = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+                active?.Completion?.TrySetException(ex);
+                try { Socket.Abort(); } catch (ObjectDisposedException) { }
+            }
+            finally
+            {
+                failure ??= new OperationCanceledException("client connection closed");
+                while (_outgoing.Reader.TryRead(out PendingSend? pending))
+                    pending.Completion?.TrySetException(failure);
+            }
+        }
+
+        public void Dispose()
+        {
+            _outgoing.Writer.TryComplete();
+            _lifetime.Cancel();
+            try { Socket.Dispose(); } catch (ObjectDisposedException) { }
+            _ = _sendPump.ContinueWith(_ => _lifetime.Dispose(), TaskScheduler.Default);
+        }
+
+        private sealed record PendingSend(string Text, TaskCompletionSource? Completion);
     }
 }

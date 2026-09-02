@@ -168,7 +168,7 @@
               <Flyout Placement="BottomEdgeAlignedRight">
                 <StackPanel MinWidth="240" Spacing="6">
                   <Grid ColumnDefinitions="*,Auto">
-                    <TextBox Name="ProfileNameBox" Watermark="profile name" FontSize="12"/>
+                    <TextBox Name="ProfileNameBox" PlaceholderText="profile name" FontSize="12"/>
                     <Button Grid.Column="1" Content="Save" Margin="6,0,0,0" FontSize="12"
                             Click="OnProfileSave"/>
                   </Grid>

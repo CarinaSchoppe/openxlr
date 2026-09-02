@@ -138,7 +138,9 @@ public sealed class MixerService : IHostedService, IDisposable
                 {
                     // Channel feeds follow the actively driven interface; the
                     // node name contains the model with underscores for spaces.
-                    _mixer.SetInputDeviceHint(_devices.ActiveInfo?.Model.Replace(' ', '_'));
+                    _mixer.SetInputDeviceHint(
+                        _devices.ActiveInfo?.Model.Replace(' ', '_'),
+                        _devices.ActiveCapabilities?.OutputRouting ?? false);
                     // Software DSP only for devices without the hardware version.
                     _mixer.SetLowCutApplicable(!(_devices.ActiveCapabilities?.LowCut ?? false));
                     _mixer.SetClipGuardApplicable(!(_devices.ActiveCapabilities?.ClipGuard ?? false));
@@ -191,13 +193,20 @@ public sealed class MixerService : IHostedService, IDisposable
 
     private static string Run(string exe, params string[] args)
     {
-        var psi = new System.Diagnostics.ProcessStartInfo(exe) { RedirectStandardOutput = true };
+        var psi = new System.Diagnostics.ProcessStartInfo(exe)
+            { RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (string a in args) psi.ArgumentList.Add(a);
         using var p = System.Diagnostics.Process.Start(psi)!;
-        string o = p.StandardOutput.ReadToEnd().Trim();
-        p.WaitForExit(3000);
-        if (p.ExitCode != 0) throw new InvalidOperationException($"{exe} failed");
-        return o;
+        Task<string> outTask = p.StandardOutput.ReadToEndAsync();
+        Task<string> errTask = p.StandardError.ReadToEndAsync();
+        if (!p.WaitForExit(3000))
+        {
+            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            throw new TimeoutException($"{exe} timed out after 3 seconds");
+        }
+        string err = errTask.GetAwaiter().GetResult();
+        if (p.ExitCode != 0) throw new InvalidOperationException($"{exe} failed: {err.Trim()}");
+        return outTask.GetAwaiter().GetResult().Trim();
     }
 
     public Task StopAsync(CancellationToken ct)

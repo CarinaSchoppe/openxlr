@@ -481,14 +481,17 @@ public sealed class PipeWireAdapter
             // A source without that pair feeds nothing. Falling back to the
             // first pair here used to duplicate a mono capture into every
             // channel, which made the channel mutes ineffective.
-            outs = outs.Count > fromPairOffset * 2
-                ? [.. outs.Skip(fromPairOffset * 2).Take(2)]
-                : [];
+            outs = SelectPair(outs, fromPairOffset);
         }
         else if (outs.Count > 2)
             outs = [.. outs.Take(2)];
-        if (toPairOffset > 0 && ins.Count > toPairOffset * 2)
-            ins = [.. ins.Skip(toPairOffset * 2).Take(2)];
+        if (toPairOffset > 0)
+        {
+            // A target without the requested return pair must receive
+            // nothing. Keeping its first pair here routed the Pro-only Aux
+            // mix into the normal speakers of stereo Wave XLR models.
+            ins = SelectPair(ins, toPairOffset);
+        }
         // Raw multichannel sinks are named multichannel-output on a stock
         // system and pro-output-N once the card has a UCM profile.
         else if (ins.Count > 2 && toPairOffset == 0
@@ -516,6 +519,18 @@ public sealed class PipeWireAdapter
             catch (InvalidOperationException) { /* racing a disappearing port */ }
         }
         return new PortLink(pairs);
+    }
+
+    /// <summary>
+    /// Select a stereo pair from an ordered port list. Missing pairs never
+    /// fall back to pair zero; a final mono port is kept so mono devices can
+    /// still be addressed deliberately.
+    /// </summary>
+    internal static List<string> SelectPair(IReadOnlyList<string> ports, int pairOffset)
+    {
+        if (pairOffset < 0) throw new ArgumentOutOfRangeException(nameof(pairOffset));
+        int start = checked(pairOffset * 2);
+        return ports.Count > start ? [.. ports.Skip(start).Take(2)] : [];
     }
 
     /// <summary>Ports of a node whose name starts with a prefix, in pw-link order.</summary>
@@ -629,7 +644,8 @@ public sealed class PipeWireAdapter
     /// Monitor sources are excluded: they are the tap side of a sink, not a
     /// device a user would pick as a microphone.
     /// </summary>
-    public IReadOnlyList<AudioNode> ListDevices()
+    public IReadOnlyList<AudioNode> ListDevices(
+        bool exposeHardwareMonitorOutputs = false, string? hardwareSinkHint = null)
     {
         var found = new List<AudioNode>();
         string json = Run("pw-dump");
@@ -671,8 +687,12 @@ public sealed class PipeWireAdapter
         // Each output is advertised as its own pseudo-sink; the daemon flips
         // the matching hardware selector when one is chosen as the monitor.
         // Headphones jack 1 is on the front of the unit, jack 2 on the back.
-        AudioNode? pro = found.FirstOrDefault(n =>
-            n.Kind == AudioNodeKind.Sink && n.Name.Contains("Wave_XLR", StringComparison.Ordinal));
+        AudioNode? pro = exposeHardwareMonitorOutputs
+            ? found.FirstOrDefault(n =>
+                n.Kind == AudioNodeKind.Sink &&
+                (hardwareSinkHint is null ||
+                 n.Name.Contains(hardwareSinkHint, StringComparison.OrdinalIgnoreCase)))
+            : null;
         if (pro is not null)
         {
             found.Add(new AudioNode($"{pro.Name}#hp1", "Headphones 1 (front)",
@@ -894,9 +914,16 @@ public sealed class PipeWireAdapter
         var psi = new ProcessStartInfo(exe) { RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (string a in args) psi.ArgumentList.Add(a);
         using Process p = Process.Start(psi) ?? throw new InvalidOperationException($"failed to start {exe}");
-        string stdout = p.StandardOutput.ReadToEnd();
-        string stderr = p.StandardError.ReadToEnd();
-        p.WaitForExit(5000);
+        Task<string> stdoutTask = p.StandardOutput.ReadToEndAsync();
+        Task<string> stderrTask = p.StandardError.ReadToEndAsync();
+        if (!p.WaitForExit(5000))
+        {
+            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            throw new InvalidOperationException(
+                $"{exe} {string.Join(' ', args)} timed out after 5 seconds");
+        }
+        string stdout = stdoutTask.GetAwaiter().GetResult();
+        string stderr = stderrTask.GetAwaiter().GetResult();
         if (p.ExitCode != 0)
             throw new InvalidOperationException($"{exe} {string.Join(' ', args)} failed: {stderr.Trim()}");
         return stdout;

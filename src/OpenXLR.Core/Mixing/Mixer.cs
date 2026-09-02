@@ -307,12 +307,13 @@ public sealed class Mixer : IDisposable
     {
         if (_auxRoute is not null) { _pw.Unlink(_auxRoute); _auxRoute = null; }
         _auxTargetSink = null;
-        if (!_auxPortEnabled) return;
+        if (!_auxPortEnabled || !_hardwareOutputRouting) return;
         MixDefinition? aux = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.AuxPort);
         if (aux is null) return;
         // The raw sink is hidden from pickers, so derive it from any Pro
         // pseudo-output's bare name.
-        string? proSink = _pw.ListDevices()
+        string? proSink = _pw.ListDevices(
+                exposeHardwareMonitorOutputs: true, hardwareSinkHint: _inputHint)
             .Where(d => d.Kind == AudioNodeKind.Sink &&
                         d.Name.Contains("Wave_XLR", StringComparison.OrdinalIgnoreCase))
             .Select(d => { int m = d.Name.IndexOf('#'); return m < 0 ? d.Name : d.Name[..m]; })
@@ -375,6 +376,7 @@ public sealed class Mixer : IDisposable
     }
 
     private string? _inputHint;
+    private bool _hardwareOutputRouting;
     private int _lowCutHz;                 // 0 = off; software low cut on the first XLR channel
     // Filter-chains by insert key. Input keys ("xlr1", "xlr2") hold a mono
     // chain per hardware input that needs one (the first XLR channel's also
@@ -589,13 +591,19 @@ public sealed class Mixer : IDisposable
     /// Name fragment of the interface whose capture should feed the input
     /// channels (the daemon's active device). A change re-wires the feeds.
     /// </summary>
-    public void SetInputDeviceHint(string? hint)
+    public void SetInputDeviceHint(string? hint, bool hardwareOutputRouting = false)
     {
         lock (_gate)
         {
-            if (_inputHint == hint) return;
+            if (_inputHint == hint && _hardwareOutputRouting == hardwareOutputRouting) return;
+            bool routingChanged = _hardwareOutputRouting != hardwareOutputRouting;
             _inputHint = hint;
-            if (_built) WireInputFeedsLocked();
+            _hardwareOutputRouting = hardwareOutputRouting;
+            if (_built)
+            {
+                WireInputFeedsLocked();
+                if (routingChanged) WireAuxRouteLocked();
+            }
         }
     }
 
@@ -621,7 +629,8 @@ public sealed class Mixer : IDisposable
     }
 
     /// <summary>Every sink and source the user can pick, real or virtual.</summary>
-    public IReadOnlyList<AudioNode> ListDevices() => _pw.ListDevices();
+    public IReadOnlyList<AudioNode> ListDevices()
+        => _pw.ListDevices(_hardwareOutputRouting, _inputHint);
 
     /// <summary>Close and reopen an output device's stream (see adapter).</summary>
     public void BounceOutput(string sinkName) => _pw.BounceSink(sinkName);
@@ -689,7 +698,7 @@ public sealed class Mixer : IDisposable
             IReadOnlyList<string> savedOutputs = s.MonitorOutputs is { Count: > 0 }
                 ? s.MonitorOutputs
                 : s.MonitorOutput is not null ? [s.MonitorOutput] : [];
-            if (savedOutputs.Count > 0) SetMonitorOutputsLocked(savedOutputs);
+            SetMonitorOutputsLocked(savedOutputs);
             _enforcedSink = s.EnforcedDefaultSink;
             _enforcedSource = s.EnforcedDefaultSource;
 
@@ -700,24 +709,28 @@ public sealed class Mixer : IDisposable
                     (s.MonitorOutput?.EndsWith("#usbaux", StringComparison.Ordinal) ?? false));
             WireAuxRouteLocked();
 
-            bool rewire = false;
+            bool rewireInputs = false;
+            bool rewireMixes = false;
             if (s.LowCutHz is 80 or 120 && _lowCutHz != s.LowCutHz)
             {
                 _lowCutHz = s.LowCutHz;
-                rewire = true;
+                rewireInputs = true;
             }
             if (s.SoftClipGuard && !_softClipGuard)
             {
                 _softClipGuard = true;
-                rewire = true;
+                rewireInputs = true;
             }
             if (s.Inserts.Count > 0)
             {
                 foreach ((string channel, List<InsertDefinition> list) in s.Inserts)
                     _inserts[channel] = [.. list];
-                rewire = true;
+                rewireInputs = true;
+                rewireMixes = true;
             }
-            if (rewire) WireInputFeedsLocked();
+            if (rewireInputs) WireInputFeedsLocked();
+            if (rewireMixes)
+                foreach (MixDefinition mix in _config.Mixes) WireMixChainLocked(mix);
         }
     }
 
@@ -766,29 +779,37 @@ public sealed class Mixer : IDisposable
 
             foreach (MixDefinition mix in _config.Mixes) ReapplyMixLocked(mix.Id);
 
-            if (s.MonitorOutputs.Count > 0) SetMonitorOutputsLocked(s.MonitorOutputs);
+            // An empty list is a real scene choice: disconnect every monitor
+            // route. Null belongs to an older profile that did not store this
+            // field, so preserve the current route for backwards compatibility.
+            if (s.MonitorOutputs is not null)
+                SetMonitorOutputsLocked(s.MonitorOutputs);
             _auxPortEnabled = s.AuxPortEnabled;
             WireAuxRouteLocked();
 
-            bool rewire = false;
+            bool rewireInputs = false;
+            bool rewireMixes = false;
             if (s.LowCutHz is int hz && hz is 0 or 80 or 120 && _lowCutHz != hz)
             {
                 _lowCutHz = hz;
-                rewire = true;
+                rewireInputs = true;
             }
             if (s.SoftClipGuard is bool scg && _softClipGuard != scg)
             {
                 _softClipGuard = scg;
-                rewire = true;
+                rewireInputs = true;
             }
             if (s.Inserts is not null)
             {
                 _inserts.Clear();
                 foreach ((string channel, List<InsertDefinition> list) in s.Inserts)
                     _inserts[channel] = [.. list];
-                rewire = true;
+                rewireInputs = true;
+                rewireMixes = true;
             }
-            if (rewire) WireInputFeedsLocked();
+            if (rewireInputs) WireInputFeedsLocked();
+            if (rewireMixes)
+                foreach (MixDefinition mix in _config.Mixes) WireMixChainLocked(mix);
         }
         if (s.OutputVolume is double v) SetOutputVolume(v);
     }

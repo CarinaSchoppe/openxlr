@@ -70,6 +70,13 @@ in
         TimeoutStopSec = 45;
         Restart = "on-failure";
         RestartSec = 3;
+        NoNewPrivileges = true;
+        PrivateTmp = true;
+        ProtectSystem = "strict";
+        ProtectControlGroups = true;
+        ProtectKernelModules = true;
+        ProtectKernelTunables = true;
+        RestrictSUIDSGID = true;
       };
     };
   };

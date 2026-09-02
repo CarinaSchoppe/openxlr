@@ -510,7 +510,10 @@ public sealed class DeviceManager : BackgroundService
             }
             _last = Stamp(_device.ReadState());
             RaiseFromLocked();
-            return gainBlocked ? "profile loaded, but gain remained unchanged because gain lock is active" : null;
+            // Not an error: the profile loaded and the state was broadcast.
+            // The lock is visible to every client in the state itself.
+            if (gainBlocked) _log.LogInformation("profile loaded; gain left unchanged because the gain lock is active");
+            return null;
         }
     }
 

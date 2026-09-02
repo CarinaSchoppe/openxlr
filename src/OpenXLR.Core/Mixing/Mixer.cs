@@ -329,6 +329,17 @@ public sealed class Mixer : IDisposable
         foreach ((string key, PortLink link) in nextChainOuts) _chainOuts[key] = link;
         foreach ((string key, FilterHandle chain) in nextChains) _chains[key] = chain;
         _inputDevice = nextInput;
+
+        // With a chain in the path, a direct input-to-channel link that this
+        // daemon does not track (left by an earlier run, or auto-linked by
+        // the session manager) would double the unfiltered signal onto the
+        // filtered one. Clear such links now that the chain route is live;
+        // the chain's own links are between other nodes and untouched.
+        foreach (string key in nextChains.Keys)
+        {
+            ChannelDefinition? ch = _config.Channels.FirstOrDefault(c => c.Id == key);
+            if (ch is not null) _pw.UnlinkNodes(nextInput, ch.SinkName);
+        }
     }
 
     private void RemoveInputChainsLocked()

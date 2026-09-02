@@ -69,10 +69,12 @@ public sealed class WebSocketHub
             await client.SendAsync(Serialize(Snapshot()));   // initial state
             await ReceiveLoop(client);
         }
-        catch (WebSocketException)
+        catch (Exception ex) when (ex is WebSocketException or OperationCanceledException
+                                   or IOException or InvalidOperationException)
         {
             // A client that vanished without a close handshake (killed
-            // process, dropped connection) is an ordinary disconnect.
+            // process, dropped connection), a send that failed or timed out
+            // in the pump, or a queue drop: all ordinary disconnects.
         }
         finally
         {
@@ -297,9 +299,13 @@ public sealed class WebSocketHub
         {
             if (Socket.State != WebSocketState.Open) return Task.CompletedTask;
             var sent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            return _outgoing.Writer.TryWrite(new PendingSend(text, sent))
-                ? sent.Task
-                : Task.FromException(new InvalidOperationException("client send queue is full"));
+            if (_outgoing.Writer.TryWrite(new PendingSend(text, sent))) return sent.Task;
+            // The queue holds about two seconds of meter frames. A client that
+            // has not drained it is stuck; drop it rather than let the send
+            // fault propagate through the command pipeline. The receive loop
+            // ends on the aborted socket and the handler cleans up.
+            try { Socket.Abort(); } catch (ObjectDisposedException) { }
+            return Task.CompletedTask;
         }
 
         private async Task SendPumpAsync()
@@ -328,6 +334,10 @@ public sealed class WebSocketHub
             finally
             {
                 failure ??= new OperationCanceledException("client connection closed");
+                // Nothing will drain the queue any more: refuse further writes
+                // so a send racing the abort fails fast instead of waiting on
+                // a completion that never comes.
+                _outgoing.Writer.TryComplete(failure);
                 while (_outgoing.Reader.TryRead(out PendingSend? pending))
                     pending.Completion?.TrySetException(failure);
             }

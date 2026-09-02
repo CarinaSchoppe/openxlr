@@ -4,7 +4,9 @@ using System.Text.RegularExpressions;
 namespace OpenXLR.Core.Devices;
 
 /// <summary>
-/// The Elgato XLR Dock (0fd9:00a6), the controls-free Stream Deck+ module.
+/// The Elgato XLR Dock (0fd9:00a6), the Stream Deck+ audio module. The
+/// module has no controls that directly mutate its USB state; Stream Deck+
+/// keys and dials act through a software client such as the OpenDeck plugin.
 ///
 /// Gain, mute, and headphone volume are driven through the kernel's standard
 /// ALSA controls ('Mic Capture Volume' 0..150 for 0..75 dB, 'Mic Capture
@@ -91,9 +93,10 @@ public sealed class XlrDockDevice : IAudioDevice
         throw new InvalidOperationException("XLR Dock present on USB but its ALSA card was not found");
     }
 
-    // Phantom is the only control that needs the USB handle; without it (no
-    // udev rule) the dock still works fully through ALSA and phantom reads
-    // false, while SetPhantom reports the real problem.
+    // Phantom and low impedance need the USB handle. Without it (for example,
+    // before the udev rule applies) gain, mute, and headphone volume still work
+    // through ALSA; USB-backed setters report the permission problem instead
+    // of pretending the write succeeded.
     private void OpenUsb()
     {
         if (_ctx == IntPtr.Zero && LibUsb.libusb_init(out _ctx) != 0) return;

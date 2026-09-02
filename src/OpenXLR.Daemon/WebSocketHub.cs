@@ -168,7 +168,14 @@ public sealed class WebSocketHub
             case "setInsertBypass":
             case "setInsertParam":
                 string? mixErr = _mixer.Apply(cmd);                     // broadcasts on success
-                if (mixErr is not null) await client.SendAsync(Serialize(new ErrorMessage(mixErr)));
+                if (mixErr is not null)
+                {
+                    await client.SendAsync(Serialize(new ErrorMessage(mixErr)));
+                    // Controls are optimistic in both clients. Follow an error
+                    // with authoritative state so a rejected ClipGuard/plugin
+                    // change snaps back instead of looking enabled forever.
+                    await client.SendAsync(Serialize(Snapshot()));
+                }
                 break;
             case "setActiveDevice":
                 if (cmd.Device is null) { await client.SendAsync(Serialize(new ErrorMessage("setActiveDevice: missing 'device'"))); break; }

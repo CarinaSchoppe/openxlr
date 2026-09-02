@@ -230,7 +230,8 @@
                         ToolTip.Tip="Host-side low cut for this device (its DSP lives in software); cycles Off, 80 Hz, 120 Hz"/>
           <ToggleButton Content="ClipGuard" Margin="0,0,6,0" IsVisible="{Binding ShowSoftClipGuard}"
                         IsChecked="{Binding SoftClipGuard, Mode=TwoWay}"
-                        ToolTip.Tip="Host-side ClipGuard for this device: a hard limiter at -3 dB on the mic channel"/>
+                        IsEnabled="{Binding SoftClipGuardAvailable}"
+                        ToolTip.Tip="{Binding SoftClipGuardTip}"/>
           <ToggleButton Content="Expander"   IsChecked="{Binding Expander, Mode=TwoWay}"   Margin="0,0,6,0" IsVisible="{Binding CapExpander}"/>
           <ToggleButton Content="Voice Tune" IsChecked="{Binding VoiceTune, Mode=TwoWay}"  Margin="0,0,6,0" IsVisible="{Binding CapVoiceTune}"/>
           <ToggleButton Content="Phantom"  IsChecked="{Binding Phantom, Mode=TwoWay}"    Margin="0,0,6,0" IsVisible="{Binding CapPhantom}"/>

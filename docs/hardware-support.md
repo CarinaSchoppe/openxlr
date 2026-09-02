@@ -30,8 +30,8 @@ selectors, and the commit block every selector write needs.
 
 ## XLR Dock (0fd9:00a6)
 
-The Stream Deck+ module. A software-defined device with no onboard memory
-or DSP: Wave Link is its brain on Windows, so on Linux OpenXLR drives
+The Stream Deck+ module. It has no onboard voice-processing DSP: Wave Link is
+its processing host on Windows, so on Linux OpenXLR drives
 gain, mute, and headphone volume through the kernel's standard ALSA
 controls and provides the DSP host-side in the submixer. The exceptions
 are phantom power and headphone low impedance, which live in firmware
@@ -43,7 +43,7 @@ XLR's protocol dialect.
 | Gain 0 to 75 dB | verified | real analog preamp, confirmed by level measurement |
 | Mute, headphone volume | verified | standard ALSA controls |
 | Low cut 80 / 120 Hz | software | PipeWire high-pass in the mic path; tone-measured, textbook second-order response |
-| ClipGuard | software | hard limiter at -3 dB, tone-measured exact; needs the `swh-plugins` package |
+| ClipGuard | software | post-ADC hard limiter at -3 dB, tone-measured exact; needs `swh-plugins` and cannot repair analog/ADC clipping. If the plugin is missing, the control is disabled and the current mic route remains live |
 | Gain lock | software | the daemon rejects all gain changes while set; the dock has no physical dial to bypass it |
 | Phantom power | verified | byte 6 of the dock's config block, spoken over the original Wave XLR's protocol dialect. Identified by [openwave PR #8](https://github.com/rikkichy/openwave/pull/8) on the MK.1 against its 48V LED; confirmed here with a condenser mic on the dock's XLR. Wave Link never writes it for the dock, so on Linux OpenXLR is the only way to switch it |
 | Low impedance | verified | byte 33 of the same config block, ear-verified on the dock's headphone jack |

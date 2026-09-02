@@ -146,7 +146,7 @@ public sealed class MixerService : IHostedService, IDisposable
                     _mixer.SetClipGuardApplicable(!(_devices.ActiveCapabilities?.ClipGuard ?? false));
                     if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()
                         | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()
-                        | _mixer.EnsureLowCutRoutes()
+                        | _mixer.EnsureFilterRoutes()
                         | _mixer.EnsureMonitorRoutes()) Changed?.Invoke();
                     SyncOutputSelectors();
                 }

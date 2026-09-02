@@ -82,9 +82,11 @@ hardware version, so nothing is ever filtered twice:
   between the mic and its channel, cycled from a button on the XLR 1
   strip. Measured at the textbook second-order response and self-healing
   if its filter node ever dies
-- ClipGuard: a hard limiter at -3 dB in the same filter chain, so a
-  sudden shout cannot clip the recording (needs the swh-plugins LADSPA
-  package)
+- ClipGuard: a post-ADC hard limiter at -3 dB in the same filter chain
+  (needs the `swh-plugins` LADSPA package). It prevents downstream mix
+  overloads; it cannot repair clipping that already happened in the analog
+  preamp or ADC, so microphone gain still needs headroom. When the plugin is
+  missing, the control is disabled and the existing mic route stays connected
 - Gain lock: the daemon rejects every gain change while the lock is set,
   from any client, and remembers it per device across restarts. Shown
   only for devices without physical controls; a lock the hardware's own
@@ -289,8 +291,9 @@ openxlr               # the mixer UI, also in your application menu
 The package ships the udev rules and the XLR Dock's WirePlumber rule;
 replug your interface once after installing so the rules apply. The
 OpenDeck plugin lands in `/usr/share/openxlr/`, copy it into
-`~/.config/opendeck/plugins/` to use it. For inserts, install some LV2
-plugins: `sudo pacman -S lsp-plugins-lv2`.
+`~/.config/opendeck/plugins/` to use it. For software ClipGuard on the
+XLR Dock, install `sudo pacman -S swh-plugins`; for inserts, install some
+LV2 plugins such as `sudo pacman -S lsp-plugins-lv2`.
 
 ### Ubuntu (.deb)
 
@@ -525,7 +528,7 @@ are single JSON objects:
 | `getState` | none | request a state push |
 | `set` | `control`, `value` | hardware control (`gain`, `mute`, `lowCut`, `expander`, `voiceTune`, `voiceTuneStrength`, `phantom`, `clipGuard`, `compressor`, `…2` variants, `hpVolumeDb`, `hp2VolumeDb`, `lowImpedance`, `crossfade`, `auxLevelDb`, `auxLevelLock`, `outHp1/2`, `outUsbAux`, `outLineOut`) and the software `gainLock` |
 | `setLowCutHz` | `value` | software low cut: 0, 80, or 120 |
-| `setSoftClipGuard` | `value` | software ClipGuard (hard limiter at -3 dB) |
+| `setSoftClipGuard` | `value` | software ClipGuard (post-ADC hard limiter at -3 dB); enabling is rejected without `swh-plugins`, without changing the live route |
 | `setLevel` | `channel`, `mix`, `value` | one send fader |
 | `setChannelMuted` | `channel`, `mix`, `value` | one send mute |
 | `setMixVolume` / `setMixMuted` | `mix`, `value` | mix masters |

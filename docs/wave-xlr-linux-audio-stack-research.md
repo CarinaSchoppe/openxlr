@@ -1,6 +1,11 @@
-# Wave XLR + Stream Deck on Linux: research knowledge base
+# Wave XLR + Stream Deck on Linux: historical research notebook
 
-Snapshot date: 2026-08-24, addendum 2026-08-25 (section 8, which supersedes several claims below — read it first). All repo stats and README claims were verified on these dates and will drift. Purpose: hand this to another Claude instance (or future session) as the full state of research into replacing the Elgato Wave Link + Stream Deck stack for a Windows-to-Linux workstation migration. Read section 7 before asserting anything about what does or does not exist in this ecosystem.
+Snapshot date: 2026-08-24, addenda through 2026-08-25. This is a chronological lab notebook,
+not current product documentation: later sections deliberately supersede earlier hypotheses,
+and the shipping mixer no longer uses the early `pw-loopback` plan. Use the root
+[README](../README.md), [hardware support table](hardware-support.md), and the authoritative
+part of [the protocol map](wave-xlr-pro-protocol.md#6-capture-2-xlrpro2pcapng-2026-08-25-with-ordered-action-log-outputs-mic-dsp-usb-aux)
+for current behavior.
 
 ## 1. Context and goal
 
@@ -141,7 +146,11 @@ Headline: the Wave XLR Pro speaks a THIRD protocol family, a paged property bank
 
 Remaining gap: semantic labels for the toggle bits (block 4 off1 flags, block 1 offsets 12/13/24/30/39/48/90/91), the capture had no action log, so timeline windows exist but names are inferred. Fix: either Emanuele maps the recalled action order onto the event timeline, or a 2-minute one-control-at-a-time re-capture of just the toggles. The faders are unambiguous. This unblocks build item 1 (the 00b4 backend for the fork), it becomes a paged-register driver, simpler than either existing backend.
 
-**Update (same session): control map largely resolved.** Aligning the event timeline to the capture-plan step order (Emanuele followed it ~99%, plus some unremembered mic tweaks): MIC GAIN = block 0x0004 off0, value = dB (0x00–0x50 = 0–80; gradual/dial-driven; also mirrored in the standard ALSA capture-volume, so use ALSA on Linux). MIC MUTE = block 0x0004 off1 bit0. Other mic toggles (phantom/low-cut/ClipGuard) = off1 bits1/4 + off2 enum (low-cut type). Output/monitor toggles (impedance/polarity/output-mute) = off1 bits 3/5/6/7. HEADPHONE VOLUME = block 0x0005 off0, MONITOR BLEND = block 0x0005 off2 (both 0x00–0xf0). MIC OUTPUT VOLUME = block 0x0004 off10 (0–100%). Block 0x0001 = extra mic DSP config (unremembered tweaks live here). The exact bit-within-group labels for the toggles are the only soft part; finalize by testing live against the device on Linux or a 2-min targeted re-capture. Full map: `~/wavexlr-opendeck/wave-xlr-pro-protocol.md` §4.
+**Historical checkpoint (superseded by the ordered second capture).** Aligning the first event
+timeline to the capture-plan order produced the provisional labels below. They are retained only
+as investigation history; several labels, including polarity, were later disproved. Do not use
+this paragraph for implementation. The current map is in
+[wave-xlr-pro-protocol.md, section 6](wave-xlr-pro-protocol.md#6-capture-2-xlrpro2pcapng-2026-08-25-with-ordered-action-log-outputs-mic-dsp-usb-aux).
 
 ## 10. Direction change (2026-08-25) standalone product, not a fork
 

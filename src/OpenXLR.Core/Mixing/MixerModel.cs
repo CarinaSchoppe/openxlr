@@ -6,10 +6,10 @@ namespace OpenXLR.Core.Mixing;
 /// One mix is what you hear (monitor), the others are published as virtual
 /// capture devices other apps can select (stream/chat).
 ///
-/// In PipeWire this becomes: one null sink per channel (apps play into it), one
-/// null sink per mix, and a pw-loopback per channel-per-mix carrying the
-/// channel's monitor into the mix at the cell's volume. Pulling a fader to zero
-/// removes that source from that mix only.
+/// In PipeWire this becomes one combine sink per channel feeding one null sink
+/// per mix. Each combine's internal stream into a mix is that cell's fader, so
+/// a level or mute change never rebuilds the graph. Direct port links carry the
+/// completed mixes to hardware outputs.
 /// </summary>
 public sealed record MixerConfig
 {
@@ -126,8 +126,14 @@ public sealed record MixerState
     /// <summary>Software low cut on the first XLR channel (0, 80, or 120 Hz).</summary>
     public int LowCutHz { get; init; }
 
-    /// <summary>Software ClipGuard (hard limiter) on the first XLR channel.</summary>
+    /// <summary>Software ClipGuard (post-ADC hard limiter) on the first XLR channel.</summary>
     public bool SoftClipGuard { get; init; }
+
+    /// <summary>Whether the optional LADSPA limiter is installed and discoverable.</summary>
+    public bool SoftClipGuardAvailable { get; init; }
+
+    /// <summary>Actionable dependency/load error when software ClipGuard is unavailable.</summary>
+    public string? SoftClipGuardError { get; init; }
 
     /// <summary>Plugin insert chains by channel id, with live load status.</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<InsertStatus>> Inserts { get; init; }

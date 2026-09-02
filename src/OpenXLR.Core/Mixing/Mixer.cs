@@ -35,8 +35,9 @@ public sealed class Mixer : IDisposable
     // route (the Wave XLR Pro's jacks all ride its monitor bus) make one link.
     private readonly Dictionary<string, PortLink> _monitorRoutes = [];
     private readonly List<string> _monitorOutputs = [];
-    private readonly List<PortLink> _inputFeeds = [];
+    private readonly Dictionary<string, PortLink> _inputFeeds = [];
     private string? _inputDevice;   // the capture device the feeds come from
+    private long _inputChainGeneration;
 
     // The Aux mix's route into the device's USB Aux port (return pair), and
     // whether the user wants that port fed at all.
@@ -168,9 +169,6 @@ public sealed class Mixer : IDisposable
     /// </summary>
     private void WireInputFeedsLocked()
     {
-        foreach (PortLink feed in _inputFeeds) _pw.Unlink(feed);
-        _inputFeeds.Clear();
-        RemoveLowCutLocked();
         // UCM split sources (".HiFi__Mic2__source" and friends) rank last: the
         // channels are wired by pair offset on the raw multichannel node, and
         // a split's first match could be the wrong input entirely.
@@ -182,18 +180,25 @@ public sealed class Mixer : IDisposable
         // device switch moves the channel feeds with it; fall back to any
         // Wave XLR so the mixer still works when no device is connected.
         string? previousInput = _inputDevice;
-        _inputDevice = (_inputHint is null ? null : sources.FirstOrDefault(
+        string? nextInput = (_inputHint is null ? null : sources.FirstOrDefault(
                 d => d.Name.Contains(_inputHint, StringComparison.OrdinalIgnoreCase))?.Name)
             ?? sources.FirstOrDefault(
                 d => d.Name.Contains("Wave_XLR", StringComparison.OrdinalIgnoreCase))?.Name;
-        if (_inputDevice is null) return;
+        if (nextInput is null)
+        {
+            foreach (PortLink feed in _inputFeeds.Values) _pw.Unlink(feed);
+            _inputFeeds.Clear();
+            RemoveInputChainsLocked();
+            _inputDevice = null;
+            return;
+        }
 
         // Console rule: a newly patched input comes up muted. Switching the
         // feed device once put a hot mic straight into the monitor outputs
         // (a feedback howl through the speakers), so the hardware channels'
         // monitor sends start muted after a device change and the user
         // unmutes deliberately.
-        if (previousInput is not null && previousInput != _inputDevice)
+        if (previousInput is not null && previousInput != nextInput)
         {
             MixDefinition? mon = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor);
             if (mon is not null)
@@ -203,50 +208,113 @@ public sealed class Mixer : IDisposable
                     ApplyCellLocked(hw.Id, mon.Id);
                 }
         }
-        foreach (ChannelDefinition ch in _config.Channels.Where(c => c.InputPair is not null))
+        // Build the replacement graph under unique node names while the old
+        // one is still carrying audio. Only after every required port and link
+        // exists do we remove the previous routes. A missing LADSPA/LV2 plugin
+        // can therefore report an error without muting the microphone.
+        var nextFeeds = new Dictionary<string, PortLink>();
+        var nextChains = new Dictionary<string, FilterHandle>();
+        var nextChainOuts = new Dictionary<string, PortLink>();
+        long generation = ++_inputChainGeneration;
+        try
         {
-            // The soft low cut and ClipGuard belong to the first XLR channel
-            // only; inserts can sit on any mono XLR channel.
-            bool lc = ch.InputPair == 0 && _lowCutHz > 0 && _lowCutApplicable;
-            bool cg = ch.InputPair == 0 && _softClipGuard && _clipGuardApplicable;
-            List<InsertDefinition> inserts = IsInsertChannel(ch.Id) ? InsertsFor(ch.Id) : [];
-            bool anyInsert = inserts.Any(i => !i.Bypass && Lv2Catalog.Find(i.Plugin) is not null);
-            if (lc || cg || anyInsert)
+            foreach (ChannelDefinition ch in _config.Channels.Where(c => c.InputPair is not null))
             {
-                // Route the input through the filter chain instead of straight in.
-                _insertErrors.Remove(ch.Id);
-                FilterHandle chain;
-                try
+                // The soft low cut and ClipGuard belong to the first XLR
+                // channel only; inserts can sit on either mono XLR channel.
+                bool lc = ch.InputPair == 0 && _lowCutHz > 0 && _lowCutApplicable;
+                bool cg = ch.InputPair == 0 && _softClipGuard && _clipGuardApplicable;
+                List<InsertDefinition> inserts = IsInsertChannel(ch.Id) ? InsertsFor(ch.Id) : [];
+                bool anyInsert = inserts.Any(i => !i.Bypass && Lv2Catalog.Find(i.Plugin) is not null);
+                if (lc || cg || anyInsert)
                 {
-                    chain = _pw.CreateMicFilter(ch.Id, lc ? _lowCutHz : 0, cg, inserts);
-                }
-                catch (Exception ex) when (anyInsert)
-                {
-                    // A plugin the chain cannot load must not cost the low cut
-                    // and ClipGuard (or the input itself): rebuild without
-                    // inserts and report it on every insert of the chain.
-                    _insertErrors[ch.Id] = ex.Message;
-                    if (!lc && !cg)
+                    _insertErrors.Remove(ch.Id);
+                    FilterHandle chain;
+                    string chainId = $"{ch.Id}_{generation}";
+                    try
                     {
-                        PortLink plain = _pw.RouteInputToChannel(_inputDevice, ch.SinkName, ch.InputPair!.Value);
-                        if (plain.Pairs.Count > 0) _inputFeeds.Add(plain);
-                        continue;
+                        chain = _pw.CreateMicFilter(chainId, lc ? _lowCutHz : 0, cg, inserts);
                     }
-                    chain = _pw.CreateMicFilter(ch.Id, lc ? _lowCutHz : 0, cg);
+                    catch (Exception ex) when (anyInsert)
+                    {
+                        // Insert failures fall back to the built-in DSP, or to
+                        // a plain feed when this chain contained inserts only.
+                        _insertErrors[ch.Id] = ex.Message;
+                        if (!lc && !cg)
+                        {
+                            if (previousInput == nextInput && !_chains.ContainsKey(ch.Id)
+                                && _inputFeeds.TryGetValue(ch.Id, out PortLink? existingFeed)
+                                && _pw.EnsureLinks(existingFeed) != LinkHealth.Broken)
+                                nextFeeds[ch.Id] = existingFeed;
+                            else
+                            {
+                                PortLink plain = _pw.RouteInputToChannel(nextInput, ch.SinkName, ch.InputPair!.Value);
+                                if (plain.Pairs.Count == 0)
+                                    throw new InvalidOperationException($"could not route {nextInput} to {ch.SinkName}");
+                                nextFeeds[ch.Id] = plain;
+                            }
+                            continue;
+                        }
+                        chain = _pw.CreateMicFilter(chainId + "_builtin", lc ? _lowCutHz : 0, cg);
+                    }
+
+                    nextChains[ch.Id] = chain;
+                    PortLink into = _pw.RouteInputToChannel(nextInput, chain.SinkName, ch.InputPair!.Value);
+                    PortLink onward = _pw.LinkNodes(chain.SourceName, "capture", ch.SinkName, "playback");
+                    if (into.Pairs.Count == 0 || onward.Pairs.Count == 0)
+                        throw new InvalidOperationException($"could not connect the filter chain for {ch.Id}");
+                    nextFeeds[ch.Id] = into;
+                    nextChainOuts[ch.Id] = onward;
+                    continue;
                 }
-                _chains[ch.Id] = chain;
-                _pw.UnlinkNodes(_inputDevice, ch.SinkName);   // clear any stale bypass
-                PortLink into = _pw.RouteInputToChannel(_inputDevice, chain.SinkName, ch.InputPair!.Value);
-                if (into.Pairs.Count > 0) _inputFeeds.Add(into);
-                _chainOuts[ch.Id] = _pw.LinkNodes(chain.SourceName, "capture", ch.SinkName, "playback");
-                continue;
+
+                // Reuse a healthy direct feed when neither the source nor the
+                // DSP changed. Trying to create the same pw-link again returns
+                // EEXIST and would look like a failed route.
+                if (previousInput == nextInput && !_chains.ContainsKey(ch.Id)
+                    && _inputFeeds.TryGetValue(ch.Id, out PortLink? directFeed)
+                    && _pw.EnsureLinks(directFeed) != LinkHealth.Broken)
+                {
+                    nextFeeds[ch.Id] = directFeed;
+                    continue;
+                }
+                PortLink feed = _pw.RouteInputToChannel(nextInput, ch.SinkName, ch.InputPair!.Value);
+                if (feed.Pairs.Count == 0)
+                    throw new InvalidOperationException($"could not route {nextInput} to {ch.SinkName}");
+                nextFeeds[ch.Id] = feed;
             }
-            PortLink feed = _pw.RouteInputToChannel(_inputDevice, ch.SinkName, ch.InputPair!.Value);
-            if (feed.Pairs.Count > 0) _inputFeeds.Add(feed);
         }
+        catch
+        {
+            // Roll back only objects created for this candidate graph. Entries
+            // reused from the old direct graph must stay connected.
+            foreach (PortLink link in nextChainOuts.Values) _pw.Unlink(link);
+            foreach ((string key, PortLink link) in nextFeeds)
+                if (!_inputFeeds.TryGetValue(key, out PortLink? old) || !ReferenceEquals(old, link))
+                    _pw.Unlink(link);
+            foreach (FilterHandle chain in nextChains.Values) _pw.StopFilter(chain);
+            throw;
+        }
+
+        foreach ((string key, PortLink old) in _inputFeeds)
+            if (!nextFeeds.TryGetValue(key, out PortLink? keep) || !ReferenceEquals(old, keep))
+                _pw.Unlink(old);
+        foreach (PortLink old in _chainOuts.Values) _pw.Unlink(old);
+        foreach (string key in _chains.Keys.Where(k => !k.StartsWith("mix:", StringComparison.Ordinal)).ToList())
+        {
+            _pw.StopFilter(_chains[key]);
+            _chains.Remove(key);
+        }
+
+        _inputFeeds.Clear();
+        foreach ((string key, PortLink feed) in nextFeeds) _inputFeeds[key] = feed;
+        _chainOuts.Clear();
+        foreach ((string key, PortLink link) in nextChainOuts) _chainOuts[key] = link;
+        foreach ((string key, FilterHandle chain) in nextChains) _chains[key] = chain;
+        _inputDevice = nextInput;
     }
 
-    private void RemoveLowCutLocked()
+    private void RemoveInputChainsLocked()
     {
         // Input chains only; mix chains are owned by WireMixChainLocked.
         foreach (PortLink link in _chainOuts.Values) _pw.Unlink(link);
@@ -272,10 +340,11 @@ public sealed class Mixer : IDisposable
     }
 
     /// <summary>
-    /// Sweep healing for the software low cut: a dead holder process or a
-    /// broken link re-wires the whole input path. True when something changed.
+    /// Sweep healing for built-in DSP and plugin filter chains: a dead holder
+    /// process or broken link re-wires the affected path. True when something
+    /// changed.
     /// </summary>
-    public bool EnsureLowCutRoutes()
+    public bool EnsureFilterRoutes()
     {
         lock (_gate)
         {
@@ -472,8 +541,9 @@ public sealed class Mixer : IDisposable
         }
     }
 
-    // Software ClipGuard: a hard limiter at -3 dB in the mic filter chain,
-    // for devices whose ClipGuard runs host-side in the vendor app.
+    // Software ClipGuard: a post-ADC hard limiter at -3 dB in the mic filter
+    // chain, for devices whose ClipGuard runs host-side in the vendor app. It
+    // limits the recorded signal but cannot undo clipping in the preamp/ADC.
     private bool _softClipGuard;
     private bool _clipGuardApplicable = true;
 
@@ -485,8 +555,25 @@ public sealed class Mixer : IDisposable
         lock (_gate)
         {
             if (_softClipGuard == on) return;
+            if (on && _clipGuardApplicable)
+            {
+                DspFeatureAvailability support = _pw.GetSoftwareClipGuardAvailability();
+                if (!support.Available) throw new InvalidOperationException(support.Error);
+            }
+            bool previous = _softClipGuard;
             _softClipGuard = on;
-            if (_built) WireInputFeedsLocked();
+            try
+            {
+                if (_built) WireInputFeedsLocked();
+            }
+            catch
+            {
+                // WireInputFeedsLocked swaps only after the candidate graph is
+                // complete, so restoring the requested state is enough: the
+                // previous audible graph is still intact.
+                _softClipGuard = previous;
+                throw;
+            }
         }
     }
 
@@ -497,6 +584,8 @@ public sealed class Mixer : IDisposable
         {
             if (_clipGuardApplicable == applicable) return;
             _clipGuardApplicable = applicable;
+            if (applicable && _softClipGuard && !_pw.GetSoftwareClipGuardAvailability().Available)
+                _softClipGuard = false;
             if (_built && _softClipGuard) WireInputFeedsLocked();
         }
     }
@@ -621,7 +710,7 @@ public sealed class Mixer : IDisposable
             // node has since vanished (a card profile change renames every
             // node under it): both mean re-resolve the input and re-wire.
             bool broken = _inputFeeds.Count == 0
-                || _inputFeeds.Any(f => _pw.EnsureLinks(f) == LinkHealth.Broken);
+                || _inputFeeds.Values.Any(f => _pw.EnsureLinks(f) == LinkHealth.Broken);
             if (!broken) return false;
             WireInputFeedsLocked();
             return _inputFeeds.Count > 0;
@@ -718,8 +807,15 @@ public sealed class Mixer : IDisposable
             }
             if (s.SoftClipGuard && !_softClipGuard)
             {
-                _softClipGuard = true;
-                rewireInputs = true;
+                // A stale saved preference must not prevent the entire mixer
+                // from starting on a machine where the optional LADSPA bundle
+                // is absent. Keep the plain/low-cut route and expose the
+                // dependency error in MixerState instead.
+                if (_pw.GetSoftwareClipGuardAvailability().Available)
+                {
+                    _softClipGuard = true;
+                    rewireInputs = true;
+                }
             }
             if (s.Inserts.Count > 0)
             {
@@ -796,8 +892,11 @@ public sealed class Mixer : IDisposable
             }
             if (s.SoftClipGuard is bool scg && _softClipGuard != scg)
             {
-                _softClipGuard = scg;
-                rewireInputs = true;
+                if (!scg || _pw.GetSoftwareClipGuardAvailability().Available)
+                {
+                    _softClipGuard = scg;
+                    rewireInputs = true;
+                }
             }
             if (s.Inserts is not null)
             {
@@ -1211,6 +1310,7 @@ public sealed class Mixer : IDisposable
     {
         lock (_gate)
         {
+            DspFeatureAvailability clipGuard = _pw.GetSoftwareClipGuardAvailability();
             return new MixerState
             {
                 Mixes = [.. _config.Mixes.Select(m => new MixStatus(
@@ -1226,6 +1326,8 @@ public sealed class Mixer : IDisposable
                 OutputVolume = _outputVolume,
                 LowCutHz = _lowCutHz,
                 SoftClipGuard = _softClipGuard,
+                SoftClipGuardAvailable = clipGuard.Available,
+                SoftClipGuardError = clipGuard.Error,
                 Inserts = InsertStatusLocked(),
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
@@ -1275,9 +1377,9 @@ public sealed class Mixer : IDisposable
         _monitorRoutes.Clear();
         _monitorOutputs.Clear();
         if (_auxRoute is not null) { _pw.Unlink(_auxRoute); _auxRoute = null; }
-        foreach (PortLink feed in _inputFeeds) _pw.Unlink(feed);
+        foreach (PortLink feed in _inputFeeds.Values) _pw.Unlink(feed);
         _inputFeeds.Clear();
-        RemoveLowCutLocked();
+        RemoveInputChainsLocked();
         RemoveMixChainsLocked();
         _inputDevice = null;
         _pw.TearDown();     // unloads modules in reverse order: combines, then mixes

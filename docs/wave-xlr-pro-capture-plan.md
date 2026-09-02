@@ -1,5 +1,9 @@
 # Wave XLR Pro USB protocol capture plan
 
+Status: completed historical procedure. The ordered follow-up capture resolved the
+control map; use [wave-xlr-pro-protocol.md](wave-xlr-pro-protocol.md), section 6,
+for current offsets rather than treating the action guesses below as a specification.
+
 Goal: capture every USB control transfer Wave Link sends to the Wave XLR Pro so its vendor
 protocol can be reimplemented in a Linux backend (CryoByte33/openwave fork). The device has
 **no physical or LED controls**, everything is software-driven, so this is a write-mostly

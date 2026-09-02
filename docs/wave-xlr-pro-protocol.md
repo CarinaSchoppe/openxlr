@@ -1,21 +1,18 @@
 # Wave XLR Pro vendor control protocol
 
 Source: `wavexlrpro.pcapng` (7.4 GB, 4.6M packets, 649 s, Wave Link on Windows, 2026-08-25).
-Decoded on Linux with tshark. No companion action-log was captured, so **block/offset → named
-control mapping is partially inferred** (see §4); the transport, framing, and value encodings
-below are directly observed and solid.
+Decoded on Linux with tshark. The first capture had no companion action log, so sections 3-5
+preserve the provisional reasoning that led to the map. Those sections are historical evidence,
+not the current API. Capture 2 in section 6 resolved the conflicting labels and is authoritative.
 
-## Implementation status (2026-08-25)
+## Current implementation status (authoritative)
 
-A `WaveXLRPro` backend is written into the fork at `~/wavexlr-opendeck/fork/openwave/device.py`
-(diff: `capture-analysis/fork-pro-backend.diff`). It subclasses `WaveXLRMk2`, overriding only
-PID (0x00B4), wIndex (0x0103), and the block lengths (108/80/8), plus phantom/ClipGuard/polarity
-setters. `detect_pid()` and `devicecontroller.py` backend selection updated (exact-type checks,
-since Pro subclasses MK.2). Tests: `tests/test_pro_backend.py` added; full suite 54/54 pass.
-**Verified live**: the real backend connects, `get_all()` reads full state, and gain+mute
-round-trip against ALSA. Remaining: label phantom/ClipGuard/polarity bits by ear (get_all already
-reads them with provisional masks, live read matched the Windows config for phantom+ClipGuard,
-but the provisional polarity bit did not, so that mask is wrong and needs the by-ear pass).
+The production backend is `src/OpenXLR.Core/Devices/WaveXlrProDevice.cs`. Both XLR structures,
+both headphone volumes, the USB Aux input, physical output selectors, and the commit sequence are
+implemented. The corrected mic map from capture 2 is: flags bit 1 = phantom, bit 4 = low cut,
+bit 5 = expander, bit 6 = voice tune, bit 7 = compressor; ClipGuard is the inverted `0x04` mask
+at structure offset 2. There is no exposed polarity control. See section 6 for the verification
+evidence and [hardware-support.md](hardware-support.md) for the current product-level status.
 
 ## 0. HARDWARE-CONFIRMED (2026-08-25, live on the device)
 
@@ -35,11 +32,10 @@ Everything below was validated live against the plugged-in Pro with a ctypes-lib
 - Current device state read live: gain 0x34 (52 dB, matches the Windows config), flags off1=0xd8
   (bits 3,4,6,7 set), HP block `00 00 00 00 50 00 00 00`.
 
-Confidence upgraded below from this: gain and mute are now **CONFIRMED**; low-cut/expander/
-voice-tune/HP/low-Z/crossfade inherit **HIGH** from the MK.2 field identity; only the Pro-only
-extra bits (phantom / ClipGuard / polarity) remain to be labeled by ear, see §4.
+At this point in the investigation only gain and mute were confirmed. The unresolved first-pass
+labels below are retained to show the discovery process; section 6 supersedes them.
 
-## 1. Transport (a block/property-bank scheme, a THIRD family, not MK.1 or MK.2)
+## 1. Transport (Pro dialect of the MK.2-style block/property bank)
 
 All device control rides on **vendor control transfers to interface 3** (the vendor-specific
 interface, class 0xFF, that has no kernel driver, so no audio-driver detach needed):
@@ -63,7 +59,7 @@ Structurally this is the cleanest of the three revisions to reimplement.
 |-------|------|----------|--------|--------|------|
 | 0x0001 | 108 B | R/W | 9832 | 146 | main config/state (toggles + a large tail array) |
 | 0x0002 | 150 B | R only | 9872 | 0 | **telemetry / meters** (polled, never written) |
-| 0x0003 | 12 B  | W     | 0    | 57  | mode block (constant `04 00…` in this capture) |
+| 0x0003 | 12 B  | W     | 0    | 57  | write-only commit block (constant `04 00…` in this capture) |
 | 0x0004 | 80 B  | R/W   | 9828 | 168 | config: a 0–100 fader + a packed-flags byte + an enum |
 | 0x0005 | 8 B   | R/W   | 9790 | 131 | **two independent one-byte level faders** |
 | 0x0006 | 29 B  | R only| 9837 | 0   | status/telemetry |
@@ -73,7 +69,10 @@ Wave Link **polls every read block at ~17 Hz continuously** (≈9800 reads each 
 Linux backend does not need that rate to *set* controls, but the firmware may expect periodic
 reads to stay live (matches upstream OpenWave's keepalive concern), to be confirmed on hardware.
 
-## 3. Decoded value encodings (directly observed)
+## 3. First-capture value decoding (historical and partly superseded)
+
+The byte changes and ranges in this section are directly observed. Names marked candidate,
+MED, or LOW were first-pass hypotheses and must not override the corrected map in section 6.
 
 ### Block 0x0005 (8 B) two level faders. Framing `[L0] 00 [L2] 00  50 00 00 00`
 - **offset 0**: one-byte level, swept full range **0x00–0xf0** (0–240), t=361–379 s.
@@ -153,7 +152,7 @@ DSP state and is where the "extra mic stuff" landed. Individual labels here are 
 without a targeted pass, but nothing in daily use is blocked: the day-to-day controls (mute,
 phantom, low-cut, ClipGuard, headphone, monitor, mic-output) are covered above.
 
-### Post-live-probe status (2026-08-25)
+### First live-probe status (historical checkpoint, superseded by section 6)
 - **CONFIRMED on hardware**: gain (0x0004 off0), mute (0x0004 off1 bit0).
 - **HIGH (via MK.2 field identity)**: low-cut = off1 **bit4** (also corroborated, device reads
   bit4=1 and the Windows config has LowCut ON); expander = bit5; voice-tune = bit6; voice-tune
@@ -167,19 +166,20 @@ phantom, low-cut, ClipGuard, headphone, monitor, mic-output) are covered above.
   auto-verifiable (no ALSA control, no LED on the Pro). Finalize by toggling each and listening,
   or by recording the mic and measuring the spectral change (low-cut/expander are audible).
 
-The backend can be built now regardless: read-modify-write on these offsets is proven, and the
-three ear-dependent bits can be named the moment you toggle them and listen.
+This was the open-question list before the ordered second capture. It is not the current control
+map; the second capture resolved ClipGuard and compressor and removed the polarity control.
 
 ## 5. Linux implementation implications
 
-- A `0x00b4` backend for the CryoByte33/openwave fork is a **paged-register driver**: read block
-  (0xc1/1/wValue/0x0103), modify the target byte, write it back (0x41/1/wValue/0x0103). No
-  audio-driver detach, no MK.1/MK.2 code reuse beyond the libusb plumbing.
-- Read-modify-write per control (the firmware round-trips whole blocks), so the backend should
-  cache the last-read block and diff, exactly like the fork's mixer reconciler already does.
-- Mic gain is separately available as the standard ALSA control (0–80 dB) and need not go through
-  this protocol at all; this protocol is for phantom / low-cut / ClipGuard / monitor blend /
-  headphone / mic-output, the things ALSA doesn't expose.
+- The `0x00b4` backend is a paged-register driver: read a fixed-size block
+  (`0xc1/1/wValue/0x0103`), modify one field, write the block back
+  (`0x41/1/wValue/0x0103`), and commit where required. Its field layout is
+  MK.2-style, but the Pro has its own index, lengths, second-XLR structure, tail,
+  and output matrix, so it remains a dedicated backend.
+- Controls use read-modify-write so unrelated bytes survive every change. The current backend
+  reads fresh state for each setter rather than trusting a cache another client could invalidate.
+- Mic gain is also visible through standard ALSA controls, but OpenXLR uses the same vendor block
+  as the other per-XLR fields to keep both input structures and client state consistent.
 - Telemetry blocks (0x0002/0x0006/0x0008) are readable for meters/clip indicators if we want them
   on the Stream Deck; not required for control.
 
@@ -202,7 +202,7 @@ structures cleanly (all verified bidirectionally against ALSA on hardware):
   (0x50) is still unlabeled.
 
 Implemented in OpenXLR end to end (device layer, daemon controls gain2/mute2/lowCut2/
-expander2/voiceTune2/voiceTuneStrength2/phantom2/clipGuard2/polarity2/hp2VolumeDb, UI
+expander2/voiceTune2/voiceTuneStrength2/phantom2/clipGuard2/compressor2/hp2VolumeDb, UI
 strips for XLR 1 / XLR 2 and Phones 1 / Phones 2), with gain2 and hp2 verified live.
 
 ## 6. Capture 2 (xlrpro2.pcapng, 2026-08-25, WITH ordered action log): outputs, mic DSP, USB Aux

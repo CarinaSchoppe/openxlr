@@ -360,7 +360,11 @@ function toggleValue(target, inst) {
     const hz = mixer()?.lowCutHz;
     return hz == null ? null : hz > 0;
   }
-  if (target === "softClipGuard") return mixer()?.softClipGuard ?? null;
+  // A missing LADSPA limiter is a disabled target, not an optimistic OFF
+  // state. Pressing it would otherwise send a command that cannot be applied
+  // and leave the deck face out of sync with the audible graph.
+  if (target === "softClipGuard")
+    return mixer()?.softClipGuardAvailable === true ? mixer()?.softClipGuard ?? false : null;
   if (target.startsWith("monitor:")) {
     const outs = mixer()?.monitorOutputs;
     return outs ? outs.includes(target.slice(8)) : null;

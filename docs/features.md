@@ -179,7 +179,9 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 ## Other
 
 - Audio Flow window: a graph of the current routing, sources through
-  outputs
+  outputs, with the filter chains (built-in low cut and ClipGuard, LV2
+  inserts) drawn where they sit in the path and each stage marked active,
+  bypassed or broken
 - Enforced defaults: the daemon re-asserts the chosen system default
   sink and source on its one-second sweep, undoing WirePlumber's
   auto-switch to newly created nodes

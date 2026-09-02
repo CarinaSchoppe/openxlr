@@ -9,7 +9,7 @@ help.
 | Wave XLR Pro | `0fd9:00b4` | every control verified on hardware |
 | XLR Dock | `0fd9:00a6` | every control the hardware has, verified on hardware |
 | Wave XLR | `0fd9:007d` | core controls verified on hardware by a community tester |
-| Wave XLR MK.2 | `0fd9:00b6` | decoded from captures, not run on hardware |
+| Wave XLR MK.2 | `0fd9:00b6` | connects and reads full state on hardware (community tester, 0.1.10); writes pending confirmation |
 | XLR Dock MK.2 | `0fd9:00c7` | registered on the MK.2 backend, not run on hardware |
 
 ## Wave XLR Pro (0fd9:00b4)
@@ -72,7 +72,15 @@ community tester has run OpenXLR against real hardware.
 ## Wave XLR MK.2 (0fd9:00b6) and XLR Dock MK.2 (0fd9:00c7), need testers
 
 Decoded from USB captures of Wave Link, using the Pro's protocol family
-at its own address. Not run on hardware.
+at its own address. On 2026-09-02 a community tester's diagnostics
+([issue #2](https://github.com/emaspa/openxlr/issues/2)) showed the
+daemon connecting to a Wave XLR MK.2 and reading all three blocks at the
+expected lengths (38, 2 and 6 bytes), with gain, the flag bits, voice
+tune strength, headphone attenuation and crossfade decoding to plausible
+values. Whether writes stick is not confirmed yet. The settings block's
+bytes 1 and 2 follow the Pro's per-input structure (bit 1 phantom, bit 7
+compressor, byte 2 = 0x04 for ClipGuard off), so those three controls are
+candidates for the MK.2 once a tester can verify them.
 
 The XLR Dock MK.2 for the Stream Deck+ is built on the same Wave FX
 platform (80 dB gain, phantom, ClipGuard 2.0, onboard expander, voice
@@ -85,8 +93,9 @@ awaiting a first run on hardware.
 
 | Control | State | Notes |
 |---|---|---|
-| Gain, mute, low cut, expander, voice tune + strength | coded | from capture analysis |
-| Headphone volume, low impedance, crossfade | coded | from capture analysis |
+| Gain, mute, low cut, expander, voice tune + strength | reads verified | read on hardware by a community tester; writes pending |
+| Headphone volume, low impedance, crossfade | reads verified | same |
+| Phantom 48V, ClipGuard, compressor | candidate | the Pro's offsets fit the observed bytes; not exposed until verified |
 
 ## Every device gets
 

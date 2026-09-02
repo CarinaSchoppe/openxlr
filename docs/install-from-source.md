@@ -14,8 +14,7 @@
   with any of them, and the aux and output routing features follow the
   device's capabilities
 
-A complete deploy from source, top to bottom. Every step is explicit;
-nothing assumes an earlier OpenXLR on the machine.
+Every step of a from-source deploy, for machines without a package.
 
 ## 1. Prerequisites
 
@@ -81,8 +80,9 @@ systemctl --user restart wireplumber
 
 ## 5. First run
 
-Run the daemon in a terminal (the mixer graph is opt-in so a bare run
-never surprises your audio setup):
+Run the daemon in a terminal. The mixer graph is opt-in: without the
+variable the daemon drives the device only and leaves the PipeWire
+graph untouched.
 
 ```sh
 OPENXLR_BUILD_MIXER=1 ./OpenXLR.Daemon/bin/Release/net10.0/OpenXLR.Daemon
@@ -100,9 +100,10 @@ The header dot turns green when the daemon has the device. If it says
 
 ## 6. Make it permanent
 
-The easy way: the Options window (the gear button) installs a systemd
-user unit for the daemon and an autostart entry for the UI with two
-checkboxes.
+The Options window (the gear button) has two checkboxes that install a
+systemd user unit for the daemon and an autostart entry for the UI.
+On a source build the unit points at the build output; on a packaged
+install it enables the package's unit instead.
 
 The manual way, using the reference unit in
 [packaging/openxlr-daemon.service](../packaging/openxlr-daemon.service):
@@ -161,6 +162,6 @@ rm ~/.config/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf
 
 | Variable | Effect |
 |---|---|
-| `OPENXLR_BUILD_MIXER=1` | build the PipeWire submix graph (otherwise device-control only) |
+| `OPENXLR_BUILD_MIXER=1` | build the PipeWire submix graph (otherwise device-control only); `daemon.json`'s `submixer` key, written by the Options window, overrides it when present |
 | `OPENXLR_MONITOR_OUTPUT=<sink>` | initial monitor output (overrides saved choice) |
 | `OPENXLR_DEVICE=<pid>` | which interface to drive at start when several are attached (hex product id, e.g. `00a6`) |

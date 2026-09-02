@@ -1,27 +1,26 @@
 # Wave XLR Pro vendor control protocol
 
+How the Wave XLR Pro's vendor protocol was captured and decoded, in the order it happened;
+later sections correct earlier ones where noted.
+
 Source: `wavexlrpro.pcapng` (7.4 GB, 4.6M packets, 649 s, Wave Link on Windows, 2026-08-25).
 Decoded on Linux with tshark. No companion action-log was captured, so **block/offset → named
 control mapping is partially inferred** (see §4); the transport, framing, and value encodings
 below are directly observed and solid.
 
-## Implementation status (2026-08-25)
+## Implementation
 
-A `WaveXLRPro` backend is written into the fork at `~/wavexlr-opendeck/fork/openwave/device.py`
-(diff: `capture-analysis/fork-pro-backend.diff`). It subclasses `WaveXLRMk2`, overriding only
-PID (0x00B4), wIndex (0x0103), and the block lengths (108/80/8), plus phantom/ClipGuard/polarity
-setters. `detect_pid()` and `devicecontroller.py` backend selection updated (exact-type checks,
-since Pro subclasses MK.2). Tests: `tests/test_pro_backend.py` added; full suite 54/54 pass.
-**Verified live**: the real backend connects, `get_all()` reads full state, and gain+mute
-round-trip against ALSA. Remaining: label phantom/ClipGuard/polarity bits by ear (get_all already
-reads them with provisional masks, live read matched the Windows config for phantom+ClipGuard,
-but the provisional polarity bit did not, so that mask is wrong and needs the by-ear pass).
+The shipping implementation of this protocol is
+`src/OpenXLR.Core/Devices/WaveXlrProDevice.cs` (libusb control transfers,
+read-modify-write of the blocks below, commit block after selector
+writes). The daemon control names it exposes are listed in
+[api.md](api.md). An earlier prototype written into a fork of openwave was
+used to validate the transport and is not maintained.
 
 ## 0. HARDWARE-CONFIRMED (2026-08-25, live on the device)
 
 Everything below was validated live against the plugged-in Pro with a ctypes-libusb probe
-(`~/wavexlr-opendeck/probe/proprobe.py`) after installing a udev rule
-(`/etc/udev/rules.d/70-wavexlr-pro.rules`, MODE 0660 GROUP plugdev + uaccess for 0fd9:00b4):
+(`tools/proprobe.py`) after installing a udev rule (MODE 0660 + uaccess for 0fd9:00b4):
 
 - **Transport works exactly as decoded**: reads `0xC1/1/wValue/0x0103` and writes `0x41/1/…`
   succeed on all blocks. Block 0x0003 STALLs on read = write-only (matches capture).
@@ -55,7 +54,6 @@ interface, class 0xFF, that has no kernel driver, so no audio-driver detach need
 So it is NOT the MK.1 `wIndex=0x3303` trick and NOT the MK.2 `wIndex=0x0203` standard-class
 scheme. It is a **paged property bank**: `wValue` selects a fixed-size block; the whole block is
 read or written as one unit; individual controls are byte fields at fixed offsets inside a block.
-Structurally this is the cleanest of the three revisions to reimplement.
 
 ## 2. The blocks (wValue) observed
 
@@ -172,16 +170,16 @@ three ear-dependent bits can be named the moment you toggle them and listen.
 
 ## 5. Linux implementation implications
 
-- A `0x00b4` backend for the CryoByte33/openwave fork is a **paged-register driver**: read block
-  (0xc1/1/wValue/0x0103), modify the target byte, write it back (0x41/1/wValue/0x0103). No
-  audio-driver detach, no MK.1/MK.2 code reuse beyond the libusb plumbing.
+- A `0x00b4` backend is a **paged-register driver**: read block (0xc1/1/wValue/0x0103), modify
+  the target byte, write it back (0x41/1/wValue/0x0103). No audio-driver detach, no MK.1/MK.2
+  code reuse beyond the libusb plumbing.
 - Read-modify-write per control (the firmware round-trips whole blocks), so the backend should
-  cache the last-read block and diff, exactly like the fork's mixer reconciler already does.
+  cache the last-read block and diff.
 - Mic gain is separately available as the standard ALSA control (0–80 dB) and need not go through
   this protocol at all; this protocol is for phantom / low-cut / ClipGuard / monitor blend /
   headphone / mic-output, the things ALSA doesn't expose.
-- Telemetry blocks (0x0002/0x0006/0x0008) are readable for meters/clip indicators if we want them
-  on the Stream Deck; not required for control.
+- Telemetry blocks (0x0002/0x0006/0x0008) are readable for meters or clip indicators; not
+  required for control.
 
 ## Hardware correction (2026-08-25, user-supplied): TWO XLR inputs, TWO headphone outputs
 
@@ -207,21 +205,21 @@ strips for XLR 1 / XLR 2 and Phones 1 / Phones 2), with gain2 and hp2 verified l
 
 ## 6. Capture 2 (xlrpro2.pcapng, 2026-08-25, WITH ordered action log): outputs, mic DSP, USB Aux
 
-A second targeted capture (6.4 GB, companion `capture-analysis/xlrpro2.txt` with 26 ordered
-actions, plus `flow.png`, a Wave Link Audio Flow screenshot showing the Pro's full topology:
+A second targeted capture (6.4 GB, with an ordered log of 26 actions and a Wave Link Audio
+Flow screenshot showing the Pro's full topology:
 inputs XLR Mic 1, XLR Mic 2, Line In, USB Aux; monitor destinations Headphone 1, Headphone 2,
 USB Aux out, Line out, or any system device). Everything below is capture-decoded AND
 hardware-verified on Linux the same day; the headphone findings are confirmed by ear on BOTH
 jacks.
 
-### Physical output routing, THE HEADPHONE-JACKS ANSWER (block 0x0001 off90..93 + commit)
+### Physical output routing (block 0x0001 off90..93 + commit)
 
 One selector byte per physical output: off90 = Headphone 1, off91 = Headphone 2, off92 =
 USB Aux out, off93 = Line out. Value 0x1e = output carries the hardware monitor bus, 0x23 =
 off. (0x20 also observed on the USB Aux out: a third, unlabeled source state.) A block 0x0003
-commit write (payload `04 00 x11`) MUST follow, or nothing changes; this finally explains
-block 3, which Wave Link writes after every config change. The Linux jacks were silent simply
-because both selectors sat at 0x23 (the state left by the last Windows session, monitor on the
+commit write (payload `04 00 x11`) MUST follow, or nothing changes; this explains block 3,
+which Wave Link writes after every config change. The Linux jacks were silent because both
+selectors sat at 0x23 (the state left by the last Windows session, monitor on the
 Katana). Live-verified: toggling off91 mid-tone gates jack 2, off90 gates jack 1.
 
 ### The monitor bus and which USB playback channels feed it
@@ -261,9 +259,9 @@ picker, routed to channels 2/3.
 
 ## 7. Captures 3-4 (2026-08-26): the hardware mix matrix and the aux-out solution
 
-Sources: `xlrpro3.pcapng` + ordered log + `capture-analysis/mixes.png` (Wave Link "Mixes (XLR
-Pro Hardware Mixer)" screenshot), `xlrpro4.pcapng` + ordered log with music confirmed flowing
-to a MacBook on the aux port. Everything below is verified live on Linux by ear and meter.
+Sources: `xlrpro3.pcapng` + ordered log + a screenshot of Wave Link's "Mixes (XLR Pro
+Hardware Mixer)" view, `xlrpro4.pcapng` + ordered log with music confirmed flowing to a
+second computer on the aux port. Everything below is verified live on Linux by ear and meter.
 
 ### Block 0x0001 is the hardware mix matrix
 
@@ -293,11 +291,11 @@ to a MacBook on the aux port. Everything below is verified live on Linux by ear 
 5. Confirmed stable for 30s+ with the full daemon (capture stream, 10 Hz poll, and mixer all
    running); simultaneous Headphones 1 + USB Aux Out both carry the monitor mix.
 
-### Debugging lesson that cost two hours
+### Testing note
 
 Untagged test streams played at the Pro sink get moved to a channel sink by OpenXLR's own
 stream matcher within ~1 s, silently invalidating hardware tests ("worked for a few seconds").
-Every "the daemon breaks it" observation was this. Test streams must set
+Every apparent "the daemon breaks it" observation was this. Test streams must set
 `PULSE_PROP="node.name=OpenXLR_test"` (the matcher excludes OpenXLR-named streams) or play
 via a channel sink. The earlier "capture stream conflicts with aux forwarding" conclusion was
 an artifact of this and is WITHDRAWN.

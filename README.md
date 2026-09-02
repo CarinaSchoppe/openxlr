@@ -72,23 +72,40 @@ Collect diagnostics).
 
 The full feature list, area by area: [docs/features.md](docs/features.md).
 
+### OpenDeck plugin
+
+Dials get a touch panel with a knob, a level meter, the value and a
+mute overlay; one dial can hold several targets, cycled by tap or
+press.
+
+![Dial panels](docs/plugin-dials.png)
+
+Keys show an icon and a status LED (red for a mute, green for an
+engaged feature or the active monitor output). Every hardware switch,
+mute, level and insert is a target.
+
+![Keys](docs/plugin-keys.png)
+
 ## Install
 
-Arch Linux, from the AUR:
+One of the following, then the two commands under "After installing".
+
+**Arch Linux** (AUR):
 
 ```sh
 yay -S openxlr        # or: paru -S openxlr
 ```
 
-Ubuntu 24.04 or newer, Fedora 44 or newer: download the `.deb` or
-`.rpm` from the [latest release](https://github.com/emaspa/openxlr/releases/latest), then
+**Ubuntu** 24.04 or newer, **Fedora** 44 or newer: download the `.deb`
+or `.rpm` from the [latest release](https://github.com/emaspa/openxlr/releases/latest), then
 
 ```sh
 sudo apt install ./openxlr_*_amd64.deb      # Ubuntu
 sudo dnf install ./openxlr-*.x86_64.rpm     # Fedora
 ```
 
-NixOS: the repo is a flake with a package and a module.
+**NixOS**: the repo is a flake with a package and a module. The module
+also enables the daemon, so the first command below is not needed.
 
 ```nix
 {
@@ -99,10 +116,10 @@ NixOS: the repo is a flake with a package and a module.
 }
 ```
 
-Then, on every distribution:
+### After installing
 
 ```sh
-systemctl --user enable --now openxlr-daemon   # the NixOS module does this
+systemctl --user enable --now openxlr-daemon   # start the daemon now and at every login
 openxlr                                        # the mixer UI, also in your application menu
 ```
 
@@ -110,20 +127,37 @@ Replug the interface once after installing so the udev rule applies.
 For the Stream Deck, install `com.emaspa.openxlr.sdPlugin.zip` from the
 release with OpenDeck's install-from-file, or copy the folder the
 package puts in `/usr/share/openxlr/` into `~/.config/opendeck/plugins/`.
-Inserts show whatever LV2 plugins are installed (`lsp-plugins-lv2` is a
-good first set); the software ClipGuard for the XLR Dock needs
-`swh-plugins`. The NixOS module wires both up itself.
+Inserts show whatever LV2 plugins are installed (`lsp-plugins-lv2` is
+the set used during development); the software ClipGuard for the XLR
+Dock needs `swh-plugins`. The NixOS module wires both up itself.
 
-Building from source, including the manual udev, WirePlumber and
-systemd setup: [docs/install-from-source.md](docs/install-from-source.md).
+### Build from source
+
+Needs the .NET 10 SDK, PipeWire with its CLI tools, libusb, and lilv
+(package names per distribution in
+[docs/install-from-source.md](docs/install-from-source.md)).
+
+```sh
+git clone https://github.com/emaspa/openxlr.git
+cd openxlr/src
+dotnet build -c Release
+OPENXLR_BUILD_MIXER=1 ./OpenXLR.Daemon/bin/Release/net10.0/OpenXLR.Daemon   # terminal 1
+./OpenXLR.UI/bin/Release/net10.0/OpenXLR.UI                                 # terminal 2
+```
+
+Device access needs the udev rule from `packaging/70-openxlr.rules`
+installed under `/etc/udev/rules.d/` and a replug. The XLR Dock also
+needs the WirePlumber rule from `packaging/`. Running the daemon as a
+user service, the sysctl port reservation, updating and uninstalling:
+[docs/install-from-source.md](docs/install-from-source.md).
 
 ## Documentation
 
 - [Features](docs/features.md): every control, the submixer, inserts,
   routing, profiles and the OpenDeck plugin in detail
-- [Installing from source](docs/install-from-source.md): prerequisites,
-  build, device access, first run, updating, uninstall, environment
-  variables
+- [Installing from source](docs/install-from-source.md): prerequisites
+  by distribution, device access, the user service, updating,
+  uninstall, environment variables
 - [WebSocket API](docs/api.md): the daemon's command set and the files
   under `~/.config/openxlr`
 - [Architecture](docs/architecture.md): daemon, UI and plugin, the

@@ -160,6 +160,11 @@ public sealed class MixerService : IHostedService, IDisposable
                         | _mixer.EnsureFilterRoutes()
                         | _mixer.EnsureMonitorRoutes()) Changed?.Invoke();
                     SyncOutputSelectors();
+                    if (_lastSweepError is not null)
+                    {
+                        _lastSweepError = null;
+                        _log.LogInformation("stream sweep recovered");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -174,12 +179,6 @@ public sealed class MixerService : IHostedService, IDisposable
                         _log.LogWarning("stream sweep: {msg} (repeats logged at debug level)", ex.Message);
                     }
                     else _log.LogDebug("stream sweep: {msg}", ex.Message);
-                    return;
-                }
-                if (_lastSweepError is not null)
-                {
-                    _lastSweepError = null;
-                    _log.LogInformation("stream sweep recovered");
                 }
                 finally { Volatile.Write(ref _sweepRunning, 0); }
             }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));

@@ -88,24 +88,35 @@ mute, level and insert is a target.
 
 ## Install
 
-One of the following, then the two commands under "After installing".
-
 **Arch Linux** (AUR):
 
 ```sh
 yay -S openxlr        # or: paru -S openxlr
+systemctl --user enable --now openxlr-daemon
+openxlr               # the mixer UI, also in your application menu
 ```
 
-**Ubuntu** 24.04 or newer, **Fedora** 44 or newer: download the `.deb`
-or `.rpm` from the [latest release](https://github.com/emaspa/openxlr/releases/latest), then
+**Ubuntu** 24.04 or newer: download the `.deb` from the
+[latest release](https://github.com/emaspa/openxlr/releases/latest), then
 
 ```sh
-sudo apt install ./openxlr_*_amd64.deb      # Ubuntu
-sudo dnf install ./openxlr-*.x86_64.rpm     # Fedora
+sudo apt install ./openxlr_*_amd64.deb
+systemctl --user enable --now openxlr-daemon
+openxlr
+```
+
+**Fedora** 44 or newer: download the `.rpm` from the
+[latest release](https://github.com/emaspa/openxlr/releases/latest), then
+
+```sh
+sudo dnf install ./openxlr-*.x86_64.rpm
+systemctl --user enable --now openxlr-daemon
+openxlr
 ```
 
 **NixOS**: the repo is a flake with a package and a module. The module
-also enables the daemon, so the first command below is not needed.
+enables the daemon itself; after a rebuild, `openxlr` is in the
+application menu.
 
 ```nix
 {
@@ -116,20 +127,14 @@ also enables the daemon, so the first command below is not needed.
 }
 ```
 
-### After installing
-
-```sh
-systemctl --user enable --now openxlr-daemon   # start the daemon now and at every login
-openxlr                                        # the mixer UI, also in your application menu
-```
-
-Replug the interface once after installing so the udev rule applies.
-For the Stream Deck, install `com.emaspa.openxlr.sdPlugin.zip` from the
-release with OpenDeck's install-from-file, or copy the folder the
-package puts in `/usr/share/openxlr/` into `~/.config/opendeck/plugins/`.
-Inserts show whatever LV2 plugins are installed (`lsp-plugins-lv2` is
-the set used during development); the software ClipGuard for the XLR
-Dock needs `swh-plugins`. The NixOS module wires both up itself.
+On every distribution, replug the interface once after installing so
+the udev rule applies. For the Stream Deck, install
+`com.emaspa.openxlr.sdPlugin.zip` from the release with OpenDeck's
+install-from-file, or copy the folder the package puts in
+`/usr/share/openxlr/` into `~/.config/opendeck/plugins/`. Inserts show
+whatever LV2 plugins are installed (`lsp-plugins-lv2` is the set used
+during development); the software ClipGuard for the XLR Dock needs
+`swh-plugins`. The NixOS module wires both up itself.
 
 ### Build from source
 

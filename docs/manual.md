@@ -196,6 +196,10 @@ Options, STARTUP:
   quitting; the tray icon's menu shows it again or quits. "Start
   minimized to tray" opens the window hidden.
 
+The window also remembers which of its sections (INPUTS, HEADPHONES,
+MONITOR, APPLICATIONS, SUBMIXER) you collapsed with the chevron in
+their header, across restarts.
+
 ### 3.10 Upgrade
 
 Packages do not restart a running daemon. After an upgrade the window

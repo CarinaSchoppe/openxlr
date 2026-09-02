@@ -126,13 +126,15 @@ public sealed class OptionsViewModel : ViewModelBase
         private set => Set(ref _submixerNote, value);
     }
 
-    private void Persist() => new UiSettings
+    // Start from the file so fields owned elsewhere (the main window's
+    // collapsed tiles) survive a save from here.
+    private void Persist() => (UiSettings.Load() with
     {
         StartDaemonAtLogin = _startDaemonAtLogin,
         OpenWindowAtLogin = _openWindowAtLogin,
         MinimizeToTray = _minimizeToTray,
         StartMinimized = _startMinimized,
-    }.Save();
+    }).Save();
 
     // --- enforced system defaults ---
 

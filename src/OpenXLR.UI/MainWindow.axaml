@@ -215,7 +215,7 @@
 
     <!-- device controls -->
     <Border Classes="card" Margin="0,0,0,8">
-      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
+      <Expander Name="InputsTile" Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="INPUTS" Classes="h"/></Expander.Header>
       <StackPanel Classes="dev" Spacing="4">
 
@@ -373,7 +373,7 @@
 
     <!-- headphone outputs (jack 1 on the front of the unit, jack 2 on the back) -->
     <Border Classes="card" Margin="0,0,0,8">
-      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
+      <Expander Name="HeadphonesTile" Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="HEADPHONES" Classes="h"/></Expander.Header>
       <StackPanel Classes="dev" Spacing="4">
         <Grid ColumnDefinitions="90,*,64,20,90,*,64">
@@ -409,7 +409,7 @@
 
     <!-- monitor destination: the device you hear the Monitor mix on -->
     <Border Classes="card" Margin="0,0,0,8" IsVisible="{Binding HasMixer}">
-      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
+      <Expander Name="MonitorTile" Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header>
           <StackPanel Orientation="Horizontal" Spacing="6">
             <TextBlock Text="MONITOR" Classes="h" VerticalAlignment="Center"/>
@@ -448,7 +448,7 @@
 
     <!-- running applications and the channel each is routed to -->
     <Border Classes="card" Margin="0,0,0,8" IsVisible="{Binding HasMixer}">
-      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
+      <Expander Name="ApplicationsTile" Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="APPLICATIONS" Classes="h"/></Expander.Header>
       <StackPanel Spacing="8">
         <ItemsControl ItemsSource="{Binding ActiveApps}">
@@ -483,7 +483,7 @@
 
     <!-- mixer -->
     <Border Classes="card">
-      <Expander Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
+      <Expander Name="SubmixerTile" Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="SUBMIXER" Classes="h"/></Expander.Header>
       <DockPanel>
         <TextBlock DockPanel.Dock="Top" Text="{Binding MixerPlaceholder}" TextWrapping="Wrap"

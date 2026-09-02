@@ -8,7 +8,7 @@ help.
 |---|---|---|
 | Wave XLR Pro | `0fd9:00b4` | every control verified on hardware |
 | XLR Dock | `0fd9:00a6` | every control the hardware has, verified on hardware |
-| Wave XLR | `0fd9:007d` | core controls verified on hardware by a community tester; a second unit (firmware 1.35) hangs on every write, under investigation in [issue #6](https://github.com/emaspa/openxlr/issues/6) |
+| Wave XLR | `0fd9:007d` | core controls verified on hardware by community testers on two units (0.1.13) |
 | Wave XLR MK.2 | `0fd9:00b6` | every control verified on hardware by a community tester |
 | XLR Dock MK.2 | `0fd9:00c7` | registered on the MK.2 backend, not run on hardware |
 
@@ -59,8 +59,12 @@ start first.
 ## Wave XLR (0fd9:007d)
 
 The original MK.1. Its class protocol was documented by the
-[openwave](https://github.com/rikkichy/openwave) project, and a
-community tester has run OpenXLR against real hardware.
+[openwave](https://github.com/rikkichy/openwave) project, and community
+testers have run OpenXLR against two units. A daemon stall reported on
+one of them ([issue #6](https://github.com/emaspa/openxlr/issues/6))
+turned out not to be the USB write, which completes in milliseconds,
+but the daemon's stream sweep starving its own clients; fixed in
+0.1.13 by the reporter's own change ([PR #7](https://github.com/emaspa/openxlr/pull/7)).
 
 | Control | State | Notes |
 |---|---|---|

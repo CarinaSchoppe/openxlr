@@ -182,8 +182,9 @@ public abstract class Mk1ClassProtocolDevice : IAudioDevice
     }
 }
 
-/// <summary>The original Wave XLR (MK.1, 0fd9:007d). Untested on hardware in
-/// OpenXLR itself; the protocol comes verified from openwave's MK.1 users.</summary>
+/// <summary>The original Wave XLR (MK.1, 0fd9:007d). Protocol from the
+/// openwave project; gain, mute, headphone volume, low impedance and phantom
+/// verified on two units by community testers (issues #6 and earlier).</summary>
 public sealed class WaveXlrMk1Device : Mk1ClassProtocolDevice
 {
     public const ushort ProductId = 0x007D;

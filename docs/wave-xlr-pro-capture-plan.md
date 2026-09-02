@@ -1,11 +1,13 @@
 # Wave XLR Pro USB protocol capture plan
 
-Status: completed historical procedure. The ordered follow-up capture resolved the
-control map; use [wave-xlr-pro-protocol.md](wave-xlr-pro-protocol.md), section 6,
-for current offsets rather than treating the action guesses below as a specification.
+Status: completed historical procedure. The ordered follow-up capture
+resolved the control map; use
+[wave-xlr-pro-protocol.md, section 6](wave-xlr-pro-protocol.md#6-capture-2-xlrpro2pcapng-2026-08-25-with-ordered-action-log-outputs-mic-dsp-usb-aux)
+for current offsets. The steps below are retained as the methodology for
+capturing another device, not as the current protocol specification.
 
 Goal: capture every USB control transfer Wave Link sends to the Wave XLR Pro so its vendor
-protocol can be reimplemented in a Linux backend (CryoByte33/openwave fork). The device has
+protocol can be reimplemented in a Linux backend. The device has
 **no physical or LED controls**, everything is software-driven, so this is a write-mostly
 protocol: gain, mute, phantom, low-cut, ClipGuard, headphone volume/impedance, monitor blend.
 
@@ -17,19 +19,20 @@ the companion log is nearly worthless, the log is what maps bytes to meaning.
 
 ## 0. Before you start
 
-- Boot Windows (the pinned Wave Link 3.2.6). Confirm the Pro works there first.
+- Boot Windows with Wave Link installed. Confirm the Pro works there first.
 - Have the Pro plugged into a port you can physically reach to unplug/replug.
-- **Reduce USB noise**: during capture, do not touch anything else audio/USB, Katana volume,
-  Facecam, Stream Deck. Ideally close Camera Hub, Stream Deck app, OBS, Discord, browsers.
-  (One exception is called out in Session 2 step 13.) The quieter the host, the faster decoding.
-- Decide where files land somewhere Linux can read afterwards: the WD1 or WD2 NTFS data drives
-  (visible on Linux), NOT the Windows OS partition. Make a folder e.g. `D:\wavexlr-capture\`.
+- **Reduce USB noise**: during capture, do not touch any other USB audio or HID device, and
+  close other audio applications (camera software, Stream Deck software, OBS, Discord,
+  browsers). One exception is called out in Session 2 step 23. The quieter the host, the
+  easier the decoding.
+- Save the files somewhere readable from Linux afterwards (a data partition, not the Windows
+  system partition).
 
 ### Tools
 
 **USBPcap + Wireshark (primary).** Install Wireshark for Windows and tick "Install USBPcap"
-in the installer (or install USBPcap separately from desktop.google… no, from
-https://desktop.usbpcap.com / the USBPcap GitHub releases). Reboot if the installer asks.
+in the installer (or install USBPcap separately from its GitHub releases). Reboot if the
+installer asks.
 
 **Frida (fallback only).** Skip unless USBPcap output turns out to be opaque. If needed:
 `pip install frida-tools` on the Windows Python, then attach to Wave Link and hook
@@ -129,8 +132,7 @@ move on.
 5. Mic **mute** on. 6. Mic mute off. (Do it twice: on, off, on, off, confirms the toggle is
    stateless-per-write vs a toggle command.)
 7. **Phantom power** on. 8. Phantom off. (If you run a condenser, expect an audible pop, fine.)
-9. **Low-cut** on. 10. Low-cut off. 11. Low-cut **type** change if the Pro exposes more than one
-   (your Windows config had `XLR Low Cut Type: 1`).
+9. **Low-cut** on. 10. Low-cut off. 11. Low-cut **type** change if the Pro exposes more than one.
 12. **ClipGuard** on. 13. ClipGuard off, then **back on** and leave it on for the next step.
 14. **Talk into the mic loudly enough to trigger ClipGuard / clip the preamp for ~10 s**, then
     speak normally ~20 s. Log `speaking loud (clipguard)` / `speaking normal`. → THIS is the test
@@ -186,7 +188,7 @@ protocol.
 
 ## 7. What to hand back to Linux
 
-Copy to the data drive (WD1/WD2) so it mounts on Linux:
+Copy to a location readable from Linux:
 
 - `session1-init.pcapng` + `session1-init.txt`
 - `session2-controls.pcapng` + `session2-controls.txt`
@@ -194,23 +196,23 @@ Copy to the data drive (WD1/WD2) so it mounts on Linux:
 - (if run) Frida logs
 - The exact Wave Link version string.
 
-Then tell me where they are. I'll:
+Analysis steps on Linux:
 1. Extract every vendor/class SETUP packet + data payload, aligned to your log timestamps.
 2. Decode the request scheme (bmRequestType / bRequest / wValue / wIndex layout, is it the
    MK.1 0x3303 trick, the MK.2 0x0203 standard-class scheme, or new) and the value encodings.
 3. Identify the init sequence and any keepalive.
 4. Determine what the interrupt endpoint carries (from the speaking/clip test).
-5. Write the `0x00b4` backend for the CryoByte33/openwave fork against that.
+5. Write the `0x00b4` backend against that.
 
 ---
 
 ## 8. Quick reference, device facts (verified on Linux)
 
-- Wave XLR Pro: `0fd9:00b4`, UAC2, `bcdDevice 04.10`, serial AAY3H5481241GS.
+- Wave XLR Pro: `0fd9:00b4`, UAC2, `bcdDevice 04.10`.
 - Interfaces: If0 AudioControl (+ interrupt IN endpoint 0x81, 6 bytes, 1 ms, NOT user input,
   the Pro has no buttons/knob; watch it during the speaking test), If1/If2 audio streaming,
   **If3 vendor-specific class 0xFF, no endpoints, no kernel driver**, the control target.
 - Mic gain is ALSO a standard ALSA control on Linux (0–80 dB), already works without this
   protocol; the capture is for phantom / low-cut / ClipGuard / monitor blend / mic-output.
-- No LEDs, no physical controls, ignore any LED/knob/button settings in the Windows config;
-  those were the old XLR Dock.
+- No LEDs, no physical controls; LED/knob/button settings in a Wave Link config belong to
+  the XLR Dock, not the Pro.

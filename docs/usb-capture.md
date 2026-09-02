@@ -4,19 +4,18 @@ This guide is for owners of the original Wave XLR (`0fd9:007d`) who want
 to help map the rest of its protocol. No programming needed, just
 Wireshark and about 15 minutes.
 
-The prize is the mic DSP: low cut, ClipGuard, and the mic/PC crossfade
-exist in the hardware but their registers have never been seen. (Phantom
-power used to be on this list; the
-[openwave](https://github.com/rikkichy/openwave) project found its byte,
-so OpenXLR already sends it. Your capture's phantom toggles now serve as
-confirmation, and the front 48V LED still makes them the easiest part to
-line up.)
+The goal is the mic DSP: low cut, ClipGuard, and the mic/PC crossfade
+exist in the hardware but their registers have not been captured.
+Phantom power is already coded (the
+[openwave](https://github.com/rikkichy/openwave) project found its
+byte); the phantom toggles in your capture serve as confirmation, and
+the front 48V LED makes them the easiest events to line up.
 
 ## What you need
 
 - A Windows PC with [Wave Link](https://www.elgato.com/downloads)
-  installed and the Wave XLR working normally. Windows is the practical
-  route; USB capture on macOS is a fight and not worth it here.
+  installed and the Wave XLR working normally. This guide covers
+  Windows only.
 - [Wireshark](https://www.wireshark.org/download.html). During
   installation, tick the **USBPcap** component when the installer asks.
   It is off by default. Reboot after installing, the capture driver
@@ -26,10 +25,10 @@ line up.)
 
 - Plug the Wave XLR directly into the PC, not through a hub, ideally on
   a port away from your keyboard and mouse.
-- A word on privacy: USBPcap records every device on the same USB
-  controller, and that can include keystrokes from a keyboard. Keep the
-  capture short, do not type passwords while it runs, and you are fine.
-  The file you send should contain nothing but device chatter.
+- Privacy: USBPcap records every device on the same USB controller,
+  which can include keystrokes from a keyboard. Keep the capture short
+  and do not type passwords while it runs. Filtering the file to the
+  Wave XLR's device address (last section) removes the rest.
 
 ## The capture
 
@@ -56,7 +55,7 @@ line up.)
 
 ## Optional round two, everything else
 
-If you have five more minutes, start a second capture (replug the
+For the remaining controls, start a second capture (replug the
 device again, step 3 above) and work through this list, one action at a
 time with 5 second pauses between them, in this order:
 
@@ -84,10 +83,10 @@ XLR MK.1 USB capture" and attach:
 
 ## Checking your own capture (optional)
 
-Curious whether you caught the right thing? In Wireshark, type
+In Wireshark, type
 `usb.idProduct == 0x007d` into the filter bar and press enter. You
 should see a packet from the replug; its "Device address" field, say 5,
 identifies your Wave XLR. Now filter `usb.device_address == 5` and you
 are looking at only the Wave XLR's traffic. Toggling phantom in Wave
 Link should have produced a small burst of packets at each moment you
-clicked. If it did, we can take it from there.
+clicked.

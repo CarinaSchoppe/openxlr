@@ -16,8 +16,12 @@ namespace OpenXLR.Core.Devices;
 /// unlike the Pro, no commit block is known to be required. Untested on MK.2
 /// hardware so far: if a tester reports reads working but writes not sticking,
 /// try following each write with the Pro's block 0x0003 commit.
+///
+/// The XLR Dock MK.2 (<see cref="XlrDockMk2Device"/>) presents the same USB
+/// descriptor layout (five interfaces, vendor interface 3 without endpoints)
+/// and is driven through this class at its own product id.
 /// </summary>
-public sealed class WaveXlrMk2Device : IAudioDevice
+public class WaveXlrMk2Device : IAudioDevice
 {
     public const ushort VendorId = 0x0FD9;
     public const ushort ProductId = 0x00B6;
@@ -44,22 +48,32 @@ public sealed class WaveXlrMk2Device : IAudioDevice
     private IntPtr _handle = IntPtr.Zero;
     private readonly object _lock = new();
 
-    public DeviceInfo Info { get; } = new("Elgato", "Wave XLR MK.2", VendorId, ProductId);
+    public DeviceInfo Info { get; }
 
-    public DeviceCapabilities Capabilities { get; } = new()
+    public DeviceCapabilities Capabilities { get; }
+
+    public WaveXlrMk2Device() : this(ProductId, "Wave XLR MK.2", physicalControls: true) { }
+
+    /// <param name="model">Must match the device's iProduct string minus the
+    /// vendor, since the daemon derives the PipeWire node-name hint from it.</param>
+    protected WaveXlrMk2Device(ushort productId, string model, bool physicalControls)
     {
-        Gain = true,
-        PhysicalControls = true,
-        Mute = true,
-        LowCut = true,
-        Expander = true,
-        VoiceTune = true,
-        HpVolume = true,
-        LowImpedance = true,
-        Crossfade = true,
-        XlrInputs = 1,
-        HpOutputs = 1,
-    };
+        Info = new DeviceInfo("Elgato", model, VendorId, productId);
+        Capabilities = new DeviceCapabilities
+        {
+            Gain = true,
+            PhysicalControls = physicalControls,
+            Mute = true,
+            LowCut = true,
+            Expander = true,
+            VoiceTune = true,
+            HpVolume = true,
+            LowImpedance = true,
+            Crossfade = true,
+            XlrInputs = 1,
+            HpOutputs = 1,
+        };
+    }
 
     public bool Connected => _handle != IntPtr.Zero;
 
@@ -70,9 +84,9 @@ public sealed class WaveXlrMk2Device : IAudioDevice
             int rc = LibUsb.libusb_init(out _ctx);
             if (rc != 0) throw new InvalidOperationException($"libusb_init failed: {LibUsb.StrError(rc)}");
         }
-        _handle = LibUsb.libusb_open_device_with_vid_pid(_ctx, VendorId, ProductId);
+        _handle = LibUsb.libusb_open_device_with_vid_pid(_ctx, VendorId, Info.ProductId);
         if (_handle == IntPtr.Zero)
-            throw new InvalidOperationException("Wave XLR MK.2 present but could not be opened (udev rule?)");
+            throw new InvalidOperationException($"{Info.Model} present but could not be opened (udev rule?)");
     }
 
     public void Disconnect()

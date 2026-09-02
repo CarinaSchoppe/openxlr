@@ -8,7 +8,7 @@ help.
 |---|---|---|
 | Wave XLR Pro | `0fd9:00b4` | every control verified on hardware |
 | XLR Dock | `0fd9:00a6` | every control the hardware has, verified on hardware |
-| Wave XLR | `0fd9:007d` | core controls verified on hardware by a community tester |
+| Wave XLR | `0fd9:007d` | core controls verified on hardware by a community tester; a second unit (firmware 1.35) hangs on every write, under investigation in [issue #6](https://github.com/emaspa/openxlr/issues/6) |
 | Wave XLR MK.2 | `0fd9:00b6` | connects and reads full state on hardware (community tester, 0.1.10); writes pending confirmation |
 | XLR Dock MK.2 | `0fd9:00c7` | registered on the MK.2 backend, not run on hardware |
 

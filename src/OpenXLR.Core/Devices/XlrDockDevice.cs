@@ -125,11 +125,23 @@ public sealed class XlrDockDevice : IAudioDevice
         return outText;
     }
 
+
+    /// <summary>
+    /// All control transfers go through here. A transfer that never returns
+    /// (issue #6) throws UsbHungException; the handle is then abandoned
+    /// without libusb_close, since the stuck native call may still use it,
+    /// and Connected turns false so the daemon reconnects with a new one.
+    /// </summary>
+    private int Transfer(byte requestType, byte request, ushort value, byte[] data, int length)
+    {
+        try { return LibUsb.ControlTransfer(_handle, requestType, request, value, UsbIndex, data, (ushort)length, 1000); }
+        catch (UsbHungException) { _handle = IntPtr.Zero; throw; }
+    }
+
     private byte[] ReadConfig()
     {
         var buf = new byte[ConfigLen];
-        int n = LibUsb.libusb_control_transfer(
-            _handle, RtRead, ReqRead, BlockConfig, UsbIndex, buf, ConfigLen, 1000);
+        int n = Transfer(RtRead, ReqRead, BlockConfig, buf, ConfigLen);
         if (n < 0) throw new InvalidOperationException($"read config block: {LibUsb.StrError(n)}");
         return buf;
     }
@@ -154,8 +166,7 @@ public sealed class XlrDockDevice : IAudioDevice
         {
             byte[] cfg = ReadConfig();
             cfg[offset] = value;
-            int n = LibUsb.libusb_control_transfer(
-                _handle, RtWrite, ReqWrite, BlockConfig, UsbIndex, cfg, ConfigLen, 1000);
+            int n = Transfer(RtWrite, ReqWrite, BlockConfig, cfg, ConfigLen);
             if (n < 0) throw new InvalidOperationException($"write config block: {LibUsb.StrError(n)}");
             _cached = null;
         }
@@ -237,8 +248,7 @@ public sealed class XlrDockDevice : IAudioDevice
                 try
                 {
                     var buf = new byte[51];
-                    int n = LibUsb.libusb_control_transfer(
-                        _handle, RtRead, ReqRead, 0x000A, UsbIndex, buf, 51, 1000);
+                    int n = Transfer(RtRead, ReqRead, 0x000A, buf, 51);
                     blocks["devinfo"] = n >= 0
                         ? Convert.ToHexString(buf.AsSpan(0, n))
                         : $"error: {LibUsb.StrError(n)}";

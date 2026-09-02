@@ -94,12 +94,25 @@ public class WaveXlrMk2Device : IAudioDevice
         if (_handle != IntPtr.Zero) { LibUsb.libusb_close(_handle); _handle = IntPtr.Zero; }
     }
 
+
+    /// <summary>
+    /// All control transfers go through here. A transfer that never returns
+    /// (issue #6) throws UsbHungException; the handle is then abandoned
+    /// without libusb_close, since the stuck native call may still use it,
+    /// and Connected turns false so the daemon reconnects with a new one.
+    /// </summary>
+    private int Transfer(byte requestType, byte request, ushort value, byte[] data, int length)
+    {
+        try { return LibUsb.ControlTransfer(_handle, requestType, request, value, VIndex, data, (ushort)length, 1000); }
+        catch (UsbHungException) { _handle = IntPtr.Zero; throw; }
+    }
+
     private byte[] Read(ushort block, int length)
     {
         var buf = new byte[length];
         lock (_lock)
         {
-            int n = LibUsb.libusb_control_transfer(_handle, RtRead, VReq, block, VIndex, buf, (ushort)length, 1000);
+            int n = Transfer(RtRead, VReq, block, buf, length);
             if (n < 0) throw new InvalidOperationException($"read block {block:x4}: {LibUsb.StrError(n)}");
             if (n != length) Array.Resize(ref buf, n);
         }
@@ -110,7 +123,7 @@ public class WaveXlrMk2Device : IAudioDevice
     {
         lock (_lock)
         {
-            int n = LibUsb.libusb_control_transfer(_handle, RtWrite, VReq, block, VIndex, data, (ushort)data.Length, 1000);
+            int n = Transfer(RtWrite, VReq, block, data, data.Length);
             if (n < 0) throw new InvalidOperationException($"write block {block:x4}: {LibUsb.StrError(n)}");
         }
     }

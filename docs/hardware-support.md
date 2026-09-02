@@ -10,7 +10,7 @@ help.
 | XLR Dock | `0fd9:00a6` | every control the hardware has, verified on hardware |
 | Wave XLR | `0fd9:007d` | core controls verified on hardware by a community tester |
 | Wave XLR MK.2 | `0fd9:00b6` | decoded from captures, not run on hardware |
-| XLR Dock MK.2 | unknown | not supported; expected to share the MK.2's protocol, USB id needed |
+| XLR Dock MK.2 | `0fd9:00c7` | registered on the MK.2 backend, not run on hardware |
 
 ## Wave XLR Pro (0fd9:00b4)
 
@@ -69,17 +69,19 @@ community tester has run OpenXLR against real hardware.
 | Phantom 48V | coded | config byte 6, found by [openwave PR #8](https://github.com/rikkichy/openwave/pull/8) against the MK.1's own 48V LED; the same byte is verified on the XLR Dock. Added after the tester's run, so an LED check on a MK.1 is still open |
 | Low cut, voice DSP, crossfade | unmapped | the hardware has them; their offsets are unknown. A [USB capture](usb-capture.md) from an owner would map them |
 
-## Wave XLR MK.2 (0fd9:00b6), needs a tester
+## Wave XLR MK.2 (0fd9:00b6) and XLR Dock MK.2 (0fd9:00c7), need testers
 
 Decoded from USB captures of Wave Link, using the Pro's protocol family
 at its own address. Not run on hardware.
 
 The XLR Dock MK.2 for the Stream Deck+ is built on the same Wave FX
 platform (80 dB gain, phantom, ClipGuard 2.0, onboard expander, voice
-tune, compressor, EQ). Its USB id is not known to this project. The
-MK.1 Wave XLR and the first XLR Dock share one protocol across two ids;
-if the MK.2 pair does the same, support is a registry entry away. Open
-an issue with your `lsusb` output.
+tune, compressor, EQ). Its `lsusb -v` dump
+([issue #1](https://github.com/emaspa/openxlr/issues/1)) shows the same
+five interfaces as the Wave XLR MK.2, including the vendor-specific
+interface 3 without endpoints that carries the control protocol, so it
+is registered on the MK.2 backend at its own id. Both devices are
+awaiting a first run on hardware.
 
 | Control | State | Notes |
 |---|---|---|
@@ -101,9 +103,9 @@ an issue with your `lsusb` output.
 
 ## Own an MK.2? Help confirm it
 
-The Wave XLR MK.2 (0fd9:00b6) backend is complete and waiting for a
-first run on real hardware; the XLR Dock MK.2 needs an owner to report
-its USB id (`lsusb`, look for `0fd9:`). Testing takes a few minutes:
+The Wave XLR MK.2 (0fd9:00b6) and XLR Dock MK.2 (0fd9:00c7) backends
+are complete and waiting for a first run on real hardware. Testing
+takes a few minutes:
 
 1. Install OpenXLR per the [README](../README.md), including the udev
    rule.

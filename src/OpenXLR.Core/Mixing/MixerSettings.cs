@@ -40,7 +40,7 @@ public sealed record MixerSettings
     /// <summary>Software low cut on the first XLR channel (0, 80, or 120 Hz).</summary>
     public int LowCutHz { get; init; }
 
-    /// <summary>Software ClipGuard (hard limiter) on the first XLR channel.</summary>
+    /// <summary>Software ClipGuard (post-ADC hard limiter) on the first XLR channel.</summary>
     public bool SoftClipGuard { get; init; }
 
     /// <summary>Plugin insert chains by channel id.</summary>

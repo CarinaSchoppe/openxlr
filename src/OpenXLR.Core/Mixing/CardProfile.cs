@@ -81,9 +81,16 @@ public static class CardProfile
         var psi = new ProcessStartInfo(cmd) { RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (string a in args) psi.ArgumentList.Add(a);
         using var p = Process.Start(psi) ?? throw new InvalidOperationException($"could not start {cmd}");
-        string outText = p.StandardOutput.ReadToEnd();
-        p.WaitForExit(5000);
-        if (p.ExitCode != 0) throw new InvalidOperationException($"{cmd}: exit {p.ExitCode}");
+        Task<string> outTask = p.StandardOutput.ReadToEndAsync();
+        Task<string> errTask = p.StandardError.ReadToEndAsync();
+        if (!p.WaitForExit(5000))
+        {
+            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            throw new TimeoutException($"{cmd} timed out after 5 seconds");
+        }
+        string outText = outTask.GetAwaiter().GetResult();
+        string errText = errTask.GetAwaiter().GetResult();
+        if (p.ExitCode != 0) throw new InvalidOperationException($"{cmd}: {errText.Trim()}");
         return outText;
     }
 }

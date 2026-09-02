@@ -46,15 +46,32 @@ let daemonState = null;   // last full {"type":"state"} message
 let daemonUp = false;
 let meterLevels = null;   // last {"type":"meters"} levels, keyed ch:/mix:
 let catalog = new Map();  // LV2 plugin URI -> PluginInfo (names and ranges of the params)
+let reconnectTimer = null;
+let reconnectDelayMs = 500;
+let connectionGeneration = 0;
+
+function scheduleDaemonReconnect(generation) {
+  if (generation !== connectionGeneration || reconnectTimer) return;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectDaemon();
+  }, reconnectDelayMs);
+  reconnectDelayMs = Math.min(reconnectDelayMs * 2, 10000);
+}
 
 function connectDaemon() {
-  daemon = new WebSocket("ws://127.0.0.1:37890/ws");
-  daemon.onopen = () => {
+  const socket = new WebSocket("ws://127.0.0.1:37890/ws");
+  const generation = ++connectionGeneration;
+  daemon = socket;
+  socket.onopen = () => {
+    if (daemon !== socket) return;
     daemonUp = true;
-    daemon.send(JSON.stringify({ cmd: "listPlugins" }));
+    reconnectDelayMs = 500;
+    cmd({ cmd: "listPlugins" });
     refreshAll();
   };
-  daemon.onmessage = (e) => {
+  socket.onmessage = (e) => {
+    if (daemon !== socket) return;
     let m;
     try { m = JSON.parse(e.data); } catch { return; }
     if (m.type === "state") { daemonState = m; refreshAll(); }
@@ -63,14 +80,26 @@ function connectDaemon() {
       catalog = new Map((m.plugins ?? []).map((p) => [p.plugin, p]));
       refreshAll();
     }
+    else if (m.type === "error") console.error("OpenXLR daemon:", m.message);
   };
-  daemon.onclose = () => {
+  socket.onclose = () => {
+    if (daemon !== socket) return;
     daemonUp = false; daemonState = null; refreshAll();
-    setTimeout(connectDaemon, 2000);
+    scheduleDaemonReconnect(generation);
   };
-  daemon.onerror = () => { /* onclose follows */ };
+  socket.onerror = () => { /* onclose follows */ };
 }
-const cmd = (o) => { if (daemonUp) daemon.send(JSON.stringify(o)); };
+const cmd = (o) => {
+  if (!daemonUp || !daemon || daemon.readyState !== WebSocket.OPEN) return false;
+  try {
+    daemon.send(JSON.stringify(o));
+    return true;
+  } catch {
+    daemonUp = false;
+    try { daemon.close(); } catch { /* onclose/retry handles the rest */ }
+    return false;
+  }
+};
 
 // ---------- OpenDeck host connection ----------
 const host = new WebSocket(`ws://localhost:${port}`);
@@ -289,6 +318,30 @@ const mixer = () => daemonState?.mixer ?? null;
 const mixOf = (id) => mixer()?.mixes?.find((x) => x.id === id);
 const chOf = (id) => mixer()?.channels?.find((x) => x.id === id);
 
+function deviceTargetSupported(target) {
+  const c = daemonState?.capabilities;
+  if (!c) return false;
+  const secondXlr = new Set([
+    "gain2", "mute2", "phantom2", "lowCut2", "expander2",
+    "voiceTune2", "clipGuard2", "compressor2",
+  ]).has(target);
+  if (secondXlr && (c.xlrInputs ?? 1) < 2) return false;
+  if (target === "hp2" && (c.hpOutputs ?? 1) < 2) return false;
+  const capability = {
+    gain: "gain", gain2: "gain", mute: "mute", mute2: "mute",
+    phantom: "phantom", phantom2: "phantom", lowCut: "lowCut", lowCut2: "lowCut",
+    expander: "expander", expander2: "expander",
+    voiceTune: "voiceTune", voiceTune2: "voiceTune",
+    clipGuard: "clipGuard", clipGuard2: "clipGuard",
+    compressor: "compressor", compressor2: "compressor",
+    lowImpedance: "lowImpedance", hp: "hpVolume", hp2: "hpVolume",
+    crossfade: "crossfade",
+    outHp1: "outputRouting", outHp2: "outputRouting",
+    outLineOut: "outputRouting", auxLevel: "auxInput", auxLevelLock: "auxInput",
+  }[target];
+  return capability ? c[capability] === true : target === "gainLocked";
+}
+
 // A toggle target's current boolean, or null when unknown. Insert targets
 // need the key's saved meta for id fallback, so they take the instance.
 function toggleValue(target, inst) {
@@ -307,7 +360,11 @@ function toggleValue(target, inst) {
     const hz = mixer()?.lowCutHz;
     return hz == null ? null : hz > 0;
   }
-  if (target === "softClipGuard") return mixer()?.softClipGuard ?? null;
+  // A missing LADSPA limiter is a disabled target, not an optimistic OFF
+  // state. Pressing it would otherwise send a command that cannot be applied
+  // and leave the deck face out of sync with the audible graph.
+  if (target === "softClipGuard")
+    return mixer()?.softClipGuardAvailable === true ? mixer()?.softClipGuard ?? false : null;
   if (target.startsWith("monitor:")) {
     const outs = mixer()?.monitorOutputs;
     return outs ? outs.includes(target.slice(8)) : null;
@@ -317,6 +374,7 @@ function toggleValue(target, inst) {
     const [, ch, mix] = target.split(":");
     return chOf(ch)?.mutedIn?.includes(mix) ?? null;
   }
+  if (Object.hasOwn(DEVICE_TOGGLES, target) && !deviceTargetSupported(target)) return null;
   return dev()?.[target] ?? null;
 }
 
@@ -390,6 +448,7 @@ function dialValue(target, inst) {
       return { label: "Monitor", pct: pct(v), text: muted ? "MUTED" : `${pct(v)}%`, muted };
     }
     case "gain": case "gain2": {
+      if (!deviceTargetSupported(target)) return null;
       const db = target === "gain" ? s?.gainDb : s?.gain2Db;
       const muted = target === "gain" ? s?.mute : s?.mute2;
       if (db == null) return null;
@@ -397,6 +456,7 @@ function dialValue(target, inst) {
                pct: Math.round((db / 80) * 100), text: muted ? "MUTED" : `${db} dB`, muted };
     }
     case "hp": case "hp2": {
+      if (!deviceTargetSupported(target)) return null;
       const db = target === "hp" ? s?.hpVolumeDb : s?.hp2VolumeDb;
       if (db == null) return null;
       const p = Math.round(((60 + db) / 60) * 100);
@@ -405,12 +465,14 @@ function dialValue(target, inst) {
                text: jackOff ? "MUTED" : `${p}%`, muted: jackOff };
     }
     case "auxLevel": {
+      if (!deviceTargetSupported(target)) return null;
       const db = s?.auxLevelDb;
       if (db == null) return null;
       const p = Math.round(((60 + db) / 60) * 100);
       return { label: "Aux In level", pct: p, text: `${p}%`, muted: false };
     }
     case "crossfade": {
+      if (!deviceTargetSupported(target)) return null;
       const v = s?.crossfade;
       if (v == null) return null;
       const text = v === 100 ? "centre" : v < 100 ? `mic +${100 - v}` : `pc +${v - 100}`;
@@ -454,6 +516,11 @@ function onKeyDown(context, inst) {
 function onDialRotate(context, inst, ticks) {
   const t = activeTarget(inst);
   if (!t || !daemonState) return;
+  if (["gain", "gain2", "hp", "hp2", "auxLevel", "crossfade"].includes(t) &&
+      !deviceTargetSupported(t)) {
+    send({ event: "showAlert", context });
+    return;
+  }
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   if (t.startsWith("insparam|")) {
     const [, ch, id, symbol] = t.split("|");

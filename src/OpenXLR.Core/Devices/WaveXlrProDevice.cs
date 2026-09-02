@@ -149,7 +149,8 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
         {
             int n = Transfer(RtRead, VReq, block, buf, length);
             if (n < 0) throw new IOException($"vendor read block {block:X4} failed: {LibUsb.StrError(n)}");
-            if (n != length) Array.Resize(ref buf, n);
+            if (n != length)
+                throw new IOException($"vendor read block {block:X4} returned {n} bytes; expected {length}");
         }
         return buf;
     }
@@ -160,6 +161,8 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
         {
             int n = Transfer(RtWrite, VReq, block, data, data.Length);
             if (n < 0) throw new IOException($"vendor write block {block:X4} failed: {LibUsb.StrError(n)}");
+            if (n != data.Length)
+                throw new IOException($"vendor write block {block:X4} accepted {n} bytes; expected {data.Length}");
         }
     }
 

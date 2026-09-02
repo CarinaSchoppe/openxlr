@@ -10,4 +10,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="OpenXLR.Tests" />
+  </ItemGroup>
+
 </Project>

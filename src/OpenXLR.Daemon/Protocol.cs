@@ -14,9 +14,9 @@ namespace OpenXLR.Daemon;
 public sealed record Command
 {
     /// <summary>
-    /// "getState" | "set" (device control) | "setLevel" | "setChannelMuted" |
-    /// "setMixVolume" | "setMixMuted" | "assignStream" | "setMonitorOutput" |
-    /// "setMicInput" | "setOutputVolume" | "setInputVolume" | "setEnforcedDefaults".
+    /// Command name. <see cref="WebSocketHub"/> owns dispatch; the root README's
+    /// WebSocket table is the canonical public list so this DTO cannot drift
+    /// into a second protocol specification.
     /// </summary>
     [JsonPropertyName("cmd")] public string Cmd { get; init; } = "";
 
@@ -36,8 +36,8 @@ public sealed record Command
     [JsonPropertyName("streamId")] public int? StreamId { get; init; }
 
     /// <summary>
-    /// "setMonitorOutput" / "setMicInput": the PipeWire node.name to select, or
-    /// null to disconnect that route.
+    /// "setMonitorOutput": PipeWire node.name (null disconnects); or
+    /// "setActiveDevice": the interface's vvvv:pppp id.
     /// </summary>
     [JsonPropertyName("device")] public string? Device { get; init; }
 

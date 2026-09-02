@@ -4,7 +4,9 @@ using System.Text.RegularExpressions;
 namespace OpenXLR.Core.Devices;
 
 /// <summary>
-/// The Elgato XLR Dock (0fd9:00a6), the controls-free Stream Deck+ module.
+/// The Elgato XLR Dock (0fd9:00a6), the Stream Deck+ audio module. The
+/// module has no controls that directly mutate its USB state; Stream Deck+
+/// keys and dials act through a software client such as the OpenDeck plugin.
 ///
 /// Gain, mute, and headphone volume are driven through the kernel's standard
 /// ALSA controls ('Mic Capture Volume' 0..150 for 0..75 dB, 'Mic Capture
@@ -91,9 +93,10 @@ public sealed class XlrDockDevice : IAudioDevice
         throw new InvalidOperationException("XLR Dock present on USB but its ALSA card was not found");
     }
 
-    // Phantom is the only control that needs the USB handle; without it (no
-    // udev rule) the dock still works fully through ALSA and phantom reads
-    // false, while SetPhantom reports the real problem.
+    // Phantom and low impedance need the USB handle. Without it (for example,
+    // before the udev rule applies) gain, mute, and headphone volume still work
+    // through ALSA; USB-backed setters report the permission problem instead
+    // of pretending the write succeeded.
     private void OpenUsb()
     {
         if (_ctx == IntPtr.Zero && LibUsb.libusb_init(out _ctx) != 0) return;
@@ -118,10 +121,17 @@ public sealed class XlrDockDevice : IAudioDevice
         foreach (string a in args) psi.ArgumentList.Add(a);
         using var p = Process.Start(psi)
             ?? throw new InvalidOperationException("could not start amixer");
-        string outText = p.StandardOutput.ReadToEnd();
-        p.WaitForExit(2000);
+        Task<string> outTask = p.StandardOutput.ReadToEndAsync();
+        Task<string> errTask = p.StandardError.ReadToEndAsync();
+        if (!p.WaitForExit(2000))
+        {
+            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            throw new TimeoutException($"amixer {string.Join(' ', args)} timed out");
+        }
+        string outText = outTask.GetAwaiter().GetResult();
+        string errText = errTask.GetAwaiter().GetResult();
         if (p.ExitCode != 0)
-            throw new InvalidOperationException($"amixer {string.Join(' ', args)}: exit {p.ExitCode}");
+            throw new InvalidOperationException($"amixer {string.Join(' ', args)}: {errText.Trim()}");
         return outText;
     }
 
@@ -143,6 +153,8 @@ public sealed class XlrDockDevice : IAudioDevice
         var buf = new byte[ConfigLen];
         int n = Transfer(RtRead, ReqRead, BlockConfig, buf, ConfigLen);
         if (n < 0) throw new InvalidOperationException($"read config block: {LibUsb.StrError(n)}");
+        if (n != ConfigLen)
+            throw new InvalidOperationException($"read config block: got {n} bytes, expected {ConfigLen}");
         return buf;
     }
 
@@ -168,6 +180,8 @@ public sealed class XlrDockDevice : IAudioDevice
             cfg[offset] = value;
             int n = Transfer(RtWrite, ReqWrite, BlockConfig, cfg, ConfigLen);
             if (n < 0) throw new InvalidOperationException($"write config block: {LibUsb.StrError(n)}");
+            if (n != ConfigLen)
+                throw new InvalidOperationException($"write config block: accepted {n} bytes, expected {ConfigLen}");
             _cached = null;
         }
     }

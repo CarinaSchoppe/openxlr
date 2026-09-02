@@ -154,6 +154,24 @@ public sealed class MainViewModel : ViewModelBase
     private bool _showSoftClipGuard;
     public bool ShowSoftClipGuard { get => _showSoftClipGuard; private set => Set(ref _showSoftClipGuard, value); }
 
+    private bool _softClipGuardAvailable = true;
+    public bool SoftClipGuardAvailable
+    {
+        get => _softClipGuardAvailable;
+        private set { if (Set(ref _softClipGuardAvailable, value)) Raise(nameof(SoftClipGuardTip)); }
+    }
+
+    private string? _softClipGuardError;
+    public string? SoftClipGuardError
+    {
+        get => _softClipGuardError;
+        private set { if (Set(ref _softClipGuardError, value)) Raise(nameof(SoftClipGuardTip)); }
+    }
+
+    public string SoftClipGuardTip => SoftClipGuardAvailable
+        ? "Host-side ClipGuard: a post-ADC hard limiter at -3 dB; it cannot repair clipping in the analog preamp or ADC"
+        : SoftClipGuardError ?? "Software ClipGuard is unavailable";
+
     // Software low cut (host-side high-pass) for devices without the
     // hardware filter; state lives in the mixer, not the device.
     private int _softLowCutHz;
@@ -754,6 +772,8 @@ public sealed class MainViewModel : ViewModelBase
         if (mixer is null) { HasMixer = false; return; }
         HasMixer = true;
         SoftLowCutHz = mixer["lowCutHz"]?.GetValue<int>() ?? 0;
+        SoftClipGuardAvailable = mixer["softClipGuardAvailable"]?.GetValue<bool>() ?? false;
+        SoftClipGuardError = mixer["softClipGuardError"]?.GetValue<string>();
         SoftClipGuard = mixer["softClipGuard"]?.GetValue<bool>() ?? false;
         Inserts.Apply(mixer["inserts"]?["xlr1"]);
         Inserts2.Apply(mixer["inserts"]?["xlr2"]);

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Formats.Tar;
 using System.IO;
 using System.IO.Compression;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -38,9 +39,11 @@ public static class Diagnostics
                 This archive is created locally and is never uploaded automatically.
                 It contains OpenXLR state, USB control blocks, PipeWire topology,
                 recent openxlr-daemon journal entries, application audio metadata,
-                configuration files, and system version information. Common home,
-                user, host, process-id, and device-serial fields are redacted, but
-                review the archive before attaching it to a public issue.
+                configuration files, and system version information. The home
+                path, the host name, the serial numbers of attached USB devices
+                (including inside PipeWire node names) and process-id fields are
+                redacted, but review the archive before attaching it to a public
+                issue.
                 """);
 
             // Daemon views: the newest state push plus a fresh vendor-block dump.
@@ -107,20 +110,61 @@ public static class Diagnostics
         catch (UnauthorizedAccessException) { return "unreadable"; }
     }
 
-    internal static string Redact(string text)
+    internal static string Redact(string text) => Redact(text, DefaultSecrets());
+
+    /// <summary>
+    /// Strings that identify the machine or its owner: the home path, the
+    /// host name, and the serial number of every attached USB device. Serials
+    /// matter most: PipeWire embeds them in node and card names
+    /// (alsa_input.usb-Elgato_..._&lt;serial&gt;-00...), so they surface in the
+    /// graph dump, the sink and source listings, and mixer.json.
+    /// </summary>
+    private static IEnumerable<string> DefaultSecrets()
     {
-        foreach (string value in new[]
-                 {
-                     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                     Environment.UserName,
-                     Environment.MachineName,
-                 }.Where(v => !string.IsNullOrWhiteSpace(v) && v.Length >= 3).Distinct())
+        yield return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        yield return Environment.MachineName;
+        foreach (string serial in UsbSerials()) yield return serial;
+    }
+
+    private static IEnumerable<string> UsbSerials()
+    {
+        const string root = "/sys/bus/usb/devices";
+        if (!Directory.Exists(root)) yield break;
+        IEnumerable<string> dirs;
+        try { dirs = Directory.EnumerateDirectories(root); }
+        catch (Exception) { yield break; }
+        foreach (string dir in dirs)
+        {
+            string? serial = null;
+            try
+            {
+                string file = Path.Combine(dir, "serial");
+                if (File.Exists(file)) serial = File.ReadAllText(file).Trim();
+            }
+            catch (Exception) { /* unreadable: nothing to redact */ }
+            if (serial is { Length: >= 4 }) yield return serial;
+        }
+    }
+
+    /// <summary>
+    /// Replaces every secret with a placeholder, then the well-known JSON
+    /// fields. The plain user name is deliberately not on the list: a short
+    /// name such as "max" occurs inside unrelated tokens
+    /// ("clock.max-quantum") and would corrupt the graph dump; the home path
+    /// covers the places it actually appears.
+    /// </summary>
+    internal static string Redact(string text, IEnumerable<string> secrets)
+    {
+        foreach (string value in secrets
+                     .Where(v => !string.IsNullOrWhiteSpace(v) && v.Length >= 3)
+                     .Distinct(StringComparer.Ordinal)
+                     .OrderByDescending(v => v.Length))
             text = text.Replace(value, "<redacted>", StringComparison.Ordinal);
 
         return Regex.Replace(text,
-            "(\\\"(?:device\\.serial|object\\.serial|application\\.process\\.id|" +
-            "application\\.process\\.user|application\\.process\\.host)\\\"\\s*:\\s*)" +
-            "(?:\\\"[^\\\"]*\\\"|[0-9]+)",
+            "(\"(?:device\\.serial|object\\.serial|application\\.process\\.id|" +
+            "application\\.process\\.user|application\\.process\\.host)\"\\s*:\\s*)" +
+            "(?:\"[^\"]*\"|[0-9]+)",
             "$1\"<redacted>\"", RegexOptions.IgnoreCase);
     }
 

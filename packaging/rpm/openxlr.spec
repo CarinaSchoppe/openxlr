@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.12
+Version:        0.1.13
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -137,6 +137,29 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Wed Sep 02 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.13-1
+- Wave XLR (MK.1): the daemon no longer stalls when the once-a-second
+  stream sweep piles up on itself (Michael Brooks, PR #7); helper
+  processes are read with concurrent stdout/stderr draining and timeouts
+  (Carina Schoppe, PR #4); a sweep failure is now logged at warning so
+  diagnostics show why a microphone is unwired.
+- Software ClipGuard is refused with a reason when swh-plugins is
+  missing instead of breaking the microphone route; the UI and deck
+  show it disabled (PR #4).
+- Input and filter graph changes are transactional: the old microphone
+  route stays until the replacement is up, and a failure rolls back
+  (PR #4). Stereo-pair selection fixes for the Aux route and hardware
+  outputs; a bounded WebSocket send queue; USB short reads are errors
+  on the verified devices; USB serial numbers and identities are
+  redacted in diagnostics; systemd sandboxing on the daemon unit; a CI
+  workflow and an xUnit test project (PR #4).
+- UI: a banner with a Restart button when the daemon is an older build
+  than the window; the Flow window draws insert chains in the path.
+- OpenDeck plugin: profile keys, lit while the profile is the last one
+  recalled (the state reports activeProfile).
+- Card-profile parking runs only for the Wave XLR Pro.
+- Docs: a user manual (docs/manual.md); every document revised.
+
 * Wed Sep 02 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.12-1
 - Wave XLR MK.2: phantom power, ClipGuard and compressor exposed at the
   Pro's bit positions, which a tester's block dump matched; the other

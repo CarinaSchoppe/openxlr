@@ -1,3 +1,23 @@
+openxlr (0.1.12) resolute; urgency=medium
+
+  * Wave XLR MK.2: phantom power, ClipGuard and compressor exposed at the
+    Pro's bit positions, which a tester's block dump matched; the other
+    controls were verified on hardware by that tester (issue #2). The XLR
+    Dock MK.2 shares the backend.
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Wed, 02 Sep 2026 12:59:43 +0100
+
+openxlr (0.1.11) resolute; urgency=medium
+
+  * A USB control transfer that never returns (a Wave XLR MK.1 unit hangs
+    on every write, issue #6) no longer freezes the daemon and its API: the
+    transfer fails after the libusb timeout plus 3 s, the device is dropped
+    and reconnected after 10 s, and the fault (setup packet, payload,
+    timing, libusb and kernel versions) is logged and included in the
+    diagnostics archive.
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Wed, 02 Sep 2026 12:57:54 +0100
+
 openxlr (0.1.10) resolute; urgency=medium
 
   * XLR Dock MK.2 (0fd9:00c7): registered on the Wave XLR MK.2 backend

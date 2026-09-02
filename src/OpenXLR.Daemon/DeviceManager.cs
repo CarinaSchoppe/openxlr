@@ -1,4 +1,5 @@
 using System.Text.Json;
+using OpenXLR.Core;
 using OpenXLR.Core.Devices;
 
 namespace OpenXLR.Daemon;
@@ -185,6 +186,10 @@ public sealed class DeviceManager : BackgroundService
                 PollOnce();
                 TryParkCardProfile();
             }
+            catch (UsbHungException ex)
+            {
+                NoteHung(ex);
+            }
             catch (Exception ex)
             {
                 _log.LogWarning("device loop: {msg}", ex.Message);
@@ -196,6 +201,38 @@ public sealed class DeviceManager : BackgroundService
         RestoreCardProfile();
     }
 
+    // After a transfer that never returned, the worker thread is still parked
+    // in libusb on the old handle. Reconnecting straight away would hang the
+    // same way and leak a thread every few seconds, so wait before retrying.
+    private static readonly TimeSpan HungReconnectDelay = TimeSpan.FromSeconds(10);
+    private DateTime _reconnectNotBefore = DateTime.MinValue;
+
+    /// <summary>
+    /// The last transfer that never returned, kept for the diagnostics
+    /// archive (Options, SUPPORT, Collect diagnostics) so a tester can hand
+    /// over the exact setup packet, payload, timing and versions without
+    /// digging through the journal.
+    /// </summary>
+    private string? _lastUsbFault;
+
+    private void NoteHung(UsbHungException ex)
+    {
+        string device = _device is null ? "no device"
+            : $"{_device.Info.DisplayName} {_device.Info.VendorId:x4}:{_device.Info.ProductId:x4}";
+        _lastUsbFault = $"{DateTime.UtcNow:O} {device}, kernel {KernelRelease()}: {ex.Message}";
+        _log.LogError("{fault}. The device is dropped and reconnected in {s} s. " +
+                      "Please collect diagnostics (Options, SUPPORT) and attach the archive to an issue.",
+            _lastUsbFault, (int)HungReconnectDelay.TotalSeconds);
+        _reconnectNotBefore = DateTime.UtcNow + HungReconnectDelay;
+        Drop();
+    }
+
+    private static string KernelRelease()
+    {
+        try { return File.ReadAllText("/proc/sys/kernel/osrelease").Trim(); }
+        catch (Exception) { return "unknown"; }
+    }
+
     private void EnsureConnected()
     {
         lock (_gate)
@@ -203,6 +240,7 @@ public sealed class DeviceManager : BackgroundService
             IReadOnlyList<IAudioDevice> all = DeviceRegistry.DetectAll();
             _detected = [.. all.Select(d => d.Info)];
             if (_device is { Connected: true }) return;
+            if (DateTime.UtcNow < _reconnectNotBefore) return;
             IAudioDevice? dev = _preferredPid is ushort pid
                 ? all.FirstOrDefault(d => d.Info.ProductId == pid) ?? (all.Count > 0 ? all[0] : null)
                 : all.Count > 0 ? all[0] : null;
@@ -365,6 +403,11 @@ public sealed class DeviceManager : BackgroundService
                     default: return $"unknown control '{control}'";
                 }
             }
+            catch (UsbHungException ex)
+            {
+                NoteHung(ex);
+                return ex.Message;
+            }
             catch (Exception ex)
             {
                 return ex.Message;
@@ -512,9 +555,16 @@ public sealed class DeviceManager : BackgroundService
     {
         lock (_gate)
         {
-            if (_device is null || !_device.Connected) return new Dictionary<string, string>();
-            try { return _device.DumpBlocks(); }
-            catch (Exception ex) { return new Dictionary<string, string> { ["error"] = ex.Message }; }
+            var blocks = new Dictionary<string, string>();
+            if (_lastUsbFault is not null) blocks["usbFault"] = _lastUsbFault;
+            if (_device is null || !_device.Connected) return blocks;
+            try
+            {
+                foreach ((string k, string v) in _device.DumpBlocks()) blocks[k] = v;
+            }
+            catch (UsbHungException ex) { NoteHung(ex); blocks["error"] = ex.Message; }
+            catch (Exception ex) { blocks["error"] = ex.Message; }
+            return blocks;
         }
     }
 

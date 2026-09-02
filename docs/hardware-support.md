@@ -8,8 +8,8 @@ help.
 |---|---|---|
 | Wave XLR Pro | `0fd9:00b4` | every control verified on hardware |
 | XLR Dock | `0fd9:00a6` | every control the hardware has, verified on hardware |
-| Wave XLR | `0fd9:007d` | core controls verified on hardware by a community tester |
-| Wave XLR MK.2 | `0fd9:00b6` | decoded from captures, not run on hardware |
+| Wave XLR | `0fd9:007d` | core controls verified on hardware by a community tester; a second unit (firmware 1.35) hangs on every write, under investigation in [issue #6](https://github.com/emaspa/openxlr/issues/6) |
+| Wave XLR MK.2 | `0fd9:00b6` | verified on hardware by a community tester; phantom, ClipGuard and compressor coded, awaiting verification |
 | XLR Dock MK.2 | `0fd9:00c7` | registered on the MK.2 backend, not run on hardware |
 
 ## Wave XLR Pro (0fd9:00b4)
@@ -72,7 +72,15 @@ community tester has run OpenXLR against real hardware.
 ## Wave XLR MK.2 (0fd9:00b6) and XLR Dock MK.2 (0fd9:00c7), need testers
 
 Decoded from USB captures of Wave Link, using the Pro's protocol family
-at its own address. Not run on hardware.
+at its own address. On 2026-09-02 a community tester
+([issue #2](https://github.com/emaspa/openxlr/issues/2)) ran OpenXLR
+0.1.10 against a Wave XLR MK.2: the daemon connected, all three blocks
+read at the expected lengths (38, 2 and 6 bytes), and every exposed
+control changed the device, with the device's own gain mark following
+the software and the physical dial reflected back. The settings block's
+bytes 1 and 2 follow the Pro's per-input structure (bit 1 phantom, bit 7
+compressor, byte 2 = 0x04 for ClipGuard off), so those three controls are
+exposed from 0.1.12 at the Pro's positions and await the same tester.
 
 The XLR Dock MK.2 for the Stream Deck+ is built on the same Wave FX
 platform (80 dB gain, phantom, ClipGuard 2.0, onboard expander, voice
@@ -85,8 +93,9 @@ awaiting a first run on hardware.
 
 | Control | State | Notes |
 |---|---|---|
-| Gain, mute, low cut, expander, voice tune + strength | coded | from capture analysis |
-| Headphone volume, low impedance, crossfade | coded | from capture analysis |
+| Gain, mute, low cut, expander, voice tune + strength | verified | community tester, reads and writes |
+| Headphone volume, low impedance, crossfade | verified | community tester |
+| Phantom 48V, ClipGuard, compressor | coded | at the Pro's bit positions, which the tester's block dump matched; awaiting verification (0.1.12) |
 
 ## Every device gets
 

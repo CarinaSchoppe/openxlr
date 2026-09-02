@@ -20,6 +20,15 @@ public sealed class MixerService : IHostedService, IDisposable
     private Timer? _streamSweep;
     private Timer? _saveDebounce;
     private Timer? _meterPush;
+    // System.Threading.Timer fires a new callback every period regardless of
+    // whether the previous one finished. If one tick runs long (a slow
+    // PipeWire round-trip, e.g. spawning a filter-chain module), overlapping
+    // ticks pile up, and since Mixer's internal lock gives no fairness
+    // guarantee, a steady stream of these freshly-arriving threads can starve
+    // out an unrelated waiter (e.g. a client's Snapshot() call, or
+    // EnsureInputFeeds() itself) indefinitely. Skip a tick outright rather
+    // than let it stack up.
+    private int _sweepRunning;
 
     public MixerService(ILogger<MixerService> log, IConfiguration config, DeviceManager devices)
     {
@@ -134,6 +143,7 @@ public sealed class MixerService : IHostedService, IDisposable
             // before a user notices, without polling the graph hard.
             _streamSweep = new Timer(_ =>
             {
+                if (Interlocked.CompareExchange(ref _sweepRunning, 1, 0) != 0) return;
                 try
                 {
                     // Channel feeds follow the actively driven interface; the
@@ -151,6 +161,7 @@ public sealed class MixerService : IHostedService, IDisposable
                     SyncOutputSelectors();
                 }
                 catch (Exception ex) { _log.LogDebug("stream sweep: {msg}", ex.Message); }
+                finally { Volatile.Write(ref _sweepRunning, 0); }
             }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
 
             // Meters refresh far more often than state; 15 Hz looks smooth

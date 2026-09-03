@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build prerequisites
         run: |
           sudo apt-get update
@@ -41,7 +41,7 @@ jobs:
           python3 tools/with-xvfb.py python3 tools/verify-installed.py
           python3 tools/with-xvfb.py python3 tools/verify-native-host.py --native-ui --disposable-ci-profile \
             --host /usr/lib/openxlr/daemon/openxlr-lv2-host
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ubuntu-package
           path: dist/*.deb
@@ -57,7 +57,7 @@ jobs:
             systemd-rpm-macros gcc make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel \
             python3-websocket-client xorg-x11-server-Xvfb xwininfo dbus-daemon pipewire pipewire-pulseaudio \
             wireplumber pipewire-utils lsp-plugins-lv2 ImageMagick shadow-utils
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Compile, test and build RPM
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -75,7 +75,7 @@ jobs:
           runuser -u tester -- python3 tools/with-xvfb.py python3 tools/verify-installed.py
           runuser -u tester -- python3 tools/with-xvfb.py python3 tools/verify-native-host.py \
             --native-ui --disposable-ci-profile --host /usr/lib/openxlr/daemon/openxlr-lv2-host
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: fedora-package
           path: dist/*.rpm
@@ -90,7 +90,7 @@ jobs:
           pacman -Syu --noconfirm --needed git dotnet-sdk aspnet-runtime pipewire pipewire-audio pipewire-pulse \
             wireplumber libpulse libusb lilv lv2 libx11 libice libsm fontconfig \
             python python-websocket-client xorg-server-xvfb xorg-xwininfo dbus lsp-plugins-lv2 imagemagick ttf-dejavu
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Compile, test and build Arch package (unprivileged)
         run: |
           useradd --create-home tester
@@ -104,7 +104,7 @@ jobs:
           runuser -u tester -- python3 tools/with-xvfb.py python3 tools/verify-installed.py
           runuser -u tester -- python3 tools/with-xvfb.py python3 tools/verify-native-host.py \
             --native-ui --disposable-ci-profile --host /usr/lib/openxlr/daemon/openxlr-lv2-host
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: arch-package
           path: dist/*.pkg.tar.zst

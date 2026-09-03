@@ -76,6 +76,19 @@ def assert_application_sink(identity, channel):
     assert len(streams) == 1 and streams[0]["sink"] == expected, (identity, channel, expected, targets)
 
 
+def wait_application_sink(identity, channel):
+    """The command ack precedes asynchronous PipeWire/Pulse graph publication."""
+    deadline = time.monotonic() + 5
+    while True:
+        try:
+            assert_application_sink(identity, channel)
+            return
+        except AssertionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.05)
+
+
 def verify_application_routing(sock):
     """Exercise Flow's assignApp command on a live, silent application stream."""
     with open(os.devnull, "wb") as discard, open("/dev/zero", "rb") as silence:
@@ -107,9 +120,9 @@ def verify_application_routing(sock):
                         raise
                     time.sleep(0.1)
             command(sock, "assignApp", identity="openxlr-live-qa", channel="parallel-a")
-            assert_application_sink("openxlr-live-qa", "parallel-a")
+            wait_application_sink("openxlr-live-qa", "parallel-a")
             command(sock, "assignApp", identity="openxlr-live-qa", channel="qa-channel")
-            assert_application_sink("openxlr-live-qa", "qa-channel")
+            wait_application_sink("openxlr-live-qa", "qa-channel")
             print("PASS saved application routing and live Flow reassignment change the actual stream sink", flush=True)
         finally:
             playback.terminate()

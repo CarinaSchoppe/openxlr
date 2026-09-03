@@ -219,5 +219,9 @@ apply null-info/null-props removal records, rather than treating the dump as
 an empty graph or discarding trailing updates. Invalid/truncated data still
 fails explicitly. Regression coverage for replacement, deletion, distinct ids
 with duplicate names and malformed input brings the local suite to **120 .NET
-tests and five Python tests**. Historical counts above describe their recorded
+tests**. The live routing assertion also allows a bounded five seconds for
+PipeWire/Pulse to publish the actual destination after command acknowledgement,
+instead of assuming the graph is immediately observable. Two offline tests
+check eventual success and deadline failure, bringing Python coverage to seven
+tests. Historical counts above describe their recorded
 commits, not the newer suite.

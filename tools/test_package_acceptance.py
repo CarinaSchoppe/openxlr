@@ -3,10 +3,27 @@ import json
 from pathlib import Path
 import runpy
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from pipewire_snapshot import parse_dump
 
 command = runpy.run_path(str(Path(__file__).with_name("verify-installed.py")))["command"]
+wait_application_sink = runpy.run_path(str(Path(__file__).with_name("verify-live-mixer.py")))["wait_application_sink"]
+
+
+class RoutePublicationTests(unittest.TestCase):
+    def test_waits_for_actual_destination_after_acknowledgement(self):
+        check = Mock(side_effect=[AssertionError("old sink"), None])
+        with patch.dict(wait_application_sink.__globals__, assert_application_sink=check), \
+             patch("time.monotonic", return_value=0), patch("time.sleep"):
+            wait_application_sink("player", "music")
+        self.assertEqual(2, check.call_count)
+        check.assert_called_with("player", "music")
+
+    def test_wrong_destination_still_fails_within_the_deadline(self):
+        check = Mock(side_effect=AssertionError("wrong sink"))
+        with patch.dict(wait_application_sink.__globals__, assert_application_sink=check), \
+             patch("time.monotonic", side_effect=[0, 6]), self.assertRaisesRegex(AssertionError, "wrong sink"):
+            wait_application_sink("player", "music")
 
 
 class PipeWireSnapshotTests(unittest.TestCase):

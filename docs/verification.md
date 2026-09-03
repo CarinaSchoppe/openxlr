@@ -69,6 +69,10 @@ intentional watchdog timeout. Do not run multiple copies concurrently.
 
 The extended test also compares processed/unprocessed application channels,
 kills and freezes/rebuilds an individual plugin host, and measures an EQ at two frequencies.
+Application tests inspect the real Pulse sink-input target: a test player
+starts in another muted channel, is moved by its saved assignment, and is
+reassigned while still playing. Audio captures also start in the wrong sink
+and require automatic routing before measuring the settled output signal.
 `--native-ui` checks the native compressor/EQ editors, wheels the compressor's
 Output control, observes the updated daemon parameter and measures its audio
 effect. The synthetic X11 gesture targets only the identified test instance's
@@ -103,12 +107,13 @@ The disruptive full live test passed all assertions, including:
 | --- | --- |
 | Compressor output gain and bypass | dry 0.2000, processed 0.0500, bypass 0.2000 |
 | Independent application channels | processed 0.1000, other channel 0.2000 |
+| Program assignment and live channel switching | actual Pulse sink-input destinations matched the requested channels |
 | Native Output knob | change returned to daemon, saved to disk, and changed measured audio |
 | EQ response | 440 Hz: 0.0500; 6 kHz: 0.1980 |
 | Plugin host failure | SIGKILL and SIGSTOP both reconstructed processing with saved controls |
 | Daemon failure | SIGKILL and 60-second watchdog/SIGSTOP restored layout without duplicate nodes |
 | Delete | nodes, inserts and sends removed; application assignment moved to fallback |
-| Shutdown with connected WebSocket | 0.77 seconds |
+| Shutdown with connected WebSocket | 0.69 seconds |
 
 This is evidence for these scenarios, not a guarantee for every plugin,
 device or operating system. Complete Debian/RPM/Nix package builds are not

@@ -65,8 +65,63 @@ def nodes():
             for n in json.loads(run("pw-dump")) if n["type"] == "PipeWire:Interface:Node"]
 
 
+def assert_application_sink(identity, channel):
+    """Inspect Pulse's actual stream target, not just the daemon's settings."""
+    sinks = json.loads(run("pactl", "-f", "json", "list", "sinks"))
+    expected = next(s["index"] for s in sinks if s["name"] == f"OpenXLR_ch_{channel}")
+    streams = [s for s in json.loads(run("pactl", "-f", "json", "list", "sink-inputs"))
+               if s.get("properties", {}).get("application.id") == identity]
+    targets = [(s["index"], s["sink"]) for s in streams]
+    assert len(streams) == 1 and streams[0]["sink"] == expected, (identity, channel, expected, targets)
+
+
+def verify_application_routing(sock):
+    """Exercise Flow's assignApp command on a live, silent application stream."""
+    with open(os.devnull, "wb") as discard, open("/dev/zero", "rb") as silence:
+        playback = subprocess.Popen(["pacat", "--playback", "-d", "OpenXLR_ch_parallel-b",
+            "--format=float32le", "--channels=2", "--rate=48000", "--latency-msec=30",
+            "--property=application.name=QA Player", "--property=node.name=qa-playback",
+            "--property=application.id=openxlr-live-qa", "--property=application.process.binary=openxlr-live-qa"],
+            stdin=silence, stdout=discard, stderr=subprocess.PIPE)
+        try:
+            # A saved assignment must move a newly started program, even when
+            # it initially connects to another sink. Then switch it while live.
+            # A fresh large graph can still be reconciling its feeds. Allow
+            # a bounded settling period before testing immediate live edits.
+            deadline = time.monotonic() + 30
+            while True:
+                try:
+                    assert_application_sink("openxlr-live-qa", "qa-channel")
+                    break
+                except AssertionError:
+                    if time.monotonic() >= deadline:
+                        state = command(sock, "setMixVolume", mix="qa-output", value=1)
+                        print("Routing diagnostic:", [a for a in state.get("streams", [])
+                              if a.get("identity") == "openxlr-live-qa"], flush=True)
+                        for node in json.loads(run("pw-dump")):
+                            props = node.get("info", {}).get("props", {})
+                            if props.get("node.name") == "qa-playback":
+                                print("Stream properties:", {key: props.get(key) for key in
+                                      ("node.name", "node.link-group", "media.class", "application.process.binary")}, flush=True)
+                        raise
+                    time.sleep(0.1)
+            command(sock, "assignApp", identity="openxlr-live-qa", channel="parallel-a")
+            assert_application_sink("openxlr-live-qa", "parallel-a")
+            command(sock, "assignApp", identity="openxlr-live-qa", channel="qa-channel")
+            assert_application_sink("openxlr-live-qa", "qa-channel")
+            print("PASS saved application routing and live Flow reassignment change the actual stream sink", flush=True)
+        finally:
+            playback.terminate()
+            try:
+                playback.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                playback.kill()
+                playback.wait(timeout=3)
+            playback.stderr.close()
+
+
 def capture_peak(channel="qa-channel", identity="openxlr-live-qa", frequency=440, screenshot=None):
-    """Measure a synthetic 440 Hz signal through the added virtual output.
+    """Measure a synthetic tone through the added virtual output.
 
     Only the isolated output mix receives it; its monitor send is muted first.
     Concurrent read/write avoids audio-pipe backpressure deadlocks.
@@ -76,9 +131,12 @@ def capture_peak(channel="qa-channel", identity="openxlr-live-qa", frequency=440
     capture = subprocess.Popen(["parec", "-d", "OpenXLR_qa-output", "--format=float32le",
                                 "--channels=2", "--rate=48000", "--latency-msec=30"], stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
-    playback = subprocess.Popen(["pacat", "--playback", "-d", f"OpenXLR_ch_{channel}",
+    # Start in a muted non-target channel. The daemon must honor the saved
+    # program assignment before the settled audio can reach our capture.
+    playback = subprocess.Popen(["pacat", "--playback", "-d", "OpenXLR_ch_parallel-b",
                                  "--format=float32le", "--channels=2", "--rate=48000", "--latency-msec=30",
-                                 "--property=application.name=OpenXLR Live QA",
+                                 "--property=application.name=QA Player", "--property=node.name=qa-playback",
+                                 f"--property=application.process.binary={identity}",
                                  f"--property=application.id={identity}"],
                                 stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     def feed():
@@ -111,6 +169,7 @@ def capture_peak(channel="qa-channel", identity="openxlr-live-qa", frequency=440
             raise AssertionError(f"no samples: capture={capture.stderr.read()!r}, playback={playback.stderr.read()!r}; "
                                  + run("pactl", "list", "sources", "short"))
         assert len(data) >= 48000, "insufficient settled audio"
+        assert_application_sink(identity, channel)
         return max(abs(x) for x in data[-48000:])
     finally:
         for process in (playback, capture):
@@ -183,6 +242,9 @@ def main():
             mixer = command(sock, "setMixVolume", mix="qa-output", value=1)
             assert {"parallel-a", "parallel-b"} <= {c["id"] for c in mixer["channels"]}
             print("PASS concurrent layout transactions", flush=True)
+            command(sock, "setLevel", channel="parallel-b", mix="monitor", value=0)
+            command(sock, "setLevel", channel="parallel-a", mix="monitor", value=0)
+            verify_application_routing(sock)
 
             dry_peak = capture_peak()
             assert 0.15 < dry_peak < 0.25, dry_peak
@@ -204,7 +266,6 @@ def main():
                 params=dict(g_in=1, g_out=0.5, al=1, cr=1))])
             processed = capture_peak()
             command(sock, "assignApp", identity="openxlr-other-qa", channel="parallel-a")
-            command(sock, "setLevel", channel="parallel-a", mix="monitor", value=0)
             command(sock, "setLevel", channel="parallel-a", mix="qa-output", value=1)
             other = capture_peak("parallel-a", "openxlr-other-qa")
             assert 0.095 < processed < 0.105 and 0.19 < other < 0.21, (processed, other)

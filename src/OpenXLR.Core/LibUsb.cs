@@ -80,7 +80,8 @@ internal static class LibUsb
             try { result = transfer(); }
             catch (Exception ex) { failure = ex; }
             finally { try { done.Set(); } catch (ObjectDisposedException) { } }
-        }) { IsBackground = true, Name = "libusb-control" };
+        })
+        { IsBackground = true, Name = "libusb-control" };
         worker.Start();
         int budget = checked((int)timeoutMs + GuardMs);
         if (!done.Wait(budget))

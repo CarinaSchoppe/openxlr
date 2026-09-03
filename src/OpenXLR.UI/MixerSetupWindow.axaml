@@ -25,7 +25,7 @@
   <DockPanel Margin="16">
     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
       <TextBlock Text="Mixer layout" FontSize="20" FontWeight="Bold" Foreground="#e6e9f0"/>
-      <TextBlock Text="Application channels become PipeWire playback sinks. Virtual outputs become selectable recording devices for OBS, Discord, and any other app. Structural changes briefly rebuild the OpenXLR graph."
+      <TextBlock Text="Application channels become PipeWire playback sinks. Virtual outputs become selectable recording devices for OBS, Discord, and any other app. Add, rename, and delete briefly rebuild the graph; ordering does not interrupt audio."
                  FontSize="11" Foreground="#7d8496" TextWrapping="Wrap"/>
       <TextBlock Text="{Binding LayoutNote}" Margin="0,8,0,0" Foreground="#e0a84a" TextWrapping="Wrap"/>
     </StackPanel>
@@ -49,14 +49,18 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:ChannelViewModel">
                   <Border Background="#23262f" CornerRadius="6" Padding="10,7" Margin="0,0,0,6">
-                    <Grid ColumnDefinitions="*,Auto,6,Auto">
+                    <Grid ColumnDefinitions="*,Auto,4,Auto,8,Auto,6,Auto">
                       <StackPanel>
                         <TextBlock Text="{Binding Name}" Foreground="#e6e9f0" FontWeight="SemiBold"/>
                         <TextBlock Text="{Binding Id}" Foreground="#6b7285" FontFamily="monospace" FontSize="10"/>
                       </StackPanel>
-                      <Button Grid.Column="1" Content="Rename" Padding="9,3"
-                              IsVisible="{Binding CanDelete}" Click="OnRenameChannel"/>
-                      <Button Grid.Column="3" Content="Delete" Classes="danger" Padding="9,3"
+                      <Button Grid.Column="1" Content="↑" Padding="8,3" IsVisible="{Binding AcceptsApps}"
+                              IsEnabled="{Binding CanMoveUp}" Click="OnMoveChannelUp" ToolTip.Tip="Move up"/>
+                      <Button Grid.Column="3" Content="↓" Padding="8,3" IsVisible="{Binding AcceptsApps}"
+                              IsEnabled="{Binding CanMoveDown}" Click="OnMoveChannelDown" ToolTip.Tip="Move down"/>
+                      <Button Grid.Column="5" Content="Rename" Padding="9,3"
+                              IsVisible="{Binding AcceptsApps}" Click="OnRenameChannel"/>
+                      <Button Grid.Column="7" Content="Delete" Classes="danger" Padding="9,3"
                               IsVisible="{Binding CanDelete}" Click="OnDeleteChannel"/>
                     </Grid>
                   </Border>
@@ -83,14 +87,18 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:MixViewModel">
                   <Border Background="#23262f" CornerRadius="6" Padding="10,7" Margin="0,0,0,6">
-                    <Grid ColumnDefinitions="*,Auto,6,Auto">
+                    <Grid ColumnDefinitions="*,Auto,4,Auto,8,Auto,6,Auto">
                       <StackPanel>
                         <TextBlock Text="{Binding Name}" Foreground="#e6e9f0" FontWeight="SemiBold"/>
                         <TextBlock Text="{Binding Id}" Foreground="#6b7285" FontFamily="monospace" FontSize="10"/>
                       </StackPanel>
-                      <Button Grid.Column="1" Content="Rename" Padding="9,3"
-                              IsVisible="{Binding CanDelete}" Click="OnRenameMix"/>
-                      <Button Grid.Column="3" Content="Delete" Classes="danger" Padding="9,3"
+                      <Button Grid.Column="1" Content="↑" Padding="8,3" IsVisible="{Binding IsVirtualMic}"
+                              IsEnabled="{Binding CanMoveUp}" Click="OnMoveMixUp" ToolTip.Tip="Move up"/>
+                      <Button Grid.Column="3" Content="↓" Padding="8,3" IsVisible="{Binding IsVirtualMic}"
+                              IsEnabled="{Binding CanMoveDown}" Click="OnMoveMixDown" ToolTip.Tip="Move down"/>
+                      <Button Grid.Column="5" Content="Rename" Padding="9,3"
+                              IsVisible="{Binding IsVirtualMic}" Click="OnRenameMix"/>
+                      <Button Grid.Column="7" Content="Delete" Classes="danger" Padding="9,3"
                               IsVisible="{Binding CanDelete}" Click="OnDeleteMix"/>
                     </Grid>
                   </Border>

@@ -41,8 +41,14 @@ public sealed record MixerSettings
     /// <summary>Single monitor output from older files; superseded by MonitorOutputs.</summary>
     public string? MonitorOutput { get; init; }
 
-    /// <summary>All selected monitor outputs (the monitor mix can feed several).</summary>
+    /// <summary>All selected monitor outputs (the listened mix can feed several).</summary>
     public List<string> MonitorOutputs { get; init; } = [];
+
+    /// <summary>
+    /// Mix heard on the selected monitor outputs. Null in older files and
+    /// therefore interpreted as the structural Monitor mix.
+    /// </summary>
+    public string? MonitoredMixId { get; init; }
 
     /// <summary>Application identity to channel id, from manual assignments.</summary>
     public Dictionary<string, string> AppOverrides { get; init; } = [];

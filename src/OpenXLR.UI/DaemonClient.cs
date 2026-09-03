@@ -189,6 +189,9 @@ public sealed class DaemonClient : IAsyncDisposable
     public Task<string?> DeleteChannelAsync(string channel)
         => SendConfirmedAsync(new() { ["cmd"] = "deleteChannel", ["channel"] = channel });
 
+    public Task<string?> ReorderChannelsAsync(IReadOnlyList<string> order)
+        => SendConfirmedAsync(new() { ["cmd"] = "reorderChannels", ["order"] = order });
+
     public Task<string?> CreateMixAsync(string name)
         => SendConfirmedAsync(new() { ["cmd"] = "createMix", ["name"] = name });
 
@@ -197,6 +200,12 @@ public sealed class DaemonClient : IAsyncDisposable
 
     public Task<string?> DeleteMixAsync(string mix)
         => SendConfirmedAsync(new() { ["cmd"] = "deleteMix", ["mix"] = mix });
+
+    public Task<string?> ReorderMixesAsync(IReadOnlyList<string> order)
+        => SendConfirmedAsync(new() { ["cmd"] = "reorderMixes", ["order"] = order });
+
+    public Task<string?> SetMonitoredMixAsync(string mix)
+        => SendConfirmedAsync(new() { ["cmd"] = "setMonitoredMix", ["mix"] = mix });
 
     private async Task<string?> SendConfirmedAsync(Dictionary<string, object> payload)
     {
@@ -213,11 +222,11 @@ public sealed class DaemonClient : IAsyncDisposable
         finally { _commands.TryRemove(id, out _); }
     }
 
-    /// <summary>Send the monitor mix to a different output (null disconnects).</summary>
+    /// <summary>Send the listened mix to a different output (null disconnects).</summary>
     public Task SetMonitorOutputAsync(string? device)
         => SendAsync(new Dictionary<string, object?> { ["cmd"] = "setMonitorOutput", ["device"] = device });
 
-    /// <summary>Every output the monitor mix should feed (empty = disconnect).</summary>
+    /// <summary>Every output the listened mix should feed (empty = disconnect).</summary>
     public Task SetMonitorOutputsAsync(IReadOnlyList<string> devices)
         => SendAsync(new Dictionary<string, object?> { ["cmd"] = "setMonitorOutputs", ["devices"] = devices });
 

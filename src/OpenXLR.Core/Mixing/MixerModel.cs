@@ -3,8 +3,8 @@ namespace OpenXLR.Core.Mixing;
 /// <summary>
 /// The submixer model, mirroring what Wave Link provides: application audio is
 /// grouped into channels, and every channel feeds every mix at its own level.
-/// One mix is what you hear (monitor), user-created outputs are published as
-/// virtual capture devices, and Aux can feed the second computer.
+/// Any mix can be selected for listening, user-created outputs are published
+/// as virtual capture devices, and Aux can feed the second computer.
 ///
 /// In PipeWire this becomes one combine sink per channel feeding one null sink
 /// per mix. Each combine's internal stream into a mix is that cell's fader, so
@@ -218,8 +218,11 @@ public sealed record MixerState
     /// <summary>First selected monitor output, or null (legacy single view).</summary>
     public string? MonitorOutput { get; init; }
 
-    /// <summary>node.names of every sink the monitor mix feeds.</summary>
+    /// <summary>node.names of every sink the listened mix feeds.</summary>
     public IReadOnlyList<string> MonitorOutputs { get; init; } = [];
+
+    /// <summary>Mix whose post-insert signal is playing on the monitor outputs.</summary>
+    public string MonitoredMixId { get; init; } = "monitor";
 
     /// <summary>Volume of the selected output device (0..1), or null.</summary>
     public double? OutputVolume { get; init; }

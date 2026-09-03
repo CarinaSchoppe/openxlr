@@ -1,10 +1,46 @@
 using System.Collections.Concurrent;
+using System.Text.Json.Nodes;
 using OpenXLR.UI;
 
 namespace OpenXLR.Tests;
 
 public sealed class DaemonClientTests
 {
+    [Fact]
+    public async Task ReorderAndMonitorCommandsAreAcknowledgedAndTyped()
+    {
+        var received = new ConcurrentQueue<JsonNode>();
+        await using var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            while (!stop.IsCancellationRequested)
+            {
+                JsonNode command = await SocketTestServer.Receive(socket, stop);
+                received.Enqueue(command);
+                await SocketTestServer.Send(socket, new
+                {
+                    type = "commandResult",
+                    requestId = command["requestId"]!.GetValue<string>(),
+                }, stop);
+            }
+        });
+        await using var client = new DaemonClient(server.Url);
+        var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.ConnectionChanged += up => { if (up) connected.TrySetResult(); };
+        client.Start();
+        await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Null(await client.ReorderChannelsAsync(["music", "game"]));
+        Assert.Null(await client.ReorderMixesAsync(["chat", "stream"]));
+        Assert.Null(await client.SetMonitoredMixAsync("chat"));
+
+        JsonNode[] commands = [.. received];
+        Assert.Equal(["reorderChannels", "reorderMixes", "setMonitoredMix"],
+            commands.Select(c => c["cmd"]!.GetValue<string>()));
+        Assert.Equal(["music", "game"], commands[0]["order"]!.AsArray()
+            .Select(n => n!.GetValue<string>()));
+        Assert.Equal("chat", commands[2]["mix"]!.GetValue<string>());
+    }
+
     [Fact]
     public async Task ParallelCatalogRequestsShareOneRequestAndLayoutErrorsAreCorrelated()
     {

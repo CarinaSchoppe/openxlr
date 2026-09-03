@@ -8,8 +8,13 @@ public sealed class MixerCommandValidationTests
     public void InsertValidationCannotReplaceAGoodChainWithInvalidControls()
     {
         using var mixer = new Mixer();
-        var insert = new InsertDefinition { Id = "compressor", Kind = "lv2",
-            Plugin = "http://lsp-plug.in/plugins/lv2/compressor_stereo", Params = new() { ["g_out"] = 0.5 } };
+        var insert = new InsertDefinition
+        {
+            Id = "compressor",
+            Kind = "lv2",
+            Plugin = "http://lsp-plug.in/plugins/lv2/compressor_stereo",
+            Params = new() { ["g_out"] = 0.5 }
+        };
         mixer.SetInserts("game", [insert]);
         Assert.Throws<InvalidOperationException>(() => mixer.SetInserts("xlr1", [insert with { Plugin = "test:missing" }]));
         Assert.Throws<InvalidOperationException>(() => mixer.SetInserts("game", [insert with { Params = new() { ["g_out"] = double.NaN } }]));

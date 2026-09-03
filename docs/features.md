@@ -66,22 +66,26 @@ does not reach the speakers until unmuted.
 Built from PipeWire nodes, no kernel modules or custom drivers:
 - Structural channels for the hardware inputs (XLR 1, XLR 2, Aux In) and
   user-managed application channels. Game, Music, Browser, System, Voice
-  Chat, and SFX are the initial layout; they can be added, renamed, or removed.
+  Chat, and SFX are the initial layout; they can be added, renamed, removed,
+  or reordered without changing their stable PipeWire ids.
 - Structural Monitor (what you hear) and Aux (what a second computer on
   the USB Aux port receives) mixes, plus user-managed output mixes. Stream
   and Chat are the initial outputs; every added output is published as an
-  `OpenXLR <name>` virtual microphone for OBS, Discord, or another app.
+  `OpenXLR <name>` virtual microphone for OBS, Discord, or another app. The
+  user-created output mixes can also be reordered.
 - Per-channel, per-mix send levels and mutes; per-mix masters
-- The monitor mix can play on several outputs at once, hardware outputs
-  included
+- Any mix can be listened to after its master and inserts on several monitor
+  outputs at once, hardware outputs included. The structural Monitor mix is
+  the backwards-compatible default.
 - Level meters throughout, dB-scaled, pushed at 15 Hz
 
 Each channel has an internal fan-out with one stream per mix; that
 stream's volume is the send fader. Application fan-outs do not advertise extra
 playback devices; technical mix/monitor taps remain visible in low-level graph
 tools and carry distinct internal-role labels. The Channels & outputs dialog changes
-the persistent layout with stable internal ids and rebuilds those owned PipeWire nodes, including
-removing deleted devices from WirePlumber. Details in
+the persistent layout with stable internal ids. Add, rename and delete rebuild
+the owned PipeWire nodes, including removing deleted devices from WirePlumber;
+reordering changes presentation only and does not interrupt audio. Details in
 [architecture.md](architecture.md).
 
 ## Inserts
@@ -142,7 +146,7 @@ restores the split profile when it stops.
 ## Profiles
 
 Named scenes: every hardware setting plus the whole submix (send
-levels, mutes, masters, monitor outputs, aux state, insert chains with
+levels, mutes, masters, monitor outputs, the mix being listened to, aux state, insert chains with
 their parameters). Saved per device and recalled from the header, over
 the API, or from a Stream Deck key. App routing and the enforced system defaults are global and
 not part of a profile, so recalling one does not rewire the desktop.

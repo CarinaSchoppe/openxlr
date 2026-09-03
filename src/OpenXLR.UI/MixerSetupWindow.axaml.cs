@@ -40,6 +40,19 @@ public partial class MixerSetupWindow : Window
         if (name is not null && name != channel.Name) await vm.RenameChannel(channel.Id, name);
     }
 
+    private async void OnMoveChannelUp(object? sender, RoutedEventArgs e)
+        => await MoveChannel(sender, -1);
+
+    private async void OnMoveChannelDown(object? sender, RoutedEventArgs e)
+        => await MoveChannel(sender, 1);
+
+    private async Task MoveChannel(object? sender, int offset)
+    {
+        if ((sender as Control)?.DataContext is ChannelViewModel channel &&
+            DataContext is MainViewModel vm)
+            await vm.MoveChannel(channel.Id, offset);
+    }
+
     private async void OnDeleteMix(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is not MixViewModel mix ||
@@ -55,6 +68,19 @@ public partial class MixerSetupWindow : Window
             DataContext is not MainViewModel vm) return;
         string? name = await PromptName($"Rename output ‘{mix.Name}’", mix.Name);
         if (name is not null && name != mix.Name) await vm.RenameMix(mix.Id, name);
+    }
+
+    private async void OnMoveMixUp(object? sender, RoutedEventArgs e)
+        => await MoveMix(sender, -1);
+
+    private async void OnMoveMixDown(object? sender, RoutedEventArgs e)
+        => await MoveMix(sender, 1);
+
+    private async Task MoveMix(object? sender, int offset)
+    {
+        if ((sender as Control)?.DataContext is MixViewModel mix &&
+            DataContext is MainViewModel vm)
+            await vm.MoveMix(mix.Id, offset);
     }
 
     private async Task<string?> PromptName(string title, string current)

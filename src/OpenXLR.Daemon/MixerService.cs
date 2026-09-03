@@ -4,7 +4,7 @@ namespace OpenXLR.Daemon;
 
 /// <summary>
 /// Owns the submix graph for the daemon's lifetime: builds it on startup, routes
-/// the monitor mix to a physical output, applies client commands, and tears the
+/// the selected mix to physical monitor outputs, applies client commands, and tears the
 /// graph down on shutdown so no nodes are left behind.
 ///
 /// Building is opt-in via configuration so the daemon can run device-only (the
@@ -113,8 +113,8 @@ public sealed class MixerService : IHostedService, IDisposable
         }
         OpenXLR.Core.Mixing.Lv2Catalog.Warm();   // plugin inserts: scan LV2 bundles off the startup path
 
-        // Optional: the physical sink the monitor mix feeds. Without it the
-        // monitor mix exists but isn't routed anywhere audible.
+        // Optional: the physical sink the initially selected mix feeds. Without
+        // it the mixes exist but none is routed anywhere audible.
         string? output = _config.GetValue<string>("monitorOutput")
                          ?? Environment.GetEnvironmentVariable("OPENXLR_MONITOR_OUTPUT");
 
@@ -331,6 +331,11 @@ public sealed class MixerService : IHostedService, IDisposable
                     if (cmd.Channel is null) return "deleteChannel: need 'channel'";
                     DeleteChannel(cmd.Channel);
                     break;
+                case "reorderChannels":
+                    if (cmd.Order is null) return "reorderChannels: need 'order'";
+                    _mixer.ReorderUserChannels(cmd.Order);
+                    _mixer.ExportSettings().Save();
+                    break;
                 case "createMix":
                     CreateMix(cmd.Name);
                     break;
@@ -341,6 +346,11 @@ public sealed class MixerService : IHostedService, IDisposable
                 case "deleteMix":
                     if (cmd.Mix is null) return "deleteMix: need 'mix'";
                     DeleteMix(cmd.Mix);
+                    break;
+                case "reorderMixes":
+                    if (cmd.Order is null) return "reorderMixes: need 'order'";
+                    _mixer.ReorderUserMixes(cmd.Order);
+                    _mixer.ExportSettings().Save();
                     break;
                 case "assignStream":
                     if (cmd.Channel is null || cmd.StreamId is null) return "assignStream: need 'channel' and 'streamId'";
@@ -363,6 +373,10 @@ public sealed class MixerService : IHostedService, IDisposable
                 case "setMonitorOutputs":
                     _mixer.SetMonitorOutputs(cmd.Devices ?? []);
                     SyncOutputSelectors();
+                    break;
+                case "setMonitoredMix":
+                    if (cmd.Mix is null) return "setMonitoredMix: need 'mix'";
+                    _mixer.SetMonitoredMix(cmd.Mix);
                     break;
                 case "setOutputVolume":
                     _mixer.SetOutputVolume(cmd.Value.GetDouble());
@@ -512,6 +526,7 @@ public sealed class MixerService : IHostedService, IDisposable
         RebuildLayout(current with
         {
             UserMixes = [.. (current.UserMixes ?? []).Where(m => m.Id != id)],
+            MonitoredMixId = current.MonitoredMixId == id ? "monitor" : current.MonitoredMixId,
             EnforcedDefaultSource = current.EnforcedDefaultSource == mix.VirtualMicName
                 ? null : current.EnforcedDefaultSource,
             MixVolumes = current.MixVolumes.Where(e => e.Key != id).ToDictionary(),

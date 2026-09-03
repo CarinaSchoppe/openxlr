@@ -88,17 +88,77 @@ public sealed class MixerLayoutTests
         string path = Path.Combine(directory, "mixer.json");
         try
         {
-            new MixerSettings { UserChannels = [], UserMixes = [] }.Save(path);
+            new MixerSettings
+            {
+                UserChannels = [],
+                UserMixes = [],
+                MonitoredMixId = "monitor",
+            }.Save(path);
             MixerSettings loaded = MixerSettings.Load(path)!;
 
             Assert.NotNull(loaded.UserChannels);
             Assert.Empty(loaded.UserChannels);
             Assert.NotNull(loaded.UserMixes);
             Assert.Empty(loaded.UserMixes);
+            Assert.Equal("monitor", loaded.MonitoredMixId);
         }
         finally
         {
             Directory.Delete(directory, recursive: true);
         }
+    }
+
+    [Fact]
+    public void ReorderingChannelsKeepsStableIdsAndPipeWireNames()
+    {
+        using var mixer = new Mixer();
+        string[] requested = ["sfx", "voicechat", "system", "browser", "music", "game"];
+        var sinkNames = mixer.Config.Channels.ToDictionary(c => c.Id, c => c.SinkName);
+
+        mixer.ReorderUserChannels(requested);
+
+        Assert.Equal(requested, mixer.Config.Channels.Where(c => c.InputPair is null).Select(c => c.Id));
+        Assert.Equal(requested, mixer.ExportSettings().UserChannels!.Select(c => c.Id));
+        Assert.All(mixer.Config.Channels, channel => Assert.Equal(sinkNames[channel.Id], channel.SinkName));
+    }
+
+    [Fact]
+    public void ReorderingMixesKeepsStructuralBusesAtTheEdges()
+    {
+        using var mixer = new Mixer();
+
+        mixer.ReorderUserMixes(["chat", "stream"]);
+
+        Assert.Equal(["monitor", "chat", "stream", "auxout"], mixer.Config.Mixes.Select(m => m.Id));
+        Assert.Equal(["chat", "stream"], mixer.ExportSettings().UserMixes!.Select(m => m.Id));
+    }
+
+    [Theory]
+    [InlineData("game,music,browser,system,voicechat")]
+    [InlineData("game,game,browser,system,voicechat,sfx")]
+    [InlineData("game,music,browser,system,voicechat,sfx,unknown")]
+    public void InvalidChannelOrdersAreRejectedWithoutChangingLayout(string order)
+    {
+        using var mixer = new Mixer();
+        string[] before = [.. mixer.Config.Channels.Select(c => c.Id)];
+
+        Assert.Throws<InvalidOperationException>(() =>
+            mixer.ReorderUserChannels(order.Split(',')));
+
+        Assert.Equal(before, mixer.Config.Channels.Select(c => c.Id));
+    }
+
+    [Fact]
+    public void MonitoredMixIsValidatedAndPersisted()
+    {
+        using var mixer = new Mixer();
+
+        mixer.SetMonitoredMix("stream");
+
+        Assert.Equal("stream", mixer.MonitoredMixId);
+        Assert.Equal("stream", mixer.ExportSettings().MonitoredMixId);
+        Assert.Equal("stream", mixer.Snapshot().MonitoredMixId);
+        Assert.Throws<InvalidOperationException>(() => mixer.SetMonitoredMix("deleted"));
+        Assert.Equal("stream", mixer.MonitoredMixId);
     }
 }

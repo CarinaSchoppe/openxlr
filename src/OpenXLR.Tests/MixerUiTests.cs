@@ -88,6 +88,99 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
     });
 
     [Fact]
+    public Task OrderedStateMovesExistingCardsAndTheirSendRows() => _ui.Run(async () =>
+    {
+        await using var client = new DaemonClient();
+        var main = new MainViewModel(client);
+        JsonNode state = State();
+        ((JsonArray)state["mixer"]!["channels"]!).Add(JsonNode.Parse("""
+            {"id":"music","name":"Music","acceptsApps":true,"canDelete":true,
+             "levels":{"monitor":0.8,"stream":0.6,"chat":0.4}}
+            """));
+        ((JsonArray)state["mixer"]!["mixes"]!).Add(JsonNode.Parse("""
+            {"id":"chat","name":"Chat","isVirtualMic":true,"canDelete":true}
+            """));
+        main.Apply(state);
+        ChannelViewModel game = main.Channels.Single(c => c.Id == "game");
+        MixViewModel stream = main.Mixes.Single(m => m.Id == "stream");
+
+        JsonArray channels = (JsonArray)state["mixer"]!["channels"]!;
+        JsonNode musicNode = channels[1]!;
+        channels.RemoveAt(1);
+        channels.Insert(0, musicNode);
+        JsonArray mixes = (JsonArray)state["mixer"]!["mixes"]!;
+        JsonNode chatNode = mixes[2]!;
+        mixes.RemoveAt(2);
+        mixes.Insert(1, chatNode);
+        main.Apply(state);
+
+        Assert.Equal(["music", "game"], main.Channels.Select(c => c.Id));
+        Assert.Same(game, main.Channels[1]);
+        Assert.Equal(["monitor", "chat", "stream"], main.Mixes.Select(m => m.Id));
+        Assert.Same(stream, main.Mixes[2]);
+        Assert.Equal(["monitor", "chat", "stream"], game.Sends.Select(s => s.MixId));
+        Assert.True(main.Channels[0].CanMoveDown);
+        Assert.True(main.Channels[1].CanMoveUp);
+        Assert.True(main.Mixes[1].CanMoveDown);
+        Assert.True(main.Mixes[2].CanMoveUp);
+    });
+
+    [Fact]
+    public Task ListenButtonSwitchesTheAudibleMixThroughTheWebSocket() => _ui.Run(async () =>
+    {
+        JsonNode state = State();
+        ((JsonArray)state["mixer"]!["mixes"]!).Add(JsonNode.Parse("""
+            {"id":"chat","name":"Chat","isVirtualMic":true,"canDelete":true}
+            """));
+        var commands = new ConcurrentQueue<JsonNode>();
+        await using var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            await SocketTestServer.Send(socket, state, stop);
+            while (!stop.IsCancellationRequested)
+            {
+                JsonNode command = await SocketTestServer.Receive(socket, stop);
+                if (command["cmd"]!.GetValue<string>() == "listPlugins")
+                {
+                    await SocketTestServer.Send(socket,
+                        new { type = "plugins", plugins = Array.Empty<object>() }, stop);
+                    continue;
+                }
+                commands.Enqueue(command);
+                state["mixer"]!["monitoredMixId"] = command["mix"]!.GetValue<string>();
+                await SocketTestServer.Send(socket, state, stop);
+                await SocketTestServer.Send(socket, new
+                {
+                    type = "commandResult",
+                    requestId = command["requestId"]!.GetValue<string>(),
+                }, stop);
+            }
+        });
+        await using var client = new DaemonClient(server.Url);
+        var window = new MainWindow(client, new ServiceViewModel(() => Task.FromResult(true)),
+            new UpdatesViewModel(_ => Task.FromResult(new UpdateResult(false, "", "", ""))));
+        var main = (MainViewModel)window.DataContext!;
+        main.MinimizeToTray = false;
+        window.Height = 1400;
+        using var windows = new WindowScope(window);
+        window.Show();
+        window.FindControl<Expander>("SubmixerTile")!.IsExpanded = true;
+        await Until(() => main.Mixes.Count == 3);
+        SaveScreenshot(window, "listen-mix.png");
+        await Until(() => window.GetVisualDescendants().OfType<Button>().Any(b =>
+            b.DataContext is MixViewModel { Id: "chat" } && Equals(b.Content, "Listen")));
+        Button listen = window.GetVisualDescendants().OfType<Button>().Single(b =>
+            b.DataContext is MixViewModel { Id: "chat" } && Equals(b.Content, "Listen"));
+
+        listen.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        await Until(() => main.Mixes.Single(m => m.Id == "chat").IsMonitored);
+        JsonNode sent = Assert.Single(commands);
+        Assert.Equal("setMonitoredMix", sent["cmd"]!.GetValue<string>());
+        Assert.Equal("chat", sent["mix"]!.GetValue<string>());
+        Assert.Equal("● Listening", listen.Content);
+    });
+
+    [Fact]
     public Task IdenticalInsertIdsInDifferentChannelsDoNotShareWindowsOrSyncKeys() => _ui.Run(async () =>
     {
         await using var client = new DaemonClient();
@@ -166,6 +259,9 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
     public Task AddRouteEditDeleteTravelsThroughActualUiAndWebSocket() => _ui.Run(async () =>
     {
         JsonNode state = State();
+        ((JsonArray)state["mixer"]!["mixes"]!).Add(JsonNode.Parse("""
+            {"id":"chat","name":"Chat","isVirtualMic":true,"canDelete":true}
+            """));
         var commands = new ConcurrentQueue<JsonNode>();
         await using var server = await SocketTestServer.Start(async (socket, stop) =>
         {
@@ -182,10 +278,32 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
                 }
                 if (cmd == "createChannel")
                     ((JsonArray)state["mixer"]!["channels"]!).Add(JsonNode.Parse("""
-                        {"id":"qa","name":"QA","acceptsApps":true,"canDelete":true,"levels":{"monitor":0,"stream":0}}
+                        {"id":"qa","name":"QA","acceptsApps":true,"canDelete":true,
+                         "levels":{"monitor":0,"stream":0,"chat":0}}
                         """));
+                if (cmd is "reorderChannels" or "reorderMixes")
+                {
+                    JsonArray items = (JsonArray)state["mixer"]![
+                        cmd == "reorderChannels" ? "channels" : "mixes"]!;
+                    var byId = items.ToDictionary(
+                        item => item!["id"]!.GetValue<string>(), item => item!);
+                    items.Clear();
+                    foreach (JsonNode? orderedId in command["order"]!.AsArray())
+                        items.Add(byId[orderedId!.GetValue<string>()]);
+                    if (cmd == "reorderMixes")
+                    {
+                        items.Insert(0, JsonNode.Parse(
+                            """{"id":"monitor","name":"Monitor","isMonitor":true}"""));
+                    }
+                }
                 if (cmd == "assignApp") state["mixer"]!["streams"]![0]!["channelId"] = command["channel"]!.GetValue<string>();
-                if (cmd == "deleteChannel") ((JsonArray)state["mixer"]!["channels"]!).RemoveAt(1);
+                if (cmd == "deleteChannel")
+                {
+                    JsonArray channels = (JsonArray)state["mixer"]!["channels"]!;
+                    JsonNode deleted = channels.Single(c =>
+                        c!["id"]!.GetValue<string>() == command["channel"]!.GetValue<string>())!;
+                    channels.Remove(deleted);
+                }
                 await SocketTestServer.Send(socket, state, stop);
                 if (command["requestId"] is JsonNode id)
                     await SocketTestServer.Send(socket, new { type = "commandResult", requestId = id.GetValue<string>() }, stop);
@@ -203,6 +321,17 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
         await Until(() => main.Channels.Count == 2 && !main.LayoutBusy);
         Assert.Equal("Layout saved.", main.LayoutNote);
         Assert.Equal("", setup.FindControl<TextBox>("ChannelName")!.Text);
+
+        Button channelUp = setup.GetVisualDescendants().OfType<Button>().Single(b =>
+            b.DataContext is ChannelViewModel { Id: "qa" } && Equals(b.Content, "↑"));
+        channelUp.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Until(() => !main.LayoutBusy && main.Channels[0].Id == "qa");
+        Assert.Equal("Order saved.", main.LayoutNote);
+
+        Button mixUp = setup.GetVisualDescendants().OfType<Button>().Single(b =>
+            b.DataContext is MixViewModel { Id: "chat" } && Equals(b.Content, "↑"));
+        mixUp.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Until(() => !main.LayoutBusy && main.Mixes[1].Id == "chat");
 
         var flow = windows.Items[1];
         ComboBox picker = flow.GetVisualDescendants().OfType<ComboBox>().Single();
@@ -253,8 +382,12 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
                     continue;
                 }
                 requests.Enqueue(request);
-                await SocketTestServer.Send(socket, new { type = "commandResult",
-                    requestId = request["requestId"]!.GetValue<string>(), error = "Test display unavailable" }, stop);
+                await SocketTestServer.Send(socket, new
+                {
+                    type = "commandResult",
+                    requestId = request["requestId"]!.GetValue<string>(),
+                    error = "Test display unavailable",
+                }, stop);
             }
         });
         await using var client = new DaemonClient(server.Url);
@@ -287,8 +420,9 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
     });
 
     internal static JsonNode State() => JsonNode.Parse("""
-        {"type":"state","features":["editableLayout","commandResults"],"connected":false,
-         "mixer":{"mixes":[{"id":"monitor","name":"Monitor","isMonitor":true},
+        {"type":"state","features":["editableLayout","commandResults","layoutOrder","monitorMixSelection"],"connected":false,
+         "mixer":{"monitoredMixId":"monitor",
+                  "mixes":[{"id":"monitor","name":"Monitor","isMonitor":true},
                              {"id":"stream","name":"Stream","isVirtualMic":true}],
                   "channels":[{"id":"game","name":"Game","acceptsApps":true,"canDelete":true,
                                "levels":{"monitor":0.5,"stream":0.7}}],

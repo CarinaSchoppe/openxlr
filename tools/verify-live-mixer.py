@@ -135,7 +135,8 @@ def verify_application_routing(sock):
             playback.stderr.close()
 
 
-def capture_peak(channel="qa-channel", identity="openxlr-live-qa", frequency=440, screenshot=None):
+def capture_peak(channel="qa-channel", identity="openxlr-live-qa", frequency=440,
+                 screenshot=None, capture_device="OpenXLR_qa-output"):
     """Measure a synthetic tone through the added virtual output.
 
     Only the isolated output mix receives it; its monitor send is muted first.
@@ -143,7 +144,7 @@ def capture_peak(channel="qa-channel", identity="openxlr-live-qa", frequency=440
     """
     samples = array.array("f", (0.2 * math.sin(i * 2 * math.pi * frequency / 48000)
                                for i in range(48000) for _ in range(2))).tobytes()
-    capture = subprocess.Popen(["parec", "-d", "OpenXLR_qa-output", "--format=float32le",
+    capture = subprocess.Popen(["parec", "-d", capture_device, "--format=float32le",
                                 "--channels=2", "--rate=48000", "--latency-msec=30"], stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
     # Start in a muted non-target channel. The daemon must honor the saved
@@ -232,6 +233,7 @@ def main():
     was_active = subprocess.run(["systemctl", "--user", "is-active", "--quiet", normal]).returncode == 0
     unit = f"openxlr-validation-{os.getpid()}.service"
     sock = None
+    monitor_module = None
     defaults = (run("pactl", "get-default-sink"), run("pactl", "get-default-source"))
     with tempfile.TemporaryDirectory(prefix="openxlr-validation-") as config:
         try:
@@ -284,9 +286,47 @@ def main():
             mixer = command(sock, "setMixVolume", mix="qa-output", value=1)
             assert {"parallel-a", "parallel-b"} <= {c["id"] for c in mixer["channels"]}
             print("PASS concurrent layout transactions", flush=True)
+
+            # Reordering is presentation-only: the authoritative state and
+            # durable settings change, while the existing PipeWire nodes keep
+            # their registry ids and continue carrying audio.
+            tracked_names = {"OpenXLR_ch_qa-channel", "OpenXLR_qa-output"}
+            before_ids = {n["info"]["props"]["node.name"]: n["id"] for n in parse_dump(run("pw-dump"))
+                          if n.get("info", {}).get("props", {}).get("node.name") in tracked_names}
+            channel_order = [c["id"] for c in mixer["channels"] if c.get("acceptsApps")]
+            mix_order = [m["id"] for m in mixer["mixes"] if m.get("isVirtualMic")]
+            mixer = command(sock, "reorderChannels", order=list(reversed(channel_order)))
+            assert [c["id"] for c in mixer["channels"] if c.get("acceptsApps")] == list(reversed(channel_order))
+            mixer = command(sock, "reorderMixes", order=list(reversed(mix_order)))
+            assert [m["id"] for m in mixer["mixes"] if m.get("isVirtualMic")] == list(reversed(mix_order))
+            after_ids = {n["info"]["props"]["node.name"]: n["id"] for n in parse_dump(run("pw-dump"))
+                         if n.get("info", {}).get("props", {}).get("node.name") in tracked_names}
+            assert before_ids == after_ids and set(before_ids) == tracked_names, (before_ids, after_ids)
+            saved = json.loads((Path(config) / "openxlr/mixer.json").read_text())
+            assert [c["id"] for c in saved["userChannels"]] == list(reversed(channel_order))
+            assert [m["id"] for m in saved["userMixes"]] == list(reversed(mix_order))
+            print("PASS durable channel/mix order changes without rebuilding PipeWire nodes", flush=True)
+
             command(sock, "setLevel", channel="parallel-b", mix="monitor", value=0)
             command(sock, "setLevel", channel="parallel-a", mix="monitor", value=0)
             verify_application_routing(sock)
+
+            # A private null sink stands in for headphones. Listening to the QA
+            # output must send its real post-insert signal there; switching back
+            # to Monitor makes the same application silent because that send is 0.
+            monitor_sink = f"openxlr_validation_monitor_{os.getpid()}"
+            monitor_module = run("pactl", "load-module", "module-null-sink",
+                                 f"sink_name={monitor_sink}")
+            mixer = command(sock, "setMonitorOutputs", devices=[monitor_sink])
+            mixer = command(sock, "setMonitoredMix", mix="qa-output")
+            assert mixer["monitoredMixId"] == "qa-output"
+            listened_peak = capture_peak(capture_device=f"{monitor_sink}.monitor")
+            assert 0.15 < listened_peak < 0.25, listened_peak
+            mixer = command(sock, "setMonitoredMix", mix="monitor")
+            monitor_peak = capture_peak(capture_device=f"{monitor_sink}.monitor")
+            assert monitor_peak < 0.001, monitor_peak
+            command(sock, "setMonitoredMix", mix="qa-output")
+            print(f"PASS Listen routes the selected real mix: output={listened_peak:.4f}, monitor={monitor_peak:.4f}", flush=True)
 
             dry_peak = capture_peak()
             assert 0.15 < dry_peak < 0.25, dry_peak
@@ -383,13 +423,16 @@ def main():
                 assert next(m for m in mixer["mixes"] if m["id"] == "qa-output")["name"] == "QA Persisted"
                 assert nodes().count("OpenXLR_qa-output") == 1
                 print(f"PASS automatic {signal_name} recovery + persisted layout + unique nodes", flush=True)
+            fallback_channel = next(c["id"] for c in mixer["channels"]
+                                    if c.get("acceptsApps") and c["id"] != "qa-channel")
             command(sock, "deleteChannel", channel="qa-channel")
             mixer = command(sock, "deleteMix", mix="qa-output")
+            assert mixer["monitoredMixId"] == "monitor", mixer["monitoredMixId"]
             assert "mix:qa-output" not in mixer.get("inserts", {})
             assert "qa-channel" not in mixer.get("inserts", {})
             assert not any(n and ("qa-channel" in n or "qa-output" in n) for n in nodes())
             saved = json.loads((Path(config) / "openxlr/mixer.json").read_text())
-            assert saved["appOverrides"]["openxlr-live-qa"] == "game"
+            assert saved["appOverrides"]["openxlr-live-qa"] == fallback_channel
             assert not any("qa-channel" in key or "qa-output" in key for key in saved["levels"])
             print("PASS deletion removes real nodes, inserts, sends and remaps applications", flush=True)
 
@@ -402,6 +445,8 @@ def main():
             if sock is not None:
                 sock.close(timeout=0)
             subprocess.run(["systemctl", "--user", "stop", unit], capture_output=True, timeout=60)
+            if monitor_module is not None:
+                subprocess.run(["pactl", "unload-module", monitor_module], capture_output=True, timeout=30)
             if was_active:
                 run("systemctl", "--user", "start", normal)
                 print("Original daemon service restored.", flush=True)

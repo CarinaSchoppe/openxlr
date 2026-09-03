@@ -49,7 +49,7 @@ Thread.Sleep(300);  // let ALSA's mirror of the feature unit catch up before rea
 Console.WriteLine($"  restored {s0.GainDb} dB -> ALSA = {AlsaGain()}");
 
 Console.WriteLine("\nMute cross-check (device write -> ALSA read):");
-dev.SetMute(true);  Thread.Sleep(300); Console.WriteLine($"  mute true  -> ALSA capture switch = {AlsaMute()} (expect off)");
+dev.SetMute(true); Thread.Sleep(300); Console.WriteLine($"  mute true  -> ALSA capture switch = {AlsaMute()} (expect off)");
 dev.SetMute(false); Thread.Sleep(300); Console.WriteLine($"  mute false -> ALSA capture switch = {AlsaMute()} (expect on)");
 dev.SetMute(s0.Mute);
 

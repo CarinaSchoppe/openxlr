@@ -63,6 +63,9 @@ modules or custom drivers:
   application streams are then moved to their remembered or fallback
   channel in the new graph. If the rebuild fails, the previous layout is
   restored.
+- Reordering channels or output mixes changes only the persisted model and
+  client presentation order. Stable ids and the live graph stay untouched, so
+  audio is not interrupted.
 - Renames keep the internal id stable, so application assignments, profile
   cells, insert keys, and controller references continue to resolve.
 - Safety DSP (the software low cut and ClipGuard) uses `filter-chain` nodes, each held by a
@@ -79,6 +82,9 @@ modules or custom drivers:
   wired by capture-channel pair (XLR 1 = pair 0, XLR 2 = pair 1, Line
   In/USB Aux = pair 2); the Aux mix feeds the device's aux return pair
   so the hardware forwards it to the USB Aux port.
+- The selected monitor devices read the post-insert tap of whichever mix has
+  its Listen button active. Hotplug healing and plugin-chain rebuilds resolve
+  that saved mix id again; deleting it falls back to the structural Monitor mix.
 - `pw-dump` reads the graph, `wpctl` sets card profiles (parking the
   Pro on pro-audio) and node volumes, and `parec` on the sinks'
   monitors feeds the level meters.

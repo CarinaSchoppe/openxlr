@@ -16,7 +16,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 
 The first message on a connection is always `state`, before meter frames.
 The `state.features` array advertises `editableLayout`, `commandResults`,
-`channelInserts` and `nativePluginUi`;
+`channelInserts`, `nativePluginUi`, `layoutOrder` and `monitorMixSelection`;
 clients must check features rather than comparing release version strings.
 For example, send `{"cmd":"createMix","name":"Podcast","requestId":"unique-id"}`.
 An authoritative `state` precedes the matching `commandResult`. Layout
@@ -39,11 +39,14 @@ Commands are single JSON objects with a `cmd` field:
 | `createChannel` | `name` | add an application channel and rebuild the owned PipeWire graph |
 | `renameChannel` | `channel`, `name` | change its display/device name while keeping its stable id and references |
 | `deleteChannel` | `channel` | delete an application channel; assigned apps move to the first remaining application channel |
+| `reorderChannels` | `order[]` | set every editable application channel id in presentation order; no graph rebuild |
 | `createMix` | `name` | add a virtual output mix and publish its `OpenXLR <name>` recording device |
 | `renameMix` | `mix`, `name` | change an output's display/device name while keeping its stable id and sends |
 | `deleteMix` | `mix` | delete a user-created virtual output, its sends, inserts and PipeWire devices |
-| `setMonitorOutputs` | `devices[]` | every sink the monitor mix feeds |
-| `setMonitorOutput` | `device` | a single monitor sink; `null` disconnects the route |
+| `reorderMixes` | `order[]` | set every user-created output mix id in presentation order; no graph rebuild |
+| `setMonitoredMix` | `mix` | listen to this mix's post-insert signal on the selected monitor devices |
+| `setMonitorOutputs` | `devices[]` | every sink the currently listened mix feeds |
+| `setMonitorOutput` | `device` | a single sink for the listened mix; `null` disconnects the route |
 | `setAuxPortEnabled` | `value` | send the Aux mix to the USB Aux port |
 | `setOutputVolume` | `value` | volume of the selected monitor devices |
 | `listPlugins` | none | the installed LV2 plugins, answered with a `plugins` message |
@@ -68,7 +71,7 @@ handler is `WebSocketHub.cs` and the message shapes are in
 All under `~/.config/openxlr/` (or `$XDG_CONFIG_HOME/openxlr/`):
 
 - `mixer.json`: every mixer decision: the user-managed channel/output
-  layout, levels, mutes, device choices, the app registry, enforced
+  layout and order, levels, mutes, monitor devices/listened mix, the app registry, enforced
   defaults, the software low cut, and insert chains. Written by the daemon.
 - `profiles/<vid-pid>/<name>.json`: the named scenes, one file each
 - `gainlock.json`: which devices have the gain lock set

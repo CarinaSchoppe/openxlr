@@ -44,8 +44,11 @@ public sealed record Command
     /// </summary>
     [JsonPropertyName("device")] public string? Device { get; init; }
 
-    /// <summary>For "setMonitorOutputs": every output the monitor mix should feed.</summary>
+    /// <summary>For "setMonitorOutputs": every output the listened mix should feed.</summary>
     [JsonPropertyName("devices")] public List<string>? Devices { get; init; }
+
+    /// <summary>For layout reorder commands: every editable id in its desired order.</summary>
+    [JsonPropertyName("order")] public List<string>? Order { get; init; }
 
     /// <summary>For "assignApp": the application identity to route.</summary>
     [JsonPropertyName("identity")] public string? Identity { get; init; }

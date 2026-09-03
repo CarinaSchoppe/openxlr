@@ -107,6 +107,12 @@ public partial class MainWindow : Window
     private void OnMixerSetup(object? sender, RoutedEventArgs e)
         => new MixerSetupWindow { DataContext = _vm }.ShowDialog(this);
 
+    private async void OnMonitorMix(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is MixViewModel mix)
+            await _vm.MonitorMix(mix.Id);
+    }
+
     private void OnAbout(object? sender, RoutedEventArgs e)
         => new AboutWindow().ShowDialog(this);
 

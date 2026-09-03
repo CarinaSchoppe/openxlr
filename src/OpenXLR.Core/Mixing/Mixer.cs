@@ -28,13 +28,14 @@ public sealed class Mixer : IDisposable
     private readonly HashSet<string> _mixMuted = [];
     private readonly object _gate = new();
 
-    // The monitor mix's routes to its output devices (direct port links; the
-    // monitor can feed several at once) and the hardware interface's per-pair
+    // The listened mix's routes to its output devices (direct port links; one
+    // mix can feed several at once) and the hardware interface's per-pair
     // feeds into the input channels (XLR 1, XLR 2, Line In). Routes are keyed
     // by physical link target, so several pseudo-outputs sharing one underlying
     // route (the Wave XLR Pro's jacks all ride its monitor bus) make one link.
     private readonly Dictionary<string, PortLink> _monitorRoutes = [];
     private readonly List<string> _monitorOutputs = [];
+    private string _monitoredMixId = "monitor";
     private readonly Dictionary<string, PortLink> _inputFeeds = [];
     private string? _inputDevice;   // the capture device the feeds come from
     private long _inputChainGeneration;
@@ -66,6 +67,56 @@ public sealed class Mixer : IDisposable
     public MixerConfig Config => _config;
     public bool Built => _built;
 
+    /// <summary>
+    /// Change only the presentation order of application channels. Stable ids,
+    /// PipeWire nodes, routes, and audio keep running unchanged.
+    /// </summary>
+    public void ReorderUserChannels(IReadOnlyList<string> orderedIds)
+    {
+        lock (_gate)
+        {
+            var current = _config.Channels.Where(c => c.InputPair is null).ToList();
+            ValidateOrder("reorderChannels", orderedIds, current.Select(c => c.Id));
+            var byId = current.ToDictionary(c => c.Id, StringComparer.Ordinal);
+            _config = _config with
+            {
+                Channels = [.. _config.Channels.Where(c => c.InputPair is not null),
+                    .. orderedIds.Select(id => byId[id])],
+            };
+        }
+    }
+
+    /// <summary>
+    /// Change only the presentation order of user-created output mixes. The
+    /// structural Monitor and Aux buses keep their fixed edge positions.
+    /// </summary>
+    public void ReorderUserMixes(IReadOnlyList<string> orderedIds)
+    {
+        lock (_gate)
+        {
+            var current = _config.Mixes.Where(m => m.Kind == MixKind.VirtualMic).ToList();
+            ValidateOrder("reorderMixes", orderedIds, current.Select(m => m.Id));
+            var byId = current.ToDictionary(m => m.Id, StringComparer.Ordinal);
+            _config = _config with
+            {
+                Mixes = [.. _config.Mixes.Where(m => m.Kind == MixKind.Monitor),
+                    .. orderedIds.Select(id => byId[id]),
+                    .. _config.Mixes.Where(m => m.Kind == MixKind.AuxPort)],
+            };
+        }
+    }
+
+    private static void ValidateOrder(string command, IReadOnlyList<string> requested,
+        IEnumerable<string> existing)
+    {
+        var expected = existing.ToHashSet(StringComparer.Ordinal);
+        bool valid = requested.Count == expected.Count &&
+            requested.Distinct(StringComparer.Ordinal).Count() == requested.Count &&
+            requested.All(expected.Contains);
+        if (!valid)
+            throw new InvalidOperationException($"{command}: order must contain every editable item exactly once");
+    }
+
     private static string Cell(string channel, string mix) => $"{channel}|{mix}";
 
     // channel id -> its combine module; "channel|mix" -> that leg's sink-input index
@@ -87,7 +138,7 @@ public sealed class Mixer : IDisposable
 
     /// <summary>
     /// Create the whole graph. <paramref name="monitorOutputSink"/> is the sink
-    /// the monitor mix feeds. Default-device enforcement is owned by the daemon,
+    /// the initially listened mix feeds. Default-device enforcement is owned by the daemon,
     /// not graph construction, so rebuilding does not change the user's policy.
     /// </summary>
     public void Build(MixerConfig config, string? monitorOutputSink = null)
@@ -96,6 +147,7 @@ public sealed class Mixer : IDisposable
         {
             if (_built) TearDownLocked();
             _config = config;
+            _monitoredMixId = ResolveMonitoredMixId(_monitoredMixId);
 
             // A crashed or killed daemon never runs its teardown, and loading
             // over its leftover nodes fails the whole build with a name
@@ -580,13 +632,12 @@ public sealed class Mixer : IDisposable
                 // changes when a chain comes or goes.
                 _mixPostLinks[key] = _pw.LinkNodes(node, prefix, mix.PostSinkName, "playback");
                 break;
-            case MixKind.Monitor:
-                SetMonitorOutputsLocked([.. _monitorOutputs]);
-                break;
             case MixKind.AuxPort:
                 WireAuxRouteLocked();
                 break;
         }
+        if (mix.Id == _monitoredMixId)
+            SetMonitorOutputsLocked([.. _monitorOutputs]);
     }
 
     private List<InsertDefinition> InsertsFor(string channelId)
@@ -869,6 +920,7 @@ public sealed class Mixer : IDisposable
                 Levels = new Dictionary<string, double>(_levels),
                 ChannelMuted = [.. _muted],
                 MonitorOutputs = [.. _monitorOutputs],
+                MonitoredMixId = _monitoredMixId,
                 AppOverrides = new Dictionary<string, string>(Matcher.Overrides),
                 KnownApps = [.. _apps.Values.Select(a => new SavedApp(a.Identity, a.Label, a.ChannelId))],
                 EnforcedDefaultSink = _enforcedSink,
@@ -937,6 +989,7 @@ public sealed class Mixer : IDisposable
 
             foreach (MixDefinition mix in _config.Mixes) ReapplyMixLocked(mix.Id);
 
+            _monitoredMixId = ResolveMonitoredMixId(s.MonitoredMixId);
             IReadOnlyList<string> savedOutputs = s.MonitorOutputs is { Count: > 0 }
                 ? s.MonitorOutputs
                 : s.MonitorOutput is not null ? [s.MonitorOutput] : [];
@@ -993,6 +1046,7 @@ public sealed class Mixer : IDisposable
                 Levels = new Dictionary<string, double>(_levels),
                 ChannelMuted = [.. _muted],
                 MonitorOutputs = [.. _monitorOutputs],
+                MonitoredMixId = _monitoredMixId,
                 AuxPortEnabled = _auxPortEnabled,
                 OutputVolume = _outputVolume,
                 LowCutHz = _lowCutHz,
@@ -1027,11 +1081,21 @@ public sealed class Mixer : IDisposable
 
             foreach (MixDefinition mix in _config.Mixes) ReapplyMixLocked(mix.Id);
 
+            bool monitoredMixChanged = false;
+            if (s.MonitoredMixId is not null)
+            {
+                string selected = ResolveMonitoredMixId(s.MonitoredMixId);
+                monitoredMixChanged = selected != _monitoredMixId;
+                _monitoredMixId = selected;
+            }
+
             // An empty list is a real scene choice: disconnect every monitor
             // route. Null belongs to an older profile that did not store this
             // field, so preserve the current route for backwards compatibility.
             if (s.MonitorOutputs is not null)
                 SetMonitorOutputsLocked(s.MonitorOutputs);
+            else if (monitoredMixChanged)
+                SetMonitorOutputsLocked([.. _monitorOutputs]);
             _auxPortEnabled = s.AuxPortEnabled;
             WireAuxRouteLocked();
 
@@ -1158,15 +1222,42 @@ public sealed class Mixer : IDisposable
     /// <summary>All selected monitor outputs, in selection order.</summary>
     public IReadOnlyList<string> MonitorOutputs { get { lock (_gate) return [.. _monitorOutputs]; } }
 
+    /// <summary>The mix whose post-insert signal is heard on the monitor outputs.</summary>
+    public string MonitoredMixId { get { lock (_gate) return _monitoredMixId; } }
+
     /// <summary>
-    /// Send the monitor mix to one output device (or none). Kept for clients
+    /// Listen to any existing output mix on the selected physical outputs.
+    /// The mix's master, mute, and insert chain stay in the monitored path.
+    /// </summary>
+    public void SetMonitoredMix(string mixId)
+    {
+        lock (_gate)
+        {
+            if (!_config.Mixes.Any(m => m.Id == mixId))
+                throw new InvalidOperationException($"unknown monitored mix '{mixId}'");
+            if (_monitoredMixId == mixId) return;
+            _monitoredMixId = mixId;
+            if (_built) SetMonitorOutputsLocked([.. _monitorOutputs]);
+        }
+    }
+
+    private string ResolveMonitoredMixId(string? requested)
+    {
+        if (requested is not null && _config.Mixes.Any(m => m.Id == requested)) return requested;
+        return _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor)?.Id
+            ?? _config.Mixes.FirstOrDefault()?.Id
+            ?? "monitor";
+    }
+
+    /// <summary>
+    /// Send the listened mix to one output device (or none). Kept for clients
     /// that think in a single monitor destination.
     /// </summary>
     public void SetMonitorOutput(string? sinkName)
         => SetMonitorOutputs(sinkName is null ? [] : [sinkName]);
 
     /// <summary>
-    /// Send the monitor mix to any set of output devices at once. Any sink
+    /// Send the listened mix to any set of output devices at once. Any sink
     /// works, virtual ones included; an empty list disconnects the monitor.
     /// </summary>
     public void SetMonitorOutputs(IReadOnlyList<string> sinkNames)
@@ -1186,9 +1277,9 @@ public sealed class Mixer : IDisposable
             if (name.EndsWith("#usbaux", StringComparison.Ordinal)) continue;
             _monitorOutputs.Add(name);
         }
-        MixDefinition? monitor = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor);
-        if (monitor is null) return;
-        (string tapNode, string tapPrefix) = MixTapLocked(monitor);
+        MixDefinition? listenedMix = _config.Mixes.FirstOrDefault(m => m.Id == _monitoredMixId);
+        if (listenedMix is null) return;
+        (string tapNode, string tapPrefix) = MixTapLocked(listenedMix);
         foreach ((string key, string target) in MonitorRouteTargetsLocked())
             _monitorRoutes[key] = _pw.RouteTapToOutput(tapNode, tapPrefix, target);
     }
@@ -1210,7 +1301,7 @@ public sealed class Mixer : IDisposable
     }
 
     /// <summary>
-    /// Verify the monitor mix's device links and repair what died: a USB
+    /// Verify the listened mix's device links and repair what died: a USB
     /// output that re-enumerates (suspend, reset, profile change) takes its
     /// node and every link on it along, and a device absent at wiring time
     /// got no links at all. Runs every sweep; true when something changed.
@@ -1220,8 +1311,8 @@ public sealed class Mixer : IDisposable
         lock (_gate)
         {
             if (!_built || _monitorOutputs.Count == 0) return false;
-            MixDefinition? monitor = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor);
-            if (monitor is null) return false;
+            MixDefinition? listenedMix = _config.Mixes.FirstOrDefault(m => m.Id == _monitoredMixId);
+            if (listenedMix is null) return false;
             bool changed = false;
             foreach ((string key, string target) in MonitorRouteTargetsLocked())
             {
@@ -1233,7 +1324,7 @@ public sealed class Mixer : IDisposable
                     if (health == LinkHealth.Relinked) { changed = true; continue; }
                     _pw.Unlink(route);   // Broken: the port names themselves are stale
                 }
-                (string tapNode, string tapPrefix) = MixTapLocked(monitor);
+                (string tapNode, string tapPrefix) = MixTapLocked(listenedMix);
                 _monitorRoutes[key] = _pw.RouteTapToOutput(tapNode, tapPrefix, target);
                 changed |= _monitorRoutes[key].Pairs.Count > 0;
             }
@@ -1481,6 +1572,7 @@ public sealed class Mixer : IDisposable
         lock (_gate)
         {
             DspFeatureAvailability clipGuard = _pw.GetSoftwareClipGuardAvailability();
+            bool canDeleteApplicationChannel = _config.Channels.Count(c => c.InputPair is null) > 1;
             return new MixerState
             {
                 Mixes = [.. _config.Mixes.Select(m => new MixStatus(
@@ -1497,9 +1589,10 @@ public sealed class Mixer : IDisposable
                     [.. _config.Mixes.Where(m => _muted.Contains(Cell(c.Id, m.Id))).Select(m => m.Id)],
                     c.InputPair is not null,
                     c.InputPair is null,
-                    c.InputPair is null))],
+                    c.InputPair is null && canDeleteApplicationChannel))],
                 MonitorOutput = _monitorOutputs.FirstOrDefault(),
                 MonitorOutputs = [.. _monitorOutputs],
+                MonitoredMixId = _monitoredMixId,
                 OutputVolume = _outputVolume,
                 LowCutHz = _lowCutHz,
                 SoftClipGuard = _softClipGuard,

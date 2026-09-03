@@ -77,7 +77,8 @@ public sealed class WebSocketHub
         _devices.Snapshot() with
         {
             DaemonVersion = OpenXLR.Daemon.DaemonVersion.Current,
-            Features = ["editableLayout", "commandResults", "nativePluginUi", "channelInserts"],
+            Features = ["editableLayout", "commandResults", "nativePluginUi", "channelInserts",
+                "layoutOrder", "monitorMixSelection"],
             ActiveProfile = ActiveDeviceId() is string apId && _activeProfile.TryGetValue(apId, out string? ap) ? ap : null,
             Mixer = _mixer.Snapshot(),
             Devices = _mixer.Devices(),
@@ -187,14 +188,17 @@ public sealed class WebSocketHub
             case "createChannel":
             case "renameChannel":
             case "deleteChannel":
+            case "reorderChannels":
             case "createMix":
             case "renameMix":
             case "deleteMix":
+            case "reorderMixes":
             case "assignStream":
             case "assignApp":
             case "forgetApp":
             case "setMonitorOutput":
             case "setMonitorOutputs":
+            case "setMonitoredMix":
             case "setOutputVolume":
             case "setEnforcedDefaults":
             case "setAuxPortEnabled":

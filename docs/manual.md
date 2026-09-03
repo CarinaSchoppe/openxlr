@@ -55,7 +55,7 @@ and Chat are the initial user-managed virtual outputs:
 
 | Mix | What it is | Where it goes |
 |---|---|---|
-| Monitor | what you hear | the outputs ticked in the MONITOR card |
+| Monitor | default mix you hear | the outputs ticked in the MONITOR card |
 | Stream | what your audience hears | the `OpenXLR Stream` virtual microphone, for OBS or any recorder |
 | Chat | what your call partners hear | the `OpenXLR Chat` virtual microphone, for Discord, Zoom and the like |
 | Aux | what a second computer receives | the interface's USB Aux port (Wave XLR Pro only) |
@@ -64,6 +64,9 @@ Every channel has a **send** into every mix: a level and a mute. The
 SUBMIXER card shows them as a grid, channels down, mixes across. Each
 mix also has a **master** level and mute. A typical setup keeps Music
 loud in Monitor and lower in Stream, and out of Chat entirely.
+The **Listen** button on a mix temporarily makes that complete mix what the
+selected monitor devices play; this includes its master mute/volume and insert
+chain. The choice is saved and can be included in a profile.
 
 **Application routing**: when an app starts playing, the daemon reads
 its name from PipeWire and picks a channel by rules: browsers to
@@ -94,8 +97,8 @@ a software low cut and ClipGuard on XLR 1.
 2. In the other application, choose the microphone: `OpenXLR Chat` for
    Discord, Zoom, Teams; `OpenXLR Stream` for OBS or a recorder.
 3. Everything you add to those mixes (a game in Stream, music at a low
-   level) reaches the same virtual microphone. What you hear yourself
-   comes from the Monitor mix, which is separate.
+   level) reaches the same virtual microphone. The Monitor mix remains
+   separate unless you press Listen on Stream or Chat to audition it.
 
 Options has a tip for step 2: enforcing `OpenXLR Chat` as the system
 default input (section 3.7) makes every voice app pick it up without
@@ -103,12 +106,15 @@ configuration.
 
 ### 3.2 Choose what you hear and how loud
 
-1. In the MONITOR card, tick every device the Monitor mix should play
+1. In the MONITOR card, tick every device the currently listened mix should play
    on: your speakers, a headset, or several at once. On the Wave XLR
    Pro its own outputs (Headphones 1, Headphones 2, Line Out) appear
    here too; ticking one switches the hardware's output routing.
-2. The Volume slider sets the level of the selected devices.
-3. The HEADPHONES card holds the interface's own headphone volume,
+2. In SUBMIXER, press **Listen** on Monitor, Stream, Chat, Aux, or any
+   user-created output. Only the physical monitoring route changes; virtual
+   microphones and the USB Aux route keep carrying their own mixes.
+3. The Volume slider sets the level of the selected devices.
+4. The HEADPHONES card holds the interface's own headphone volume,
    low-impedance mode, and on the Pro the Mic ↔ PC crossfade, which is
    the zero-latency direct monitor inside the device: left is only your
    microphone, right is only computer audio.
@@ -126,13 +132,15 @@ PipeWire as an audio client; a green light means it is playing.
    different name on first play it shows up as a new entry.
 3. Forget, in the same window, drops an app and its remembered channel.
 
-The same dropdown is available on every application node in Flow. To add
-or add, rename, or remove application channels and output mixes, use Channels & outputs in
+The same dropdown is available on every application node in Flow. To add,
+rename, remove, or reorder application channels and output mixes, use Channels & outputs in
 the SUBMIXER card. A new output immediately gets a master, a send on every
 channel, an insert chain, and a selectable `OpenXLR <name>` virtual
 microphone. Deleting one removes its PipeWire devices; deleting a channel
 moves its assigned apps to the first remaining application channel. The
-owned graph is rebuilt briefly for either structural change.
+owned graph is rebuilt briefly for structural add, rename, and delete changes.
+The arrow buttons reorder cards, Flow nodes and send rows without rebuilding
+PipeWire or interrupting audio.
 
 An app that is missing from the card is not registered with PipeWire
 as a client. That happens with some applications until they start
@@ -184,7 +192,7 @@ persisted by this control-port host. VST and CLAP plugins cannot be loaded.
 ### 3.6 Save and recall a scene
 
 1. Set everything the way you want it: hardware controls, sends,
-   masters, monitor outputs, inserts.
+   masters, monitor outputs, the listened mix, and inserts.
 2. Header, Profiles: type a name and press Save.
 3. To recall: Profiles, then the name. To remove: the cross next to it.
 
@@ -304,7 +312,7 @@ its live state, so what a key displays is what the mixer window shows.
 phantom, low cut, expander, voice tune, ClipGuard, compressor, low
 impedance, the Pro's output selectors, the aux level lock, the gain
 lock), the software low cut (cycling Off, 80, 120), a mix or send mute,
-the monitor output (switching the Monitor mix to one specific device),
+the monitor output (switching the currently listened mix to one specific device),
 the bypass of one insert or of a whole chain, or a profile to recall.
 The key's LED is green for an engaged feature, red for a mute, and grey
 when the daemon is offline or the target does not exist on the

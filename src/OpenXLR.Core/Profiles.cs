@@ -23,6 +23,11 @@ public sealed record MixerScene
     /// empty list means disconnect every monitor output.
     /// </summary>
     public List<string>? MonitorOutputs { get; init; }
+    /// <summary>
+    /// Mix heard on the monitor outputs. Null in older profiles preserves the
+    /// currently selected mix when the profile is recalled.
+    /// </summary>
+    public string? MonitoredMixId { get; init; }
     public bool AuxPortEnabled { get; init; }
     public double? OutputVolume { get; init; }
     /// <summary>Software low cut (0, 80, or 120 Hz); absent in older profiles.</summary>

@@ -20,11 +20,21 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     public DeviceCapabilities Capabilities { get; } = new()
     {
         Gain = true,
-        PhysicalControls = true, Mute = true, LowCut = true, Expander = true, VoiceTune = true,
-        HpVolume = true, LowImpedance = true, Crossfade = true,
-        Phantom = true, ClipGuard = true, Compressor = true,
-        OutputRouting = true, AuxInput = true,
-        XlrInputs = 2, HpOutputs = 2,
+        PhysicalControls = true,
+        Mute = true,
+        LowCut = true,
+        Expander = true,
+        VoiceTune = true,
+        HpVolume = true,
+        LowImpedance = true,
+        Crossfade = true,
+        Phantom = true,
+        ClipGuard = true,
+        Compressor = true,
+        OutputRouting = true,
+        AuxInput = true,
+        XlrInputs = 2,
+        HpOutputs = 2,
     };
 
     private const ushort VIndex = 0x0103;

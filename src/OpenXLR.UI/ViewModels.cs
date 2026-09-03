@@ -462,9 +462,42 @@ public sealed class MainViewModel : ViewModelBase
     public Task<bool> RenameMix(string id, string name) => EditLayout(() => _client.RenameMixAsync(id, name));
     public Task<bool> DeleteMix(string id) => EditLayout(() => _client.DeleteMixAsync(id));
 
+    public Task<bool> MoveChannel(string id, int offset)
+    {
+        var items = Channels.Where(c => c.AcceptsApps).ToList();
+        return MoveLayoutItem(items, id, offset, _supportsLayoutOrder, _client.ReorderChannelsAsync);
+    }
+
+    public Task<bool> MoveMix(string id, int offset)
+    {
+        var items = Mixes.Where(m => m.IsVirtualMic).ToList();
+        return MoveLayoutItem(items, id, offset, _supportsLayoutOrder, _client.ReorderMixesAsync);
+    }
+
+    public Task<bool> MonitorMix(string id)
+    {
+        if (!_supportsMonitorMixSelection) return Task.FromResult(false);
+        return EditLayout(() => _client.SetMonitoredMixAsync(id),
+            "Switching the listened mix…", "Monitor source saved.");
+    }
+
+    private Task<bool> MoveLayoutItem<T>(List<T> items, string id, int offset, bool supported,
+        Func<IReadOnlyList<string>, Task<string?>> send) where T : IHasId
+    {
+        if (!supported || offset is not (-1 or 1)) return Task.FromResult(false);
+        int current = items.FindIndex(item => item.Id == id);
+        int target = current + offset;
+        if (current < 0 || target < 0 || target >= items.Count) return Task.FromResult(false);
+        (items[current], items[target]) = (items[target], items[current]);
+        return EditLayout(() => send([.. items.Select(item => item.Id)]),
+            "Saving the new order…", "Order saved.");
+    }
+
     private bool _layoutBusy;
     public bool LayoutBusy { get => _layoutBusy; private set { if (Set(ref _layoutBusy, value)) Raise(nameof(CanEditLayout)); } }
     private bool _supportsLayout;
+    private bool _supportsLayoutOrder;
+    private bool _supportsMonitorMixSelection;
     private bool _nativePluginUi;
     public bool SupportsChannelInserts { get; private set; }
     public bool SupportsLayout
@@ -478,16 +511,17 @@ public sealed class MainViewModel : ViewModelBase
         : !SupportsLayout ? "This daemon lacks editable layouts. Install the matching daemon build and restart it."
         : !HasMixer ? "Enable the submixer in Options first." : _layoutNote;
 
-    private async Task<bool> EditLayout(Func<Task<string?>> action)
+    private async Task<bool> EditLayout(Func<Task<string?>> action,
+        string pending = "Applying layout to PipeWire…", string success = "Layout saved.")
     {
         if (!CanEditLayout) return false;
         LayoutBusy = true;
-        _layoutNote = "Applying layout to PipeWire…";
+        _layoutNote = pending;
         Raise(nameof(LayoutNote));
         try
         {
             string? error = await action();
-            _layoutNote = error ?? "Layout saved.";
+            _layoutNote = error ?? success;
             Raise(nameof(LayoutNote));
             return error is null;
         }
@@ -502,7 +536,7 @@ public sealed class MainViewModel : ViewModelBase
     public ObservableCollection<AudioDeviceItem> Inputs { get; } = [];
 
     /// <summary>
-    /// Sinks the Monitor mix can play on, multi-selectable: everything except
+    /// Sinks the currently listened mix can play on, multi-selectable: everything except
     /// OpenXLR's own nodes (routing the monitor into its own mixer is a
     /// feedback loop).
     /// </summary>
@@ -592,6 +626,8 @@ public sealed class MainViewModel : ViewModelBase
             DaemonVersion = node["daemonVersion"]?.GetValue<string>();
             var features = (node["features"] as JsonArray)?.Select(f => f?.GetValue<string>()).ToHashSet();
             SupportsLayout = features?.Contains("commandResults") == true && features.Contains("editableLayout");
+            _supportsLayoutOrder = features?.Contains("layoutOrder") == true;
+            _supportsMonitorMixSelection = features?.Contains("monitorMixSelection") == true;
             _nativePluginUi = features?.Contains("nativePluginUi") == true;
             SupportsChannelInserts = features?.Contains("channelInserts") == true;
             DeviceConnected = node["connected"]?.GetValue<bool>() ?? false;
@@ -892,6 +928,14 @@ public sealed class MainViewModel : ViewModelBase
                 mv.Inserts.Apply(mixer["inserts"]?[$"mix:{mv.Id}"]);
                 mv.Inserts.EnsurePluginsLoaded();   // shared fetch; cheap after the first
             }
+            string monitored = mixer["monitoredMixId"]?.GetValue<string>() ?? "monitor";
+            var editable = Mixes.Where(m => m.IsVirtualMic).ToList();
+            foreach (MixViewModel mv in Mixes)
+            {
+                mv.ApplyMonitoring(mv.Id == monitored, _supportsMonitorMixSelection);
+                int position = editable.IndexOf(mv);
+                mv.ApplyLayoutPosition(position, editable.Count, _supportsLayoutOrder && position >= 0);
+            }
         }
 
         if (mixer["channels"] is JsonArray channels)
@@ -917,6 +961,12 @@ public sealed class MainViewModel : ViewModelBase
                 foreach (SendViewModel send in c.Sends.Where(s => s.MixId == "auxout"))
                     send.Visible = !DeviceConnected || CapOutputRouting;
             }
+            var editable = Channels.Where(c => c.AcceptsApps).ToList();
+            foreach (ChannelViewModel channel in Channels)
+            {
+                int position = editable.IndexOf(channel);
+                channel.ApplyLayoutPosition(position, editable.Count, _supportsLayoutOrder && position >= 0);
+            }
             IReadOnlyList<ChannelOption> appChannels = [.. Channels.Where(c => c.AcceptsApps)
                 .Select(c => new ChannelOption(c.Id, c.Name))];
             foreach (AppStreamViewModel app in Apps) app.SyncChannels(appChannels);
@@ -930,14 +980,21 @@ public sealed class MainViewModel : ViewModelBase
         where T : class, IHasId
     {
         var seen = new HashSet<string>();
+        int position = 0;
         foreach (JsonNode? item in source)
         {
             if (item is null) continue;
             string id = idOf(item);
             seen.Add(id);
             T? existing = target.FirstOrDefault(x => x.Id == id);
-            if (existing is null) { T made = create(item); update(item, made); target.Add(made); }
-            else update(item, existing);
+            if (existing is null) { existing = create(item); target.Insert(position, existing); }
+            else
+            {
+                int oldPosition = target.IndexOf(existing);
+                if (oldPosition != position) target.Move(oldPosition, position);
+            }
+            update(item, existing);
+            position++;
         }
         for (int i = target.Count - 1; i >= 0; i--)
             if (!seen.Contains(target[i].Id)) target.RemoveAt(i);
@@ -1089,6 +1146,21 @@ public sealed class MixViewModel : ViewModelBase, IHasId
     private bool _canDelete;
     public bool CanDelete { get => _canDelete; private set => Set(ref _canDelete, value); }
 
+    private bool _canMoveUp;
+    public bool CanMoveUp { get => _canMoveUp; private set => Set(ref _canMoveUp, value); }
+    private bool _canMoveDown;
+    public bool CanMoveDown { get => _canMoveDown; private set => Set(ref _canMoveDown, value); }
+
+    private bool _isMonitored;
+    public bool IsMonitored
+    {
+        get => _isMonitored;
+        private set { if (Set(ref _isMonitored, value)) Raise(nameof(MonitorButtonText)); }
+    }
+    private bool _canMonitor;
+    public bool CanMonitor { get => _canMonitor; private set => Set(ref _canMonitor, value); }
+    public string MonitorButtonText => IsMonitored ? "● Listening" : "Listen";
+
     /// <summary>This mix's stereo plugin insert chain.</summary>
     public InsertsViewModel Inserts { get; }
 
@@ -1151,6 +1223,18 @@ public sealed class MixViewModel : ViewModelBase, IHasId
         try { AuxPortEnabled = enabled; }
         finally { _applying = false; }
     }
+
+    public void ApplyMonitoring(bool selected, bool supported)
+    {
+        IsMonitored = selected;
+        CanMonitor = supported && !selected;
+    }
+
+    public void ApplyLayoutPosition(int position, int count, bool supported)
+    {
+        CanMoveUp = supported && position > 0;
+        CanMoveDown = supported && position >= 0 && position + 1 < count;
+    }
 }
 
 /// <summary>A channel with one send (level + mute) per mix.</summary>
@@ -1179,6 +1263,11 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
     public bool AcceptsApps { get => _acceptsApps; private set => Set(ref _acceptsApps, value); }
     private bool _canDelete;
     public bool CanDelete { get => _canDelete; private set => Set(ref _canDelete, value); }
+
+    private bool _canMoveUp;
+    public bool CanMoveUp { get => _canMoveUp; private set => Set(ref _canMoveUp, value); }
+    private bool _canMoveDown;
+    public bool CanMoveDown { get => _canMoveDown; private set => Set(ref _canMoveDown, value); }
 
     private bool _visible = true;
     public bool Visible { get => _visible; set => Set(ref _visible, value); }
@@ -1212,14 +1301,30 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
 
     public void SyncMixes(IReadOnlyList<(string Id, string Name)> mixes)
     {
-        foreach ((string id, string name) in mixes)
+        for (int position = 0; position < mixes.Count; position++)
         {
+            (string id, string name) = mixes[position];
             SendViewModel? existing = Sends.FirstOrDefault(s => s.MixId == id);
-            if (existing is null) Sends.Add(new SendViewModel(_client, Id, id, name));
-            else existing.MixName = name;
+            if (existing is null)
+            {
+                existing = new SendViewModel(_client, Id, id, name);
+                Sends.Insert(position, existing);
+            }
+            else
+            {
+                int oldPosition = Sends.IndexOf(existing);
+                if (oldPosition != position) Sends.Move(oldPosition, position);
+                existing.MixName = name;
+            }
         }
         for (int i = Sends.Count - 1; i >= 0; i--)
             if (!mixes.Any(m => m.Id == Sends[i].MixId)) Sends.RemoveAt(i);
+    }
+
+    public void ApplyLayoutPosition(int position, int count, bool supported)
+    {
+        CanMoveUp = supported && position > 0;
+        CanMoveDown = supported && position >= 0 && position + 1 < count;
     }
 }
 

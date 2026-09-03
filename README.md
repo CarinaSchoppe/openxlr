@@ -47,9 +47,10 @@ Collect diagnostics).
   gain lock in the PipeWire layer instead.
 - **Submixer** built from PipeWire nodes (null sinks, remap sources,
   filter chains), no kernel modules. Hardware inputs plus user-managed
-  application channels that can be added, renamed, or removed; Monitor and Aux plus any number of user-managed
+  application channels that can be added, renamed, removed, or reordered; Monitor and Aux plus any number of user-managed
   output mixes published as virtual microphones; per-send levels and
-  mutes, level meters, and the monitor mix on several outputs at once.
+  mutes, level meters, reordering, several monitor devices at once, and
+  one-click listening to any output mix through those devices.
 - **Inserts**: independent LV2 chains on every hardware/application channel
   and output mix. Open the native LSP X11/XWayland editor on the actual DSP
   instance for live EQ spectra and compression meters; edits persist with
@@ -98,11 +99,10 @@ channel are protected. Application fan-outs no longer advertise duplicate
 playback devices. Internal PipeWire buses are labelled by role and excluded
 from OpenXLR's device pickers; low-level graph tools and some desktop mixers
 still expose the underlying routing stages. They are not duplicate user channels.
-Further work includes broader hardware acceptance, additional native UI types,
-LV2 state/worker support, and replacing remaining Pulse routing buses with a
-smaller native graph. Those are planned, not claimed as implemented.
+The concrete Wave Link comparison and roadmap are listed near the end of this
+README. Planned items are not claimed as implemented.
 
-Verification includes 120 automated .NET tests, real LSP editor/audio tests,
+Verification includes 133 automated .NET tests, real LSP editor/audio tests,
 installed-package runtime checks on Ubuntu/Fedora/Arch, and a CachyOS live
 service-recovery test. Reproduction commands, measured results and tested
 limitations are recorded in [docs/verification.md](docs/verification.md).
@@ -243,6 +243,41 @@ The majority of the code was produced by the author, with AI tooling
 (Anthropic's Claude) assisting with protocol capture analysis, UI design
 and parts of the coding. Every hardware finding was verified live on a
 real device.
+
+## Wave Link 3 comparison and roadmap
+
+The comparison baseline is Elgato's current
+[Wave Link app page](https://www.elgato.com/us/en/s/wave-link-app) and
+[Wave Link 3.0 overview](https://www.elgato.com/us/en/explorer/products/wave/wave-link-3-0-software-overview/),
+not the older Wave:3 microphone name. Wave Link 3 advertises up to five output
+mixes, eight software channels, four hardware inputs, effects on inputs,
+multiple apps per channel and unlimited monitor destinations. OpenXLR already
+covers the Linux equivalents with editable application channels, any number of
+virtual output mixes, per-send submixes, multi-output monitoring, LV2 inserts,
+profiles, Flow routing, OpenDeck control, and listening to any mix. Linux uses
+LV2 rather than Wave Link's VST3/AU plugin formats.
+
+Highest-value remaining work, in priority order:
+
+1. **Flexible external inputs** — add arbitrary microphones, capture cards and
+   other PipeWire sources as managed hardware channels instead of limiting
+   structural inputs to the active Wave interface.
+2. **Sound-check recorder** — capture a short microphone sample and loop it
+   through the active insert chain while tuning EQ, dynamics and noise control.
+3. **Faster routing workflows** — foreground-application shortcuts, richer
+   multi-app grouping and generated OpenDeck layouts for frequently changed
+   routes.
+4. **Fuller plugin hosting** — LV2 worker/state/atom support, more native UI
+   toolkits, file-backed plugin state and reusable insert-chain presets.
+5. **First-run and appearance polish** — guided setup, explicit light/dark
+   themes, localization and per-channel hide/show without deleting a channel.
+6. **Smaller native PipeWire graph** — replace the remaining Pulse-compatible
+   routing buses while preserving the currently tested public device names and
+   recovery behaviour.
+
+These are roadmap items, not promises in the current build. Elgato-specific
+cloud effects and the Windows/macOS VST3/AU ecosystem are not presented as
+Linux features until a technically maintainable equivalent exists.
 
 ## License
 

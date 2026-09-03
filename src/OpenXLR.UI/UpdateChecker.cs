@@ -117,7 +117,8 @@ public sealed class UpdatesViewModel : ViewModelBase
 {
     private readonly Func<CancellationToken, Task<UpdateResult>> _check;
     public UpdatesViewModel() : this(token => new UpdateChecker().CheckAsync(
-        AppVersion.Repository, AppVersion.Current, AppVersion.Revision, token)) { }
+        AppVersion.Repository, AppVersion.Current, AppVersion.Revision, token))
+    { }
     internal UpdatesViewModel(Func<CancellationToken, Task<UpdateResult>> check) => _check = check;
 
     public string Build => AppVersion.BuildDescription;

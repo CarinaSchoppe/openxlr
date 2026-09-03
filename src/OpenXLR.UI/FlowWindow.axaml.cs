@@ -80,9 +80,10 @@ public partial class FlowWindow : Window
         var mixes = _vm.Mixes.ToList();
 
         var outputs = new List<(string Key, string Label, string MixId, bool Active)>();
-        string? monitorId = mixes.FirstOrDefault(m => m.IsMonitor)?.Id;
+        string? listenedMixId = mixes.FirstOrDefault(m => m.IsMonitored)?.Id
+            ?? mixes.FirstOrDefault(m => m.IsMonitor)?.Id;
         foreach (MonitorOutputItem o in _vm.MonitorOutputs.Where(o => o.IsSelected))
-            if (monitorId is not null) outputs.Add(($"out:{o.Name}", o.Label, monitorId, true));
+            if (listenedMixId is not null) outputs.Add(($"out:{o.Name}", o.Label, listenedMixId, true));
         foreach (MixViewModel virtualMix in mixes.Where(m => m.IsVirtualMic))
             outputs.Add(($"vm:{virtualMix.Id}", $"OpenXLR {virtualMix.Name} (virtual mic)", virtualMix.Id, true));
         MixViewModel? auxMix = mixes.FirstOrDefault(m => m.IsAuxPort);

@@ -22,6 +22,7 @@ from native_ui_smoke import wheel_compressor_output
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--native-ui", action="store_true", help="Test a real native LSP control gesture; use xvfb-run in CI")
+    parser.add_argument("--screenshot", type=Path, help="Capture the tested native editor before the gesture (requires ImageMagick)")
     options = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]
     processes = []
@@ -139,7 +140,7 @@ def main():
                 while lines.get(timeout=max(0.01, deadline - time.monotonic())) != "ui opened":
                     pass
                 time.sleep(1.5)  # include LSP's delayed first-run greeting in the acceptance path
-                wheel_compressor_output("qa_plugin")
+                wheel_compressor_output("qa_plugin", options.screenshot)
                 deadline = time.monotonic() + 5
                 while True:
                     message = lines.get(timeout=max(0.01, deadline - time.monotonic()))

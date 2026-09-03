@@ -33,8 +33,16 @@ jobs:
 
       - name: Native audio regression (private servers, no hardware)
         run: |
-          sudo apt-get install -y pipewire pipewire-pulse wireplumber pulseaudio-utils lsp-plugins-lv2 dbus xvfb xauth
-          xvfb-run -a python3 tools/verify-native-host.py --native-ui
+          sudo apt-get install -y pipewire pipewire-pulse wireplumber pulseaudio-utils lsp-plugins-lv2 dbus xvfb xauth imagemagick
+          xvfb-run -a python3 tools/verify-native-host.py --native-ui --screenshot native-compressor.png
+
+      - name: Retain native UI diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-ui-diagnostics
+          path: native-compressor.png
+          if-no-files-found: ignore
 
       - name: Validate Stream Deck/OpenDeck plugin
         run: |

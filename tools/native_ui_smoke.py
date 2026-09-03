@@ -6,6 +6,7 @@ callback and measured audio change; an incompatible layout fails the test.
 """
 import ctypes as c
 import ctypes.util
+import subprocess
 
 
 class Button(c.Structure):
@@ -20,7 +21,7 @@ class Event(c.Union):
     _fields_ = [("button", Button), ("padding", c.c_long * 24)]
 
 
-def wheel_compressor_output(node="OpenXLR_ins_ch_qa-channel_in_lv2_0"):
+def wheel_compressor_output(node="OpenXLR_ins_ch_qa-channel_in_lv2_0", screenshot=None):
     x = c.CDLL(ctypes.util.find_library("X11"))
     ptr, win = c.c_void_p, c.c_ulong
     x.XOpenDisplay.argtypes, x.XOpenDisplay.restype = [c.c_char_p], ptr
@@ -67,13 +68,23 @@ def wheel_compressor_output(node="OpenXLR_ins_ch_qa-channel_in_lv2_0"):
     try:
         window = find(root)
         assert window, "test instance's native window not found"
+        if screenshot:
+            subprocess.run(["import", "-window", str(window), str(screenshot)], check=True, timeout=10)
         gx, gy, rx, ry = (c.c_int() for _ in range(4))
         width, height, border, depth = (c.c_uint() for _ in range(4))
         child, geom_root = win(), win()
         x.XGetGeometry(display, window, c.byref(geom_root), c.byref(gx), c.byref(gy),
                        c.byref(width), c.byref(height), c.byref(border), c.byref(depth))
-        assert width.value > 800 and height.value > 450, "unexpected LSP layout"
-        px, py = round(width.value * 900 / 945), round(height.value * 441 / 546)
+        # LSP 1.2.14 (Ubuntu 24.04) puts Output in the right sidebar;
+        # 1.2.35 puts it in the lower-right Signal group. These anchors are
+        # from captured default layouts. Never guess in an unknown layout:
+        # callers also require the exact g_out callback and audio response.
+        layouts = ((973, 525, 947, 241), (944, 548, 900, 442))
+        layout = next((entry for entry in layouts
+                       if abs(width.value / height.value - entry[0] / entry[1]) < 0.03), None)
+        assert layout, f"unsupported LSP test layout: {width.value}x{height.value}; inspect the screenshot"
+        base_width, base_height, knob_x, knob_y = layout
+        px, py = round(width.value * knob_x / base_width), round(height.value * knob_y / base_height)
         x.XTranslateCoordinates(display, window, root, px, py, c.byref(rx), c.byref(ry), c.byref(child))
         # Descend from the host parent into the plugin's actual toolkit canvas.
         while True:

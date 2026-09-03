@@ -66,7 +66,9 @@ Output control, observes the updated daemon parameter and measures its audio
 effect. The synthetic X11 gesture targets only the identified test instance's
 canvas and does not move the pointer. It dismisses LSP's delayed first-run
 greeting with Escape before editing a control. CI runs the private-server version
-under Xvfb. `--screenshots DIR` additionally captures the live vendor
+under Xvfb. The gesture recognizes the default compressor layouts of LSP
+1.2.14 (Ubuntu) and 1.2.35; unknown layouts fail instead of silently passing.
+CI retains the editor screenshot on failure. `--screenshots DIR` additionally captures the live vendor
 windows using ImageMagick. The original daemon and default devices are restored
 in `finally`; never use this script during an important recording/call.
 
@@ -83,7 +85,8 @@ automated tests (zero failures/skips), .NET style/analyzer checks, strict C
 compilation and GCC's static analyzer. Daemon/UI publish output includes an
 executable native helper whose shared-library dependencies resolve.
 
-The private-server test passed native UI editing and audio measurements;
+The private-server test passed native UI editing and audio measurements
+with LSP 1.2.35 and the extracted Ubuntu 1.2.14 package;
 it additionally asserts that no hardware nodes are owned by its graph.
 The disruptive full live test passed all assertions, including:
 

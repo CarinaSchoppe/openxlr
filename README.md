@@ -50,11 +50,14 @@ Collect diagnostics).
   application channels that can be added, renamed, or removed; Monitor and Aux plus any number of user-managed
   output mixes published as virtual microphones; per-send levels and
   mutes, level meters, and the monitor mix on several outputs at once.
-- **Inserts**: LV2 plugin chains on each XLR input and each mix, with a
-  plugin picker, EQ-band/threshold overviews and DAW-style controls,
-  parameter-aware controls for other plugins, and bypass LEDs.
+- **Inserts**: independent LV2 chains on every hardware/application channel
+  and output mix. Open the native LSP X11/XWayland editor on the actual DSP
+  instance for live EQ spectra and compression meters; edits persist with
+  the mixer. Generated unit-aware controls and bypass remain available.
+  See the [native host contract](native/README.md) for supported LV2 features.
 - **Recovery**: systemd restarts unexpected exits and enforces a 60-second
   watchdog deadline; the UI reconnects without blocking or replaying edits.
+  Individual LV2 hosts are also isolated and supervised for crashes/hangs.
 - **Application routing**: audio clients are detected from their
   PipeWire registration and routed to a channel by name rules, with the
   assignment remembered per app. Electron apps are identified by their

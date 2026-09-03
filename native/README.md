@@ -54,7 +54,9 @@ they must never read/write beyond an allocated buffer.
 
 `python3 tools/verify-native-host.py` starts private PipeWire/Pulse/D-Bus and
 WirePlumber with hardware monitors disabled, then measures output gain and
-actual compression. It runs in CI without audio hardware. The opt-in
+actual compression. It runs in CI without audio hardware. Add `--native-ui`
+to exercise a real editor gesture; this needs X11/Xvfb and bubblewrap to
+isolate legacy LSP settings as well as the modern XDG config path. The opt-in
 `tools/verify-live-mixer.py --allow-audio-interruption --native-ui` additionally
 tests actual application routing, per-channel isolation, EQ response, native
 UI interaction, host/daemon crash recovery and persisted settings. See

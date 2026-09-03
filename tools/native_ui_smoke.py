@@ -7,6 +7,7 @@ callback and measured audio change; an incompatible layout fails the test.
 import ctypes as c
 import ctypes.util
 import subprocess
+import time
 
 
 class Button(c.Structure):
@@ -17,8 +18,14 @@ class Button(c.Structure):
                 ("button", c.c_uint), ("same_screen", c.c_int)]
 
 
+class ClientMessage(c.Structure):
+    _fields_ = [("type", c.c_int), ("serial", c.c_ulong), ("send_event", c.c_int),
+                ("display", c.c_void_p), ("window", c.c_ulong), ("message_type", c.c_ulong),
+                ("format", c.c_int), ("data", c.c_long * 5)]
+
+
 class Event(c.Union):
-    _fields_ = [("button", Button), ("padding", c.c_long * 24)]
+    _fields_ = [("button", Button), ("client", ClientMessage), ("padding", c.c_long * 24)]
 
 
 def wheel_compressor_output(node="OpenXLR_ins_ch_qa-channel_in_lv2_0", screenshot=None):
@@ -35,13 +42,26 @@ def wheel_compressor_output(node="OpenXLR_ins_ch_qa-channel_in_lv2_0", screensho
                               c.POINTER(c.c_uint), c.POINTER(c.c_uint), c.POINTER(c.c_uint), c.POINTER(c.c_uint)]
     x.XTranslateCoordinates.argtypes = [ptr, win, win, c.c_int, c.c_int, c.POINTER(c.c_int), c.POINTER(c.c_int), c.POINTER(win)]
     x.XSendEvent.argtypes = [ptr, win, c.c_int, c.c_long, c.POINTER(Event)]
-    x.XKeysymToKeycode.argtypes, x.XKeysymToKeycode.restype = [ptr, win], c.c_ubyte
+    x.XGetTransientForHint.argtypes = [ptr, win, c.POINTER(win)]
     x.XSync.argtypes = [ptr, c.c_int]
     x.XCloseDisplay.argtypes = [ptr]
     display = x.XOpenDisplay(None)
     assert display, "native UI test needs an X11/XWayland display"
     root = x.XDefaultRootWindow(display)
     property_id = x.XInternAtom(display, b"_OPENXLR_NODE", 0)
+
+    def descendants(window):
+        children = c.POINTER(win)()
+        parent, tree_root, size = win(), win(), c.c_uint()
+        result = [window]
+        if x.XQueryTree(display, window, c.byref(tree_root), c.byref(parent), c.byref(children), c.byref(size)):
+            try:
+                for i in range(size.value):
+                    result.extend(descendants(children[i]))
+            finally:
+                if children:
+                    x.XFree(children)
+        return result
 
     def find(window):
         actual, count, remaining, bits, value = win(), c.c_ulong(), c.c_ulong(), c.c_int(), ptr()
@@ -52,22 +72,26 @@ def wheel_compressor_output(node="OpenXLR_ins_ch_qa-channel_in_lv2_0", screensho
             x.XFree(value)
             if matched:
                 return window
-        children = c.POINTER(win)()
-        parent, tree_root, size = win(), win(), c.c_uint()
-        if x.XQueryTree(display, window, c.byref(tree_root), c.byref(parent), c.byref(children), c.byref(size)):
-            try:
-                for i in range(size.value):
-                    result = find(children[i])
-                    if result:
-                        return result
-            finally:
-                if children:
-                    x.XFree(children)
         return None
 
     try:
-        window = find(root)
+        windows = descendants(root)
+        window = next((matched for candidate in windows if (matched := find(candidate))), None)
         assert window, "test instance's native window not found"
+        # Old LSP releases do not support Escape in their first-run greeting.
+        # Close only transient dialogs owned by this exact test instance,
+        # using the same WM_DELETE_WINDOW protocol as a window's close button.
+        owned = set(descendants(window))
+        for candidate in windows:
+            owner = win()
+            if x.XGetTransientForHint(display, candidate, c.byref(owner)) and owner.value in owned:
+                event = Event()
+                event.client = ClientMessage(33, 0, 1, display, candidate,
+                    x.XInternAtom(display, b"WM_PROTOCOLS", 0), 32,
+                    (c.c_long * 5)(x.XInternAtom(display, b"WM_DELETE_WINDOW", 0), 0, 0, 0, 0))
+                assert x.XSendEvent(display, candidate, 0, 0, c.byref(event))
+                x.XSync(display, 0)
+                time.sleep(0.15)  # allow the toolkit to release its modal grab
         if screenshot:
             subprocess.run(["import", "-window", str(window), str(screenshot)], check=True, timeout=10)
         gx, gy, rx, ry = (c.c_int() for _ in range(4))
@@ -95,15 +119,7 @@ def wheel_compressor_output(node="OpenXLR_ins_ch_qa-channel_in_lv2_0", screensho
             x.XTranslateCoordinates(display, window, target, px, py, c.byref(gx), c.byref(gy), c.byref(child))
             window, px, py = target, gx.value, gy.value
         event = Event()
-        event.button = Button(2, 0, 1, display, window, root, 0, 0, px, py, rx.value, ry.value, 0, 0, 1)
-        # A fresh LSP profile opens a modal greeting after one second. Its
-        # documented Escape shortcut dismisses it; the toolkit routes these
-        # key events to that dialog. XKeyEvent and XButtonEvent share layout.
-        event.button.button = x.XKeysymToKeycode(display, 0xff1b)  # XK_Escape
-        for kind, mask in ((2, 1), (3, 2)):
-            event.button.type = kind
-            assert x.XSendEvent(display, window, 0, mask, c.byref(event))
-        event.button.type, event.button.button = 6, 0
+        event.button = Button(6, 0, 1, display, window, root, 0, 0, px, py, rx.value, ry.value, 0, 0, 1)
         x.XSendEvent(display, window, 0, 1 << 6, c.byref(event))
         for kind, mask in ((4, 1 << 2), (5, 1 << 3)):
             event.button.type, event.button.button = kind, 4

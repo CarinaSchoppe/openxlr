@@ -32,6 +32,10 @@ rates; optional installed-LSP tests are explicitly skipped if the bundle is
 absent (CI installs it before the test run).
 The private-server audio test measures actual LSP output gain changes and
 compression without using the user's server or hardware. It is part of CI.
+Its optional `--native-ui` mode requires an X11/XWayland display (or Xvfb)
+and bubblewrap. The test overlays the child host's legacy `.config` directory:
+LSP 1.2.14 ignores `XDG_CONFIG_HOME`, so that variable alone neither isolates
+user settings nor reliably exercises a fresh first-run profile.
 Set `OPENXLR_SCREENSHOT_DIR` to a directory when running the tests to export
 rendered PNGs of the layout editor, individual card and plugin controls.
 
@@ -64,8 +68,9 @@ kills and freezes/rebuilds an individual plugin host, and measures an EQ at two 
 `--native-ui` checks the native compressor/EQ editors, wheels the compressor's
 Output control, observes the updated daemon parameter and measures its audio
 effect. The synthetic X11 gesture targets only the identified test instance's
-canvas and does not move the pointer. It dismisses LSP's delayed first-run
-greeting with Escape before editing a control. CI runs the private-server version
+canvas and does not move the pointer. It closes only the test instance's
+owned transient greeting with `WM_DELETE_WINDOW` before editing a control;
+older LSP releases do not implement Escape there. CI runs the private-server version
 under Xvfb. The gesture recognizes the default compressor layouts of LSP
 1.2.14 (Ubuntu) and 1.2.35; unknown layouts fail instead of silently passing.
 CI retains the editor screenshot on failure. `--screenshots DIR` additionally captures the live vendor
@@ -86,7 +91,7 @@ compilation and GCC's static analyzer. Daemon/UI publish output includes an
 executable native helper whose shared-library dependencies resolve.
 
 The private-server test passed native UI editing and audio measurements
-with LSP 1.2.35 and the extracted Ubuntu 1.2.14 package;
+with LSP 1.2.35 and the extracted Ubuntu 1.2.14 package on fresh isolated profiles;
 it additionally asserts that no hardware nodes are owned by its graph.
 The disruptive full live test passed all assertions, including:
 

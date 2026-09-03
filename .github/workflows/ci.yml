@@ -33,7 +33,7 @@ jobs:
 
       - name: Native audio regression (private servers, no hardware)
         run: |
-          sudo apt-get install -y pipewire pipewire-pulse wireplumber pulseaudio-utils lsp-plugins-lv2 dbus xvfb xauth imagemagick
+          sudo apt-get install -y pipewire pipewire-pulse wireplumber pulseaudio-utils lsp-plugins-lv2 dbus xvfb xauth imagemagick bubblewrap
           xvfb-run -a python3 tools/verify-native-host.py --native-ui --screenshot native-compressor.png
 
       - name: Retain native UI diagnostics

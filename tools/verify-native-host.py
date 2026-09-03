@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import queue
 import selectors
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -80,7 +81,18 @@ def main():
                     "{ factory.name = support.null-audio-sink node.name = " + name +
                     " media.class = Audio/Sink audio.position = [ FL FR ] object.linger = true "
                     "adapter.auto-port-config = { mode = dsp monitor = true position = preserve } }")
-            host = start(str(repo / "native/openxlr-lv2-host"),
+            host_command = [str(repo / "native/openxlr-lv2-host")]
+            if options.native_ui:
+                assert shutil.which("bwrap"), "native UI isolation requires bubblewrap (bwrap)"
+                # LSP 1.2.14 ignores XDG_CONFIG_HOME. Overlay only this child
+                # process's legacy config directory; never edit user settings
+                # or depend on whether the user already saw LSP's greeting.
+                legacy_config = Path(runtime, "legacy-config")
+                legacy_config.mkdir()
+                host_command = ["bwrap", "--bind", "/", "/", "--dev-bind", "/dev", "/dev",
+                                "--bind", str(legacy_config), str(Path.home() / ".config"),
+                                "--die-with-parent", "--", *host_command]
+            host = start(*host_command,
                          "http://lsp-plug.in/plugins/lv2/compressor_stereo", "qa_plugin", "2", "48000",
                          "g_out=0.25", "al=1", "cr=1", stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
             lines = queue.Queue(maxsize=4096)
@@ -143,7 +155,10 @@ def main():
                 wheel_compressor_output("qa_plugin", options.screenshot)
                 deadline = time.monotonic() + 5
                 while True:
-                    message = lines.get(timeout=max(0.01, deadline - time.monotonic()))
+                    try:
+                        message = lines.get(timeout=max(0.01, deadline - time.monotonic()))
+                    except queue.Empty as error:
+                        raise AssertionError("native gesture did not emit a g_out control change; inspect the screenshot") from error
                     if message.startswith("control g_out "):
                         value = float(message.split()[2])
                         break

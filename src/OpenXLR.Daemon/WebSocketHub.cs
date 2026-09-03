@@ -29,6 +29,11 @@ public sealed class WebSocketHub
     // enough for systemd to SIGKILL the daemon before the other services
     // ever get to tear down.
     private readonly CancellationToken _stopping;
+    // Device events can originate under the USB lock. Never synchronously
+    // acquire the mixer lock there: the mixer may be waiting for that device.
+    // Coalesce bursts instead of queueing one expensive snapshot per event.
+    private readonly Channel<bool> _stateChanges = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)
+    { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true, AllowSynchronousContinuations = false });
 
     public WebSocketHub(DeviceManager devices, MixerService mixer, ILogger<WebSocketHub> log,
         IHostApplicationLifetime lifetime)
@@ -39,14 +44,29 @@ public sealed class WebSocketHub
         _stopping = lifetime.ApplicationStopping;
         // Either half changing pushes the combined state, so clients always see
         // device and mixer consistently in one message.
-        _devices.StateChanged += ignored => Broadcast(Snapshot());
-        _mixer.Changed += () => Broadcast(Snapshot());
+        _devices.StateChanged += ignored => _stateChanges.Writer.TryWrite(true);
+        _mixer.Changed += () => _stateChanges.Writer.TryWrite(true);
+        _ = BroadcastStatesAsync();
         _mixer.MetersUpdated += () =>
         {
             if (_clients.IsEmpty) return;                    // nobody watching
             IReadOnlyDictionary<string, double[]>? levels = _mixer.Meters();
             if (levels is { Count: > 0 }) Broadcast(new MetersMessage(levels));
         };
+    }
+
+    private async Task BroadcastStatesAsync()
+    {
+        try
+        {
+            await foreach (bool ignored in _stateChanges.Reader.ReadAllAsync(_stopping))
+            {
+                if (_clients.IsEmpty) continue;
+                try { Broadcast(Snapshot()); }
+                catch (Exception ex) { _log.LogWarning("state broadcast failed: {Message}", ex.Message); }
+            }
+        }
+        catch (OperationCanceledException) when (_stopping.IsCancellationRequested) { }
     }
 
     /// <summary>Device state plus mixer state, as one message.</summary>
@@ -57,6 +77,7 @@ public sealed class WebSocketHub
         _devices.Snapshot() with
         {
             DaemonVersion = OpenXLR.Daemon.DaemonVersion.Current,
+            Features = ["editableLayout", "commandResults"],
             ActiveProfile = ActiveDeviceId() is string apId && _activeProfile.TryGetValue(apId, out string? ap) ? ap : null,
             Mixer = _mixer.Snapshot(),
             Devices = _mixer.Devices(),
@@ -68,10 +89,12 @@ public sealed class WebSocketHub
     public async Task HandleAsync(WebSocket socket)
     {
         var client = new Client(socket, _stopping);
-        _clients[client.Id] = client;
         try
         {
             await client.SendAsync(Serialize(Snapshot()));   // initial state
+            // Do not expose this client to meter broadcasts before its first
+            // state has been queued. Consumers rely on state being first.
+            _clients[client.Id] = client;
             await ReceiveLoop(client);
         }
         catch (Exception ex) when (ex is WebSocketException or OperationCanceledException
@@ -181,6 +204,14 @@ public sealed class WebSocketHub
             case "setInsertBypass":
             case "setInsertParam":
                 string? mixErr = _mixer.Apply(cmd);                     // broadcasts on success
+                if (cmd.RequestId is not null)
+                {
+                    // Publish authoritative state before the acknowledgement;
+                    // the client can safely re-enable layout controls on receipt.
+                    await client.SendAsync(Serialize(Snapshot()));
+                    await client.SendAsync(Serialize(new
+                    { type = "commandResult", requestId = cmd.RequestId, error = mixErr }));
+                }
                 if (mixErr is not null)
                 {
                     await client.SendAsync(Serialize(new ErrorMessage(mixErr)));

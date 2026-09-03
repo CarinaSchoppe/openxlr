@@ -55,6 +55,7 @@ in
       description = "OpenXLR audio daemon";
       after = [ "pipewire-pulse.service" "wireplumber.service" ];
       wantedBy = [ "default.target" ];
+      unitConfig.StartLimitIntervalSec = 0;
       environment = {
         OPENXLR_BUILD_MIXER = "1";
         # Plugins load inside pw-cli, a child of the daemon, so this one
@@ -66,9 +67,14 @@ in
         LADSPA_PATH = "${pkgs.ladspaPlugins}/lib/ladspa";
       };
       serviceConfig = {
+        Type = "notify";
+        NotifyAccess = "main";
+        WatchdogSec = 60;
+        WatchdogSignal = "SIGKILL";
+        TimeoutStartSec = 120;
         ExecStart = "${cfg.package}/bin/openxlr-daemon";
         TimeoutStopSec = 45;
-        Restart = "on-failure";
+        Restart = "always";
         RestartSec = 3;
         NoNewPrivileges = true;
         PrivateTmp = true;
@@ -78,5 +84,7 @@ in
         RestrictSUIDSGID = true;
       };
     };
+    # Dynamic channel x mix fan-out exceeds the common 1024 FD soft limit.
+    systemd.user.services.pipewire-pulse.serviceConfig.LimitNOFILE = lib.mkDefault 16384;
   };
 }

@@ -19,6 +19,7 @@ public sealed class DeviceManager : BackgroundService
     private DeviceState? _last;
     private IReadOnlyList<DeviceInfo> _detected = [];
     private ushort? _preferredPid;
+    internal ServiceProgress Progress { get; } = new();
 
     // Whether this run builds the submixer (same decision MixerService
     // makes). Only then does the card need the pro-audio profile; in
@@ -31,7 +32,8 @@ public sealed class DeviceManager : BackgroundService
         string? want = Environment.GetEnvironmentVariable("OPENXLR_DEVICE");
         if (want is not null && ushort.TryParse(want, System.Globalization.NumberStyles.HexNumber, null, out ushort pid))
             _preferredPid = pid;
-        bool launchDefault = config.GetValue("mixer", false) ||
+        bool launchDefault = MixerService.HasBareMixerSwitch(Environment.GetCommandLineArgs()) ||
+                             config.GetValue("mixer", false) ||
                              Environment.GetEnvironmentVariable("OPENXLR_BUILD_MIXER") == "1";
         _submixer = OpenXLR.Core.DaemonSettings.SubmixerEnabled(launchDefault);
     }
@@ -195,6 +197,7 @@ public sealed class DeviceManager : BackgroundService
                 _log.LogWarning("device loop: {msg}", ex.Message);
                 Drop();
             }
+            Progress.Mark();
             await Task.Delay(100, stop).ContinueWith(_ => { }, TaskScheduler.Default);
         }
         Drop();

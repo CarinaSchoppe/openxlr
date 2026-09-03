@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia.Controls;
 
 namespace OpenXLR.UI;
@@ -12,6 +13,17 @@ public static class InsertWindows
 {
     private static readonly Dictionary<string, InsertControlsWindow> Controls = new();
     private static readonly Dictionary<string, MixInsertsWindow> Chains = new();
+
+    /// <summary>Close editors whose live owner/insert disappeared after a layout or chain edit.</summary>
+    public static void RetainChains(IEnumerable<InsertsViewModel> active)
+    {
+        var chains = active.ToHashSet();
+        foreach (MixInsertsWindow window in Chains.Values.ToList())
+            if (window.DataContext is InsertsViewModel chain && !chains.Contains(chain)) window.Close();
+        foreach (InsertControlsWindow window in Controls.Values.ToList())
+            if (window.DataContext is InsertViewModel insert &&
+                (!chains.Contains(insert.Owner) || !insert.Owner.Items.Contains(insert))) window.Close();
+    }
 
     public static void OpenControls(Window owner, InsertViewModel insert)
     {

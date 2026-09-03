@@ -5,6 +5,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Media;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace OpenXLR.UI;
 
@@ -53,7 +55,16 @@ public partial class FlowWindow : Window
     {
         if (_vm is null) return;
         Canvas c = GraphCanvas;
+        // A state push must not destroy an open routing picker. On close we
+        // render the latest model, including changes from another client.
+        if (c.GetVisualDescendants().OfType<ComboBox>().Any(p => p.IsDropDownOpen)) return;
         c.Children.Clear();
+        if (!_vm.HasMixer)
+        {
+            c.Children.Add(new TextBlock { Text = _vm.MixerPlaceholder, Foreground = TextFg });
+            c.Width = 650; c.Height = 60;
+            return;
+        }
 
         // ---- collect the nodes per column ----
         var sources = new List<(string Key, string Label, string Channel, bool Playing)>();
@@ -208,7 +219,14 @@ public partial class FlowWindow : Window
             else Node(c, pos[s.Key], s.Label, s.Playing ? null : "silent", s.Playing);
         }
         foreach (ChannelViewModel ch in channels)
-            Node(c, pos[$"ch:{ch.Id}"], ch.Name, null, true, ChannelBrush(ch.Id));
+        {
+            Border node = Node(c, pos[$"ch:{ch.Id}"], ch.Name, "Click to edit sends", true, ChannelBrush(ch.Id));
+            node.PointerReleased += (_, e) =>
+            {
+                if (e.InitialPressMouseButton != Avalonia.Input.MouseButton.Left) return;
+                new ChannelEditorWindow(_vm, ch).Show(this);
+            };
+        }
         foreach (MixViewModel m in mixes)
             Node(c, pos[$"mix:{m.Id}"], m.Name, m.Muted ? "muted" : $"{m.Volume * 100:0}%", !m.Muted, MixBrush(m.Id));
         foreach (var o in outputs) Node(c, pos[o.Key], o.Label, o.Active ? null : "off", o.Active);
@@ -220,7 +238,9 @@ public partial class FlowWindow : Window
         {
             var t = new TextBlock
             {
-                Text = headers[i], FontSize = 11, FontWeight = FontWeight.SemiBold,
+                Text = headers[i],
+                FontSize = 11,
+                FontWeight = FontWeight.SemiBold,
                 Foreground = TextDim,
             };
             Canvas.SetLeft(t, colX(i));
@@ -246,7 +266,9 @@ public partial class FlowWindow : Window
             }
             row.Children.Add(new TextBlock
             {
-                Text = label, FontSize = 11, Foreground = active ? TextFg : TextDim,
+                Text = label,
+                FontSize = 11,
+                Foreground = active ? TextFg : TextDim,
                 TextTrimming = TextTrimming.CharacterEllipsis,
             });
             list.Children.Add(row);
@@ -254,7 +276,8 @@ public partial class FlowWindow : Window
         bool anyActive = chain.Items.Any(i => i.Active);
         var node = new Border
         {
-            Width = r.Width, Height = r.Height,
+            Width = r.Width,
+            Height = r.Height,
             Background = anyActive ? NodeBg : NodeBgDim,
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 4),
@@ -267,12 +290,14 @@ public partial class FlowWindow : Window
         c.Children.Add(node);
     }
 
-    private static void Node(Canvas c, Rect r, string label, string? sub, bool lit, IBrush? accent = null)
+    private static Border Node(Canvas c, Rect r, string label, string? sub, bool lit, IBrush? accent = null)
     {
         var text = new StackPanel { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
         text.Children.Add(new TextBlock
         {
-            Text = label, FontSize = 12, Foreground = lit ? TextFg : TextDim,
+            Text = label,
+            FontSize = 12,
+            Foreground = lit ? TextFg : TextDim,
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
         if (sub is not null)
@@ -280,7 +305,8 @@ public partial class FlowWindow : Window
 
         var node = new Border
         {
-            Width = r.Width, Height = r.Height,
+            Width = r.Width,
+            Height = r.Height,
             Background = lit ? NodeBg : NodeBgDim,
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 0),
@@ -291,10 +317,11 @@ public partial class FlowWindow : Window
         Canvas.SetLeft(node, r.X);
         Canvas.SetTop(node, r.Y);
         c.Children.Add(node);
+        return node;
     }
 
     /// <summary>An app source with an in-place channel assignment picker.</summary>
-    private static void AppNode(Canvas c, Rect r, AppStreamViewModel app, bool lit, IBrush accent)
+    private void AppNode(Canvas c, Rect r, AppStreamViewModel app, bool lit, IBrush accent)
     {
         var picker = new ComboBox
         {
@@ -310,6 +337,7 @@ public partial class FlowWindow : Window
             if (picker.SelectedItem is ChannelOption channel && channel.Id != app.ChannelId)
                 app.ChannelId = channel.Id;
         };
+        picker.DropDownClosed += (_, _) => Dispatcher.UIThread.Post(Rebuild);
         var content = new StackPanel { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Spacing = 3 };
         content.Children.Add(new TextBlock
         {
@@ -348,7 +376,9 @@ public partial class FlowWindow : Window
         }
         c.Children.Add(new Path
         {
-            Data = geo, Stroke = stroke, StrokeThickness = thickness,
+            Data = geo,
+            Stroke = stroke,
+            StrokeThickness = thickness,
             StrokeDashArray = dashed ? [3, 3] : null,
             Opacity = dashed ? 0.7 : 0.9,
         });

@@ -642,6 +642,9 @@ public sealed class Mixer : IDisposable
     {
         lock (_gate)
         {
+            if (!IsInsertChannel(channel)) throw new InvalidOperationException($"unknown insert target '{channel}'");
+            if (inserts.Select(i => i.Id).Distinct(StringComparer.Ordinal).Count() != inserts.Count)
+                throw new InvalidOperationException("insert IDs must be unique within a chain");
             _inserts[channel] = [.. inserts.Select(i => i with { Params = new Dictionary<string, double>(i.Params) })];
             if (_built) RewireInsertKeyLocked(channel);
         }
@@ -652,9 +655,11 @@ public sealed class Mixer : IDisposable
     {
         lock (_gate)
         {
-            if (!_inserts.TryGetValue(channel, out List<InsertDefinition>? list)) return;
+            if (!_inserts.TryGetValue(channel, out List<InsertDefinition>? list))
+                throw new InvalidOperationException($"unknown insert target '{channel}'");
             int idx = list.FindIndex(i => i.Id == insertId);
-            if (idx < 0 || list[idx].Bypass == bypass) return;
+            if (idx < 0) throw new InvalidOperationException($"unknown insert '{insertId}'");
+            if (list[idx].Bypass == bypass) return;
             list[idx] = list[idx] with { Bypass = bypass };
             if (_built) RewireInsertKeyLocked(channel);
         }
@@ -674,9 +679,14 @@ public sealed class Mixer : IDisposable
     {
         lock (_gate)
         {
-            if (!_inserts.TryGetValue(channel, out List<InsertDefinition>? list)) return;
+            if (!_inserts.TryGetValue(channel, out List<InsertDefinition>? list))
+                throw new InvalidOperationException($"unknown insert target '{channel}'");
             int idx = list.FindIndex(i => i.Id == insertId);
-            if (idx < 0) return;
+            if (idx < 0) throw new InvalidOperationException($"unknown insert '{insertId}'");
+            if (!double.IsFinite(value)) throw new InvalidOperationException("plugin control must be finite");
+            PluginParam? parameter = Lv2Catalog.Find(list[idx].Plugin)?.Params.FirstOrDefault(p => p.Symbol == symbol);
+            if (parameter is null) throw new InvalidOperationException($"unknown plugin control '{symbol}'");
+            value = Math.Clamp(parameter.Integer ? Math.Round(value) : value, parameter.Min, parameter.Max);
             list[idx].Params[symbol] = value;
             if (!_built || list[idx].Bypass || _insertErrors.ContainsKey(channel)
                 || !_chains.TryGetValue(channel, out FilterHandle? chain)) return;
@@ -1146,7 +1156,8 @@ public sealed class Mixer : IDisposable
         lock (_gate)
         {
             string cell = Cell(channelId, mixId);
-            if (!_cells.Contains(cell)) return;
+            if (!_cells.Contains(cell)) throw new InvalidOperationException($"unknown channel/mix send '{cell}'");
+            if (!double.IsFinite(level)) throw new InvalidOperationException("level must be finite");
             _levels[cell] = Math.Clamp(level, 0.0, 1.0);
             ApplyCellLocked(channelId, mixId);
         }
@@ -1158,7 +1169,7 @@ public sealed class Mixer : IDisposable
         lock (_gate)
         {
             string cell = Cell(channelId, mixId);
-            if (!_cells.Contains(cell)) return;
+            if (!_cells.Contains(cell)) throw new InvalidOperationException($"unknown channel/mix send '{cell}'");
             if (muted) _muted.Add(cell); else _muted.Remove(cell);
             ApplyCellLocked(channelId, mixId);
         }
@@ -1169,6 +1180,8 @@ public sealed class Mixer : IDisposable
     {
         lock (_gate)
         {
+            if (!_config.Mixes.Any(m => m.Id == mixId)) throw new InvalidOperationException($"unknown mix '{mixId}'");
+            if (!double.IsFinite(volume)) throw new InvalidOperationException("volume must be finite");
             _mixVolume[mixId] = Math.Clamp(volume, 0.0, 1.0);
             ReapplyMixLocked(mixId);
         }
@@ -1178,6 +1191,7 @@ public sealed class Mixer : IDisposable
     {
         lock (_gate)
         {
+            if (!_config.Mixes.Any(m => m.Id == mixId)) throw new InvalidOperationException($"unknown mix '{mixId}'");
             if (muted) _mixMuted.Add(mixId); else _mixMuted.Remove(mixId);
             ReapplyMixLocked(mixId);
         }

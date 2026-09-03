@@ -183,6 +183,12 @@ public partial class MainWindow : Window
         if ((sender as Control)?.DataContext is MixViewModel mix) InsertWindows.OpenChain(this, mix.Inserts, $"mix:{mix.Id}");
     }
 
+    private void OnEditChannel(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is ChannelViewModel channel)
+            new ChannelEditorWindow(_vm, channel).Show(this);
+    }
+
     private void OnInsertUp(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is InsertViewModel ins) ins.Owner.Move(ins, -1);
@@ -208,13 +214,19 @@ public partial class MainWindow : Window
         _flow.Show(this);
     }
 
-    private void OnRestartDaemon(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void OnRestartDaemon(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         // Managed by systemd on packaged installs; a hand-started daemon has
         // to be restarted by hand, and the banner stays until it is.
         if (sender is Avalonia.Controls.Button b)
-            b.Content = StartupIntegration.RestartDaemon() ? "Restarting…" : "Not managed by systemd: restart it by hand";
+        {
+            b.IsEnabled = false;
+            try { b.Content = await StartupIntegration.RestartDaemonAsync() ? "Restart requested…" : "Restart unavailable: check user service"; }
+            finally { b.IsEnabled = true; }
+        }
     }
+
+    private void OnDismissError(object? sender, RoutedEventArgs e) => _vm.DismissError();
 
     // ---- collapsed tiles, remembered in ui.json ----
     private static readonly string[] SectionTiles =

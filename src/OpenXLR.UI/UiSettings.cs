@@ -224,12 +224,18 @@ public static class StartupIntegration
                     [Unit]
                     Description=OpenXLR audio daemon
                     After=pipewire-pulse.service wireplumber.service
+                    StartLimitIntervalSec=0
 
                     [Service]
+                    Type=notify
+                    NotifyAccess=main
+                    WatchdogSec=60
+                    WatchdogSignal=SIGKILL
+                    TimeoutStartSec=120
                     ExecStart={daemon}
                     Environment=OPENXLR_BUILD_MIXER=1
                     TimeoutStopSec=45
-                    Restart=on-failure
+                    Restart=always
                     RestartSec=3
                     NoNewPrivileges=true
                     PrivateTmp=true
@@ -280,7 +286,32 @@ public static class StartupIntegration
     /// effect. False when systemd does not manage it (source builds run by
     /// hand), so the caller can tell the user to restart it themselves.
     /// </summary>
-    public static bool RestartDaemon() => Systemctl("restart", "openxlr-daemon.service");
+    public static async System.Threading.Tasks.Task<bool> RestartDaemonAsync()
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("systemctl") { RedirectStandardOutput = true, RedirectStandardError = true };
+            foreach (string arg in new[] { "--user", "--no-block", "restart", "openxlr-daemon.service" })
+                psi.ArgumentList.Add(arg);
+            using Process? process = Process.Start(psi);
+            if (process is null) return false;
+            using var timeout = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var stdout = process.StandardOutput.ReadToEndAsync(timeout.Token);
+            var stderr = process.StandardError.ReadToEndAsync(timeout.Token);
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+                await System.Threading.Tasks.Task.WhenAll(stdout, stderr);
+                return process.ExitCode == 0;
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(); } catch (InvalidOperationException) { }
+                return false;
+            }
+        }
+        catch (Exception) { return false; }
+    }
 
     private static bool Systemctl(params string[] args)
     {

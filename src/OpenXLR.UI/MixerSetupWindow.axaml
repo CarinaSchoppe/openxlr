@@ -27,11 +27,12 @@
       <TextBlock Text="Mixer layout" FontSize="20" FontWeight="Bold" Foreground="#e6e9f0"/>
       <TextBlock Text="Application channels become PipeWire playback sinks. Virtual outputs become selectable recording devices for OBS, Discord, and any other app. Structural changes briefly rebuild the OpenXLR graph."
                  FontSize="11" Foreground="#7d8496" TextWrapping="Wrap"/>
+      <TextBlock Text="{Binding LayoutNote}" Margin="0,8,0,0" Foreground="#e0a84a" TextWrapping="Wrap"/>
     </StackPanel>
     <Button DockPanel.Dock="Bottom" Content="Close" HorizontalAlignment="Right" Padding="18,6"
             Margin="0,12,0,0" Click="OnClose"/>
 
-    <Grid ColumnDefinitions="*,12,*">
+    <Grid ColumnDefinitions="*,12,*" IsEnabled="{Binding CanEditLayout}">
       <Border Classes="card">
         <DockPanel>
           <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,8,Auto" Margin="0,10,0,0">

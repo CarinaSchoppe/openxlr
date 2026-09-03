@@ -92,13 +92,14 @@ controls in their own window. The picker shows every installed LV2
 plugin that fits the slot (mono for inputs, stereo for mixes), grouped
 by category. The controls window is generated from the plugin's port
 descriptions, with rotary controls, named enumeration menus, readable
-units and a live parameter response graph for equalizers and dynamics
-processors. It is grouped by parameter family and has a Defaults button.
+units, EQ-band gain bars and dynamics threshold bars. These are parameter
+overviews, not measured frequency/transfer responses or FFT spectra.
+It is grouped by parameter family and has a Defaults button.
 Chains are saved with the mixer and recalled by profiles.
 
 Every chain is a PipeWire filter-chain node, the same mechanism as the
 software low cut and ClipGuard, so plugins run inside PipeWire's graph
-with no extra process, and a chain adds latency only while it holds a
+in a daemon-owned `pw-cli` holder process, and a chain adds latency only while it holds a
 plugin. Plugins are found in the standard LV2 directories
 (`/usr/lib/lv2`, `~/.lv2`, or wherever `LV2_PATH` points); the daemon
 reads them through lilv. `lsp-plugins-lv2` is the set used during

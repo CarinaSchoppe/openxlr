@@ -93,6 +93,8 @@ sed 's|^ExecStart=.*|ExecStart=%{_bindir}/openxlr-daemon|' \
     packaging/openxlr-daemon.service > openxlr-daemon.service
 install -Dm644 openxlr-daemon.service \
     %{buildroot}%{_userunitdir}/openxlr-daemon.service
+install -Dm644 packaging/60-openxlr-pulse-limits.conf \
+    %{buildroot}%{_userunitdir}/pipewire-pulse.service.d/60-openxlr-pulse-limits.conf
 
 install -Dm644 packaging/openxlr.desktop \
     %{buildroot}%{_datadir}/applications/openxlr.desktop
@@ -132,6 +134,7 @@ MSG
 %{_datadir}/wireplumber/wireplumber.conf.d/51-openxlr-pro-raw-names.conf
 %{_sysctldir}/60-openxlr.conf
 %{_userunitdir}/openxlr-daemon.service
+%{_userunitdir}/pipewire-pulse.service.d/60-openxlr-pulse-limits.conf
 %{_datadir}/applications/openxlr.desktop
 %{_datadir}/icons/hicolor/*/apps/openxlr.*
 %{_datadir}/openxlr/

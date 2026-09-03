@@ -35,5 +35,8 @@ jobs:
       - name: Validate packaged service inputs
         run: |
           test -f packaging/openxlr-daemon.service
+          test -f packaging/60-openxlr-pulse-limits.conf
+          grep -q '^WatchdogSec=60$' packaging/openxlr-daemon.service
+          grep -q '^LimitNOFILE=16384$' packaging/60-openxlr-pulse-limits.conf
           test -f packaging/70-openxlr.rules
           grep -q '0fd9' packaging/70-openxlr.rules

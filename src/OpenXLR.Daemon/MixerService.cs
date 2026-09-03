@@ -17,6 +17,16 @@ public sealed class MixerService : IHostedService, IDisposable
     private readonly IConfiguration _config;
     private readonly DeviceManager _devices;
     private readonly Mixer _mixer = new();
+    // Layout edits are transactions across several Mixer calls. Serialize them
+    // with saves and sweeps so two clients cannot overwrite each other's edits
+    // or persist a half-rebuilt graph.
+    private readonly object _operations = new();
+    private readonly ServiceProgress _progress = new();
+    private readonly CancellationTokenSource _shutdown = new();
+    private bool _stopping;
+    private int _metersRunning;
+    private int _disposed;
+    internal bool IsResponsive(TimeSpan limit) => _streamSweep is null || _progress.IsRecent(limit);
     private Timer? _streamSweep;
     private Timer? _saveDebounce;
     private Timer? _meterPush;
@@ -51,13 +61,11 @@ public sealed class MixerService : IHostedService, IDisposable
     private void SyncOutputSelectors()
     {
         var suffixes = new HashSet<string>();
-        string? anyProOutput = null;
         foreach (string output in _mixer.MonitorOutputs)
         {
             int marker = output.IndexOf('#');
             if (marker < 0) continue;
             suffixes.Add(output[(marker + 1)..]);
-            anyProOutput = output;
         }
         // The USB Aux port follows the Aux mix, not the monitor selection.
         bool auxDesired = _mixer.AuxPortEnabled;
@@ -67,22 +75,20 @@ public sealed class MixerService : IHostedService, IDisposable
 
         // The device latches aux-return routing at playback-stream start, so a
         // freshly enabled aux output needs the stream bounced once. The bounce
-        // needs any address on the physical sink; derive one from a Pro
-        // pseudo-output or fall back to the aux route's own target.
+        // uses the aux route's current physical target.
         if (auxDesired && !_prevAuxDesired && _mixer.Built)
             _mixer.BounceAuxTarget();
         _prevAuxDesired = auxDesired;
-        _ = anyProOutput;
     }
 
     /// <summary>Raised when mixer state changes, so the hub can broadcast.</summary>
     public event Action? Changed;
 
     /// <summary>Null until the graph is built.</summary>
-    public MixerState? Snapshot() => _mixer.Built ? _mixer.Snapshot() : null;
+    public MixerState? Snapshot() { lock (_operations) return _mixer.Built ? _mixer.Snapshot() : null; }
 
     /// <summary>Selectable sinks and sources, or null when the mixer is off.</summary>
-    public IReadOnlyList<AudioNode>? Devices() => _mixer.Built ? _mixer.ListDevices() : null;
+    public IReadOnlyList<AudioNode>? Devices() { lock (_operations) return _mixer.Built ? _mixer.ListDevices() : null; }
 
     /// <summary>Live stereo levels, or null when the mixer is off.</summary>
     public IReadOnlyDictionary<string, double[]>? Meters() => _mixer.Built ? _mixer.ReadMeters() : null;
@@ -147,28 +153,33 @@ public sealed class MixerService : IHostedService, IDisposable
             // Sweep for new application streams and route them to their channel.
             // One second is responsive enough that audio lands in the right place
             // before a user notices, without polling the graph hard.
+            _progress.Mark();
             _streamSweep = new Timer(_ =>
             {
                 if (Interlocked.CompareExchange(ref _sweepRunning, 1, 0) != 0) return;
                 try
                 {
-                    // Channel feeds follow the actively driven interface; the
-                    // node name contains the model with underscores for spaces.
-                    _mixer.SetInputDeviceHint(
-                        _devices.ActiveInfo?.Model.Replace(' ', '_'),
-                        _devices.ActiveCapabilities?.OutputRouting ?? false);
-                    // Software DSP only for devices without the hardware version.
-                    _mixer.SetLowCutApplicable(!(_devices.ActiveCapabilities?.LowCut ?? false));
-                    _mixer.SetClipGuardApplicable(!(_devices.ActiveCapabilities?.ClipGuard ?? false));
-                    if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()
-                        | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()
-                        | _mixer.EnsureFilterRoutes()
-                        | _mixer.EnsureMonitorRoutes()) Changed?.Invoke();
-                    SyncOutputSelectors();
-                    if (_lastSweepError is not null)
+                    lock (_operations)
                     {
-                        _lastSweepError = null;
-                        _log.LogInformation("stream sweep recovered");
+                        if (_stopping) return;
+                        // Channel feeds follow the actively driven interface; the
+                        // node name contains the model with underscores for spaces.
+                        _mixer.SetInputDeviceHint(
+                            _devices.ActiveInfo?.Model.Replace(' ', '_'),
+                            _devices.ActiveCapabilities?.OutputRouting ?? false);
+                        // Software DSP only for devices without the hardware version.
+                        _mixer.SetLowCutApplicable(!(_devices.ActiveCapabilities?.LowCut ?? false));
+                        _mixer.SetClipGuardApplicable(!(_devices.ActiveCapabilities?.ClipGuard ?? false));
+                        if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()
+                            | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()
+                            | _mixer.EnsureFilterRoutes()
+                            | _mixer.EnsureMonitorRoutes()) Changed?.Invoke();
+                        SyncOutputSelectors();
+                        if (_lastSweepError is not null)
+                        {
+                            _lastSweepError = null;
+                            _log.LogInformation("stream sweep recovered");
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -185,12 +196,18 @@ public sealed class MixerService : IHostedService, IDisposable
                     }
                     else _log.LogDebug("stream sweep: {msg}", ex.Message);
                 }
-                finally { Volatile.Write(ref _sweepRunning, 0); }
+                finally { _progress.Mark(); Volatile.Write(ref _sweepRunning, 0); }
             }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
 
             // Meters refresh far more often than state; 15 Hz looks smooth
             // without flooding clients.
-            _meterPush = new Timer(_ => MetersUpdated?.Invoke(), null,
+            _meterPush = new Timer(_ =>
+            {
+                if (Interlocked.CompareExchange(ref _metersRunning, 1, 0) != 0) return;
+                try { MetersUpdated?.Invoke(); }
+                catch (Exception ex) { _log.LogDebug("meter push: {Message}", ex.Message); }
+                finally { Volatile.Write(ref _metersRunning, 0); }
+            }, null,
                 TimeSpan.FromMilliseconds(200), TimeSpan.FromMilliseconds(66));
 
             Changed?.Invoke();
@@ -204,14 +221,15 @@ public sealed class MixerService : IHostedService, IDisposable
             {
                 foreach (int delayMs in new[] { 2000, 5000, 10000, 20000 })
                 {
-                    await Task.Delay(delayMs);
                     try
                     {
+                        await Task.Delay(delayMs, _shutdown.Token);
                         if (wantSink is { Length: > 0 } && Run("pactl", "get-default-sink") != wantSink)
                             Run("pactl", "set-default-sink", wantSink);
                         if (wantSource is { Length: > 0 } && Run("pactl", "get-default-source") != wantSource)
                             Run("pactl", "set-default-source", wantSource);
                     }
+                    catch (OperationCanceledException) when (_shutdown.IsCancellationRequested) { return; }
                     catch (Exception ex) { _log.LogDebug("default defense: {msg}", ex.Message); }
                 }
             });
@@ -222,6 +240,7 @@ public sealed class MixerService : IHostedService, IDisposable
             // A partial graph is worse than none: half the sinks exist but no
             // routing, and a later rebuild would double up. Remove what was made.
             try { _mixer.TearDown(); } catch (Exception) { /* best effort */ }
+            throw new InvalidOperationException("Submixer startup failed; the service manager can retry.", ex);
         }
         return Task.CompletedTask;
     }
@@ -232,7 +251,7 @@ public sealed class MixerService : IHostedService, IDisposable
     private static string Run(string exe, params string[] args)
     {
         var psi = new System.Diagnostics.ProcessStartInfo(exe)
-            { RedirectStandardOutput = true, RedirectStandardError = true };
+        { RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (string a in args) psi.ArgumentList.Add(a);
         using var p = System.Diagnostics.Process.Start(psi)!;
         Task<string> outTask = p.StandardOutput.ReadToEndAsync();
@@ -249,15 +268,19 @@ public sealed class MixerService : IHostedService, IDisposable
 
     public Task StopAsync(CancellationToken ct)
     {
+        _shutdown.Cancel();
         _streamSweep?.Dispose();
-        _streamSweep = null;
         _meterPush?.Dispose();
-        _meterPush = null;
-        if (_mixer.Built)
+        _saveDebounce?.Dispose();
+        lock (_operations)
         {
-            try { _mixer.ExportSettings().Save(); } catch (Exception) { /* best effort */ }
-            _mixer.TearDown();
-            _log.LogInformation("submix graph torn down");
+            _stopping = true;
+            if (_mixer.Built)
+            {
+                try { _mixer.ExportSettings().Save(); } catch (Exception) { /* best effort */ }
+                _mixer.TearDown();
+                _log.LogInformation("submix graph torn down");
+            }
         }
         return Task.CompletedTask;
     }
@@ -265,6 +288,12 @@ public sealed class MixerService : IHostedService, IDisposable
     /// <summary>Apply a mixer command. Returns null on success, else an error.</summary>
     public string? Apply(Command cmd)
     {
+        lock (_operations) return ApplyLocked(cmd);
+    }
+
+    private string? ApplyLocked(Command cmd)
+    {
+        if (_stopping) return "daemon is stopping";
         if (!_mixer.Built) return "mixer not built (start the daemon with --mixer)";
         try
         {
@@ -428,6 +457,8 @@ public sealed class MixerService : IHostedService, IDisposable
             UserChannels = [.. (current.UserChannels ?? []).Where(c => c.Id != id)],
             AppOverrides = overrides,
             KnownApps = apps,
+            EnforcedDefaultSink = current.EnforcedDefaultSink == channel.SinkName
+                ? remaining[0].SinkName : current.EnforcedDefaultSink,
             Levels = current.Levels.Where(e => !e.Key.StartsWith(id + "|", StringComparison.Ordinal))
                 .ToDictionary(),
             ChannelMuted = [.. current.ChannelMuted.Where(c => !c.StartsWith(id + "|", StringComparison.Ordinal))],
@@ -471,6 +502,8 @@ public sealed class MixerService : IHostedService, IDisposable
         RebuildLayout(current with
         {
             UserMixes = [.. (current.UserMixes ?? []).Where(m => m.Id != id)],
+            EnforcedDefaultSource = current.EnforcedDefaultSource == mix.VirtualMicName
+                ? null : current.EnforcedDefaultSource,
             MixVolumes = current.MixVolumes.Where(e => e.Key != id).ToDictionary(),
             MixMuted = [.. current.MixMuted.Where(m => m != id)],
             Levels = current.Levels.Where(e => !e.Key.EndsWith("|" + id, StringComparison.Ordinal)).ToDictionary(),
@@ -494,6 +527,9 @@ public sealed class MixerService : IHostedService, IDisposable
             _mixer.ApplySettings(desired);
             _mixer.SyncStreams();
             SyncOutputSelectors();
+            // Structural edits are durable before their acknowledgement. A
+            // crash immediately after clicking Add/Delete must not undo them.
+            _mixer.ExportSettings().Save();
         }
         catch
         {
@@ -521,18 +557,23 @@ public sealed class MixerService : IHostedService, IDisposable
     }
 
     /// <summary>The current mixer scene for saving into a profile, or null.</summary>
-    public OpenXLR.Core.MixerScene? ExportScene() => _mixer.Built ? _mixer.ExportScene() : null;
+    public OpenXLR.Core.MixerScene? ExportScene()
+    { lock (_operations) return _mixer.Built ? _mixer.ExportScene() : null; }
 
     /// <summary>Recall a profile's mixer scene. Returns null on success.</summary>
     public string? ApplyScene(OpenXLR.Core.MixerScene scene)
     {
-        if (!_mixer.Built) return "mixer not built (start the daemon with --mixer)";
-        try { _mixer.ApplyScene(scene); }
-        catch (Exception ex) { return ex.Message; }
-        SyncOutputSelectors();
-        Changed?.Invoke();
-        ScheduleSave();
-        return null;
+        lock (_operations)
+        {
+            if (_stopping) return "daemon is stopping";
+            if (!_mixer.Built) return "mixer not built (start the daemon with --mixer)";
+            try { _mixer.ApplyScene(scene); }
+            catch (Exception ex) { return ex.Message; }
+            SyncOutputSelectors();
+            Changed?.Invoke();
+            ScheduleSave();
+            return null;
+        }
     }
 
     /// <summary>
@@ -543,16 +584,24 @@ public sealed class MixerService : IHostedService, IDisposable
     {
         _saveDebounce ??= new Timer(_ =>
         {
-            try { _mixer.ExportSettings().Save(); }
-            catch (Exception ex) { _log.LogDebug("settings save: {msg}", ex.Message); }
+            lock (_operations)
+            {
+                if (_stopping) return;
+                try { _mixer.ExportSettings().Save(); }
+                catch (Exception ex) { _log.LogDebug("settings save: {msg}", ex.Message); }
+            }
         }, null, Timeout.Infinite, Timeout.Infinite);
         _saveDebounce.Change(TimeSpan.FromSeconds(2), Timeout.InfiniteTimeSpan);
     }
 
     public void Dispose()
     {
+        // The same singleton is registered as an IHostedService as well.
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _streamSweep?.Dispose();
         _saveDebounce?.Dispose();
         _meterPush?.Dispose();
+        _shutdown.Cancel();
+        _shutdown.Dispose();
     }
 }

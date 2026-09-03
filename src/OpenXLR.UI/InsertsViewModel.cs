@@ -475,6 +475,7 @@ public sealed class InsertParamViewModel : ViewModelBase
     }
     private bool IsLinearGain => RawUnit.Equals("gain", StringComparison.OrdinalIgnoreCase) || Logarithmic && Min >= 0 &&
         (LowerName.Contains("gain") || LowerName.Contains("threshold") || LowerName.Contains("level") || LowerName.Contains("knee"));
+    internal double Decibels => IsLinearGain ? 20 * Math.Log10(Math.Max(Value, 0.000001)) : Value;
 
     private double _value;
     public double Value
@@ -482,6 +483,8 @@ public sealed class InsertParamViewModel : ViewModelBase
         get => _value;
         set
         {
+            if (!double.IsFinite(value)) return;
+            value = Math.Clamp(Integer ? Math.Round(value) : value, Min, Max);
             if (!Set(ref _value, value)) return;
             Raise(nameof(ValueText));
             Raise(nameof(On));
@@ -505,7 +508,7 @@ public sealed class InsertParamViewModel : ViewModelBase
 
     public string ValueText => Toggled ? (On ? "on" : "off")
         : Enumeration ? SelectedScalePoint?.Label ?? _value.ToString("0.###")
-        : IsLinearGain ? $"{20 * Math.Log10(Math.Max(_value, 0.000001)):0.0} dB"
+        : IsLinearGain ? (_value == 0 ? "−∞ dB" : $"{Decibels:0.0} dB")
         : Unit == "Hz" && Math.Abs(_value) >= 1000 ? $"{_value / 1000:0.##} kHz"
         : Unit.Length > 0 ? $"{Format(_value)} {Unit}"
         : Integer ? ((int)Math.Round(_value)).ToString()

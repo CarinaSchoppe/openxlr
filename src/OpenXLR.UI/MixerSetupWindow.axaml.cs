@@ -9,20 +9,18 @@ public partial class MixerSetupWindow : Window
 {
     public MixerSetupWindow() => InitializeComponent();
 
-    private void OnAddChannel(object? sender, RoutedEventArgs e)
+    private async void OnAddChannel(object? sender, RoutedEventArgs e)
     {
         string name = ChannelName.Text?.Trim() ?? "";
         if (name.Length == 0 || DataContext is not MainViewModel vm) return;
-        vm.CreateChannel(name);
-        ChannelName.Text = "";
+        if (await vm.CreateChannel(name)) ChannelName.Text = "";
     }
 
-    private void OnAddMix(object? sender, RoutedEventArgs e)
+    private async void OnAddMix(object? sender, RoutedEventArgs e)
     {
         string name = MixName.Text?.Trim() ?? "";
         if (name.Length == 0 || DataContext is not MainViewModel vm) return;
-        vm.CreateMix(name);
-        MixName.Text = "";
+        if (await vm.CreateMix(name)) MixName.Text = "";
     }
 
     private async void OnDeleteChannel(object? sender, RoutedEventArgs e)
@@ -31,7 +29,7 @@ public partial class MixerSetupWindow : Window
             DataContext is not MainViewModel vm) return;
         if (await ConfirmDelete($"Delete channel ‘{channel.Name}’?",
                 "Applications assigned to it will move to the first remaining application channel."))
-            vm.DeleteChannel(channel.Id);
+            await vm.DeleteChannel(channel.Id);
     }
 
     private async void OnRenameChannel(object? sender, RoutedEventArgs e)
@@ -39,7 +37,7 @@ public partial class MixerSetupWindow : Window
         if ((sender as Control)?.DataContext is not ChannelViewModel channel ||
             DataContext is not MainViewModel vm) return;
         string? name = await PromptName($"Rename channel ‘{channel.Name}’", channel.Name);
-        if (name is not null && name != channel.Name) vm.RenameChannel(channel.Id, name);
+        if (name is not null && name != channel.Name) await vm.RenameChannel(channel.Id, name);
     }
 
     private async void OnDeleteMix(object? sender, RoutedEventArgs e)
@@ -48,7 +46,7 @@ public partial class MixerSetupWindow : Window
             DataContext is not MainViewModel vm) return;
         if (await ConfirmDelete($"Delete output ‘{mix.Name}’?",
                 "Its virtual microphone, sends, and insert chain will be removed from PipeWire."))
-            vm.DeleteMix(mix.Id);
+            await vm.DeleteMix(mix.Id);
     }
 
     private async void OnRenameMix(object? sender, RoutedEventArgs e)
@@ -56,7 +54,7 @@ public partial class MixerSetupWindow : Window
         if ((sender as Control)?.DataContext is not MixViewModel mix ||
             DataContext is not MainViewModel vm) return;
         string? name = await PromptName($"Rename output ‘{mix.Name}’", mix.Name);
-        if (name is not null && name != mix.Name) vm.RenameMix(mix.Id, name);
+        if (name is not null && name != mix.Name) await vm.RenameMix(mix.Id, name);
     }
 
     private async Task<string?> PromptName(string title, string current)

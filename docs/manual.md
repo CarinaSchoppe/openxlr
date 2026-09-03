@@ -160,9 +160,11 @@ channel, with its level and lock in the INPUTS card.
 2. Add. The plugin appears in the Inserts row with a green light while
    active.
 3. Controls opens a window generated from the plugin's parameters. EQs
-   and dynamics get a response graph; continuous values use rotary
+   and dynamics get band-gain/threshold overviews; continuous values use rotary
    controls with readable units, enumerations show their named choices,
    and large plugins are grouped. Defaults restores the declared values.
+   Knobs support vertical dragging, the mouse wheel, arrow keys, Home and End.
+   The bars reflect control settings, not a live FFT or measured response.
    Bypass takes it out of the path
    (red light); the arrows reorder the chain; the cross removes it.
 4. Chains are saved with the mixer and with profiles.
@@ -228,6 +230,40 @@ systemctl --user restart openxlr-daemon
 
 Until then the window offers only the controls the old daemon reports.
 Toggling the submixer in Options also restarts the daemon.
+
+### 3.11 Automatic daemon recovery and editable cards
+
+The shipped systemd user unit restarts unexpected exits after three seconds.
+Its watchdog deadline is 60 seconds without a healthy heartbeat. Every 20
+seconds the daemon checks that its device and mixer loops have progressed
+within the last 30 seconds. A frozen process is restarted automatically; a
+blocked worker can take approximately 60–90 seconds to trigger recovery.
+Unplugging a device does not count as a hang. An explicit `systemctl --user
+stop openxlr-daemon` stays stopped. No UI window is required for monitoring.
+Source builds launched directly in a terminal do not have a service manager
+and therefore cannot restart themselves.
+
+Restart requests from the UI are asynchronous. During an outage the UI
+reconnects automatically; unconfirmed edits are reported, never silently
+replayed. Install/reload the updated service unit as well as the daemon binary
+to enable the watchdog (`systemctl --user daemon-reload`, then restart).
+
+Open **Channels & outputs…** to add, rename and delete application channels
+and virtual output mixes. Hardware inputs, Monitor, Aux and the last app
+channel are protected. Wait for “Layout saved.”; structural edits briefly
+rebuild the graph and are saved before confirmation. Deleted-channel apps
+move to the first remaining application channel. Deleted sends and inserts
+are removed; an enforced default pointing at a deleted output is cleared.
+
+**Edit channel** on a card, or clicking a channel in **Flow**, opens its own
+send editor. Each fader/mute affects only that channel in that mix. In Flow,
+an application's picker assigns it to a channel and stays open during routine
+state updates. Deleted/disabled channels cannot be edited in stale windows.
+If “matching daemon build” is shown, the installed daemon lacks these API
+features: install the matching daemon, not just a newer UI.
+
+Developer verification and the opt-in audio-interruption test are documented
+in [verification.md](verification.md).
 
 ## 4. Stream Deck (OpenDeck)
 

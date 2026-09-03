@@ -47,6 +47,8 @@ override_dh_auto_install:
 		packaging/openxlr-daemon.service > $(OUT)/openxlr-daemon.service
 	install -Dm644 $(OUT)/openxlr-daemon.service \
 		$(PKG)/usr/lib/systemd/user/openxlr-daemon.service
+	install -Dm644 packaging/60-openxlr-pulse-limits.conf \
+		$(PKG)/usr/lib/systemd/user/pipewire-pulse.service.d/60-openxlr-pulse-limits.conf
 
 	install -Dm644 packaging/openxlr.desktop \
 		$(PKG)/usr/share/applications/openxlr.desktop

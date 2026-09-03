@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using Avalonia.Threading;
 
 namespace OpenXLR.UI;
@@ -46,13 +47,15 @@ public sealed class MainViewModel : ViewModelBase
             DaemonConnected = up;
             if (!up)
             {
-                DeviceConnected = false; Status = "daemon not running";
+                DeviceConnected = false;
+                HasMixer = false;
+                StateApplied?.Invoke();
                 Inserts.ResetForNewConnection(); Inserts2.ResetForNewConnection();
                 foreach (MixViewModel mv in Mixes) mv.Inserts.ResetForNewConnection();
             }
             else { Inserts.EnsurePluginsLoaded(); Inserts2.EnsurePluginsLoaded(); }
         });
-        _client.ErrorReceived += msg => Dispatcher.UIThread.Post(() => Status = msg);
+        _client.ErrorReceived += msg => Dispatcher.UIThread.Post(() => LastError = msg);
         _client.MetersReceived += levels => Dispatcher.UIThread.Post(() => ApplyMeters(levels));
     }
 
@@ -72,8 +75,10 @@ public sealed class MainViewModel : ViewModelBase
     private string _deviceName = "none";
     public string DeviceName { get => _deviceName; private set { if (Set(ref _deviceName, value)) Raise(nameof(StatusLine)); } }
 
-    private string _status = "connecting…";
-    public string Status { get => _status; private set { if (Set(ref _status, value)) Raise(nameof(StatusLine)); } }
+    private string? _lastError;
+    public string? LastError { get => _lastError; private set { if (Set(ref _lastError, value)) Raise(nameof(HasCommandError)); } }
+    public bool HasCommandError => !string.IsNullOrEmpty(LastError);
+    public void DismissError() => LastError = null;
 
     public string StatusLine => !DaemonConnected ? "Daemon not running"
         : DeviceConnected ? DeviceName
@@ -438,12 +443,42 @@ public sealed class MainViewModel : ViewModelBase
     public void AddApp(string identity, string label, string channel)
         => _ = _client.AssignAppAsync(identity, channel, label);
 
-    public void CreateChannel(string name) => _ = _client.CreateChannelAsync(name);
-    public void RenameChannel(string id, string name) => _ = _client.RenameChannelAsync(id, name);
-    public void DeleteChannel(string id) => _ = _client.DeleteChannelAsync(id);
-    public void CreateMix(string name) => _ = _client.CreateMixAsync(name);
-    public void RenameMix(string id, string name) => _ = _client.RenameMixAsync(id, name);
-    public void DeleteMix(string id) => _ = _client.DeleteMixAsync(id);
+    public Task<bool> CreateChannel(string name) => EditLayout(() => _client.CreateChannelAsync(name));
+    public Task<bool> RenameChannel(string id, string name) => EditLayout(() => _client.RenameChannelAsync(id, name));
+    public Task<bool> DeleteChannel(string id) => EditLayout(() => _client.DeleteChannelAsync(id));
+    public Task<bool> CreateMix(string name) => EditLayout(() => _client.CreateMixAsync(name));
+    public Task<bool> RenameMix(string id, string name) => EditLayout(() => _client.RenameMixAsync(id, name));
+    public Task<bool> DeleteMix(string id) => EditLayout(() => _client.DeleteMixAsync(id));
+
+    private bool _layoutBusy;
+    public bool LayoutBusy { get => _layoutBusy; private set { if (Set(ref _layoutBusy, value)) Raise(nameof(CanEditLayout)); } }
+    private bool _supportsLayout;
+    public bool SupportsLayout
+    {
+        get => _supportsLayout;
+        private set { if (Set(ref _supportsLayout, value)) { Raise(nameof(CanEditLayout)); Raise(nameof(LayoutNote)); } }
+    }
+    public bool CanEditLayout => DaemonConnected && HasMixer && SupportsLayout && !LayoutBusy;
+    private string _layoutNote = "";
+    public string LayoutNote => !DaemonConnected ? "Daemon disconnected; waiting for automatic reconnection."
+        : !SupportsLayout ? "This daemon lacks editable layouts. Install the matching daemon build and restart it."
+        : !HasMixer ? "Enable the submixer in Options first." : _layoutNote;
+
+    private async Task<bool> EditLayout(Func<Task<string?>> action)
+    {
+        if (!CanEditLayout) return false;
+        LayoutBusy = true;
+        _layoutNote = "Applying layout to PipeWire…";
+        Raise(nameof(LayoutNote));
+        try
+        {
+            string? error = await action();
+            _layoutNote = error ?? "Layout saved.";
+            Raise(nameof(LayoutNote));
+            return error is null;
+        }
+        finally { LayoutBusy = false; }
+    }
 
     // --- device selection (any sink/source, real or virtual) ---
 
@@ -505,12 +540,12 @@ public sealed class MainViewModel : ViewModelBase
     public string OutputVolumeText => $"{_outputVolume * 100:0}%";
 
     private bool _hasMixer;
-    public bool HasMixer { get => _hasMixer; private set { if (Set(ref _hasMixer, value)) Raise(nameof(MixerPlaceholder)); } }
+    public bool HasMixer { get => _hasMixer; private set { if (Set(ref _hasMixer, value)) { Raise(nameof(MixerPlaceholder)); Raise(nameof(CanEditLayout)); Raise(nameof(LayoutNote)); } } }
 
     private bool SetAndRaiseMismatch(ref bool field, bool value)
     {
         bool changed = Set(ref field, value);
-        if (changed) Raise(nameof(DaemonVersionMismatch));
+        if (changed) { Raise(nameof(DaemonVersionMismatch)); Raise(nameof(CanEditLayout)); Raise(nameof(LayoutNote)); }
         return changed;
     }
 
@@ -534,13 +569,15 @@ public sealed class MainViewModel : ViewModelBase
         "Restart the daemon to run the installed version.";
 
     /// <summary>Apply a state push from the daemon without echoing it back.</summary>
-    private void Apply(JsonNode node)
+    internal void Apply(JsonNode node)
     {
         _applying = true;
         try
         {
             DaemonConnected = true;
             DaemonVersion = node["daemonVersion"]?.GetValue<string>();
+            var features = (node["features"] as JsonArray)?.Select(f => f?.GetValue<string>()).ToHashSet();
+            SupportsLayout = features?.Contains("commandResults") == true && features.Contains("editableLayout");
             DeviceConnected = node["connected"]?.GetValue<bool>() ?? false;
             if (node["device"] is JsonNode dev)
                 DeviceName = $"{dev["vendor"]?.GetValue<string>()} {dev["model"]?.GetValue<string>()}".Trim();
@@ -608,7 +645,6 @@ public sealed class MainViewModel : ViewModelBase
             ShowSoftLowCut = DeviceConnected && !CapLowCut && HasMixer;
             ShowSoftClipGuard = DeviceConnected && !CapClipGuard && HasMixer;
             ShowGainLock = DeviceConnected && !CapPhysicalControls;
-            Status = DeviceConnected ? "ready" : "no device";
         }
         finally { _applying = false; }
         StateApplied?.Invoke();
@@ -776,9 +812,12 @@ public sealed class MainViewModel : ViewModelBase
             AppStreamViewModel? existing = Apps.FirstOrDefault(a =>
                 string.Equals(a.Identity, f.Identity, StringComparison.OrdinalIgnoreCase));
             if (existing is null)
-                Apps.Add(new AppStreamViewModel(_client, f.Identity, f.Label,
-                    [.. Channels.Where(c => c.AcceptsApps).Select(c => new ChannelOption(c.Id, c.Name))])
-                { ChannelId = f.Channel, Active = f.Active, Running = f.Running });
+            {
+                var added = new AppStreamViewModel(_client, f.Identity, f.Label,
+                    [.. Channels.Where(c => c.AcceptsApps).Select(c => new ChannelOption(c.Id, c.Name))]);
+                added.ApplyFromDaemon(f.Channel, f.Active, f.Running, f.Label);
+                Apps.Add(added);
+            }
             else
                 existing.ApplyFromDaemon(f.Channel, f.Active, f.Running, f.Label);
         }
@@ -804,7 +843,12 @@ public sealed class MainViewModel : ViewModelBase
 
     private void ApplyMixer(JsonNode? mixer)
     {
-        if (mixer is null) { HasMixer = false; return; }
+        if (mixer is null)
+        {
+            HasMixer = false; Channels.Clear(); Mixes.Clear();
+            InsertWindows.RetainChains([]);
+            return;
+        }
         HasMixer = true;
         SoftLowCutHz = mixer["lowCutHz"]?.GetValue<int>() ?? 0;
         SoftClipGuardAvailable = mixer["softClipGuardAvailable"]?.GetValue<bool>() ?? false;
@@ -856,6 +900,7 @@ public sealed class MainViewModel : ViewModelBase
                 .Select(c => new ChannelOption(c.Id, c.Name))];
             foreach (AppStreamViewModel app in Apps) app.SyncChannels(appChannels);
         }
+        InsertWindows.RetainChains(new[] { Inserts, Inserts2 }.Concat(Mixes.Select(m => m.Inserts)));
     }
 
     /// <summary>Update in place by id so bindings survive; add/remove as needed.</summary>

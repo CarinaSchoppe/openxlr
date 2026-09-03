@@ -101,6 +101,27 @@ The header dot turns green when the daemon has the device. If it says
 
 ## 6. Make it permanent
 
+For additional channels/output mixes, give the Pulse compatibility server
+enough file descriptors. A common 1024 soft limit is exhausted by the
+channel-to-mix streams, causing silent virtual outputs and `Too many open
+files`/`pactl ... Internal error`. Install the supplied per-service override
+(Debian/RPM packages and the NixOS module include it). Restarting the audio
+server interrupts playback/recording, so stop OpenXLR first:
+
+```sh
+mkdir -p ~/.config/systemd/user/pipewire-pulse.service.d
+cp packaging/60-openxlr-pulse-limits.conf ~/.config/systemd/user/pipewire-pulse.service.d/
+systemctl --user stop openxlr-daemon
+systemctl --user daemon-reload
+systemctl --user restart pipewire-pulse
+systemctl --user start openxlr-daemon
+```
+
+Verify with `systemctl --user show pipewire-pulse -p LimitNOFILESoft`.
+The override is scoped to `pipewire-pulse`, not global user limits. Remove
+that one drop-in and restart the audio service to revert it. Large layouts
+still consume more resources; this is headroom, not an unlimited graph.
+
 The Options window (the gear button) has two checkboxes that install a
 systemd user unit for the daemon and an autostart entry for the UI.
 On a source build the unit points at the build output; on a packaged

@@ -203,6 +203,12 @@
     </Border>
 
     <!-- a daemon left running across an upgrade offers the old version's controls -->
+    <Border Classes="card" Margin="0,0,0,8" IsVisible="{Binding HasCommandError}">
+      <DockPanel>
+        <Button Content="Dismiss" DockPanel.Dock="Right" Click="OnDismissError" Margin="12,0,0,0"/>
+        <TextBlock Text="{Binding LastError}" TextWrapping="Wrap" Foreground="#e0a84a"/>
+      </DockPanel>
+    </Border>
     <Border Classes="card" Margin="0,0,0,8" IsVisible="{Binding DaemonVersionMismatch}">
       <DockPanel>
         <Button DockPanel.Dock="Right" Content="Restart daemon" Padding="10,3" FontSize="12"
@@ -571,6 +577,7 @@
                   <StackPanel Spacing="8">
                     <TextBlock Text="{Binding Name}" Foreground="#e6e9f0" FontWeight="SemiBold"
                                HorizontalAlignment="Center"/>
+                    <Button Content="Edit channel" Click="OnEditChannel" HorizontalAlignment="Stretch"/>
                     <!-- stereo level meter (L over R), dB scale -->
                     <StackPanel Spacing="1">
                       <Border Background="#14161b" CornerRadius="2" Height="4">

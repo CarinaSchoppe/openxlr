@@ -75,6 +75,32 @@ modules or custom drivers:
 
 ## The device protocols
 
+### Service and UI lifecycle
+
+`ServiceWatchdog` sends systemd `READY=1` after application startup and
+`WATCHDOG=1` only while lock-free progress markers from the device/mixer
+loops remain recent. It honours `WATCHDOG_USEC` and `WATCHDOG_PID`, including
+abstract Unix notification sockets. Notification I/O has a two-second bound.
+Units use `Type=notify`, `WatchdogSec=60`, `Restart=always`, `RestartSec=3`
+and no start-rate cutoff; explicit stops remain stopped. Failed mixer startup
+exits nonzero so a transient PipeWire failure can be retried. systemd kills
+the daemon's child processes on failure; startup removes stale OpenXLR modules.
+
+`MixerService` serializes commands, layout rebuild/rollback, snapshots and
+saves. State broadcasts are coalesced through a bounded asynchronous channel:
+no callback under the device lock synchronously acquires the mixer lock.
+Sweep/meter callbacks cannot pile up; shutdown cancels delayed default-device
+defence and prevents late timer saves. Dispose is idempotent because the
+hosted service is also registered as a singleton.
+
+`DaemonClient` has one reconnect loop, bounded connection/send attempts and
+WebSocket ping/pong timeouts. Layout requests use correlated acknowledgements,
+are not replayed after reconnect, and leave controls disabled until completion
+or a reported failure. Flow defers rebuilding open routing pickers, and card
+editors reuse the stable channel/send view models.
+
+### Hardware communication
+
 The five devices speak three dialects, all reached without detaching
 the kernel's audio driver:
 

@@ -51,8 +51,10 @@ Collect diagnostics).
   output mixes published as virtual microphones; per-send levels and
   mutes, level meters, and the monitor mix on several outputs at once.
 - **Inserts**: LV2 plugin chains on each XLR input and each mix, with a
-  plugin picker, response graphs and DAW-style controls for EQ/dynamics,
+  plugin picker, EQ-band/threshold overviews and DAW-style controls,
   parameter-aware controls for other plugins, and bypass LEDs.
+- **Recovery**: systemd restarts unexpected exits and enforces a 60-second
+  watchdog deadline; the UI reconnects without blocking or replaying edits.
 - **Application routing**: audio clients are detected from their
   PipeWire registration and routed to a channel by name rules, with the
   assignment remembered per app. Electron apps are identified by their

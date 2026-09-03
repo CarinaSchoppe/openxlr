@@ -18,6 +18,7 @@ builder.Services.AddSingleton<MixerService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MixerService>());
 
 builder.Services.AddSingleton<WebSocketHub>();
+builder.Services.AddHostedService<ServiceWatchdog>();
 
 // Local-only control API. 127.0.0.1 keeps the device off the network.
 builder.WebHost.UseUrls($"http://127.0.0.1:{ApiPort}");
@@ -62,7 +63,7 @@ for (int attempt = 0; ; attempt++)
     catch (SocketException ex)
     {
         app.Logger.LogError("port {Port} still busy after 60 s ({Error}); exiting for systemd to retry", ApiPort, ex.Message);
-        return 75;   // EX_TEMPFAIL: a clean exit, no core dump; Restart=on-failure tries again
+        return 75;   // EX_TEMPFAIL: a clean exit, no core dump; systemd tries again
     }
 }
 
@@ -75,5 +76,10 @@ catch (IOException ex) when (ex.InnerException is AddressInUseException)
     // Lost the race between the probe and Kestrel's own bind.
     app.Logger.LogError("port {Port} was taken between probe and bind; exiting for systemd to retry", ApiPort);
     return 75;
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "daemon stopped unexpectedly; exiting for the service manager to retry");
+    return 1;
 }
 return 0;

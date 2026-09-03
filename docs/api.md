@@ -12,6 +12,17 @@ Messages from the daemon, each a JSON object with a `type` field:
 | `meters` | 15 Hz while the mixer is built | live stereo levels per channel and mix |
 | `plugins` | in answer to `listPlugins` | the installed LV2 plugins |
 | `error` | when a command is rejected | `message` |
+| `commandResult` | after a mixer command containing `requestId` | the same `requestId`, optional `error` (absent/null means success) |
+
+The first message on a connection is always `state`, before meter frames.
+The `state.features` array advertises `editableLayout` and `commandResults`;
+clients must check features rather than comparing release version strings.
+For example, send `{"cmd":"createMix","name":"Podcast","requestId":"unique-id"}`.
+An authoritative `state` precedes the matching `commandResult`. Layout
+changes are persisted before success is reported. A lost connection or
+timeout leaves the result unknown: inspect the restored state before retrying,
+since re-sending an Add command could create a second item. Legacy commands
+without `requestId` remain supported.
 
 Commands are single JSON objects with a `cmd` field:
 

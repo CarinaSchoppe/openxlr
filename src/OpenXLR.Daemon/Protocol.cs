@@ -20,6 +20,8 @@ public sealed record Command
     /// into a second protocol specification.
     /// </summary>
     [JsonPropertyName("cmd")] public string Cmd { get; init; } = "";
+    /// <summary>Optional correlation ID for an acknowledged mixer command.</summary>
+    [JsonPropertyName("requestId")] public string? RequestId { get; init; }
 
     /// <summary>For "set": the control name (see <see cref="ControlNames"/>).</summary>
     [JsonPropertyName("control")] public string? Control { get; init; }
@@ -87,6 +89,8 @@ public sealed record StateMessage
     /// restart prompt; a daemon older than 0.1.13 omits the field).
     /// </summary>
     [JsonPropertyName("daemonVersion")] public string? DaemonVersion { get; init; }
+    /// <summary>Protocol features, independent of release version or hardware capabilities.</summary>
+    [JsonPropertyName("features")] public string[] Features { get; init; } = [];
     [JsonPropertyName("connected")] public bool Connected { get; init; }
     [JsonPropertyName("device")] public DeviceDescriptor? Device { get; init; }
     [JsonPropertyName("capabilities")] public DeviceCapabilities? Capabilities { get; init; }

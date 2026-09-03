@@ -102,7 +102,7 @@ public sealed class OptionsViewModel : ViewModelBase
         get => _submixer;
         set
         {
-            if (!Set(ref _submixer, value)) return;
+            if (SubmixerChanging || !Set(ref _submixer, value)) return;
             try
             {
                 new DaemonPrefs { Submixer = value }.Save();
@@ -112,11 +112,24 @@ public sealed class OptionsViewModel : ViewModelBase
                 SubmixerNote = $"Could not save the setting: {ex.Message}";
                 return;
             }
-            SubmixerNote = StartupIntegration.RestartDaemon()
-                ? (value ? "Daemon restarted with the submixer on."
-                         : "Daemon restarted in hardware-control mode; the sound card keeps its stock layout and inserts are not loaded.")
-                : "Saved. Restart the daemon to apply (systemctl --user restart openxlr-daemon).";
+            _ = RestartSubmixerAsync();
         }
+    }
+
+    private bool _submixerChanging;
+    public bool SubmixerChanging { get => _submixerChanging; private set => Set(ref _submixerChanging, value); }
+
+    private async System.Threading.Tasks.Task RestartSubmixerAsync()
+    {
+        SubmixerChanging = true;
+        SubmixerNote = "Requesting daemon restart…";
+        try
+        {
+            SubmixerNote = await StartupIntegration.RestartDaemonAsync()
+                ? "Restart requested. The mixer will reconnect automatically."
+                : "Saved, but restart could not be requested. Run systemctl --user restart openxlr-daemon.";
+        }
+        finally { SubmixerChanging = false; }
     }
 
     private string? _submixerNote;

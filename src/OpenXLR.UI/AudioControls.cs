@@ -37,11 +37,13 @@ public sealed class ArcKnob : Control
     private double _startNormal;
 
     static ArcKnob() => AffectsRender<ArcKnob>(MinimumProperty, MaximumProperty, ValueProperty, IsLogarithmicProperty);
+    public ArcKnob() => Focusable = true;
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        Focus();
         _dragging = true;
         _startY = e.GetPosition(this).Y;
         _startNormal = Normalized(Value);
@@ -54,7 +56,7 @@ public sealed class ArcKnob : Control
         base.OnPointerMoved(e);
         if (!_dragging) return;
         double normal = Math.Clamp(_startNormal + (_startY - e.GetPosition(this).Y) / 140.0, 0, 1);
-        Value = FromNormalized(normal);
+        SetCurrentValue(ValueProperty, Snap(FromNormalized(normal)));
         e.Handled = true;
     }
 
@@ -70,7 +72,29 @@ public sealed class ArcKnob : Control
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
-        Value = FromNormalized(Math.Clamp(Normalized(Value) + Math.Sign(e.Delta.Y) * 0.02, 0, 1));
+        SetCurrentValue(ValueProperty, Snap(FromNormalized(Math.Clamp(Normalized(Value) + Math.Sign(e.Delta.Y) * 0.02, 0, 1))));
+        e.Handled = true;
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        _dragging = false;
+        base.OnPointerCaptureLost(e);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        double? next = e.Key switch
+        {
+            Key.Home => Minimum,
+            Key.End => Maximum,
+            Key.Up or Key.Right => Step > 0 ? Value + Step : FromNormalized(Math.Clamp(Normalized(Value) + 0.01, 0, 1)),
+            Key.Down or Key.Left => Step > 0 ? Value - Step : FromNormalized(Math.Clamp(Normalized(Value) - 0.01, 0, 1)),
+            _ => null,
+        };
+        if (next is null) return;
+        SetCurrentValue(ValueProperty, Snap(next.Value));
         e.Handled = true;
     }
 
@@ -138,14 +162,14 @@ public sealed class ArcKnob : Control
     private double Snap(double value)
     {
         value = Math.Clamp(value, Math.Min(Minimum, Maximum), Math.Max(Minimum, Maximum));
-        return Step > 0 ? Math.Round(value / Step) * Step : value;
+        return Step > 0 ? Math.Clamp(Minimum + Math.Round((value - Minimum) / Step) * Step, Minimum, Maximum) : value;
     }
 }
 
 /// <summary>
-/// Signal-oriented overview for equalizers and dynamics processors. It reads
-/// the same control values sent to PipeWire, so the graph follows every knob
-/// without pretending to be an unrelated second plugin instance.
+/// Parameter overview, not an FFT or measured response. EQ bars show configured
+/// band gains; dynamics bars show actual threshold settings. PipeWire does not
+/// expose LSP's native UI/analysis transport to this client.
 /// </summary>
 public sealed class PluginVisualizer : Control
 {
@@ -233,7 +257,7 @@ public sealed class PluginVisualizer : Control
         IEnumerable<InsertParamViewModel> parameters)
     {
         List<InsertParamViewModel> all = parameters.ToList();
-        var bands = new List<(double Frequency, double GainDb, double Q)>();
+        var bands = new List<(double Frequency, double GainDb)>();
         foreach (InsertParamViewModel frequency in all.Where(p =>
                      p.Name.StartsWith("Frequency ", StringComparison.OrdinalIgnoreCase)))
         {
@@ -241,18 +265,17 @@ public sealed class PluginVisualizer : Control
             InsertParamViewModel? gain = all.FirstOrDefault(p =>
                 p.Name.Equals("Gain " + suffix, StringComparison.OrdinalIgnoreCase));
             if (gain is null) continue;
-            InsertParamViewModel? q = all.FirstOrDefault(p =>
-                p.Name.Equals("Quality factor " + suffix, StringComparison.OrdinalIgnoreCase));
-            double gainDb = gain.Value > 0 ? 20 * Math.Log10(gain.Value) : -24;
-            bands.Add((Math.Clamp(frequency.Value, 20, 20000), Math.Clamp(gainDb, -24, 24),
-                Math.Clamp(q?.Value ?? 1, 0.15, 12)));
+            InsertParamViewModel? type = all.FirstOrDefault(p => p.Name.Equals("Filter type " + suffix, StringComparison.OrdinalIgnoreCase));
+            if (type?.Value == 0) continue; // LSP's disabled bands are not active EQ stages.
+            double gainDb = gain.Decibels;
+            bands.Add((Math.Clamp(frequency.Value, 20, 20000), Math.Clamp(gainDb, -24, 24)));
         }
 
         // LSP's graphic equalizer exposes fixed bands named "Band gain 25",
         // "Band gain 1K", etc. Draw them as real bars and connect their tops.
         var fixedBands = all.Where(p => p.Name.StartsWith("Band gain ", StringComparison.OrdinalIgnoreCase))
             .Select(p => (Frequency: ParseFrequency(p.Name["Band gain ".Length..]),
-                          GainDb: p.Value > 0 ? 20 * Math.Log10(p.Value) : -24))
+                          GainDb: p.Decibels))
             .Where(b => b.Frequency is >= 20 and <= 20000)
             .OrderBy(b => b.Frequency).ToList();
         if (fixedBands.Count > 0)
@@ -277,30 +300,15 @@ public sealed class PluginVisualizer : Control
             return;
         }
 
-        var geometry = new StreamGeometry();
-        using (StreamGeometryContext path = geometry.Open())
-        {
-            for (int i = 0; i <= 180; i++)
-            {
-                double x = i / 180.0;
-                double frequency = 20 * Math.Pow(1000, x);
-                double db = 0;
-                foreach ((double centre, double gain, double q) in bands)
-                {
-                    double octaves = Math.Log(frequency / centre, 2);
-                    db += gain * Math.Exp(-octaves * octaves * q * 0.7);
-                }
-                var point = new Point(plot.X + x * plot.Width,
-                    plot.Center.Y - Math.Clamp(db, -24, 24) / 48 * plot.Height);
-                if (i == 0) path.BeginFigure(point, false); else path.LineTo(point);
-            }
-        }
-        context.DrawGeometry(null, new Pen(new SolidColorBrush(Color.Parse("#4fb3d9")), 2.5), geometry);
-        foreach ((double frequency, double gain, _) in bands)
+        // Do not invent a Gaussian frequency response: LSP can use shelves,
+        // pass filters and several processing modes. Mark only known settings.
+        foreach ((double frequency, double gain) in bands)
         {
             double x = Math.Log(frequency / 20, 1000);
             var point = new Point(plot.X + x * plot.Width,
                 plot.Center.Y - Math.Clamp(gain, -24, 24) / 48 * plot.Height);
+            context.DrawLine(new Pen(new SolidColorBrush(Color.Parse("#4fb3d9")), 3),
+                new Point(point.X, plot.Center.Y), point);
             context.DrawEllipse(new SolidColorBrush(Color.Parse("#4fb3d9")), new Pen(Brushes.White, 1), point, 4, 4);
         }
 
@@ -317,34 +325,20 @@ public sealed class PluginVisualizer : Control
     private static void DrawDynamics(DrawingContext context, Rect plot,
         IEnumerable<InsertParamViewModel> parameters)
     {
-        List<InsertParamViewModel> all = parameters.ToList();
-        InsertParamViewModel? threshold = all.FirstOrDefault(p =>
-            p.Name.Contains("Attack threshold", StringComparison.OrdinalIgnoreCase))
-            ?? all.FirstOrDefault(p => p.Name.Contains("Threshold", StringComparison.OrdinalIgnoreCase));
-        InsertParamViewModel? ratioParam = all.FirstOrDefault(p => p.Name.Equals("Ratio", StringComparison.OrdinalIgnoreCase));
-        double thresholdDb = threshold is null ? -18
-            : threshold.Value > 0 && threshold.Value <= 1.5 ? 20 * Math.Log10(Math.Max(threshold.Value, 0.001))
-            : threshold.Value;
-        thresholdDb = Math.Clamp(thresholdDb, -60, 0);
-        double ratio = Math.Clamp(ratioParam?.Value ?? 4, 1, 100);
-
-        var unity = new Pen(new SolidColorBrush(Color.Parse("#4a5261")), 1) { DashStyle = new DashStyle([3, 3], 0) };
-        context.DrawLine(unity, new Point(plot.X, plot.Bottom), new Point(plot.Right, plot.Y));
-        var geometry = new StreamGeometry();
-        using (StreamGeometryContext path = geometry.Open())
+        // Thresholds have distinct meanings for gates, upward compressors and
+        // limiters; a universal downward-compressor curve would be incorrect.
+        var thresholds = parameters.Where(p => p.Name.Contains("threshold", StringComparison.OrdinalIgnoreCase)
+            && p.Unit == "dB" && !p.Toggled && !p.Enumeration).Take(6).ToList();
+        for (int i = 0; i < thresholds.Count; i++)
         {
-            for (int i = 0; i <= 100; i++)
-            {
-                double inputDb = -60 + i * 0.6;
-                double outputDb = inputDb <= thresholdDb ? inputDb : thresholdDb + (inputDb - thresholdDb) / ratio;
-                var point = new Point(plot.X + i / 100.0 * plot.Width,
-                    plot.Bottom - (outputDb + 60) / 60 * plot.Height);
-                if (i == 0) path.BeginFigure(point, false); else path.LineTo(point);
-            }
+            InsertParamViewModel parameter = thresholds[i];
+            double y = plot.Y + (i + 0.5) * plot.Height / Math.Max(1, thresholds.Count);
+            double x = plot.X + (Math.Clamp(parameter.Decibels, -60, 0) + 60) / 60 * plot.Width;
+            context.DrawLine(new Pen(new SolidColorBrush(Color.Parse("#e0a84a")), 5),
+                new Point(plot.X, y), new Point(x, y));
+            var label = new FormattedText($"{parameter.Name}: {parameter.ValueText}", CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight, new Typeface("Inter"), 11, Brushes.White);
+            context.DrawText(label, new Point(plot.X, y - 19));
         }
-        context.DrawGeometry(null, new Pen(new SolidColorBrush(Color.Parse("#e0a84a")), 2.5), geometry);
-        double tx = plot.X + (thresholdDb + 60) / 60 * plot.Width;
-        context.DrawLine(new Pen(new SolidColorBrush(Color.Parse("#e0a84a")), 1),
-            new Point(tx, plot.Y), new Point(tx, plot.Bottom));
     }
 }

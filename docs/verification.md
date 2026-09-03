@@ -99,7 +99,10 @@ kills and freezes/rebuilds an individual plugin host, and measures an EQ at two 
 Application tests inspect the real Pulse sink-input target: a test player
 starts in another muted channel, is moved by its saved assignment, and is
 reassigned while still playing. Audio captures also start in the wrong sink
-and require automatic routing before measuring the settled output signal.
+and require automatic routing to become observable within five seconds before
+measuring the settled output signal. This bound also covers the first sweep
+after a plugin-host reconstruction; its node can appear before that sweep has
+moved a newly opened test stream.
 `--native-ui` checks the native compressor/EQ editors, wheels the compressor's
 Output control, observes the updated daemon parameter and measures its audio
 effect. The synthetic X11 gesture targets only the identified test instance's
@@ -226,6 +229,22 @@ check eventual success and deadline failure. The private native-audio test likew
 captures when a newly started isolated graph produces too few samples; every
 attempt must still exceed the original sample threshold before its peak is
 accepted. Two offline tests cover recovery and bounded failure, bringing Python
-coverage to nine tests. Historical
-counts above describe their recorded
+coverage to nine tests. Historical counts above describe their recorded
 commits, not the newer suite.
+
+A repeated live run then exposed a narrower Pulse publication race: a new
+sink-input can temporarily report the unbound sink id `4294967295`, while an
+early `pactl move-sink-input` still exits successfully. OpenXLR now records a
+stream as placed only after Pulse publishes the requested sink; otherwise the
+next one-second sweep retries it. Explicit Flow moves are likewise returned to
+the confirmation path. Two parser tests cover the matching and unbound cases,
+bringing the .NET suite to **122 tests**. The unchanged full live assertions
+then passed again: actual saved and live destinations, 0.2000/0.0500/0.2000
+compressor and bypass peaks, 0.1000/0.2000 channel isolation, plugin-host
+SIGKILL/SIGSTOP, 0.0500/0.1980 EQ response, daemon SIGKILL/watchdog recovery,
+deletion cleanup, and a 0.63-second connected-client shutdown.
+
+The Debian and RPM release workflows install the GitHub CLI explicitly and
+run `gh --version` before compiling their packages. Release uploads remain
+gated to an actual GitHub release event; a manual workflow dispatch therefore
+tests the CLI, build and package checks without publishing a release asset.

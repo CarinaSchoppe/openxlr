@@ -18,7 +18,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential debhelper dotnet-sdk-10.0 pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev
+            build-essential debhelper gh dotnet-sdk-10.0 pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev
+
+      - name: Verify GitHub CLI
+        run: gh --version
 
       - name: Build package
         run: |

@@ -628,6 +628,36 @@ public sealed class PipeWireAdapter
         => Run("pactl", "move-sink-input", streamSerial.ToString(), sinkName);
 
     /// <summary>
+    /// Check Pulse's published stream destination. A newly created PipeWire
+    /// stream can briefly report the unbound sink id 4294967295; moving it in
+    /// that interval may return success without affecting its eventual target.
+    /// </summary>
+    public bool IsStreamOnSink(int streamSerial, string sinkName)
+        => IsStreamOnSink(
+            TryRun("pactl", "list", "sink-inputs", "short") ?? "",
+            TryRun("pactl", "list", "sinks", "short") ?? "",
+            streamSerial,
+            sinkName);
+
+    internal static bool IsStreamOnSink(
+        string sinkInputs,
+        string sinks,
+        int streamSerial,
+        string sinkName)
+    {
+        string? sinkId = sinkInputs.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split('\t'))
+            .Where(columns => columns.Length >= 2 && columns[0] == streamSerial.ToString())
+            .Select(columns => columns[1])
+            .FirstOrDefault();
+        if (sinkId is null || sinkId == uint.MaxValue.ToString()) return false;
+
+        return sinks.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split('\t'))
+            .Any(columns => columns.Length >= 2 && columns[0] == sinkId && columns[1] == sinkName);
+    }
+
+    /// <summary>
     /// Connect two nodes with direct port links (FL to FL, FR to FR). Unlike a
     /// loopback there is no process and no clock bridging: the linked island is
     /// driven by the hardware sink's clock, which is what actually makes audio

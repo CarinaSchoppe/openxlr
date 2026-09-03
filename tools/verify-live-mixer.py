@@ -10,6 +10,7 @@ Run: python3 tools/verify-live-mixer.py --allow-audio-interruption
 import argparse
 import array
 import concurrent.futures
+from contextlib import suppress
 import json
 from pipewire_snapshot import parse_dump
 import math
@@ -155,15 +156,22 @@ def capture_peak(channel="qa-channel", identity="openxlr-live-qa", frequency=440
                                 stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     def feed():
         try:
-            for _ in range(4):
+            # Keep the stream active throughout the five-second routing bound
+            # plus the three-second settled capture window.
+            for _ in range(10):
                 playback.stdin.write(samples)
                 playback.stdin.flush()
         except (BrokenPipeError, ValueError):
             pass
     writer = threading.Thread(target=feed, daemon=True)
-    writer.start()
     received = bytearray()
     try:
+        writer.start()
+        # A recovered plugin chain becomes visible before the next one-second
+        # application sweep has necessarily moved a newly opened stream. Verify
+        # that routing converges within the same bounded publication window used
+        # by explicit Flow assignment before measuring only settled audio.
+        wait_application_sink(identity, channel)
         with selectors.DefaultSelector() as selector:
             selector.register(capture.stdout, selectors.EVENT_READ)
             deadline = time.monotonic() + 3
@@ -200,8 +208,10 @@ def capture_peak(channel="qa-channel", identity="openxlr-live-qa", frequency=440
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=3)
-        writer.join(timeout=3)
-        playback.stdin.close()
+        if writer.ident is not None:
+            writer.join(timeout=3)
+        with suppress(BrokenPipeError):
+            playback.stdin.close()
         capture.stdout.close()
         playback.stderr.close()
         capture.stderr.close()

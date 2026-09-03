@@ -1305,8 +1305,9 @@ public sealed class Mixer : IDisposable
 
     /// <summary>
     /// Look for application streams and route new ones to their channel. Called
-    /// on a timer by the daemon. Returns true when anything changed. Streams the
-    /// mixer already placed are left alone so manual overrides survive.
+    /// on a timer by the daemon. Returns true when anything changed. A new stream
+    /// is tracked only after Pulse publishes its requested destination; this lets
+    /// the next sweep retry a move that raced the stream's initial binding.
     /// </summary>
     public bool SyncStreams()
     {
@@ -1332,7 +1333,11 @@ public sealed class Mixer : IDisposable
 
                 try
                 {
-                    _pw.MoveStreamToSink(s.Serial, ch.SinkName);
+                    if (!_pw.IsStreamOnSink(s.Serial, ch.SinkName))
+                    {
+                        _pw.MoveStreamToSink(s.Serial, ch.SinkName);
+                        if (!_pw.IsStreamOnSink(s.Serial, ch.SinkName)) continue;
+                    }
                     // The mixer owns muting (sends, masters) from here on; a
                     // per-stream mute remembered by stream-restore has no
                     // control anywhere in OpenXLR and just reads as silence.
@@ -1436,8 +1441,8 @@ public sealed class Mixer : IDisposable
                 if (placed.Identity == identity)
                 {
                     try { _pw.MoveStreamToSink(placed.Serial, ch.SinkName); }
-                    catch (InvalidOperationException) { continue; }
-                    _streams[id] = placed with { ChannelId = channelId };
+                    catch (InvalidOperationException) { /* the sweep retries */ }
+                    _streams.Remove(id);
                 }
 
             if (_apps.TryGetValue(identity, out StreamAssignment? app))
@@ -1464,7 +1469,7 @@ public sealed class Mixer : IDisposable
             {
                 _pw.MoveStreamToSink(existing.Serial, ch.SinkName);
                 Matcher.SetOverride(existing.Identity, channelId);
-                _streams[streamId] = existing with { ChannelId = channelId };
+                _streams.Remove(streamId); // next sweep confirms the published target
                 return;
             }
             _pw.MoveStreamToSink(streamId, ch.SinkName);

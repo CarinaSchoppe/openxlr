@@ -5,6 +5,25 @@ namespace OpenXLR.Tests;
 public sealed class PipeWireRoutingTests
 {
     [Fact]
+    public void StreamTargetRequiresMatchingPublishedSink()
+    {
+        const string inputs = "42\t101\t-\tPipeWire\tfloat32le 2ch 48000Hz\n";
+        const string sinks = "100\tOpenXLR_ch_game\tPipeWire\n101\tOpenXLR_ch_music\tPipeWire\n";
+
+        Assert.True(PipeWireAdapter.IsStreamOnSink(inputs, sinks, 42, "OpenXLR_ch_music"));
+        Assert.False(PipeWireAdapter.IsStreamOnSink(inputs, sinks, 42, "OpenXLR_ch_game"));
+    }
+
+    [Fact]
+    public void UnboundStreamIsNotTreatedAsRouted()
+    {
+        const string inputs = "42\t4294967295\t-\tPipeWire\tfloat32le 2ch 48000Hz\n";
+        const string sinks = "101\tOpenXLR_ch_music\tPipeWire\n";
+
+        Assert.False(PipeWireAdapter.IsStreamOnSink(inputs, sinks, 42, "OpenXLR_ch_music"));
+    }
+
+    [Fact]
     public void ModulePropertyLabelsEscapeBothParsingLevelsWithoutHtmlEscapes()
     {
         const string name = "OpenXLR \"Game\" / John's \\ audio";

@@ -20,6 +20,19 @@ import time
 from native_ui_smoke import wheel_compressor_output
 
 
+def capture_with_minimum_samples(capture, minimum=48000, attempts=3):
+    """Retry an initially silent private graph, but never accept a short capture."""
+    counts = []
+    for attempt in range(attempts):
+        samples = capture()
+        counts.append(len(samples))
+        if len(samples) > minimum:
+            return samples
+        if attempt + 1 < attempts:
+            time.sleep(0.25)
+    raise AssertionError(f"insufficient captured audio after {attempts} attempts: {counts} samples")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", type=Path, help="Test an installed package's native helper instead of the build-tree binary")
@@ -119,7 +132,7 @@ def main():
                 run("pw-link", f"qa_in:monitor_{side}", f"qa_plugin:playback_{index}")
                 run("pw-link", f"qa_plugin:capture_{index}", f"qa_out:playback_{side}")
 
-            def peak():
+            def capture_samples():
                 data = array.array("f", (0.2 * math.sin(i * 2 * math.pi * 440 / 48000)
                                           for i in range(48000 * 3) for _ in range(2))).tobytes()
                 capture = start("parec", "-d", "qa_out.monitor", "--format=float32le", "--channels=2", "--rate=48000",
@@ -144,7 +157,10 @@ def main():
                 writer.join(timeout=3)
                 samples = array.array("f")
                 samples.frombytes(received[:len(received) // 4 * 4])
-                assert len(samples) > 48000, "insufficient captured audio"
+                return samples
+
+            def peak():
+                samples = capture_with_minimum_samples(capture_samples)
                 return max(abs(x) for x in samples[-48000:])
 
             first = peak()

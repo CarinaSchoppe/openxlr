@@ -222,6 +222,10 @@ with duplicate names and malformed input brings the local suite to **120 .NET
 tests**. The live routing assertion also allows a bounded five seconds for
 PipeWire/Pulse to publish the actual destination after command acknowledgement,
 instead of assuming the graph is immediately observable. Two offline tests
-check eventual success and deadline failure, bringing Python coverage to seven
-tests. Historical counts above describe their recorded
+check eventual success and deadline failure. The private native-audio test likewise retries up to three complete
+captures when a newly started isolated graph produces too few samples; every
+attempt must still exceed the original sample threshold before its peak is
+accepted. Two offline tests cover recovery and bounded failure, bringing Python
+coverage to nine tests. Historical
+counts above describe their recorded
 commits, not the newer suite.

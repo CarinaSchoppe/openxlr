@@ -8,6 +8,7 @@ from pipewire_snapshot import parse_dump
 
 command = runpy.run_path(str(Path(__file__).with_name("verify-installed.py")))["command"]
 wait_application_sink = runpy.run_path(str(Path(__file__).with_name("verify-live-mixer.py")))["wait_application_sink"]
+capture_with_minimum_samples = runpy.run_path(str(Path(__file__).with_name("verify-native-host.py")))["capture_with_minimum_samples"]
 
 
 class RoutePublicationTests(unittest.TestCase):
@@ -24,6 +25,19 @@ class RoutePublicationTests(unittest.TestCase):
         with patch.dict(wait_application_sink.__globals__, assert_application_sink=check), \
              patch("time.monotonic", side_effect=[0, 6]), self.assertRaisesRegex(AssertionError, "wrong sink"):
             wait_application_sink("player", "music")
+
+
+class NativeCaptureStartupTests(unittest.TestCase):
+    def test_short_startup_captures_are_retried(self):
+        capture = Mock(side_effect=[[0], [0] * 48001])
+        with patch("time.sleep"):
+            result = capture_with_minimum_samples(capture)
+        self.assertEqual(48001, len(result))
+        self.assertEqual(2, capture.call_count)
+
+    def test_repeated_short_captures_still_fail(self):
+        with patch("time.sleep"), self.assertRaisesRegex(AssertionError, r"\[1, 2, 3\] samples"):
+            capture_with_minimum_samples(Mock(side_effect=[[0], [0, 0], [0, 0, 0]]))
 
 
 class PipeWireSnapshotTests(unittest.TestCase):

@@ -6,7 +6,7 @@ Also suitable for CI. Requires PipeWire, WirePlumber, Pulse tools, LSP LV2.
 """
 import array
 import argparse
-import json
+from pipewire_snapshot import parse_dump
 import math
 import os
 from pathlib import Path
@@ -81,7 +81,7 @@ def main():
             start("wireplumber", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             wait_for(lambda: "Server Name:" in run("pactl", "info"))
             hardware = [(n["type"], n.get("info", {}).get("props", {}))
-                        for n in json.loads(run("pw-dump"))
+                        for n in parse_dump(run("pw-dump"))
                         if n.get("info", {}).get("props", {}).get("device.api")]
             assert not hardware, f"private graph must not own hardware: {hardware}"
             for name in ("qa_in", "qa_out"):

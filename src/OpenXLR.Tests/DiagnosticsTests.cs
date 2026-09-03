@@ -8,8 +8,32 @@ public sealed class DiagnosticsTests
     [InlineData("unavailable")]
     [InlineData("{}")]
     [InlineData("[{\"type\":3}]")]
+    [InlineData("")]
+    [InlineData("[] garbage")]
+    [InlineData("[] {}")]
+    [InlineData("[] [{\"id\":\"wrong\"}]")]
+    [InlineData("[] [{\"id\":-1}]")]
+    [InlineData("[] [{\"id\":true}]")]
     public void InvalidGraphDoesNotPreventDiagnosticsExport(string graph)
         => Assert.Contains("error", Diagnostics.SummarizeGraph(graph));
+
+    [Fact]
+    public void GraphChangeBatchesReplaceByIdAndRemoveTombstones()
+    {
+        const string graph = """
+            [{"id":1,"type":"PipeWire:Interface:Node","info":{"props":{"node.name":"OpenXLR_old"}}},
+             {"id":2,"type":"PipeWire:Interface:Node","info":{"props":{"node.name":"OpenXLR_removed"}}},
+             {"id":3,"type":"PipeWire:Interface:Node","info":{"props":{"node.name":"OpenXLR_removed_props"}}}]
+            [{"id":1,"type":"PipeWire:Interface:Node","info":{"props":{"node.name":"OpenXLR_new"}}},
+             {"id":2,"info":null},{"id":3,"props":null}]
+            [{"id":4,"type":"PipeWire:Interface:Node","info":{"props":{"node.name":"OpenXLR_added"}}}]
+            """;
+        using var result = System.Text.Json.JsonDocument.Parse(Diagnostics.SummarizeGraph(graph));
+        Assert.Equal(2, result.RootElement.GetProperty("nodeCount").GetInt32());
+        Assert.Empty(result.RootElement.GetProperty("duplicates").EnumerateArray());
+        Assert.Equal(new[] { "OpenXLR_new", "OpenXLR_added" },
+            result.RootElement.GetProperty("nodes").EnumerateArray().Select(n => n.GetProperty("name").GetString()));
+    }
 
     [Fact]
     public void GraphSummaryCountsNamesRatherThanIntentionalStageDescriptions()

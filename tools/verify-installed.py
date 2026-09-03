@@ -6,6 +6,7 @@ never stops a user's daemon. CI supplies a disposable user and no USB hardware.
 """
 import argparse
 import json
+from pipewire_snapshot import parse_dump
 import os
 from pathlib import Path
 import socket
@@ -69,12 +70,12 @@ def main():
             command(connection, "renameChannel", channel="package-qa", name='QA "renamed"')
             command(connection, "renameMix", mix="package-output", name="QA Output")
             command(connection, "setLevel", channel="package-qa", mix="package-output", value=0.4)
-            graph = json.loads(audio.run("pw-dump"))
+            graph = parse_dump(audio.run("pw-dump"))
             names = [n.get("info", {}).get("props", {}).get("node.name") for n in graph]
             assert names.count("OpenXLR_ch_package-qa") == names.count("OpenXLR_package-output") == 1
             command(connection, "deleteChannel", channel="package-qa")
             command(connection, "deleteMix", mix="package-output")
-            names = [n.get("info", {}).get("props", {}).get("node.name", "") for n in json.loads(audio.run("pw-dump"))]
+            names = [n.get("info", {}).get("props", {}).get("node.name", "") for n in parse_dump(audio.run("pw-dump"))]
             assert not any("package-qa" in n or "package-output" in n for n in names)
             saved = json.loads((config / "mixer.json").read_text())
             assert not saved["userMixes"] and len(saved["userChannels"]) == 1

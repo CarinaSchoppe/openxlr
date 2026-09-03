@@ -4,8 +4,26 @@ from pathlib import Path
 import runpy
 import unittest
 from unittest.mock import Mock
+from pipewire_snapshot import parse_dump
 
 command = runpy.run_path(str(Path(__file__).with_name("verify-installed.py")))["command"]
+
+
+class PipeWireSnapshotTests(unittest.TestCase):
+    def test_single_snapshot_preserves_duplicate_names_for_detection(self):
+        snapshot = [{"id": 1, "name": "same"}, {"id": 2, "name": "same"}]
+        self.assertEqual(snapshot, parse_dump(json.dumps(snapshot)))
+
+    def test_change_batches_replace_and_remove_by_id(self):
+        stream = '[{"id":1,"name":"old"},{"id":2},{"id":3}]\n' \
+            '[{"id":1,"name":"new"},{"id":2,"info":null},{"id":3,"props":null}]\n[{"id":4}]'
+        self.assertEqual([{"id": 1, "name": "new"}, {"id": 4}], parse_dump(stream))
+
+    def test_malformed_streams_fail_instead_of_discarding_trailing_data(self):
+        for stream in ('', '{}', '[] garbage', '[] {}', '[] [{"id":"wrong"}]',
+                       '[] [{"id":-1}]', '[] [{"id":true}]', '[] [{"id":4294967296}]'):
+            with self.subTest(stream=stream), self.assertRaises(ValueError):
+                parse_dump(stream)
 
 
 class PackageCommandTests(unittest.TestCase):

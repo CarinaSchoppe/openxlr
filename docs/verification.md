@@ -211,3 +211,13 @@ reply now waits on an explicit gate until all four requests are pending;
 the test still requires exactly one request and four valid responses. The
 bounded ten-second test budget accommodates loaded hosted runners without
 changing production timeouts or relaxing the coalescing assertions.
+
+A subsequent Ubuntu run exposed multiple JSON arrays from one `pw-dump`
+invocation while deleting graph objects. The shared daemon/diagnostics reader
+and Python acceptance reader now fold full object updates by registry id and
+apply null-info/null-props removal records, rather than treating the dump as
+an empty graph or discarding trailing updates. Invalid/truncated data still
+fails explicitly. Regression coverage for replacement, deletion, distinct ids
+with duplicate names and malformed input brings the local suite to **120 .NET
+tests and five Python tests**. Historical counts above describe their recorded
+commits, not the newer suite.

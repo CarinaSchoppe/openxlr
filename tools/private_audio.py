@@ -3,7 +3,7 @@
 No hardware monitors, no user config changes, bounded commands and guaranteed
 child cleanup. Both WirePlumber 0.4 (Ubuntu) and 0.5 use their own policy format.
 """
-import json
+from pipewire_snapshot import parse_dump
 import os
 from pathlib import Path
 import subprocess
@@ -67,7 +67,7 @@ class PrivateAudio:
             self.logged("pipewire-pulse")
             self.logged("wireplumber")
             self.wait_for(lambda: "Server Name:" in self.run("pactl", "info"))
-            hardware = [n.get("info", {}).get("props", {}) for n in json.loads(self.run("pw-dump"))
+            hardware = [n.get("info", {}).get("props", {}) for n in parse_dump(self.run("pw-dump"))
                         if n.get("info", {}).get("props", {}).get("device.api")]
             assert not hardware, f"private graph must not own hardware: {hardware}"
             return self

@@ -110,7 +110,7 @@ public static class Diagnostics
     {
         try
         {
-            using JsonDocument graph = JsonDocument.Parse(json);
+            using JsonDocument graph = PipeWireSnapshot.Parse(json);
             var nodes = graph.RootElement.EnumerateArray()
                 .Where(n => n.TryGetProperty("type", out JsonElement type) && type.GetString() == "PipeWire:Interface:Node")
                 .Where(n => n.TryGetProperty("info", out JsonElement info) && info.TryGetProperty("props", out _))

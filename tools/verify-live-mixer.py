@@ -11,6 +11,7 @@ import argparse
 import array
 import concurrent.futures
 import json
+from pipewire_snapshot import parse_dump
 import math
 import os
 from pathlib import Path
@@ -62,7 +63,7 @@ def command(sock, cmd, **fields):
 
 def nodes():
     return [n.get("info", {}).get("props", {}).get("node.name")
-            for n in json.loads(run("pw-dump")) if n["type"] == "PipeWire:Interface:Node"]
+            for n in parse_dump(run("pw-dump")) if n["type"] == "PipeWire:Interface:Node"]
 
 
 def assert_application_sink(identity, channel):
@@ -98,7 +99,7 @@ def verify_application_routing(sock):
                         state = command(sock, "setMixVolume", mix="qa-output", value=1)
                         print("Routing diagnostic:", [a for a in state.get("streams", [])
                               if a.get("identity") == "openxlr-live-qa"], flush=True)
-                        for node in json.loads(run("pw-dump")):
+                        for node in parse_dump(run("pw-dump")):
                             props = node.get("info", {}).get("props", {})
                             if props.get("node.name") == "qa-playback":
                                 print("Stream properties:", {key: props.get(key) for key in
@@ -235,7 +236,7 @@ def main():
                     command(sock, "setLevel", channel=channel["id"], mix="qa-output", value=0)
             assert "OpenXLR_ch_qa-channel" in nodes()
             assert "OpenXLR_qa-output" in nodes()
-            graph = [n.get("info", {}).get("props", {}) for n in json.loads(run("pw-dump"))
+            graph = [n.get("info", {}).get("props", {}) for n in parse_dump(run("pw-dump"))
                      if n["type"] == "PipeWire:Interface:Node"]
             fanout = next(p for p in graph if p.get("node.name") == "OpenXLR_fanout_qa-channel")
             assert fanout["openxlr.internal"] is True, fanout
@@ -305,7 +306,7 @@ def main():
 
             # The native host, not only the daemon, is supervised and reconstructed.
             def native_pid():
-                for node in json.loads(run("pw-dump")):
+                for node in parse_dump(run("pw-dump")):
                     props = node.get("info", {}).get("props", {})
                     if props.get("node.name") == "OpenXLR_ins_ch_qa-channel_in_lv2_0":
                         return int(props["application.process.id"])

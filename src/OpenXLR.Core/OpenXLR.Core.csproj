@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="../Shared/PipeWireSnapshot.cs" Link="Mixing/PipeWireSnapshot.cs" />
     <InternalsVisibleTo Include="OpenXLR.Tests" />
     <None Include="../../native/openxlr-lv2-host" Link="openxlr-lv2-host" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>

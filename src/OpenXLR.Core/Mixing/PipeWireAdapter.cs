@@ -822,7 +822,7 @@ public sealed class PipeWireAdapter
         var found = new List<AudioNode>();
         string json = Run("pw-dump");
         JsonDocument doc;
-        try { doc = JsonDocument.Parse(json); }
+        try { doc = PipeWireSnapshot.Parse(json); }
         catch (JsonException) { return found; }
         using (doc)
         {
@@ -937,7 +937,7 @@ public sealed class PipeWireAdapter
         var found = new List<AudioStream>();
         string json = Run("pw-dump");
         JsonDocument doc;
-        try { doc = JsonDocument.Parse(json); }
+        try { doc = PipeWireSnapshot.Parse(json); }
         catch (JsonException) { return found; }
         using (doc)
         {
@@ -979,7 +979,7 @@ public sealed class PipeWireAdapter
         var found = new List<AudioStream>();
         string json = Run("pw-dump");
         JsonDocument doc;
-        try { doc = JsonDocument.Parse(json); }
+        try { doc = PipeWireSnapshot.Parse(json); }
         catch (JsonException) { return found; }
         using (doc)
         {
@@ -1034,7 +1034,7 @@ public sealed class PipeWireAdapter
     {
         string json = Run("pw-dump");
         JsonDocument doc;
-        try { doc = JsonDocument.Parse(json); }
+        try { doc = PipeWireSnapshot.Parse(json); }
         catch (JsonException) { yield break; }
         using (doc)
         {

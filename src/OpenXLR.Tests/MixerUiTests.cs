@@ -18,6 +18,48 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
     public MixerUiTests(MixerUiSession ui) => _ui = ui;
 
     [Fact]
+    public Task RestartAndReleaseNoticeWorkThroughActualControls() => _ui.Run(async () =>
+    {
+        await using var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            await SocketTestServer.Send(socket, State(), stop);
+            await Task.Delay(Timeout.Infinite, stop);
+        });
+        await using var client = new DaemonClient(server.Url);
+        var response = new TaskCompletionSource<bool>();
+        var service = new ServiceViewModel(() => response.Task);
+        var updates = new UpdatesViewModel(_ => Task.FromResult(new UpdateResult(true, "New test build",
+            "Development snapshot, not an upstream release.\nRouting and recovery fixes.", "https://github.com/owner/repo")));
+        var window = new MainWindow(client, service, updates);
+        var main = (MainViewModel)window.DataContext!;
+        main.MinimizeToTray = false;
+        using var windows = new WindowScope(window);
+        window.Show(); // a user's StartMinimized preference must not hide the test owner
+        await Until(() => main.DaemonConnected);
+        await updates.CheckAsync();
+        var restart = window.FindControl<Button>("RestartDaemonButton")!;
+        Assert.True(restart.IsVisible && restart.IsEnabled);
+        restart.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.True(service.Busy);
+        Assert.False(restart.IsEnabled);
+        response.SetResult(true);
+        await Until(() => !service.Busy);
+        Assert.True(restart.IsEnabled);
+        Assert.Contains("Restart requested", service.Status);
+        window.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, "View changes"))
+            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var changes = Assert.Single(window.OwnedWindows.OfType<UpdatesWindow>());
+        Assert.Same(updates, changes.DataContext);
+        Assert.Contains("Development snapshot", changes.GetVisualDescendants().OfType<SelectableTextBlock>().Single().Text);
+        SaveScreenshot(window, "restart-update-header.png");
+        SaveScreenshot(changes, "update-notice.png");
+        changes.Close();
+        using var options = new WindowScope(new OptionsWindow(new OptionsViewModel(client, main)));
+        SaveScreenshot(options.Items[0], "options-support.png");
+        Assert.NotEmpty(options.Items[0].GetVisualDescendants().OfType<ScrollViewer>());
+    });
+
+    [Fact]
     public Task CardsKeepTheirIdentityAndRemoveDeletedSends() => _ui.Run(async () =>
     {
         await using var client = new DaemonClient();

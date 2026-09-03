@@ -17,6 +17,11 @@ namespace OpenXLR.Core.Mixing;
 public sealed class PipeWireAdapter
 {
     private const string ClipGuardPluginFile = "hard_limiter_1413.so";
+    // These strings go to a SPA/Pulse argument parser, never to HTML. It
+    // understands backslash quotes, but not System.Text.Json's HTML-oriented
+    // \u0022 spelling for quotes in a nested property list.
+    private static readonly JsonSerializerOptions PropertyJson = new()
+    { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     private readonly Func<DspFeatureAvailability>? _clipGuardAvailabilityOverride;
     private readonly List<uint> _modules = [];
@@ -30,15 +35,12 @@ public sealed class PipeWireAdapter
         => _clipGuardAvailabilityOverride = clipGuardAvailabilityOverride;
 
     /// <summary>
-    /// pactl joins its arguments into one module-argument string and re-splits on
-    /// whitespace, so a description containing spaces is truncated unless each
-    /// space is backslash-escaped *inside* the quoted value. Verified on
-    /// PipeWire 1.6: node.description="OpenXLR\ Monitor" survives, while plain
-    /// quoting, single quotes, and a bare backslash all lose everything after
-    /// the first space. Without this, every OpenXLR node shows as just
-    /// "OpenXLR" in pavucontrol, OBS, and Discord.
+    /// pactl reparses module arguments, then the module reparses its property
+    /// list. JSON-quote both levels: spaces, quotes, apostrophes and backslashes
+    /// in user labels must survive without injecting another node property.
     /// </summary>
-    private static string PropValue(string value) => '"' + value.Replace(" ", "\\ ") + '"';
+    internal static string ModuleProperties(string description, string extra)
+        => JsonSerializer.Serialize($"node.description={JsonSerializer.Serialize(description, PropertyJson)} " + extra, PropertyJson);
 
     /// <summary>
     /// Check the optional LADSPA dependency before changing a live graph. PipeWire
@@ -123,8 +125,12 @@ public sealed class PipeWireAdapter
         }
     }
 
-    /// <summary>Load a null sink; returns its module id for later unload.</summary>
-    public uint CreateNullSink(string nodeName, string description)
+    /// <summary>
+    /// Load a null sink; internal buses remain Pulse sinks because combine
+    /// streams and monitor taps address them through that API. They are marked
+    /// as filters and excluded from OpenXLR's end-user device choices.
+    /// </summary>
+    public uint CreateNullSink(string nodeName, string description, bool isInternal = false)
     {
         // suspend-on-idle must be off: an idle channel sink would otherwise be
         // suspended by PipeWire and drop the first moment of audio (or all of it)
@@ -136,17 +142,17 @@ public sealed class PipeWireAdapter
             // priority.session far below any hardware sink, so WirePlumber never
             // auto-switches the system default to one of our internal sinks
             // (which silently swallows the user's desktop audio).
-            $"sink_properties=node.description={PropValue(description)}" +
-            " node.suspend-on-idle=false priority.session=100");
+            "sink_properties=" + ModuleProperties(description,
+                "node.suspend-on-idle=false priority.session=100" + InternalProperties(isInternal)));
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;
     }
 
     /// <summary>
-    /// A combine sink duplicates its input into several slave sinks. One per
-    /// channel: applications play into it and every mix receives the audio
-    /// through that channel's remap cells.
+    /// One internal fan-out per channel. Applications address the stable
+    /// public input, not this post-effect stage. Keep the sink classification:
+    /// Pulse monitor taps and PipeWire's multi-driver scheduling rely on it.
     /// </summary>
     public uint CreateCombineSink(string nodeName, IEnumerable<string> slaveSinks, string description)
     {
@@ -157,12 +163,22 @@ public sealed class PipeWireAdapter
             // suspend-on-idle=false keeps the combine's monitor source running;
             // a suspended monitor makes the channel's level meter read silence
             // even while audio flows through the sink.
-            $"sink_properties=node.description={PropValue(description)}" +
-            " priority.session=100 node.suspend-on-idle=false");
+            // Combine/remap modules parse only sink_properties (unlike null
+            // sinks, which also accept top-level node keys). Quote the entire
+            // property list or everything after description is silently lost.
+            "sink_properties=" + ModuleProperties(description,
+                "priority.session=100 node.suspend-on-idle=false" + InternalProperties(true)));
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;
     }
+
+    private static string InternalProperties(bool isInternal)
+        => isInternal ? " openxlr.internal=true device.class=filter node.virtual=true" : "";
+
+    internal static bool IsInternalDevice(JsonElement properties)
+        => properties.TryGetProperty("openxlr.internal", out JsonElement value)
+            && (value.ValueKind == JsonValueKind.True || value.ValueKind == JsonValueKind.String && value.GetString() == "true");
 
     /// <summary>A "sink#suffix" pseudo-device address without its suffix.</summary>
     private static string BareSink(string sinkName)
@@ -302,8 +318,8 @@ public sealed class PipeWireAdapter
             // Both properties: apps read one or the other depending on the API.
             // Low priority.session so WirePlumber never promotes a virtual mic
             // to system default capture on its own.
-            $"source_properties=device.description={PropValue(description)}" +
-            $" node.description={PropValue(description)} priority.session=100");
+            "source_properties=" + ModuleProperties(description,
+                $"device.description={JsonSerializer.Serialize(description, PropertyJson)} priority.session=100"));
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;
@@ -402,10 +418,12 @@ public sealed class PipeWireAdapter
             $"{{ node.description = \"{description}\" " +
             $"filter.graph = {{ nodes = [ {string.Join(' ', stages.Select(s => s.Node))} ] {links}" +
             $"inputs = [ {inputs} ] outputs = [ {outputs} ] }} " +
-            $"capture.props = {{ node.name = {sinkName} media.class = Audio/Sink " +
+            $"capture.props = {{ node.name = {sinkName} node.description = \"{description} (internal input)\" media.class = Audio/Sink " +
+            "openxlr.internal = true node.autoconnect = false " +
             $"audio.channels = {channels} audio.position = {position} node.suspend-on-idle = false " +
             "priority.session = 100 } " +
-            $"playback.props = {{ node.name = {srcName} media.class = Audio/Source " +
+            $"playback.props = {{ node.name = {srcName} node.description = \"{description} (internal output)\" media.class = Audio/Source " +
+            "openxlr.internal = true node.autoconnect = false " +
             $"audio.channels = {channels} audio.position = {position} node.suspend-on-idle = false " +
             "priority.session = 100 } }";
         var psi = new ProcessStartInfo("pw-cli")
@@ -791,7 +809,8 @@ public sealed class PipeWireAdapter
     /// Every sink (output) and source (input) in the graph, real or virtual.
     /// PipeWire makes no distinction, so a null sink, a loopback, or another
     /// app's virtual device is selectable exactly like a physical card.
-    /// Monitor sources are excluded: they are the tap side of a sink, not a
+    /// Internal OpenXLR stages and monitor sources are excluded: they are
+    /// plumbing/taps, not a
     /// device a user would pick as a microphone.
     /// </summary>
     public IReadOnlyList<AudioNode> ListDevices(
@@ -810,6 +829,7 @@ public sealed class PipeWireAdapter
                     !(t.GetString()?.EndsWith("Node", StringComparison.Ordinal) ?? false)) continue;
                 if (!o.TryGetProperty("info", out JsonElement info) ||
                     !info.TryGetProperty("props", out JsonElement props)) continue;
+                if (IsInternalDevice(props)) continue;
 
                 string? name = props.TryGetProperty("node.name", out JsonElement n) ? n.GetString() : null;
                 if (name is null) continue;

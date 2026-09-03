@@ -26,6 +26,7 @@ Requires:       pipewire-libs
 Requires:       pipewire-pulseaudio
 Requires:       wireplumber
 Requires:       pulseaudio-libs
+Requires:       pulseaudio-utils
 Requires:       libusb1
 Requires:       lilv-libs
 Requires:       fontconfig
@@ -33,7 +34,6 @@ Requires:       libX11
 Requires:       libICE
 Requires:       libSM
 Recommends:     alsa-utils
-Recommends:     pulseaudio-utils
 Recommends:     xdg-utils
 Suggests:       ladspa-swh-plugins
 Suggests:       lsp-plugins-lv2

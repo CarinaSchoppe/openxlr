@@ -42,6 +42,32 @@ local/self-hosted runs. It avoids changing Ubuntu's namespace restrictions;
 local runs still use bubblewrap and leave the user's settings untouched.
 Set `OPENXLR_SCREENSHOT_DIR` to a directory when running the tests to export
 rendered PNGs of the layout editor, individual card and plugin controls.
+It also exports the restart/update header, change-log window and Options.
+The restart control is driven with an injected asynchronous service result,
+including disabled/busy state and retry; no unit test restarts a real service.
+Update tests use offline HTTP responses for numeric version ordering,
+draft/prerelease exclusion, ancestry-aware commit notices, invalid repositories,
+response-size limits, failures, cancellation and duplicate checks.
+Diagnostic tests cover privacy redaction and real duplicate node names versus
+intentional multi-stage routing.
+
+## Distribution packages and runtime
+
+`Package and runtime matrix` builds on Ubuntu 24.04, Fedora 44 and Arch rolling,
+runs the .NET suite, installs the resulting `.deb`, `.rpm` or `.pkg.tar.zst`, and
+starts the **installed** daemon and Avalonia UI. Runtime tests run as an
+unprivileged user with isolated PipeWire, Pulse, WirePlumber, D-Bus and Xvfb.
+They exercise API create/rename/send/delete, persisted cleanup, unique node
+names, an actual X11 window, and daemon shutdown while UI clients remain open.
+The installed native helper is separately tested with real LSP DSP and a native
+editor gesture. This catches missing shared libraries and helper permissions,
+not just whether an archive was produced.
+
+These jobs deliberately do not publish a release or enable services globally.
+Artifacts are snapshots of the workflow's commit. Containers do not provide a
+real user systemd boot or physical USB hardware; the live CachyOS acceptance
+test covers systemd recovery, while other devices/desktops still need hardware
+acceptance. Check the actual workflow outcome before claiming distro success.
 
 ## Real audio/service test (explicitly disruptive)
 
@@ -119,3 +145,22 @@ This is evidence for these scenarios, not a guarantee for every plugin,
 device or operating system. Complete Debian/RPM/Nix package builds are not
 part of this local result; their build inputs and helper permissions were
 updated, and release workflows check the packaged executable.
+
+## Recovery/update follow-up (2026-09-04)
+
+The extended suite passes 113 tests, including the actual restart/update UI
+controls. The full live signal test also passes after restarting a stalled
+PipeWire user session: both the unchanged `ae1bbbc` baseline and the new build
+initially produced no capture samples, while private servers passed. Restarting
+the audio session restored the live graph; this is not evidence that a daemon
+watchdog can repair every PipeWire/kernel failure.
+
+The latest full run again measured 0.2000 dry / 0.0500 processed / 0.2000 bypass,
+independent channels 0.1000 / 0.2000, and EQ 0.0500 at 440 Hz versus 0.1980 at
+6 kHz. Plugin SIGKILL/SIGSTOP and daemon SIGKILL/watchdog recovery passed, as did
+persisted deletion and shutdown with a client connected (0.56 seconds).
+Descriptions containing quotes, apostrophes and backslashes survive real
+module parsing. Internal stages retain required Pulse sink/monitor semantics
+and have distinct names and filter metadata; they are not hidden from every
+external graph tool. Distribution package jobs are an additional independent
+gate, not covered by these local measurements.

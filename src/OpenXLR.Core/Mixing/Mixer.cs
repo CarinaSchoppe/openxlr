@@ -105,7 +105,7 @@ public sealed class Mixer : IDisposable
             // Mixes first: the cells attach to them as masters.
             foreach (MixDefinition mix in config.Mixes)
             {
-                _pw.CreateNullSink(mix.SinkName, $"OpenXLR {mix.Name}");
+                _pw.CreateNullSink(mix.SinkName, $"OpenXLR {mix.Name} (internal mix bus)", isInternal: true);
                 _mixVolume[mix.Id] = mix.Volume;
                 if (mix.Muted) _mixMuted.Add(mix.Id);
             }
@@ -124,7 +124,7 @@ public sealed class Mixer : IDisposable
                 if (ch.InputPair is null) _pw.CreateNullSink(ch.SinkName, $"OpenXLR {ch.Name}");
                 _combineModules[ch.Id] = _pw.CreateCombineSink(ch.FanOutSinkName,
                     config.Mixes.Select(m => m.SinkName),
-                    $"OpenXLR {ch.Name}");
+                    $"OpenXLR {ch.Name} (internal distribution)");
             }
             DiscoverLegsLocked();
 
@@ -137,7 +137,7 @@ public sealed class Mixer : IDisposable
             // the capture device an app is recording from.
             foreach (MixDefinition mix in config.Mixes.Where(m => m.Kind == MixKind.VirtualMic))
             {
-                _pw.CreateNullSink(mix.PostSinkName, $"OpenXLR {mix.Name} (post)");
+                _pw.CreateNullSink(mix.PostSinkName, $"OpenXLR {mix.Name} (internal capture tap)", isInternal: true);
                 _pw.CreateVirtualMic(mix.VirtualMicName, $"{mix.PostSinkName}.monitor", $"OpenXLR {mix.Name}");
             }
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -10,20 +11,33 @@ namespace OpenXLR.UI;
 
 public partial class MainWindow : Window
 {
-    private readonly DaemonClient _client = new();
+    private readonly DaemonClient _client;
     private readonly MainViewModel _vm;
     private TrayIcon? _tray;
     private bool _reallyExit;
+    private readonly CancellationTokenSource _lifetime = new();
+    private bool _updatesChecked;
 
-    public MainWindow()
+    public MainWindow() : this(new DaemonClient(), new ServiceViewModel(), new UpdatesViewModel()) { }
+
+    internal MainWindow(DaemonClient client, ServiceViewModel service, UpdatesViewModel updates)
     {
         InitializeComponent();
-        _vm = new MainViewModel(_client);
+        _client = client;
+        _vm = new MainViewModel(_client, service, updates);
         DataContext = _vm;
         _client.Start();          // connects, and keeps retrying if the daemon isn't up yet
-        HeaderVersion.Text = $"v{AppVersion.Current}";
+        HeaderVersion.Text = $"v{AppVersion.Current}" + (AppVersion.BuildKind == "release" ? "" : " · dev");
+        ToolTip.SetTip(HeaderVersion, AppVersion.BuildDescription);
         SetupTray();
         RestoreSectionState();
+        Opened += async (_, _) =>
+        {
+            if (_updatesChecked) return;
+            _updatesChecked = true;
+            SessionLog.Write("startup", AppVersion.BuildDescription);
+            if (UiSettings.Load().CheckForUpdates) await _vm.Updates.CheckAsync(_lifetime.Token);
+        };
 
         // Start hidden in the tray when configured (and a tray actually
         // exists; otherwise the window must show or nothing is reachable).
@@ -49,8 +63,10 @@ public partial class MainWindow : Window
         };
         Closed += async (_, _) =>
         {
+            _lifetime.Cancel();
             _tray?.Dispose();
             await _client.DisposeAsync();
+            _lifetime.Dispose();
         };
     }
 
@@ -93,6 +109,9 @@ public partial class MainWindow : Window
 
     private void OnAbout(object? sender, RoutedEventArgs e)
         => new AboutWindow().ShowDialog(this);
+
+    private void OnUpdates(object? sender, RoutedEventArgs e)
+        => new UpdatesWindow { DataContext = _vm.Updates }.ShowDialog(this);
 
     private async void OnProfileSave(object? sender, RoutedEventArgs e)
     {
@@ -215,16 +234,7 @@ public partial class MainWindow : Window
     }
 
     private async void OnRestartDaemon(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        // Managed by systemd on packaged installs; a hand-started daemon has
-        // to be restarted by hand, and the banner stays until it is.
-        if (sender is Avalonia.Controls.Button b)
-        {
-            b.IsEnabled = false;
-            try { b.Content = await StartupIntegration.RestartDaemonAsync() ? "Restart requested…" : "Restart unavailable: check user service"; }
-            finally { b.IsEnabled = true; }
-        }
-    }
+        => await _vm.Service.RestartAsync();
 
     private void OnDismissError(object? sender, RoutedEventArgs e) => _vm.DismissError();
 

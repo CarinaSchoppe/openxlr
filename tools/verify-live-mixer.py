@@ -162,6 +162,12 @@ def capture_peak(channel="qa-channel", identity="openxlr-live-qa", frequency=440
         data = array.array("f")
         data.frombytes(received[:len(received) // 4 * 4])
         if not data:
+            # Capture the broken boundary before stopping its streams; after
+            # teardown an idle graph hides whether policy linked the recorder.
+            print("No-audio QA links:\n" + "\n".join(line for line in run("pw-link", "-l").splitlines()
+                                                     if "qa-" in line), flush=True)
+            print("No-audio capture streams:", [(s["index"], s["source"], s.get("properties", {}).get("target.object"))
+                for s in json.loads(run("pactl", "-f", "json", "list", "source-outputs"))], flush=True)
             capture.terminate()
             playback.terminate()
             capture.wait(timeout=3)
@@ -216,7 +222,8 @@ def main():
             sock = connect()
             command(sock, "createChannel", name="QA Channel")
             command(sock, "createMix", name="QA Output")
-            command(sock, "renameChannel", channel="qa-channel", name="QA Renamed")
+            channel_label = 'QA "Renamed" / music\'s \\ path'
+            command(sock, "renameChannel", channel="qa-channel", name=channel_label)
             command(sock, "renameMix", mix="qa-output", name="QA Recording")
             command(sock, "assignApp", identity="openxlr-live-qa", channel="qa-channel", label="QA")
             command(sock, "setLevel", channel="qa-channel", mix="monitor", value=0)
@@ -228,6 +235,14 @@ def main():
                     command(sock, "setLevel", channel=channel["id"], mix="qa-output", value=0)
             assert "OpenXLR_ch_qa-channel" in nodes()
             assert "OpenXLR_qa-output" in nodes()
+            graph = [n.get("info", {}).get("props", {}) for n in json.loads(run("pw-dump"))
+                     if n["type"] == "PipeWire:Interface:Node"]
+            fanout = next(p for p in graph if p.get("node.name") == "OpenXLR_fanout_qa-channel")
+            assert fanout["openxlr.internal"] is True, fanout
+            public_input = next(p for p in graph if p.get("node.name") == "OpenXLR_ch_qa-channel")
+            assert public_input["node.description"] == "OpenXLR " + channel_label, public_input
+            assert fanout["node.description"] != public_input["node.description"], fanout
+            print("PASS public channel label and distinct internal distribution label survive punctuation", flush=True)
             print("PASS create/rename/app assignment and actual PipeWire node creation", flush=True)
 
             # Two clients editing concurrently must not overwrite each other's layout.

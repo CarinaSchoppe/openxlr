@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  OPENXLR_BUILD_REVISION: ${{ github.sha }}
+
 jobs:
   rpm:
     runs-on: ubuntu-latest

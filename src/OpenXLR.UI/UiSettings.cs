@@ -19,6 +19,8 @@ public sealed record UiSettings
     public bool OpenWindowAtLogin { get; init; }
     public bool MinimizeToTray { get; init; }
     public bool StartMinimized { get; init; }
+    /// <summary>One asynchronous GitHub check per UI launch; never installs updates.</summary>
+    public bool CheckForUpdates { get; init; } = true;
     /// <summary>Names of the main window's tiles the user collapsed (INPUTS, HEADPHONES, ...).</summary>
     public IReadOnlyList<string> CollapsedSections { get; init; } = [];
 

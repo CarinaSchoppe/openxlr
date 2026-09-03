@@ -22,6 +22,7 @@ from native_ui_smoke import wheel_compressor_output
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--host", type=Path, help="Test an installed package's native helper instead of the build-tree binary")
     parser.add_argument("--native-ui", action="store_true", help="Test a real native LSP control gesture; use xvfb-run in CI")
     parser.add_argument("--screenshot", type=Path, help="Capture the tested native editor before the gesture (requires ImageMagick)")
     parser.add_argument("--disposable-ci-profile", action="store_true",
@@ -88,7 +89,7 @@ def main():
                     "{ factory.name = support.null-audio-sink node.name = " + name +
                     " media.class = Audio/Sink audio.position = [ FL FR ] object.linger = true "
                     "adapter.auto-port-config = { mode = dsp monitor = true position = preserve } }")
-            host_command = [str(repo / "native/openxlr-lv2-host")]
+            host_command = [str(options.host or repo / "native/openxlr-lv2-host")]
             if options.native_ui and not options.disposable_ci_profile:
                 assert shutil.which("bwrap"), "native UI isolation requires bubblewrap (bwrap)"
                 # LSP 1.2.14 ignores XDG_CONFIG_HOME. Overlay only this child

@@ -3,9 +3,9 @@
         xmlns:vm="using:OpenXLR.UI"
         x:Class="OpenXLR.UI.OptionsWindow"
         x:DataType="vm:OptionsViewModel"
-        Title="OpenXLR Options" Width="560" SizeToContent="Height"
+        Title="OpenXLR Options" Width="580" Height="740" MinHeight="420"
         WindowStartupLocation="CenterOwner"
-        Background="#16181d" CanResize="False">
+        Background="#16181d">
 
   <Window.Styles>
     <Style Selector="TextBlock.h">
@@ -23,6 +23,7 @@
     </Style>
   </Window.Styles>
 
+  <ScrollViewer>
   <StackPanel Margin="14" Spacing="8">
 
     <Border Classes="card">
@@ -83,7 +84,24 @@
 
     <Border Classes="card">
       <StackPanel Spacing="6">
+        <TextBlock Text="UPDATES" Classes="h"/>
+        <TextBlock Text="{Binding Updates.Build}" Foreground="#8b93a7" FontSize="11" TextWrapping="Wrap"/>
+        <CheckBox Content="Check GitHub for updates when OpenXLR starts" IsChecked="{Binding CheckForUpdates, Mode=TwoWay}"/>
+        <TextBlock Text="{Binding Updates.Title}" Foreground="#5ba8f5" TextWrapping="Wrap"/>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Check now" Click="OnCheckUpdates" IsEnabled="{Binding !Updates.Busy}"/>
+          <Button Content="Version / changes" Click="OnUpdates"/>
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <Border Classes="card">
+      <StackPanel Spacing="6">
         <TextBlock Text="SUPPORT" Classes="h"/>
+        <Button Content="Restart daemon" Click="OnRestartDaemon" IsEnabled="{Binding !Service.Busy}"
+                ToolTip.Tip="Briefly interrupts OpenXLR audio. The UI reconnects automatically."/>
+        <TextBlock Text="{Binding Service.Status}" Foreground="#e0a84a" TextWrapping="Wrap"
+                   IsVisible="{Binding Service.Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
         <TextBlock Text="Collect diagnostics gathers app and device state, the PipeWire graph, daemon logs and configs into one archive in your home folder, ready to attach to a bug report. Nothing is uploaded."
                    FontSize="11" Foreground="#6b7285" TextWrapping="Wrap"/>
         <Grid ColumnDefinitions="Auto,10,*">
@@ -96,4 +114,5 @@
 
     <Button Content="Close" HorizontalAlignment="Right" Padding="18,6" Margin="0,2,0,6" Click="OnClose"/>
   </StackPanel>
+  </ScrollViewer>
 </Window>

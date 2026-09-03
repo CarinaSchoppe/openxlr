@@ -1,0 +1,57 @@
+# Build a trusted local git archive, not an unpinned network download. See
+# tools/build-arch-package.sh; the supplied checksum is required by makepkg.
+pkgname=openxlr
+pkgver=0.1.13
+pkgrel=1
+pkgdesc='Elgato XLR controls, editable PipeWire mixer and native LSP editors'
+arch=('x86_64')
+url='https://github.com/emaspa/openxlr'
+license=('GPL-3.0-only')
+depends=('aspnet-runtime>=10' 'pipewire' 'pipewire-audio' 'pipewire-pulse'
+         'wireplumber' 'libpulse' 'libusb' 'lilv' 'fontconfig' 'libx11' 'libice' 'libsm')
+makedepends=('dotnet-sdk>=10' 'git' 'pkgconf' 'lv2')
+optdepends=('lsp-plugins-lv2: native plugin editors and DSP'
+            'swh-plugins: software ClipGuard' 'xdg-utils: open release notes'
+            'alsa-utils: hardware diagnostics')
+options=('!strip' '!debug')
+source=("openxlr-$pkgver.tar.gz")
+sha256sums=("${OPENXLR_SOURCE_SHA256:?Use tools/build-arch-package.sh with a trusted checkout}")
+
+build() {
+    cd "$srcdir/openxlr-$pkgver"
+    dotnet publish src/OpenXLR.Daemon -c Release -r linux-x64 --self-contained false -o out/daemon
+    dotnet publish src/OpenXLR.UI -c Release -r linux-x64 --self-contained false -o out/ui
+}
+
+package() {
+    cd "$srcdir/openxlr-$pkgver"
+    install -dm755 "$pkgdir/usr/lib/openxlr"
+    cp -r out/daemon out/ui "$pkgdir/usr/lib/openxlr/"
+    find "$pkgdir/usr/lib/openxlr" -type f -exec chmod 644 {} +
+    chmod 755 "$pkgdir/usr/lib/openxlr/daemon/OpenXLR.Daemon" \
+        "$pkgdir/usr/lib/openxlr/daemon/openxlr-lv2-host" "$pkgdir/usr/lib/openxlr/ui/OpenXLR.UI"
+    install -dm755 "$pkgdir/usr/bin"
+    printf '#!/bin/sh\nexec /usr/lib/openxlr/daemon/OpenXLR.Daemon "$@"\n' > "$pkgdir/usr/bin/openxlr-daemon"
+    printf '#!/bin/sh\nexec /usr/lib/openxlr/ui/OpenXLR.UI "$@"\n' > "$pkgdir/usr/bin/openxlr"
+    chmod 755 "$pkgdir/usr/bin/openxlr" "$pkgdir/usr/bin/openxlr-daemon"
+    install -Dm644 packaging/70-openxlr.rules "$pkgdir/usr/lib/udev/rules.d/70-openxlr.rules"
+    for rule in 50-xlr-dock-capture-hold 51-openxlr-pro-raw-names; do
+        install -Dm644 "packaging/$rule.conf" "$pkgdir/usr/share/wireplumber/wireplumber.conf.d/$rule.conf"
+    done
+    install -Dm644 packaging/60-openxlr-port.conf "$pkgdir/usr/lib/sysctl.d/60-openxlr.conf"
+    sed 's|^ExecStart=.*|ExecStart=/usr/bin/openxlr-daemon|' packaging/openxlr-daemon.service > out/openxlr-daemon.service
+    install -Dm644 out/openxlr-daemon.service "$pkgdir/usr/lib/systemd/user/openxlr-daemon.service"
+    install -Dm644 packaging/60-openxlr-pulse-limits.conf \
+        "$pkgdir/usr/lib/systemd/user/pipewire-pulse.service.d/60-openxlr-pulse-limits.conf"
+    install -Dm644 packaging/openxlr.desktop "$pkgdir/usr/share/applications/openxlr.desktop"
+    for size in 16 32 48 64 128 256; do
+        install -Dm644 "src/OpenXLR.UI/Assets/icon-$size.png" "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/openxlr.png"
+    done
+    install -Dm644 src/OpenXLR.UI/Assets/icon.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/openxlr.svg"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/openxlr/LICENSE"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/openxlr/README.md"
+    install -dm755 "$pkgdir/usr/share/openxlr"
+    cp -r plugin/com.emaspa.openxlr.sdPlugin "$pkgdir/usr/share/openxlr/"
+    find "$pkgdir/usr/share/openxlr" -type f -exec chmod 644 {} +
+    find "$pkgdir/usr/share/openxlr" -type d -exec chmod 755 {} +
+}

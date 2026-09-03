@@ -252,6 +252,10 @@ Restart requests from the UI are asynchronous. During an outage the UI
 reconnects automatically; unconfirmed edits are reported, never silently
 replayed. Install/reload the updated service unit as well as the daemon binary
 to enable the watchdog (`systemctl --user daemon-reload`, then restart).
+The **Restart daemon** button is always in the header and in Options, SUPPORT;
+it does not require a version mismatch. It briefly interrupts audio and reports
+whether systemd accepted the request. The connection status separately reports
+when the daemon is actually available. Repeated clicks are coalesced.
 
 Open **Channels & outputs…** to add, rename and delete application channels
 and virtual output mixes. Hardware inputs, Monitor, Aux and the last app
@@ -269,6 +273,26 @@ features: install the matching daemon, not just a newer UI.
 
 Developer verification and the opt-in audio-interruption test are documented
 in [verification.md](verification.md).
+
+### 3.12 Version checks and readable device lists
+
+At each UI launch, OpenXLR optionally checks GitHub in the background. A banner
+offers **View changes** for a newer stable release or commits ahead of the
+installed development revision. Options, UPDATES provides Check now, the build
+identity, and the startup-check toggle. Offline/rate-limit failures do not affect
+audio. Release notes are shown as plain text; Open on GitHub opens the trusted
+repository page. Nothing is installed automatically.
+
+The repository and revision matter: a fork snapshot can contain additional
+features without the upstream developer having published a new version. A
+different or divergent SHA alone is not advertised as an upgrade.
+
+Each application channel has one public input; output mixes expose a named
+virtual microphone. OpenXLR hides its internal buses from device choices and
+labels them as internal distribution, mix bus or capture tap in the raw graph.
+PipeWire tools intentionally show graph internals; some external Pulse mixers
+also list these required buses. Do not delete them manually. Use **Channels &
+outputs…** so deletion also removes sends, effects and application references.
 
 ## 4. Stream Deck (OpenDeck)
 
@@ -372,11 +396,16 @@ transfer, and that is what makes the report actionable.
 Options, SUPPORT, Collect diagnostics. It writes
 `~/openxlr-diagnostics-<timestamp>.tar.gz` with the daemon's state and
 capabilities, a dump of the interface's vendor blocks, the PipeWire
-graph and device listings, the recent daemon journal, the
+graph and device listings, a duplicate-node-name summary, service health and
+restart count, recent daemon/PipeWire/WirePlumber journals, bounded UI-session
+events (connection changes, command failures, restart/update results), the
 configuration files and version information. The home path, host name
 and the serial numbers of attached USB devices are redacted; review the
 archive anyway before attaching it to a public issue. Nothing is
 uploaded automatically.
+The archive is created with owner-only permissions. It includes app audio
+metadata and settings; redaction is not a substitute for reviewing the file
+before sharing it. Collection commands time out rather than hanging the UI.
 
 ## 6. Files and services
 

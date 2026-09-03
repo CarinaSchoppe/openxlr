@@ -28,6 +28,7 @@
       </StackPanel>
     </StackPanel>
 
+    <TextBlock Name="BuildText" TextWrapping="Wrap" Foreground="#8b93a7" FontSize="11"/>
     <TextBlock TextWrapping="Wrap" Foreground="#b9bfcc" FontSize="13"
                Text="Open-source control suite for Elgato XLR interfaces on Linux (Wave XLR Pro, XLR Dock, Wave XLR, Wave XLR MK.2): hardware control over reverse-engineered protocols, a Wave Link style PipeWire submixer with per-application channels and virtual microphones, multi-output monitoring, a dedicated mix for a second computer on the USB Aux port, and an OpenDeck plugin for Stream Deck control."/>
 

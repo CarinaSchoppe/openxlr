@@ -22,3 +22,5 @@ debian/*.debhelper
 debian/*.debhelper.log
 debian/*.substvars
 native/openxlr-lv2-host
+dist/
+rpmbuild/

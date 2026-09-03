@@ -4,9 +4,15 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <OpenXLRUpdateRepository Condition="'$(OpenXLRUpdateRepository)' == '' and '$(GITHUB_REPOSITORY)' != ''">$(GITHUB_REPOSITORY)</OpenXLRUpdateRepository>
+    <OpenXLRUpdateRepository Condition="'$(OpenXLRUpdateRepository)' == ''">emaspa/openxlr</OpenXLRUpdateRepository>
+    <OpenXLRBuildKind Condition="'$(GITHUB_REF_TYPE)' == 'tag'">release</OpenXLRBuildKind>
+    <OpenXLRBuildKind Condition="'$(OpenXLRBuildKind)' == ''">development snapshot</OpenXLRBuildKind>
   </PropertyGroup>
 
   <ItemGroup>
+    <AssemblyMetadata Include="OpenXLR.UpdateRepository" Value="$(OpenXLRUpdateRepository)" />
+    <AssemblyMetadata Include="OpenXLR.BuildKind" Value="$(OpenXLRBuildKind)" />
     <AvaloniaResource Include="Assets/**"/>
   </ItemGroup>
 

@@ -35,15 +35,22 @@ public sealed class MainViewModel : ViewModelBase
 {
     private readonly DaemonClient _client;
     private bool _applying;
+    public ServiceViewModel Service { get; }
+    public UpdatesViewModel Updates { get; }
 
-    public MainViewModel(DaemonClient client)
+    public MainViewModel(DaemonClient client) : this(client, new(), new()) { }
+
+    internal MainViewModel(DaemonClient client, ServiceViewModel service, UpdatesViewModel updates)
     {
         _client = client;
+        Service = service;
+        Updates = updates;
         Inserts = new InsertsViewModel(client, "xlr1", 1, "XLR 1");
         Inserts2 = new InsertsViewModel(client, "xlr2", 1, "XLR 2");
         _client.StateReceived += node => Dispatcher.UIThread.Post(() => Apply(node));
         _client.ConnectionChanged += up => Dispatcher.UIThread.Post(() =>
         {
+            SessionLog.Write("daemon", up ? "Connected" : "Disconnected; reconnecting");
             DaemonConnected = up;
             if (!up)
             {
@@ -56,7 +63,11 @@ public sealed class MainViewModel : ViewModelBase
             }
             else { Inserts.EnsurePluginsLoaded(); Inserts2.EnsurePluginsLoaded(); }
         });
-        _client.ErrorReceived += msg => Dispatcher.UIThread.Post(() => LastError = msg);
+        _client.ErrorReceived += msg => Dispatcher.UIThread.Post(() =>
+        {
+            SessionLog.Write("daemon", msg);
+            LastError = msg;
+        });
         _client.MetersReceived += levels => Dispatcher.UIThread.Post(() => ApplyMeters(levels));
     }
 

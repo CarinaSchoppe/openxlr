@@ -38,4 +38,19 @@ public partial class OptionsWindow : Window
     }
 
     private void OnClose(object? sender, RoutedEventArgs e) => Close();
+
+    private async void OnRestartDaemon(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is OptionsViewModel vm) await vm.Service.RestartAsync();
+    }
+
+    private async void OnCheckUpdates(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is OptionsViewModel vm) await vm.Updates.CheckAsync();
+    }
+
+    private void OnUpdates(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is OptionsViewModel vm) new UpdatesWindow { DataContext = vm.Updates }.ShowDialog(this);
+    }
 }

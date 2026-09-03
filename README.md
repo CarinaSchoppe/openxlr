@@ -58,6 +58,12 @@ Collect diagnostics).
 - **Recovery**: systemd restarts unexpected exits and enforces a 60-second
   watchdog deadline; the UI reconnects without blocking or replaying edits.
   Individual LV2 hosts are also isolated and supervised for crashes/hangs.
+  The header and Options always offer **Restart daemon**. Diagnostics include
+  service restart/watchdog state, recent audio-stack logs and UI-session events.
+- **Update notices**: an asynchronous, optional GitHub check at UI startup
+  shows a newer release's notes or newer development commits. About and the
+  update window identify the repository, build revision and release/snapshot
+  status. Nothing is installed or uploaded automatically.
 - **Application routing**: audio clients are detected from their
   PipeWire registration and routed to a channel by name rules, with the
   assignment remembered per app. Electron apps are identified by their
@@ -77,6 +83,23 @@ Collect diagnostics).
   diagnostics archive exporter.
 
 The full feature list, area by area: [docs/features.md](docs/features.md).
+
+### Development snapshots and remaining work
+
+The editable layouts, native LSP integration and recovery/update additions on
+`CarinaSchoppe/openxlr:main` are fork development work, not an upstream release.
+Installing the upstream AUR package or an older upstream release does not
+automatically include those changes. CI package artifacts belong to their
+displayed commit; check the build identity in About.
+
+The workflow aims at Wave Link-style routing, not complete Elgato Wave 3/Wave
+Link feature parity. Hardware inputs, Monitor/Aux and the last application
+channel are protected. Internal PipeWire buses are labelled by role and excluded
+from OpenXLR's device pickers; low-level graph tools and some desktop mixers
+still expose the underlying routing stages. They are not duplicate user channels.
+Further work includes broader hardware acceptance, additional native UI types,
+LV2 state/worker support, and replacing remaining Pulse routing buses with a
+smaller native graph. Those are planned, not claimed as implemented.
 
 ### OpenDeck plugin
 
@@ -101,6 +124,13 @@ yay -S openxlr        # or: paru -S openxlr
 systemctl --user enable --now openxlr-daemon
 openxlr               # the mixer UI, also in your application menu
 ```
+
+To package this checkout on **Arch/CachyOS** instead of installing an older AUR
+release, install the dependencies listed in `packaging/arch/PKGBUILD`, then run
+`bash tools/build-arch-package.sh` as a normal user and install the generated
+`dist/openxlr-*.pkg.tar.zst` with `sudo pacman -U`. The script packages **committed
+HEAD**, checksums the source archive, and keeps its temporary build directory
+for inspection. It does not install or enable a service itself.
 
 **Ubuntu** 24.04 or newer: download the `.deb` from the
 [latest release](https://github.com/emaspa/openxlr/releases/latest), then
@@ -155,6 +185,13 @@ dotnet build -c Release
 OPENXLR_BUILD_MIXER=1 ./OpenXLR.Daemon/bin/Release/net10.0/OpenXLR.Daemon   # terminal 1
 ./OpenXLR.UI/bin/Release/net10.0/OpenXLR.UI                                 # terminal 2
 ```
+
+Fork builders can pass `-p:OpenXLRUpdateRepository=CarinaSchoppe/openxlr` to
+`dotnet build`/`publish`. Otherwise local source builds check upstream; GitHub
+Actions uses `GITHUB_REPOSITORY`. Source archive builders set
+`OPENXLR_BUILD_REVISION` to the originating 40-character commit. Development
+commits are announced separately from stable releases, never as a fake version
+bump. Disable startup network checks in Options, UPDATES.
 
 Device access needs the udev rule from `packaging/70-openxlr.rules`
 installed under `/etc/udev/rules.d/` and a replug. The XLR Dock also

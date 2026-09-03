@@ -20,6 +20,8 @@ public sealed class OptionsViewModel : ViewModelBase
 
     /// <summary>Exposed for the diagnostics collector in the Options window.</summary>
     public DaemonClient Client => _client;
+    public ServiceViewModel Service => _main.Service;
+    public UpdatesViewModel Updates => _main.Updates;
 
     public OptionsViewModel(DaemonClient client, MainViewModel main)
     {
@@ -31,6 +33,7 @@ public sealed class OptionsViewModel : ViewModelBase
         _openWindowAtLogin = s.OpenWindowAtLogin;
         _minimizeToTray = s.MinimizeToTray;
         _startMinimized = s.StartMinimized;
+        _checkForUpdates = s.CheckForUpdates;
         // No saved choice means the daemon runs whatever its unit asked for,
         // which for every shipped unit is the submixer on.
         _submixer = DaemonPrefs.Load().Submixer ?? true;
@@ -46,6 +49,13 @@ public sealed class OptionsViewModel : ViewModelBase
     }
 
     // --- startup behaviour ---
+
+    private bool _checkForUpdates;
+    public bool CheckForUpdates
+    {
+        get => _checkForUpdates;
+        set { if (Set(ref _checkForUpdates, value)) Persist(); }
+    }
 
     private bool _startDaemonAtLogin;
     public bool StartDaemonAtLogin
@@ -133,6 +143,7 @@ public sealed class OptionsViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
+                Set(ref _submixer, !value, nameof(Submixer));
                 SubmixerNote = $"Could not save the setting: {ex.Message}";
                 return;
             }
@@ -171,6 +182,7 @@ public sealed class OptionsViewModel : ViewModelBase
         OpenWindowAtLogin = _openWindowAtLogin,
         MinimizeToTray = _minimizeToTray,
         StartMinimized = _startMinimized,
+        CheckForUpdates = _checkForUpdates,
     }).Save();
 
     // --- enforced system defaults ---
@@ -198,9 +210,9 @@ public sealed class OptionsViewModel : ViewModelBase
     private void BuildChoices()
     {
         OutputChoices.Add(new DeviceChoice(null, "(don't enforce)"));
-        // "#phones" entries are channel-pair routing targets, not real sinks a
+        // "#hp1"/"#hp2"/"#lineout" entries are channel-pair routing targets, not real sinks a
         // system default can point to.
-        foreach (AudioDeviceItem d in _main.Outputs.Where(d => !d.Name.Contains("#phones", StringComparison.Ordinal)))
+        foreach (AudioDeviceItem d in _main.Outputs.Where(d => !d.Name.Contains('#')))
             OutputChoices.Add(new DeviceChoice(d.Name, d.Label));
 
         InputChoices.Add(new DeviceChoice(null, "(don't enforce)"));

@@ -1,0 +1,106 @@
+name: Package and runtime matrix
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  OPENXLR_BUILD_REVISION: ${{ github.sha }}
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential debhelper dotnet-sdk-10.0 pkg-config \
+            libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev python3-websocket \
+            xvfb x11-utils dbus pipewire pipewire-pulse wireplumber lsp-plugins-lv2
+      - name: Compile and test
+        run: dotnet test src/OpenXLR.slnx -c Release
+      - name: Build and install Debian package
+        run: |
+          dpkg-buildpackage -b -us -uc
+          mkdir -p dist
+          cp ../openxlr_*.deb dist/
+          sudo apt-get install -y ./dist/openxlr_*.deb
+      - name: Installed UI and daemon acceptance
+        run: |
+          python3 tools/with-xvfb.py python3 tools/verify-installed.py
+          python3 tools/with-xvfb.py python3 tools/verify-native-host.py --native-ui --disposable-ci-profile \
+            --host /usr/lib/openxlr/daemon/openxlr-lv2-host
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-package
+          path: dist/*.deb
+
+  fedora:
+    runs-on: ubuntu-latest
+    container: fedora:44
+    timeout-minutes: 25
+    steps:
+      - name: Build prerequisites
+        run: |
+          dnf install -y --setopt=install_weak_deps=False rpm-build git-core dotnet-sdk-10.0 \
+            systemd-rpm-macros gcc make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel \
+            python3-websocket-client xorg-x11-server-Xvfb xwininfo dbus-daemon pipewire pipewire-pulseaudio \
+            wireplumber lsp-plugins-lv2 ImageMagick shadow-utils
+      - uses: actions/checkout@v4
+      - name: Compile, test and build RPM
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          dotnet test src/OpenXLR.slnx -c Release
+          version=$(rpmspec -q --srpm --qf '%{version}' packaging/rpm/openxlr.spec)
+          mkdir -p rpmbuild/SOURCES dist
+          git archive --format=tar.gz --prefix="openxlr-$version/" -o "rpmbuild/SOURCES/openxlr-$version.tar.gz" HEAD
+          rpmbuild --define "_topdir $PWD/rpmbuild" -bb packaging/rpm/openxlr.spec
+          cp rpmbuild/RPMS/x86_64/openxlr-*.rpm dist/
+          dnf install -y --setopt=install_weak_deps=False ./dist/openxlr-*.rpm
+      - name: Installed UI and daemon acceptance (unprivileged)
+        run: |
+          useradd --create-home tester
+          runuser -u tester -- python3 tools/with-xvfb.py python3 tools/verify-installed.py
+          runuser -u tester -- python3 tools/with-xvfb.py python3 tools/verify-native-host.py \
+            --native-ui --disposable-ci-profile --host /usr/lib/openxlr/daemon/openxlr-lv2-host
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fedora-package
+          path: dist/*.rpm
+
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 25
+    steps:
+      - name: Build prerequisites
+        run: |
+          pacman -Syu --noconfirm --needed git dotnet-sdk aspnet-runtime pipewire pipewire-audio pipewire-pulse \
+            wireplumber libpulse libusb lilv lv2 libx11 libice libsm fontconfig \
+            python python-websocket-client xorg-server-xvfb xorg-xwininfo dbus lsp-plugins-lv2 imagemagick
+      - uses: actions/checkout@v4
+      - name: Compile, test and build Arch package (unprivileged)
+        run: |
+          useradd --create-home tester
+          chown -R tester:tester "$GITHUB_WORKSPACE"
+          runuser -u tester -- dotnet test src/OpenXLR.slnx -c Release
+          runuser -u tester -- bash tools/build-arch-package.sh
+          pacman -U --noconfirm dist/openxlr-*.pkg.tar.zst
+      - name: Installed UI and daemon acceptance (unprivileged)
+        run: |
+          runuser -u tester -- python3 tools/with-xvfb.py python3 tools/verify-installed.py
+          runuser -u tester -- python3 tools/with-xvfb.py python3 tools/verify-native-host.py \
+            --native-ui --disposable-ci-profile --host /usr/lib/openxlr/daemon/openxlr-lv2-host
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch-package
+          path: dist/*.pkg.tar.zst

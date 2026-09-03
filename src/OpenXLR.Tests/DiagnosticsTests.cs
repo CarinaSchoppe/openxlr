@@ -4,6 +4,29 @@ namespace OpenXLR.Tests;
 
 public sealed class DiagnosticsTests
 {
+    [Theory]
+    [InlineData("unavailable")]
+    [InlineData("{}")]
+    [InlineData("[{\"type\":3}]")]
+    public void InvalidGraphDoesNotPreventDiagnosticsExport(string graph)
+        => Assert.Contains("error", Diagnostics.SummarizeGraph(graph));
+
+    [Fact]
+    public void GraphSummaryCountsNamesRatherThanIntentionalStageDescriptions()
+    {
+        string graph = """
+            [{"type":"PipeWire:Interface:Node","info":{"props":{"node.name":"OpenXLR_ch_game","node.description":"Game","media.class":"Audio/Sink"}}},
+             {"type":"PipeWire:Interface:Node","info":{"props":{"node.name":"OpenXLR_fanout_game","node.description":"Game","media.class":"Audio/Sink"}}},
+             {"type":"PipeWire:Interface:Node","info":{"props":{"node.name":"OpenXLR_ch_game","media.class":"Audio/Sink"}}},
+             {"type":"PipeWire:Interface:Node","info":{"props":{"node.name":"unrelated","media.class":"Audio/Sink"}}}]
+            """;
+        using var result = System.Text.Json.JsonDocument.Parse(Diagnostics.SummarizeGraph(graph));
+        Assert.Equal(3, result.RootElement.GetProperty("nodeCount").GetInt32());
+        var duplicate = Assert.Single(result.RootElement.GetProperty("duplicates").EnumerateArray());
+        Assert.Equal("OpenXLR_ch_game", duplicate.GetProperty("name").GetString());
+        Assert.Equal(2, duplicate.GetProperty("count").GetInt32());
+    }
+
     [Fact]
     public void Redact_RemovesCommonIdentityAndSerialFields()
     {

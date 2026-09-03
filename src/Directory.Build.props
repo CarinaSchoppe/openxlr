@@ -1,6 +1,9 @@
 <Project>
   <PropertyGroup>
     <Version>0.1.13</Version>
+    <!-- Source archives have no .git; package builders supply the originating
+         commit so startup checks compare against the build actually installed. -->
+    <SourceRevisionId Condition="'$(OPENXLR_BUILD_REVISION)' != ''">$(OPENXLR_BUILD_REVISION)</SourceRevisionId>
     <!-- Distro-packaged .NET 10 (Arch/CachyOS) ships the ASP.NET Core shared
          framework but omits the targeting pack's prune manifest, tripping
          NETSDK1226. Disabling the prune optimization is harmless (it only trims

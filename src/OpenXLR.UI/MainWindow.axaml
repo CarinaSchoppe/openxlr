@@ -195,6 +195,9 @@
           </DropDownButton>
           <Button Content="Flow" Padding="10,3" FontSize="12" Background="Transparent"
                   Click="OnFlow" ToolTip.Tip="Show the live audio routing graph"/>
+          <Button Name="RestartDaemonButton" Content="Restart daemon" Padding="10,3" FontSize="12"
+                  IsEnabled="{Binding !Service.Busy}" Click="OnRestartDaemon"
+                  ToolTip.Tip="Restart the systemd user service. Audio briefly stops; the UI reconnects automatically."/>
           <TextBlock Name="HeaderVersion" Text="v0.0.0" Classes="h" VerticalAlignment="Center"/>
           <Button Content="About" Padding="10,3" FontSize="12" Background="Transparent"
                   Click="OnAbout"/>
@@ -202,7 +205,16 @@
       </Grid>
     </Border>
 
+    <TextBlock Text="{Binding Service.Status}" Foreground="#e0a84a" TextWrapping="Wrap" Margin="4,0,4,8"
+               IsVisible="{Binding Service.Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
     <!-- a daemon left running across an upgrade offers the old version's controls -->
+    <Border Classes="card" Margin="0,0,0,8" IsVisible="{Binding Updates.Available}">
+      <DockPanel>
+        <Button Content="View changes" DockPanel.Dock="Right" Click="OnUpdates"/>
+        <TextBlock Text="{Binding Updates.Title}" Foreground="#5ba8f5" TextWrapping="Wrap" VerticalAlignment="Center"/>
+      </DockPanel>
+    </Border>
     <Border Classes="card" Margin="0,0,0,8" IsVisible="{Binding HasCommandError}">
       <DockPanel>
         <Button Content="Dismiss" DockPanel.Dock="Right" Click="OnDismissError" Margin="12,0,0,0"/>
@@ -212,7 +224,7 @@
     <Border Classes="card" Margin="0,0,0,8" IsVisible="{Binding DaemonVersionMismatch}">
       <DockPanel>
         <Button DockPanel.Dock="Right" Content="Restart daemon" Padding="10,3" FontSize="12"
-                VerticalAlignment="Center" Click="OnRestartDaemon"
+                VerticalAlignment="Center" Click="OnRestartDaemon" IsEnabled="{Binding !Service.Busy}"
                 ToolTip.Tip="systemctl --user restart openxlr-daemon"/>
         <TextBlock Text="{Binding DaemonVersionNote}" Classes="h" TextWrapping="Wrap"
                    VerticalAlignment="Center" Margin="0,0,12,0"/>

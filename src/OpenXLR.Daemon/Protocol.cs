@@ -55,7 +55,7 @@ public sealed record Command
     [JsonPropertyName("sink")] public string? Sink { get; init; }
     [JsonPropertyName("source")] public string? Source { get; init; }
 
-    /// <summary>"saveProfile" / "loadProfile" / "deleteProfile": the profile name.</summary>
+    /// <summary>Profile and create/rename layout commands: the display name.</summary>
     [JsonPropertyName("name")] public string? Name { get; init; }
 
     /// <summary>"setInserts": the channel's whole insert chain, in order.</summary>

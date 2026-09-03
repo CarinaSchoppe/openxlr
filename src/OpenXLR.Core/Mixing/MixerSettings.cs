@@ -13,6 +13,19 @@ namespace OpenXLR.Core.Mixing;
 /// </summary>
 public sealed record MixerSettings
 {
+    /// <summary>
+    /// User-managed application channels. Null means an older file and keeps
+    /// the default channel set; an explicit list is the desired live layout.
+    /// Hardware input channels are structural and are not stored here.
+    /// </summary>
+    public List<UserChannelDefinition>? UserChannels { get; init; }
+
+    /// <summary>
+    /// User-managed virtual output mixes. Monitor and Aux are structural and
+    /// are not stored here. Each entry becomes a PipeWire virtual microphone.
+    /// </summary>
+    public List<UserMixDefinition>? UserMixes { get; init; }
+
     /// <summary>Mix id to master volume.</summary>
     public Dictionary<string, double> MixVolumes { get; init; } = [];
 
@@ -115,3 +128,9 @@ public sealed record MixerSettings
 
 /// <summary>A remembered application: identity, display label, channel.</summary>
 public sealed record SavedApp(string Identity, string Label, string ChannelId);
+
+/// <summary>A persisted application channel in the editable mixer layout.</summary>
+public sealed record UserChannelDefinition(string Id, string Name);
+
+/// <summary>A persisted virtual-microphone output in the editable mixer layout.</summary>
+public sealed record UserMixDefinition(string Id, string Name);

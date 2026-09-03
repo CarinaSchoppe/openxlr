@@ -18,10 +18,10 @@ When the daemon starts with the submixer on (the default), these things
 happen on your system:
 
 - New audio devices appear in your desktop's sound settings, all named
-  `OpenXLR …`: one output per channel (`OpenXLR Game`, `OpenXLR Music`,
-  `OpenXLR Browser`, `OpenXLR System`, `OpenXLR Voice Chat`, `OpenXLR
-  SFX`, and the hardware channels) and two inputs, `OpenXLR Stream` and
-  `OpenXLR Chat`, which are the virtual microphones.
+  `OpenXLR …`: one output per hardware or application channel and one
+  virtual microphone per output mix. The initial layout includes the six
+  application channels plus `OpenXLR Stream` and `OpenXLR Chat`; it can be
+  changed from Channels & outputs.
 - Applications that play audio are moved onto a channel output by name
   (section 2). They keep playing; only the device they play into
   changes.
@@ -43,13 +43,15 @@ and the `OpenXLR …` devices disappear.
 
 ## 2. Concepts
 
-**Channels** are where audio enters the mixer. Three carry the
+**Channels** are where audio enters the mixer. Three structural channels carry the
 interface's inputs (XLR 1, XLR 2 where the device has one, Aux In for
 the Pro's Line In and USB Aux input) and six carry application groups:
-Game, Music, Browser, System, Voice Chat, SFX. Each channel is a
-PipeWire output device an application can play into.
+Game, Music, Browser, System, Voice Chat, SFX initially. Application
+channels can be added, renamed, or deleted. Each channel is a PipeWire output device
+an application can play into.
 
-**Mixes** are where audio leaves. There are four:
+**Mixes** are where audio leaves. Monitor and Aux are structural. Stream
+and Chat are the initial user-managed virtual outputs:
 
 | Mix | What it is | Where it goes |
 |---|---|---|
@@ -124,6 +126,14 @@ PipeWire as an audio client; a green light means it is playing.
    different name on first play it shows up as a new entry.
 3. Forget, in the same window, drops an app and its remembered channel.
 
+The same dropdown is available on every application node in Flow. To add
+or add, rename, or remove application channels and output mixes, use Channels & outputs in
+the SUBMIXER card. A new output immediately gets a master, a send on every
+channel, an insert chain, and a selectable `OpenXLR <name>` virtual
+microphone. Deleting one removes its PipeWire devices; deleting a channel
+moves its assigned apps to the first remaining application channel. The
+owned graph is rebuilt briefly for either structural change.
+
 An app that is missing from the card is not registered with PipeWire
 as a client. That happens with some applications until they start
 playing.
@@ -149,14 +159,20 @@ channel, with its level and lock in the INPUTS card.
    is the set used during development; any LV2 plugin set works.
 2. Add. The plugin appears in the Inserts row with a green light while
    active.
-3. Controls opens a window generated from the plugin's parameters,
-   grouped, with a Defaults button. Bypass takes it out of the path
+3. Controls opens a window generated from the plugin's parameters. EQs
+   and dynamics get a response graph; continuous values use rotary
+   controls with readable units, enumerations show their named choices,
+   and large plugins are grouped. Defaults restores the declared values.
+   Bypass takes it out of the path
    (red light); the arrows reorder the chain; the cross removes it.
 4. Chains are saved with the mixer and with profiles.
 
-The plugin's own graphical interface, if it has one, is not shown; the
-generated controls cover every parameter the plugin exposes. VST and
-CLAP plugins cannot be loaded.
+The plugin's own graphical interface, if it has one, is not shown. The
+actual DSP instance lives inside PipeWire, whose filter-chain interface
+does not provide the LV2 UI-host connection needed to attach that vendor
+window. Opening it as a separate host would create and display a different
+instance. OpenXLR's controls and graphs instead change the real PipeWire
+instance. VST and CLAP plugins cannot be loaded.
 
 ### 3.6 Save and recall a scene
 

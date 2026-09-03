@@ -34,11 +34,14 @@ public sealed class InsertsViewModel : ViewModelBase
         _client = client;
         _channel = channel;
         _channels = channels;
-        Title = title ?? channel;
+        _title = title ?? channel;
     }
 
     /// <summary>What the chain belongs to, for window titles ("XLR 1", "Stream mix").</summary>
-    public string Title { get; }
+    private string _title;
+    public string Title { get => _title; private set => Set(ref _title, value); }
+
+    public void SetTitle(string title) => Title = title;
 
     /// <summary>Picker header: which plugins fit this chain.</summary>
     public string PickerHint => _channels == 1
@@ -223,6 +226,12 @@ public sealed class InsertViewModel : ViewModelBase
     public string Plugin { get; }
     public string Label { get; }
 
+    private string SearchText => $"{Label} {Plugin}".ToLowerInvariant();
+    public bool IsEqualizer => SearchText.Contains("equaliz") || SearchText.Contains(" eq") || SearchText.Contains("filter");
+    public bool IsDynamics => SearchText.Contains("compress") || SearchText.Contains("limit") ||
+                              SearchText.Contains("dynamic") || SearchText.Contains("gate") || SearchText.Contains("expander");
+    public bool HasVisualization => IsEqualizer || IsDynamics;
+
     /// <summary>The channel chain this insert belongs to (row buttons route through it).</summary>
     public InsertsViewModel Owner => _owner;
 
@@ -351,11 +360,19 @@ public sealed class InsertViewModel : ViewModelBase
         {
             if (p is null) continue;
             string sym = p["symbol"]!.GetValue<string>();
+            var points = new List<InsertScalePoint>();
+            if (p["scalePoints"] is JsonArray pointArray)
+                foreach (JsonNode? point in pointArray)
+                    if (point is not null)
+                        points.Add(new InsertScalePoint(point["label"]?.GetValue<string>() ?? "",
+                            point["value"]?.GetValue<double>() ?? 0));
             var vm = new InsertParamViewModel(this, sym, p["name"]?.GetValue<string>() ?? sym,
                 p["min"]?.GetValue<double>() ?? 0, p["max"]?.GetValue<double>() ?? 1,
                 p["default"]?.GetValue<double>() ?? 0,
                 p["toggled"]?.GetValue<bool>() ?? false, p["integer"]?.GetValue<bool>() ?? false,
-                p["logarithmic"]?.GetValue<bool>() ?? false);
+                p["logarithmic"]?.GetValue<bool>() ?? false,
+                p["enumeration"]?.GetValue<bool>() ?? false, points,
+                p["unit"]?.GetValue<string>() ?? "");
             if (_params.TryGetValue(sym, out double cur)) vm.ApplyFromDaemon(cur);
             Params.Add(vm);
         }
@@ -382,6 +399,11 @@ public sealed class InsertViewModel : ViewModelBase
 /// <summary>A titled run of controls in the controls window.</summary>
 public sealed record InsertParamGroup(string Name, bool ShowHeader, IReadOnlyList<InsertParamViewModel> Params);
 
+public sealed record InsertScalePoint(string Label, double Value)
+{
+    public override string ToString() => Label;
+}
+
 /// <summary>One control port as a slider or switch.</summary>
 public sealed class InsertParamViewModel : ViewModelBase
 {
@@ -389,7 +411,8 @@ public sealed class InsertParamViewModel : ViewModelBase
     private bool _applying;
 
     public InsertParamViewModel(InsertViewModel owner, string symbol, string name,
-        double min, double max, double def, bool toggled, bool integer, bool logarithmic)
+        double min, double max, double def, bool toggled, bool integer, bool logarithmic,
+        bool enumeration, IReadOnlyList<InsertScalePoint> scalePoints, string unit)
     {
         _owner = owner;
         Symbol = symbol;
@@ -399,6 +422,9 @@ public sealed class InsertParamViewModel : ViewModelBase
         Toggled = toggled;
         Integer = integer;
         Logarithmic = logarithmic;
+        Enumeration = enumeration && scalePoints.Count > 0;
+        ScalePoints = scalePoints;
+        RawUnit = unit;
         Default = def;
         _value = def;
     }
@@ -411,8 +437,44 @@ public sealed class InsertParamViewModel : ViewModelBase
     public bool Toggled { get; }
     public bool Integer { get; }
     public bool Logarithmic { get; }
-    public bool IsSlider => !Toggled;
+    public bool Enumeration { get; }
+    public IReadOnlyList<InsertScalePoint> ScalePoints { get; }
+    public string RawUnit { get; }
+    public bool IsKnob => !Toggled && !Enumeration;
     public double Step => Integer ? 1 : 0;
+
+    private string LowerName => Name.ToLowerInvariant();
+    public string Unit
+    {
+        get
+        {
+            string declared = RawUnit.ToLowerInvariant() switch
+            {
+                "hz" => "Hz",
+                "khz" => "kHz",
+                "mhz" => "MHz",
+                "ms" => "ms",
+                "s" => "s",
+                "db" => "dB",
+                "degree" => "°",
+                "pc" or "percent" => "%",
+                "bpm" => "BPM",
+                "oct" => "oct",
+                "semitone12tet" => "st",
+                "gain" => "dB",
+                _ => "",
+            };
+            if (declared.Length > 0) return declared;
+            return LowerName.Contains("frequency") || LowerName.Contains("cutoff") ? "Hz"
+                : LowerName.Contains("attack") || LowerName.Contains("release") ||
+                  LowerName.Contains("lookahead") || LowerName.Contains("hold time") ? "ms"
+                : LowerName.Contains("ratio") ? ":1"
+                : IsLinearGain ? "dB"
+                : "";
+        }
+    }
+    private bool IsLinearGain => RawUnit.Equals("gain", StringComparison.OrdinalIgnoreCase) || Logarithmic && Min >= 0 &&
+        (LowerName.Contains("gain") || LowerName.Contains("threshold") || LowerName.Contains("level") || LowerName.Contains("knee"));
 
     private double _value;
     public double Value
@@ -423,6 +485,7 @@ public sealed class InsertParamViewModel : ViewModelBase
             if (!Set(ref _value, value)) return;
             Raise(nameof(ValueText));
             Raise(nameof(On));
+            Raise(nameof(SelectedScalePoint));
             if (!_applying) _owner.SendParam(Symbol, value);
         }
     }
@@ -434,11 +497,23 @@ public sealed class InsertParamViewModel : ViewModelBase
         set => Value = value ? 1 : 0;
     }
 
+    public InsertScalePoint? SelectedScalePoint
+    {
+        get => ScalePoints.OrderBy(p => Math.Abs(p.Value - _value)).FirstOrDefault();
+        set { if (value is not null) Value = value.Value; }
+    }
+
     public string ValueText => Toggled ? (On ? "on" : "off")
+        : Enumeration ? SelectedScalePoint?.Label ?? _value.ToString("0.###")
+        : IsLinearGain ? $"{20 * Math.Log10(Math.Max(_value, 0.000001)):0.0} dB"
+        : Unit == "Hz" && Math.Abs(_value) >= 1000 ? $"{_value / 1000:0.##} kHz"
+        : Unit.Length > 0 ? $"{Format(_value)} {Unit}"
         : Integer ? ((int)Math.Round(_value)).ToString()
-        : Math.Abs(_value) >= 100 ? _value.ToString("0")
-        : Math.Abs(_value) >= 10 ? _value.ToString("0.0")
-        : _value.ToString("0.000");
+        : Format(_value);
+
+    private static string Format(double value) => Math.Abs(value) >= 100 ? value.ToString("0")
+        : Math.Abs(value) >= 10 ? value.ToString("0.0")
+        : value.ToString("0.###");
 
     public void ApplyFromDaemon(double v)
     {

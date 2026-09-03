@@ -3,7 +3,7 @@
         xmlns:vm="using:OpenXLR.UI"
         x:Class="OpenXLR.UI.InsertControlsWindow"
         x:DataType="vm:InsertViewModel"
-        Title="{Binding Label}" Width="620" Height="560" MinWidth="420" MinHeight="240"
+        Title="{Binding Label}" Width="820" Height="720" MinWidth="520" MinHeight="360"
         WindowStartupLocation="CenterOwner"
         Background="#16181d">
 
@@ -59,35 +59,57 @@
     <!-- AllowAutoHide off: the scrollbar reserves its own column instead
          of floating over the value readouts -->
     <ScrollViewer VerticalScrollBarVisibility="Auto" AllowAutoHide="False">
-      <ItemsControl ItemsSource="{Binding Groups}" Margin="0,0,10,0">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="vm:InsertParamGroup">
-            <StackPanel Margin="0,0,0,10">
-              <Border IsVisible="{Binding ShowHeader}" BorderBrush="#2d313c" BorderThickness="0,0,0,1"
-                      Margin="0,0,0,6" Padding="0,0,0,3">
-                <TextBlock Text="{Binding Name}" Foreground="#b9bfcc" FontSize="12" FontWeight="SemiBold"/>
-              </Border>
-              <ItemsControl ItemsSource="{Binding Params}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:InsertParamViewModel">
-                    <Grid ColumnDefinitions="200,*,72" Margin="0,0,0,4">
-                      <TextBlock Text="{Binding Name}" Classes="h" VerticalAlignment="Center"
-                                 TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Symbol}"/>
-                      <Slider Grid.Column="1" Minimum="{Binding Min}" Maximum="{Binding Max}"
-                              Value="{Binding Value, Mode=TwoWay}" IsVisible="{Binding IsSlider}"
-                              TickFrequency="{Binding Step}" IsSnapToTickEnabled="{Binding Integer}"/>
-                      <CheckBox Grid.Column="1" IsChecked="{Binding On, Mode=TwoWay}" IsVisible="{Binding Toggled}"
-                                MinHeight="0" VerticalAlignment="Center"/>
-                      <TextBlock Grid.Column="2" Text="{Binding ValueText}" Classes="val" FontSize="12"
-                                 VerticalAlignment="Center" HorizontalAlignment="Right"/>
-                    </Grid>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
+      <StackPanel Margin="0,0,10,0" Spacing="12">
+        <StackPanel IsVisible="{Binding HasVisualization}" Spacing="5">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="RESPONSE" Classes="h"/>
+            <TextBlock Grid.Column="1" Text="updates from the live PipeWire controls" Foreground="#6b7285" FontSize="10"/>
+          </Grid>
+          <vm:PluginVisualizer Insert="{Binding}" Height="220"/>
+        </StackPanel>
+        <ItemsControl ItemsSource="{Binding Groups}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:InsertParamGroup">
+              <StackPanel Margin="0,0,0,12">
+                <Border IsVisible="{Binding ShowHeader}" BorderBrush="#2d313c" BorderThickness="0,0,0,1"
+                        Margin="0,0,0,8" Padding="0,0,0,4">
+                  <TextBlock Text="{Binding Name}" Foreground="#b9bfcc" FontSize="12" FontWeight="SemiBold"/>
+                </Border>
+                <ItemsControl ItemsSource="{Binding Params}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:InsertParamViewModel">
+                      <Border Background="#20232b" BorderBrush="#2d313c" BorderThickness="1" CornerRadius="6"
+                              Width="142" Height="132" Margin="0,0,8,8" Padding="8,6"
+                              ToolTip.Tip="{Binding Symbol}">
+                        <Grid RowDefinitions="32,*,24">
+                          <TextBlock Text="{Binding Name}" Classes="h" FontSize="11" TextWrapping="Wrap"
+                                     TextTrimming="CharacterEllipsis" TextAlignment="Center"/>
+                          <vm:ArcKnob Grid.Row="1" Width="70" Height="70" HorizontalAlignment="Center"
+                                      Minimum="{Binding Min}" Maximum="{Binding Max}"
+                                      Value="{Binding Value, Mode=TwoWay}" Step="{Binding Step}"
+                                      IsLogarithmic="{Binding Logarithmic}" IsVisible="{Binding IsKnob}"/>
+                          <ToggleSwitch Grid.Row="1" IsChecked="{Binding On, Mode=TwoWay}"
+                                        IsVisible="{Binding Toggled}" HorizontalAlignment="Center"
+                                        VerticalAlignment="Center" OnContent="On" OffContent="Off"/>
+                          <ComboBox Grid.Row="1" ItemsSource="{Binding ScalePoints}"
+                                    SelectedItem="{Binding SelectedScalePoint, Mode=TwoWay}"
+                                    IsVisible="{Binding Enumeration}" HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Center" FontSize="11"/>
+                          <TextBlock Grid.Row="2" Text="{Binding ValueText}" Classes="val" FontSize="11"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
     </ScrollViewer>
   </DockPanel>
 </Window>

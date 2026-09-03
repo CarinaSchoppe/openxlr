@@ -40,18 +40,26 @@
 Everything is built with standard PipeWire modules and tools, no kernel
 modules or custom drivers:
 
-- One null sink per mix (`pactl load-module module-null-sink`), 4 in
-  all.
+- One null sink per mix (`pactl load-module module-null-sink`). Monitor
+  and Aux are structural; every user-created output adds another one.
 - One combine sink per channel (`module-combine-sink`) whose internal
   streams, one per mix, are the send faders: setting a send is setting
-  that stream's volume. Applications play into these sinks. 9 channels
-  make 9 combine sinks, so the 9 by 4 matrix is 13 sinks and no
+  that stream's volume. Applications play into these sinks. The graph has
+  one combine per hardware or user-created application channel and uses no
   loopback processes.
-- For the Stream and Chat mixes, a post sink fed from the mix (directly
+- For every user-created virtual output mix, a post sink fed from the mix (directly
   or through the mix's insert chain) and a remap source
   (`module-remap-source`) reading its monitor: the virtual microphone an
   application records from. The indirection means adding inserts later
   never recreates the device the application is recording.
+- Adding, renaming, or deleting an application channel or virtual output rebuilds
+  this owned module graph under the daemon lock. The old modules are
+  unloaded, so WirePlumber immediately loses the deleted devices; live
+  application streams are then moved to their remembered or fallback
+  channel in the new graph. If the rebuild fails, the previous layout is
+  restored.
+- Renames keep the internal id stable, so application assignments, profile
+  cells, insert keys, and controller references continue to resolve.
 - Filter chains (the software low cut and ClipGuard, and the LV2
   inserts on inputs and mixes) are `filter-chain` nodes, each held by a
   long-lived `pw-cli -m` process for the life of the chain; their

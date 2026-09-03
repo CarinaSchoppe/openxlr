@@ -322,12 +322,16 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
         Assert.Equal("Layout saved.", main.LayoutNote);
         Assert.Equal("", setup.FindControl<TextBox>("ChannelName")!.Text);
 
+        await Until(() => setup.GetVisualDescendants().OfType<Button>().Any(b =>
+            b.DataContext is ChannelViewModel { Id: "qa" } && Equals(b.Content, "↑")));
         Button channelUp = setup.GetVisualDescendants().OfType<Button>().Single(b =>
             b.DataContext is ChannelViewModel { Id: "qa" } && Equals(b.Content, "↑"));
         channelUp.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Until(() => !main.LayoutBusy && main.Channels[0].Id == "qa");
         Assert.Equal("Order saved.", main.LayoutNote);
 
+        await Until(() => setup.GetVisualDescendants().OfType<Button>().Any(b =>
+            b.DataContext is MixViewModel { Id: "chat" } && Equals(b.Content, "↑")));
         Button mixUp = setup.GetVisualDescendants().OfType<Button>().Single(b =>
             b.DataContext is MixViewModel { Id: "chat" } && Equals(b.Content, "↑"));
         mixUp.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

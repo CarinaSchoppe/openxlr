@@ -10,6 +10,8 @@
       <TextBlock Text="Each send affects only this channel in the selected output mix."
                  TextWrapping="Wrap" Foreground="#8b93a7"/>
       <TextBlock Name="ConnectionNote" Foreground="#e0a84a" TextWrapping="Wrap"/>
+      <Button Name="InsertsButton" Content="{Binding Inserts.ButtonText}" Click="OnInserts"
+              ToolTip.Tip="Effects before this channel's sends, shared by all output mixes"/>
     </StackPanel>
     <Button DockPanel.Dock="Bottom" Content="Close" Click="OnClose" HorizontalAlignment="Right"/>
     <ScrollViewer>

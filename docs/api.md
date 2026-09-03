@@ -15,7 +15,8 @@ Messages from the daemon, each a JSON object with a `type` field:
 | `commandResult` | after a mixer command containing `requestId` | the same `requestId`, optional `error` (absent/null means success) |
 
 The first message on a connection is always `state`, before meter frames.
-The `state.features` array advertises `editableLayout` and `commandResults`;
+The `state.features` array advertises `editableLayout`, `commandResults`,
+`channelInserts` and `nativePluginUi`;
 clients must check features rather than comparing release version strings.
 For example, send `{"cmd":"createMix","name":"Podcast","requestId":"unique-id"}`.
 An authoritative `state` precedes the matching `commandResult`. Layout
@@ -46,9 +47,10 @@ Commands are single JSON objects with a `cmd` field:
 | `setAuxPortEnabled` | `value` | send the Aux mix to the USB Aux port |
 | `setOutputVolume` | `value` | volume of the selected monitor devices |
 | `listPlugins` | none | the installed LV2 plugins, answered with a `plugins` message |
-| `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is `xlr1`, `xlr2` or `mix:<id>`, each insert is `{id, kind:"lv2", plugin:<uri>, label?, bypass?, params?}` |
+| `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is any channel ID or `mix:<id>`, each insert is `{id, kind:"lv2", plugin:<uri>, label?, bypass?, params?}` |
 | `setInsertBypass` | `channel`, `insertId`, `value` | bypass one insert |
 | `setInsertParam` | `channel`, `insertId`, `symbol`, `value` | one plugin control, by its LV2 port symbol |
+| `showInsertUi` | `channel`, `insertId`, `requestId` | open/raise the active instance's X11 vendor UI; reports missing display, unavailable UI or inactive host as an error |
 | `assignApp` | `identity`, `channel`, `label?` | route an app (creates a registry entry if unseen) |
 | `assignStream` | `streamId`, `channel` | route one live stream by its PipeWire id; also remembered for the app |
 | `forgetApp` | `identity` | drop an app and its remembered channel |

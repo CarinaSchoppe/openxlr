@@ -18,13 +18,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential debhelper dotnet-sdk-10.0
+            build-essential debhelper dotnet-sdk-10.0 pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev
 
       - name: Build package
         run: |
           dpkg-buildpackage -b -us -uc
           mkdir -p dist
           mv ../openxlr_*.deb dist/
+
+      - name: Verify native helper is packaged and executable
+        run: |
+          dpkg-deb -x dist/openxlr_*.deb package-check
+          test -x package-check/usr/lib/openxlr/daemon/openxlr-lv2-host
 
       - name: Lint package
         run: |

@@ -15,12 +15,14 @@ ExclusiveArch:  x86_64
 
 BuildRequires:  dotnet-sdk-10.0
 BuildRequires:  systemd-rpm-macros
+BuildRequires:  gcc make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel
 
 # Prebuilt .NET assemblies; dependencies are declared by hand, matching
 # the Debian and Arch packages.
 AutoReqProv:    no
 Requires:       aspnetcore-runtime-10.0
 Requires:       pipewire
+Requires:       pipewire-libs
 Requires:       pipewire-pulseaudio
 Requires:       wireplumber
 Requires:       pulseaudio-libs
@@ -69,6 +71,7 @@ cp -r out/ui %{buildroot}%{_prefix}/lib/openxlr/ui
 # dotnet publish marks assemblies executable; only the apphosts are.
 find %{buildroot}%{_prefix}/lib/openxlr -type f -exec chmod 644 {} +
 chmod 755 %{buildroot}%{_prefix}/lib/openxlr/daemon/OpenXLR.Daemon \
+  %{buildroot}%{_prefix}/lib/openxlr/daemon/openxlr-lv2-host \
     %{buildroot}%{_prefix}/lib/openxlr/ui/OpenXLR.UI
 
 install -dm755 %{buildroot}%{_bindir}

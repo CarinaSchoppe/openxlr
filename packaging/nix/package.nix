@@ -13,6 +13,9 @@
 , alsa-utils
 , pulseaudio
 , xdg-utils
+, pkg-config
+, lv2
+, stdenv
 }:
 
 buildDotnetModule {
@@ -31,6 +34,8 @@ buildDotnetModule {
   dotnet-runtime = dotnetCorePackages.aspnetcore_10_0;
 
   executables = [ "OpenXLR.Daemon" "OpenXLR.UI" ];
+  nativeBuildInputs = [ pkg-config stdenv.cc ];
+  buildInputs = [ pipewire lilv lv2 libx11 ];
 
   runtimeDeps = [
     fontconfig

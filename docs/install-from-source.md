@@ -25,13 +25,13 @@ by distribution:
 # Arch
 sudo pacman -S --needed dotnet-sdk pipewire pipewire-pulse wireplumber libusb
 # optional: software ClipGuard for the XLR Dock, and LV2 plugins for inserts
-sudo pacman -S --needed swh-plugins lilv lsp-plugins-lv2
+sudo pacman -S --needed swh-plugins lilv lv2 lsp-plugins-lv2 base-devel libx11
 
 # Fedora
-sudo dnf install dotnet-sdk-10.0 pipewire pipewire-pulseaudio wireplumber libusb1 ladspa-swh-plugins lilv-libs lsp-plugins-lv2
+sudo dnf install dotnet-sdk-10.0 pipewire pipewire-pulseaudio wireplumber libusb1 ladspa-swh-plugins lilv-libs lsp-plugins-lv2 gcc make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel
 
 # Debian / Ubuntu (dotnet from Microsoft's feed if the distro lacks 10.0)
-sudo apt install dotnet-sdk-10.0 pipewire pipewire-pulse wireplumber libusb-1.0-0 swh-plugins liblilv-0-0 lsp-plugins-lv2
+sudo apt install dotnet-sdk-10.0 pipewire pipewire-pulse wireplumber libusb-1.0-0 swh-plugins liblilv-0-0 lsp-plugins-lv2 build-essential pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev
 ```
 
 Verify the audio stack is PipeWire before going further:

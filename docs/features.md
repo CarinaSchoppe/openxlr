@@ -84,8 +84,8 @@ removing deleted devices from WirePlumber. Details in
 
 ## Inserts
 
-LV2 plugins in the signal path. Each XLR input carries a mono chain and
-each mix (Monitor, Stream, Chat, Aux) a stereo one. An Inserts row
+LV2 plugins in the signal path. Each XLR input carries a mono chain;
+Aux In, every application channel and each mix carry a stereo chain. An Inserts row
 under the channel or mix lists what is loaded: a green or red LED for
 active or bypassed, a bypass button, and a gear that opens the plugin's
 controls in their own window. The picker shows every installed LV2
@@ -97,17 +97,19 @@ overviews, not measured frequency/transfer responses or FFT spectra.
 It is grouped by parameter family and has a Defaults button.
 Chains are saved with the mixer and recalled by profiles.
 
-Every chain is a PipeWire filter-chain node, the same mechanism as the
-software low cut and ClipGuard, so plugins run inside PipeWire's graph
-in a daemon-owned `pw-cli` holder process, and a chain adds latency only while it holds a
-plugin. Plugins are found in the standard LV2 directories
+Each LV2 plugin runs in its own daemon-owned native host with direct
+PipeWire ports. Safety DSP (low cut and ClipGuard) remains in PipeWire's
+filter-chain. Plugins are found in the standard LV2 directories
 (`/usr/lib/lv2`, `~/.lv2`, or wherever `LV2_PATH` points); the daemon
 reads them through lilv. `lsp-plugins-lv2` is the set used during
-development. Plugins that ship a custom GUI still load, but that native
-window is not instantiated: PipeWire owns the actual DSP instance and its
-filter-chain API exposes control ports, not an LV2 UI host connection.
-Launching the vendor UI separately would control a different instance.
-The OpenXLR view therefore controls the real PipeWire instance directly.
+development. **Native plugin UI…** opens the installed X11 UI on the
+same instance that processes the channel. LSP's native EQ spectrum,
+compression history and gain-reduction meters therefore show real audio.
+Native UI parameter changes return to OpenXLR and are saved with the mixer.
+Closing the editor leaves DSP running; a crashed host is rebuilt by the
+daemon's sweep. Native UI hosting needs X11 or XWayland and a session display
+available to the user service. Unsupported required LV2 features are reported;
+other UI toolkits and non-control-port plugin state are not hosted yet.
 VST and CLAP plugins are not supported; loading them would need a plugin
 host.
 

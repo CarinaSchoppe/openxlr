@@ -23,6 +23,7 @@ override_dh_auto_install:
 	# dotnet publish marks assemblies executable; only the apphosts are.
 	find $(PKG)/usr/lib/openxlr -type f -exec chmod 644 {} +
 	chmod 755 $(PKG)/usr/lib/openxlr/daemon/OpenXLR.Daemon \
+		$(PKG)/usr/lib/openxlr/daemon/openxlr-lv2-host \
 		$(PKG)/usr/lib/openxlr/ui/OpenXLR.UI
 
 	install -dm755 $(PKG)/usr/bin

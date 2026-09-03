@@ -1,9 +1,10 @@
 using System;
-using System.Diagnostics;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace OpenXLR.UI;
 
@@ -115,6 +116,7 @@ public sealed record DaemonPrefs
 /// </summary>
 public static class StartupIntegration
 {
+    private static readonly SemaphoreSlim UnitChanges = new(1, 1);
     private const string UnitName = "openxlr-daemon.service";
 
     private static string HomeDir => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -195,32 +197,34 @@ public static class StartupIntegration
     /// by an earlier version and starts the daemon, without waiting for the
     /// user to toggle the option again.
     /// </summary>
-    public static void RepairDaemonUnit()
+    public static async Task RepairDaemonUnitAsync()
     {
         try
         {
             if (!HasStaleUserUnit()) return;
-            SetDaemonAtLogin(true);
-            Systemctl("start", UnitName);
+            if (await SetDaemonAtLoginAsync(true)) await SystemctlAsync("--no-block", "start", UnitName);
         }
         catch (Exception) { /* best effort */ }
     }
 
-    public static void SetDaemonAtLogin(bool enabled)
+    public static async Task<bool> SetDaemonAtLoginAsync(bool enabled)
     {
-        if (enabled)
+        await UnitChanges.WaitAsync();
+        try
         {
-            if (PackagedUnit is not null)
+            if (enabled)
             {
-                // Any copy in ~/.config would shadow the packaged unit.
-                try { File.Delete(UnitPath); } catch (IOException) { }
-            }
-            else
-            {
-                // No binary anywhere we know of: a unit would only loop on 203/EXEC.
-                if (DaemonBinary is not { } daemon) return;
-                Directory.CreateDirectory(Path.GetDirectoryName(UnitPath)!);
-                File.WriteAllText(UnitPath, $"""
+                if (PackagedUnit is not null)
+                {
+                    // Any copy in ~/.config would shadow the packaged unit.
+                    try { File.Delete(UnitPath); } catch (IOException) { }
+                }
+                else
+                {
+                    // No binary anywhere we know of: a unit would only loop on 203/EXEC.
+                    if (DaemonBinary is not { } daemon) return false;
+                    Directory.CreateDirectory(Path.GetDirectoryName(UnitPath)!);
+                    File.WriteAllText(UnitPath, $"""
                     [Unit]
                     Description=OpenXLR audio daemon
                     After=pipewire-pulse.service wireplumber.service
@@ -247,16 +251,18 @@ public static class StartupIntegration
                     [Install]
                     WantedBy=default.target
                     """);
+                }
+                return await SystemctlAsync("daemon-reload") && await SystemctlAsync("enable", UnitName);
             }
-            Systemctl("daemon-reload");
-            Systemctl("enable", UnitName);
+            else
+            {
+                if (!await SystemctlAsync("disable", UnitName)) return false;
+                try { File.Delete(UnitPath); } catch (IOException) { }
+                return await SystemctlAsync("daemon-reload");
+            }
         }
-        else
-        {
-            Systemctl("disable", UnitName);
-            try { File.Delete(UnitPath); } catch (IOException) { }
-            Systemctl("daemon-reload");
-        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+        finally { UnitChanges.Release(); }
     }
 
     public static void SetWindowAtLogin(bool enabled)
@@ -286,45 +292,8 @@ public static class StartupIntegration
     /// effect. False when systemd does not manage it (source builds run by
     /// hand), so the caller can tell the user to restart it themselves.
     /// </summary>
-    public static async System.Threading.Tasks.Task<bool> RestartDaemonAsync()
-    {
-        try
-        {
-            var psi = new ProcessStartInfo("systemctl") { RedirectStandardOutput = true, RedirectStandardError = true };
-            foreach (string arg in new[] { "--user", "--no-block", "restart", "openxlr-daemon.service" })
-                psi.ArgumentList.Add(arg);
-            using Process? process = Process.Start(psi);
-            if (process is null) return false;
-            using var timeout = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var stdout = process.StandardOutput.ReadToEndAsync(timeout.Token);
-            var stderr = process.StandardError.ReadToEndAsync(timeout.Token);
-            try
-            {
-                await process.WaitForExitAsync(timeout.Token);
-                await System.Threading.Tasks.Task.WhenAll(stdout, stderr);
-                return process.ExitCode == 0;
-            }
-            catch (OperationCanceledException)
-            {
-                try { process.Kill(); } catch (InvalidOperationException) { }
-                return false;
-            }
-        }
-        catch (Exception) { return false; }
-    }
+    public static Task<bool> RestartDaemonAsync() => SystemctlAsync("--no-block", "restart", UnitName);
 
-    private static bool Systemctl(params string[] args)
-    {
-        try
-        {
-            var psi = new ProcessStartInfo("systemctl") { RedirectStandardOutput = true, RedirectStandardError = true };
-            psi.ArgumentList.Add("--user");
-            foreach (string a in args) psi.ArgumentList.Add(a);
-            using Process? p = Process.Start(psi);
-            if (p is null) return false;
-            p.WaitForExit(15000);
-            return p.HasExited && p.ExitCode == 0;
-        }
-        catch (Exception) { return false; }
-    }
+    private static Task<bool> SystemctlAsync(params string[] args)
+        => ServiceCommand.RunAsync("systemctl", ["--user", .. args], TimeSpan.FromSeconds(5));
 }

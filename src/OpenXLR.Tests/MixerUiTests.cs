@@ -36,12 +36,30 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
         Assert.Same(channel, main.Channels[0]);
         Assert.Same(send, Assert.Single(channel.Sends));
         Assert.Equal("Renamed game", channel.Name);
+        Assert.Equal("Renamed game", channel.Inserts.Title);
         Assert.Equal("Renamed monitor", send.MixName);
         state["mixer"] = null;
         main.Apply(state);
         Assert.Empty(main.Channels);
         Assert.False(windows.Items[1].FindControl<ItemsControl>("SendsEditor")!.IsEnabled);
         using var emptyFlow = new WindowScope(new FlowWindow(main));
+    });
+
+    [Fact]
+    public Task IdenticalInsertIdsInDifferentChannelsDoNotShareWindowsOrSyncKeys() => _ui.Run(async () =>
+    {
+        await using var client = new DaemonClient();
+        var first = new InsertsViewModel(client, "game", 2);
+        var second = new InsertsViewModel(client, "music", 2);
+        var a = new InsertViewModel(first, "same-id", "test:plugin", "First");
+        var b = new InsertViewModel(second, "same-id", "test:plugin", "Second");
+        Assert.NotEqual(first.ParamSyncKey(a.Id, "gain"), second.ParamSyncKey(b.Id, "gain"));
+        using var owner = new WindowScope(new Window());
+        InsertWindows.OpenControls(owner.Items[0], a);
+        InsertWindows.OpenControls(owner.Items[0], b);
+        Assert.Equal(2, owner.Items[0].OwnedWindows.Count());
+        InsertWindows.RetainChains([]);
+        Assert.Empty(owner.Items[0].OwnedWindows);
     });
 
     [Fact]
@@ -166,6 +184,64 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
         Assert.True(await main.DeleteChannel("qa"));
         await Until(() => main.Channels.Count == 1);
         Assert.False(editor.Items[0].FindControl<ItemsControl>("SendsEditor")!.IsEnabled);
+    });
+
+    [Fact]
+    public Task ChannelCardOpensItsOwnNativeEditorAndShowsServerErrors() => _ui.Run(async () =>
+    {
+        JsonNode state = State();
+        state["features"] = new JsonArray("editableLayout", "commandResults", "nativePluginUi", "channelInserts");
+        state["mixer"]!["inserts"]!["game"] = JsonNode.Parse("""
+            [{"insert":{"id":"compressor","kind":"lv2","plugin":"test:compressor","params":{"gain":0.5}}}]
+            """);
+        var requests = new ConcurrentQueue<JsonNode>();
+        await using var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            await SocketTestServer.Send(socket, state, stop);
+            while (!stop.IsCancellationRequested)
+            {
+                JsonNode request = await SocketTestServer.Receive(socket, stop);
+                if (request["cmd"]!.GetValue<string>() == "listPlugins")
+                {
+                    await SocketTestServer.Send(socket, JsonNode.Parse("""
+                        {"type":"plugins","plugins":[{"plugin":"test:compressor","name":"Compressor",
+                         "audioIns":2,"audioOuts":2,"hasNativeUi":true,
+                         "params":[{"symbol":"gain","name":"Output","min":0,"max":1,"default":1}]}]}
+                        """)!, stop);
+                    continue;
+                }
+                requests.Enqueue(request);
+                await SocketTestServer.Send(socket, new { type = "commandResult",
+                    requestId = request["requestId"]!.GetValue<string>(), error = "Test display unavailable" }, stop);
+            }
+        });
+        await using var client = new DaemonClient(server.Url);
+        var main = new MainViewModel(client);
+        client.Start();
+        await Until(() => main.SupportsChannelInserts && main.Channels.Count == 1);
+        ChannelViewModel channel = main.Channels[0];
+        using var editor = new WindowScope(new ChannelEditorWindow(main, channel));
+        Button inserts = editor.Items[0].FindControl<Button>("InsertsButton")!;
+        Assert.True(inserts.IsEnabled);
+        inserts.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Window chainWindow = Assert.Single(editor.Items[0].OwnedWindows);
+        Assert.Same(channel.Inserts, chainWindow.DataContext);
+        InsertViewModel insert = Assert.Single(channel.Inserts.Items);
+        using var controls = new WindowScope(new InsertControlsWindow { DataContext = insert });
+        await Until(() => insert.CanOpenNativeUi);
+        Button native = controls.Items[0].GetVisualDescendants().OfType<Button>()
+            .Single(b => Equals(b.Content, "Native plugin UI…"));
+        native.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Until(() => insert.NativeUiNote == "Test display unavailable" && !insert.OpeningNativeUi);
+        JsonNode sent = Assert.Single(requests);
+        Assert.Equal("showInsertUi", sent["cmd"]!.GetValue<string>());
+        Assert.Equal("game", sent["channel"]!.GetValue<string>());
+        Assert.Equal("compressor", sent["insertId"]!.GetValue<string>());
+        state["features"] = new JsonArray("editableLayout", "commandResults");
+        main.Apply(state);
+        Assert.False(native.IsEnabled);
+        Assert.False(inserts.IsEnabled);
+        chainWindow.Close();
     });
 
     internal static JsonNode State() => JsonNode.Parse("""

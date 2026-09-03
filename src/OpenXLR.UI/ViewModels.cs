@@ -52,6 +52,7 @@ public sealed class MainViewModel : ViewModelBase
                 StateApplied?.Invoke();
                 Inserts.ResetForNewConnection(); Inserts2.ResetForNewConnection();
                 foreach (MixViewModel mv in Mixes) mv.Inserts.ResetForNewConnection();
+                foreach (ChannelViewModel channel in Channels) channel.Inserts.ResetForNewConnection();
             }
             else { Inserts.EnsurePluginsLoaded(); Inserts2.EnsurePluginsLoaded(); }
         });
@@ -453,6 +454,8 @@ public sealed class MainViewModel : ViewModelBase
     private bool _layoutBusy;
     public bool LayoutBusy { get => _layoutBusy; private set { if (Set(ref _layoutBusy, value)) Raise(nameof(CanEditLayout)); } }
     private bool _supportsLayout;
+    private bool _nativePluginUi;
+    public bool SupportsChannelInserts { get; private set; }
     public bool SupportsLayout
     {
         get => _supportsLayout;
@@ -578,6 +581,8 @@ public sealed class MainViewModel : ViewModelBase
             DaemonVersion = node["daemonVersion"]?.GetValue<string>();
             var features = (node["features"] as JsonArray)?.Select(f => f?.GetValue<string>()).ToHashSet();
             SupportsLayout = features?.Contains("commandResults") == true && features.Contains("editableLayout");
+            _nativePluginUi = features?.Contains("nativePluginUi") == true;
+            SupportsChannelInserts = features?.Contains("channelInserts") == true;
             DeviceConnected = node["connected"]?.GetValue<bool>() ?? false;
             if (node["device"] is JsonNode dev)
                 DeviceName = $"{dev["vendor"]?.GetValue<string>()} {dev["model"]?.GetValue<string>()}".Trim();
@@ -854,6 +859,7 @@ public sealed class MainViewModel : ViewModelBase
         SoftClipGuardAvailable = mixer["softClipGuardAvailable"]?.GetValue<bool>() ?? false;
         SoftClipGuardError = mixer["softClipGuardError"]?.GetValue<string>();
         SoftClipGuard = mixer["softClipGuard"]?.GetValue<bool>() ?? false;
+        Inserts.NativeUiSupported = Inserts2.NativeUiSupported = _nativePluginUi;
         Inserts.Apply(mixer["inserts"]?["xlr1"]);
         Inserts2.Apply(mixer["inserts"]?["xlr2"]);
 
@@ -871,6 +877,7 @@ public sealed class MainViewModel : ViewModelBase
                 mv.Visible = !DeviceConnected || CapOutputRouting;
             foreach (MixViewModel mv in Mixes)
             {
+                mv.Inserts.NativeUiSupported = _nativePluginUi;
                 mv.Inserts.Apply(mixer["inserts"]?[$"mix:{mv.Id}"]);
                 mv.Inserts.EnsurePluginsLoaded();   // shared fetch; cheap after the first
             }
@@ -887,6 +894,9 @@ public sealed class MainViewModel : ViewModelBase
             // device has; without a device, show everything as before.
             foreach (ChannelViewModel c in Channels)
             {
+                c.Inserts.NativeUiSupported = _nativePluginUi;
+                c.Inserts.Apply(mixer["inserts"]?[c.Id]);
+                c.Inserts.EnsurePluginsLoaded();
                 c.Visible = c.Id switch
                 {
                     "xlr2" => !DeviceConnected || HasXlr2,
@@ -900,7 +910,7 @@ public sealed class MainViewModel : ViewModelBase
                 .Select(c => new ChannelOption(c.Id, c.Name))];
             foreach (AppStreamViewModel app in Apps) app.SyncChannels(appChannels);
         }
-        InsertWindows.RetainChains(new[] { Inserts, Inserts2 }.Concat(Mixes.Select(m => m.Inserts)));
+        InsertWindows.RetainChains(new[] { Inserts, Inserts2 }.Concat(Mixes.Select(m => m.Inserts)).Concat(Channels.Select(c => c.Inserts)));
     }
 
     /// <summary>Update in place by id so bindings survive; add/remove as needed.</summary>
@@ -1140,6 +1150,7 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
     {
         Id = id; _name = name;
         _client = client;
+        Inserts = new InsertsViewModel(client, id, id is "xlr1" or "xlr2" ? 1 : 2, name);
         SyncMixes(mixes);
     }
 
@@ -1149,6 +1160,7 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
     private string _name;
     public string Name { get => _name; private set => Set(ref _name, value); }
     public ObservableCollection<SendViewModel> Sends { get; } = [];
+    public InsertsViewModel Inserts { get; }
 
     private bool _isHardware;
     public bool IsHardware { get => _isHardware; private set => Set(ref _isHardware, value); }
@@ -1168,6 +1180,7 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
     public void ApplyFromDaemon(JsonNode n)
     {
         Name = n["name"]?.GetValue<string>() ?? Name;
+        Inserts.SetTitle(Name);
         IsHardware = n["isHardware"]?.GetValue<bool>() ?? Id is "xlr1" or "xlr2" or "aux";
         AcceptsApps = n["acceptsApps"]?.GetValue<bool>() ?? !IsHardware;
         CanDelete = n["canDelete"]?.GetValue<bool>() ?? !IsHardware;

@@ -16,6 +16,7 @@ public partial class ChannelEditorWindow : Window
         {
             bool exists = main.HasMixer && main.Channels.Contains(channel);
             SendsEditor.IsEnabled = main.DaemonConnected && exists;
+            InsertsButton.IsEnabled = main.DaemonConnected && exists && main.SupportsChannelInserts;
             ConnectionNote.Text = !main.DaemonConnected ? "Waiting for the daemon to reconnect…"
                 : !exists ? "This channel was removed or the submixer was disabled." : "";
         }
@@ -25,4 +26,9 @@ public partial class ChannelEditorWindow : Window
     }
 
     private void OnClose(object? sender, RoutedEventArgs e) => Close();
+
+    private void OnInserts(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is ChannelViewModel channel) InsertWindows.OpenChain(this, channel.Inserts, channel.Id);
+    }
 }

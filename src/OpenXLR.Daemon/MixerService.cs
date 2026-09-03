@@ -170,6 +170,7 @@ public sealed class MixerService : IHostedService, IDisposable
                         // Software DSP only for devices without the hardware version.
                         _mixer.SetLowCutApplicable(!(_devices.ActiveCapabilities?.LowCut ?? false));
                         _mixer.SetClipGuardApplicable(!(_devices.ActiveCapabilities?.ClipGuard ?? false));
+                        if (_mixer.SyncPluginControls()) { ScheduleSave(); Changed?.Invoke(); }
                         if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()
                             | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()
                             | _mixer.EnsureFilterRoutes()
@@ -277,6 +278,7 @@ public sealed class MixerService : IHostedService, IDisposable
             _stopping = true;
             if (_mixer.Built)
             {
+                _mixer.SyncPluginControls();
                 try { _mixer.ExportSettings().Save(); } catch (Exception) { /* best effort */ }
                 _mixer.TearDown();
                 _log.LogInformation("submix graph torn down");
@@ -297,6 +299,9 @@ public sealed class MixerService : IHostedService, IDisposable
         if (!_mixer.Built) return "mixer not built (start the daemon with --mixer)";
         try
         {
+            // Consume already-received native edits before a later API edit or
+            // layout rebuild, so an old queued value cannot overwrite it.
+            if (_mixer.SyncPluginControls()) { ScheduleSave(); Changed?.Invoke(); }
             switch (cmd.Cmd)
             {
                 case "setLevel":
@@ -384,6 +389,10 @@ public sealed class MixerService : IHostedService, IDisposable
                             return "setInserts: every insert needs an id, kind 'lv2', and a plugin URI";
                     _mixer.SetInserts(cmd.Channel, cmd.Inserts);
                     break;
+                case "showInsertUi":
+                    if (cmd.Channel is null || cmd.InsertId is null) return "showInsertUi: need channel and insertId";
+                    _mixer.ShowInsertUi(cmd.Channel, cmd.InsertId);
+                    break;
                 case "setInsertBypass":
                     if (cmd.Channel is null || cmd.InsertId is null) return "setInsertBypass: need 'channel' and 'insertId'";
                     _mixer.SetInsertBypass(cmd.Channel, cmd.InsertId, cmd.Value.GetBoolean());
@@ -462,6 +471,7 @@ public sealed class MixerService : IHostedService, IDisposable
             Levels = current.Levels.Where(e => !e.Key.StartsWith(id + "|", StringComparison.Ordinal))
                 .ToDictionary(),
             ChannelMuted = [.. current.ChannelMuted.Where(c => !c.StartsWith(id + "|", StringComparison.Ordinal))],
+            Inserts = current.Inserts.Where(e => e.Key != id).ToDictionary(e => e.Key, e => e.Value),
         });
     }
 

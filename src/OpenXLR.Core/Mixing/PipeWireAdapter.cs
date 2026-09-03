@@ -22,6 +22,7 @@ public sealed class PipeWireAdapter
     private readonly List<uint> _modules = [];
     private readonly List<Process> _loopbacks = [];
     private readonly List<Process> _filters = [];
+    private readonly HashSet<NativePluginHost> _nativeHosts = [];
 
     public PipeWireAdapter() { }
 
@@ -137,25 +138,6 @@ public sealed class PipeWireAdapter
             // (which silently swallows the user's desktop audio).
             $"sink_properties=node.description={PropValue(description)}" +
             " node.suspend-on-idle=false priority.session=100");
-        uint id = uint.Parse(outp.Trim());
-        _modules.Add(id);
-        return id;
-    }
-
-    /// <summary>
-    /// A remap sink is a filter attached to a master sink: it is clocked by its
-    /// master, so audio written to it always flows (no loopback process, no
-    /// separate clock island). One remap per channel-mix cell carries that
-    /// cell's fader volume.
-    /// </summary>
-    public uint CreateRemapSink(string nodeName, string masterSink, string description)
-    {
-        string outp = Run("pactl",
-            "load-module", "module-remap-sink",
-            $"sink_name={nodeName}",
-            $"master={masterSink}",
-            $"sink_properties=node.description={PropValue(description)}" +
-            " priority.session=90");
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;
@@ -391,6 +373,8 @@ public sealed class PipeWireAdapter
     private FilterHandle CreateFilterChain(string sinkName, string srcName, string description, int channels,
         int lowCutHz, bool clipGuard, IReadOnlyList<InsertDefinition>? inserts)
     {
+        if (inserts?.Any(i => !i.Bypass) == true)
+            return CreateHostedChain(sinkName, srcName, description, channels, lowCutHz, clipGuard, inserts);
         if (clipGuard)
         {
             DspFeatureAvailability support = GetSoftwareClipGuardAvailability();
@@ -404,20 +388,6 @@ public sealed class PipeWireAdapter
         if (channels == 1 && clipGuard)
             stages.Add(("{ type = ladspa name = lim plugin = hard_limiter_1413 label = hardLimiter " +
                 "control = { \"dB limit\" = -3.0 \"Wet level\" = 1.0 \"Residue level\" = 0.0 } }", ["lim:Input"], ["lim:Output"]));
-        int k = 0;
-        foreach (InsertDefinition ins in inserts ?? [])
-        {
-            if (ins.Bypass || ins.Kind != "lv2") continue;
-            PluginInfo? info = Lv2Catalog.Find(ins.Plugin);
-            if (info is null || info.InputSymbols.Count < channels || info.OutputSymbols.Count < channels)
-                continue;   // unknown or wrong-width plugin: skipped, reported by the caller
-            string name = $"i{k++}";
-            string controls = ins.Params.Count == 0 ? "" :
-                " control = { " + string.Join(' ', ins.Params.Select(p => $"\"{p.Key}\" = {p.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}")) + " }";
-            stages.Add(($"{{ type = lv2 name = {name} plugin = \"{ins.Plugin}\"{controls} }}",
-                [.. info.InputSymbols.Take(channels).Select(s => $"{name}:{s}")],
-                [.. info.OutputSymbols.Take(channels).Select(s => $"{name}:{s}")]));
-        }
         if (stages.Count == 0)
             throw new ArgumentException("filter chain needs at least one stage");
         var linkList = new List<string>();
@@ -472,6 +442,54 @@ public sealed class PipeWireAdapter
         return handle;
     }
 
+    /// <summary>Build isolated LV2 stages after any PipeWire-owned safety DSP.</summary>
+    private FilterHandle CreateHostedChain(string sinkName, string sourceName, string description, int channels,
+        int lowCutHz, bool clipGuard, IReadOnlyList<InsertDefinition> inserts)
+    {
+        var stages = new List<FilterHandle>();
+        var plugins = new List<(string Id, NativePluginHost Host)>();
+        try
+        {
+            if (lowCutHz > 0 || clipGuard)
+                stages.Add(CreateFilterChain(sinkName + "_safety", sourceName + "_safety", description, channels, lowCutHz, clipGuard, null));
+            int rate = ParseGraphSampleRate(Run("pw-metadata", "-n", "settings"));
+            foreach (InsertDefinition insert in inserts.Where(i => !i.Bypass))
+            {
+                string node = $"{sinkName}_lv2_{plugins.Count}";
+                var host = new NativePluginHost(insert, node, channels, rate);
+                _nativeHosts.Add(host);
+                var stage = new FilterHandle(node, node, node, host.Process) { NativeHost = host };
+                stages.Add(stage);
+                plugins.Add((insert.Id, host));
+                if (!WaitForPorts(node, "playback", false, TimeSpan.FromSeconds(3), host.Process)
+                    || !WaitForPorts(node, "capture", true, TimeSpan.FromSeconds(3), host.Process))
+                    throw new InvalidOperationException($"Native LV2 ports did not appear for {insert.Label ?? insert.Plugin}.");
+            }
+            for (int i = 1; i < stages.Count; i++)
+                if (LinkNodes(stages[i - 1].SourceName, "capture", stages[i].SinkName, "playback").Pairs.Count < channels)
+                    throw new InvalidOperationException("Could not link the native plugin stages.");
+            return new FilterHandle(sinkName, stages[0].SinkName, stages[^1].SourceName, stages[0].Process)
+            { Stages = stages, NativeStages = plugins };
+        }
+        catch
+        {
+            foreach (FilterHandle stage in stages) StopFilter(stage);
+            throw;
+        }
+    }
+
+    /// <summary>Use the graph rate, not Pulse's independent client default sample rate.</summary>
+    internal static int ParseGraphSampleRate(string metadata)
+    {
+        foreach (string key in new[] { "clock.force-rate", "clock.rate" })
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(metadata,
+                $"key:'{System.Text.RegularExpressions.Regex.Escape(key)}' value:'(\\d+)'");
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int rate) && rate is >= 8000 and <= 384000) return rate;
+        }
+        throw new InvalidOperationException("PipeWire did not report a supported graph sample rate.");
+    }
+
     /// <summary>
     /// Change one control of a running filter-chain live: the chain exposes
     /// its plugins' controls as "node:symbol" entries of the Props param on
@@ -479,6 +497,14 @@ public sealed class PipeWireAdapter
     /// </summary>
     public void SetFilterControl(FilterHandle f, string control, double value)
     {
+        if (f.NativeStages.Count > 0)
+        {
+            int separator = control.IndexOf(':');
+            if (separator < 2 || !int.TryParse(control.AsSpan(1, separator - 1), out int stage)
+                || control[0] != 'i' || stage < 0 || stage >= f.NativeStages.Count) throw new InvalidOperationException("Unknown native stage.");
+            f.NativeStages[stage].Host.SetControl(control[(separator + 1)..], value);
+            return;
+        }
         int id = FindNodeId(f.SinkName) ?? throw new InvalidOperationException($"filter node {f.SinkName} not found");
         string v = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
         Run("pw-cli", "set-param", id.ToString(), "Props", $"{{ params = [ \"{control}\" {v} ] }}");
@@ -487,6 +513,17 @@ public sealed class PipeWireAdapter
     /// <summary>Unload a filter by killing its holder process.</summary>
     public void StopFilter(FilterHandle f)
     {
+        if (f.Stages.Count > 0)
+        {
+            foreach (FilterHandle stage in f.Stages) StopFilter(stage);
+            return;
+        }
+        if (f.NativeHost is { } host)
+        {
+            _nativeHosts.Remove(host);
+            host.Dispose();
+            return;
+        }
         try { if (!f.Process.HasExited) { f.Process.Kill(entireProcessTree: true); f.Process.WaitForExit(2000); } }
         catch (Exception) { /* already gone */ }
         _filters.Remove(f.Process);
@@ -959,7 +996,8 @@ public sealed class PipeWireAdapter
                     o.GetProperty("id").GetInt32(),
                     Str(props, "application.name"),
                     binary,
-                    Str(props, "media.name")) { Serial = serial });
+                    Str(props, "media.name"))
+                { Serial = serial });
             }
         }
         return found;
@@ -1005,6 +1043,8 @@ public sealed class PipeWireAdapter
     /// <summary>Remove everything this adapter created, in reverse order.</summary>
     public void TearDown()
     {
+        foreach (NativePluginHost host in _nativeHosts) host.Dispose();
+        _nativeHosts.Clear();
         foreach (Process p in _loopbacks.Concat(_filters))
         {
             try { if (!p.HasExited) { p.Kill(entireProcessTree: true); p.WaitForExit(2000); } }
@@ -1048,7 +1088,13 @@ public sealed record LoopbackHandle(string Id, string CaptureNodeName, string Pl
 
 /// <summary>A loaded filter-chain: sink half (input), source half (output),
 /// and the pw-cli process whose lifetime is the module's.</summary>
-public sealed record FilterHandle(string Id, string SinkName, string SourceName, Process Process);
+public sealed record FilterHandle(string Id, string SinkName, string SourceName, Process Process)
+{
+    internal NativePluginHost? NativeHost { get; init; }
+    internal IReadOnlyList<FilterHandle> Stages { get; init; } = [];
+    internal IReadOnlyList<(string Id, NativePluginHost Host)> NativeStages { get; init; } = [];
+    public bool IsAlive => Stages.Count > 0 ? Stages.All(s => s.IsAlive) : NativeHost?.IsHealthy ?? !Process.HasExited;
+}
 
 /// <summary>Whether an optional host-side DSP feature can be loaded safely.</summary>
 public sealed record DspFeatureAvailability(bool Available, string? Error);

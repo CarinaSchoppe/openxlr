@@ -44,7 +44,9 @@ modules or custom drivers:
   and Aux are structural; every user-created output adds another one.
 - One combine sink per channel (`module-combine-sink`) whose internal
   streams, one per mix, are the send faders: setting a send is setting
-  that stream's volume. Applications play into these sinks. The graph has
+  that stream's volume. Hardware feeds these sinks directly. Applications
+  play into stable public null sinks; each is linked through its stereo
+  insert chain (or a direct bypass) into its internal fan-out sink. The graph has
   one combine per hardware or user-created application channel and uses no
   loopback processes.
 - For every user-created virtual output mix, a post sink fed from the mix (directly
@@ -60,10 +62,15 @@ modules or custom drivers:
   restored.
 - Renames keep the internal id stable, so application assignments, profile
   cells, insert keys, and controller references continue to resolve.
-- Filter chains (the software low cut and ClipGuard, and the LV2
-  inserts on inputs and mixes) are `filter-chain` nodes, each held by a
+- Safety DSP (the software low cut and ClipGuard) uses `filter-chain` nodes, each held by a
   long-lived `pw-cli -m` process for the life of the chain; their
   controls are set with `pw-cli set-param`.
+- Every LV2 insert uses an isolated `openxlr-lv2-host` process containing
+  one lilv DSP instance and, when requested, that instance's native X11 UI.
+  The host has direct PipeWire DSP ports; audio never crosses a managed
+  process pipe. Float controls and output meter values use a bounded-size
+  line protocol. Native UI edits are coalesced and saved by the daemon's
+  normal sweep. See [native host contract](../native/README.md).
 - Direct port links (`pw-link`) wire hardware inputs, chains, mixes and
   outputs, so the output device clocks the chain. Hardware inputs are
   wired by capture-channel pair (XLR 1 = pair 0, XLR 2 = pair 1, Line
@@ -98,6 +105,10 @@ WebSocket ping/pong timeouts. Layout requests use correlated acknowledgements,
 are not replayed after reconnect, and leave controls disabled until completion
 or a reported failure. Flow defers rebuilding open routing pickers, and card
 editors reuse the stable channel/send view models.
+
+All UI-side systemctl operations drain stdout/stderr asynchronously, have
+a five-second deadline and kill timed-out child processes. Unit changes
+are serialized. Autostart preferences are persisted only after success.
 
 ### Hardware communication
 

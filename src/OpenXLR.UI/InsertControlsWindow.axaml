@@ -48,8 +48,11 @@
         </StackPanel>
         <TextBlock Text="{Binding Plugin}" Classes="h" FontSize="11"/>
         <TextBlock Text="{Binding Error}" Foreground="#e0a05a" FontSize="11" IsVisible="{Binding HasError}"/>
+        <TextBlock Text="{Binding NativeUiNote}" Foreground="#e0a05a" TextWrapping="Wrap"/>
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+        <Button Content="Native plugin UI…" Click="OnNativeUi" IsEnabled="{Binding CanOpenNativeUi}"
+                ToolTip.Tip="Open the manufacturer's editor with its live meters and analysis"/>
         <Button Content="Defaults" Padding="12,4" Click="OnDefaults"
                 ToolTip.Tip="Put every control back to the plugin's own defaults"/>
         <ToggleButton Content="Bypass" IsChecked="{Binding Bypass, Mode=TwoWay}" Padding="12,4"/>
@@ -66,7 +69,7 @@
             <TextBlock Grid.Column="1" Text="parameter overview · not an audio spectrum" Foreground="#6b7285" FontSize="10"/>
           </Grid>
           <vm:PluginVisualizer Insert="{Binding}" Height="220"/>
-          <TextBlock Text="EQ: 20 Hz–20 kHz, ±24 dB. Dynamics: thresholds −60–0 dB. Native LSP analysis/meters are not exposed by PipeWire."
+          <TextBlock Text="Settings overview. Use Native plugin UI for the manufacturer's live EQ spectrum, compression meters and detailed controls."
                      TextWrapping="Wrap" Foreground="#8b93a7" FontSize="11"/>
         </StackPanel>
         <ItemsControl ItemsSource="{Binding Groups}">

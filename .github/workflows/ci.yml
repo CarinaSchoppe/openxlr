@@ -19,13 +19,22 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore
-        run: dotnet restore src/OpenXLR.slnx
+        # Native hosting is built with the same strict flags locally and in CI.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev lsp-plugins-lv2
+          dotnet restore src/OpenXLR.slnx
 
       - name: Build
         run: dotnet build src/OpenXLR.slnx -c Release --no-restore
 
       - name: Test
         run: dotnet test src/OpenXLR.slnx -c Release --no-build
+
+      - name: Native audio regression (private servers, no hardware)
+        run: |
+          sudo apt-get install -y pipewire pipewire-pulse wireplumber pulseaudio-utils lsp-plugins-lv2 dbus xvfb xauth
+          xvfb-run -a python3 tools/verify-native-host.py --native-ui
 
       - name: Validate Stream Deck/OpenDeck plugin
         run: |

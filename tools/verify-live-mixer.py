@@ -15,6 +15,7 @@ import math
 import os
 from pathlib import Path
 import selectors
+import signal
 import subprocess
 import tempfile
 import threading
@@ -22,6 +23,7 @@ import time
 import uuid
 
 import websocket
+from native_ui_smoke import wheel_compressor_output
 
 
 def run(*args, **kwargs):
@@ -45,7 +47,9 @@ def command(sock, cmd, **fields):
     request = uuid.uuid4().hex
     sock.send(json.dumps(dict(cmd=cmd, requestId=request, **fields)))
     state = None
-    while True:
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        sock.settimeout(max(0.1, deadline - time.monotonic()))
         result = json.loads(sock.recv())
         if result["type"] == "state":
             state = result
@@ -53,6 +57,7 @@ def command(sock, cmd, **fields):
             assert not result.get("error"), result
             assert state is not None
             return state["mixer"]
+    raise AssertionError(f"no acknowledgement for {cmd}")
 
 
 def nodes():
@@ -60,21 +65,21 @@ def nodes():
             for n in json.loads(run("pw-dump")) if n["type"] == "PipeWire:Interface:Node"]
 
 
-def capture_peak():
+def capture_peak(channel="qa-channel", identity="openxlr-live-qa", frequency=440, screenshot=None):
     """Measure a synthetic 440 Hz signal through the added virtual output.
 
     Only the isolated output mix receives it; its monitor send is muted first.
     Concurrent read/write avoids audio-pipe backpressure deadlocks.
     """
-    samples = array.array("f", (0.2 * math.sin(i * 2 * math.pi * 440 / 48000)
+    samples = array.array("f", (0.2 * math.sin(i * 2 * math.pi * frequency / 48000)
                                for i in range(48000) for _ in range(2))).tobytes()
     capture = subprocess.Popen(["parec", "-d", "OpenXLR_qa-output", "--format=float32le",
                                 "--channels=2", "--rate=48000", "--latency-msec=30"], stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
-    playback = subprocess.Popen(["pacat", "--playback", "-d", "OpenXLR_ch_qa-channel",
+    playback = subprocess.Popen(["pacat", "--playback", "-d", f"OpenXLR_ch_{channel}",
                                  "--format=float32le", "--channels=2", "--rate=48000", "--latency-msec=30",
                                  "--property=application.name=OpenXLR Live QA",
-                                 "--property=application.id=openxlr-live-qa"],
+                                 f"--property=application.id={identity}"],
                                 stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     def feed():
         try:
@@ -93,6 +98,9 @@ def capture_peak():
             while time.monotonic() < deadline:
                 if selector.select(0.1):
                     received.extend(os.read(capture.stdout.fileno(), 65536))
+                if screenshot and time.monotonic() > deadline - 1:
+                    run("import", "-window", "OpenXLR - Native LV2 controls", str(screenshot))
+                    screenshot = None
         data = array.array("f")
         data.frombytes(received[:len(received) // 4 * 4])
         if not data:
@@ -102,7 +110,8 @@ def capture_peak():
             playback.wait(timeout=3)
             raise AssertionError(f"no samples: capture={capture.stderr.read()!r}, playback={playback.stderr.read()!r}; "
                                  + run("pactl", "list", "sources", "short"))
-        return max(abs(x) for x in data)
+        assert len(data) >= 48000, "insufficient settled audio"
+        return max(abs(x) for x in data[-48000:])
     finally:
         for process in (playback, capture):
             process.terminate()
@@ -122,7 +131,11 @@ def capture_peak():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--allow-audio-interruption", action="store_true", required=True)
-    parser.parse_args()
+    parser.add_argument("--native-ui", action="store_true", help="Also open the actual LSP editors (requires an X11/XWayland display)")
+    parser.add_argument("--screenshots", type=Path, help="Capture the live native editor windows here (requires ImageMagick)")
+    options = parser.parse_args()
+    if options.screenshots:
+        options.screenshots.mkdir(parents=True, exist_ok=True)
     repo = Path(__file__).resolve().parents[1]
     daemon = repo / "src/OpenXLR.Daemon/bin/Release/net10.0/OpenXLR.Daemon"
     assert daemon.is_file(), "build Release first"
@@ -130,6 +143,7 @@ def main():
     was_active = subprocess.run(["systemctl", "--user", "is-active", "--quiet", normal]).returncode == 0
     unit = f"openxlr-validation-{os.getpid()}.service"
     sock = None
+    defaults = (run("pactl", "get-default-sink"), run("pactl", "get-default-source"))
     with tempfile.TemporaryDirectory(prefix="openxlr-validation-") as config:
         try:
             if was_active:
@@ -184,13 +198,73 @@ def main():
             assert 0.9 < bypass_peak / dry_peak < 1.1, (dry_peak, bypass_peak)
             print(f"PASS real LSP processing + bypass: dry={dry_peak:.4f}, wet={wet_peak:.4f}, bypass={bypass_peak:.4f}", flush=True)
 
+            # A program channel's effects precede fan-out and must not affect another channel.
+            command(sock, "setInserts", channel="qa-channel", inserts=[dict(
+                id="qa-channel-compressor", kind="lv2", plugin=plugin, label="QA Channel Compressor", bypass=False,
+                params=dict(g_in=1, g_out=0.5, al=1, cr=1))])
+            processed = capture_peak()
+            command(sock, "assignApp", identity="openxlr-other-qa", channel="parallel-a")
+            command(sock, "setLevel", channel="parallel-a", mix="monitor", value=0)
+            command(sock, "setLevel", channel="parallel-a", mix="qa-output", value=1)
+            other = capture_peak("parallel-a", "openxlr-other-qa")
+            assert 0.095 < processed < 0.105 and 0.19 < other < 0.21, (processed, other)
+            print(f"PASS independent channel DSP: processed={processed:.4f}, other={other:.4f}", flush=True)
+            if options.native_ui:
+                command(sock, "showInsertUi", channel="qa-channel", insertId="qa-channel-compressor")
+                print("PASS actual native compressor UI opens on the processing instance", flush=True)
+                capture_peak(screenshot=options.screenshots / "native-compressor.png" if options.screenshots else None)
+                wheel_compressor_output()
+                time.sleep(1.5)  # native edits are coalesced by the daemon's one-second sweep
+                state = command(sock, "setMixVolume", mix="qa-output", value=1)
+                changed_gain = state["inserts"]["qa-channel"][0]["insert"]["params"]["g_out"]
+                assert changed_gain > 0.5, changed_gain
+                assert abs(capture_peak() - 0.2 * changed_gain) < 0.006
+                saved = json.loads((Path(config) / "openxlr/mixer.json").read_text())
+                assert saved["inserts"]["qa-channel"][0]["params"]["g_out"] == changed_gain
+                command(sock, "setInsertParam", channel="qa-channel", insertId="qa-channel-compressor", symbol="g_out", value=0.5)
+                print("PASS native UI gesture → persisted daemon control → measured audio", flush=True)
+
+            # The native host, not only the daemon, is supervised and reconstructed.
+            def native_pid():
+                for node in json.loads(run("pw-dump")):
+                    props = node.get("info", {}).get("props", {})
+                    if props.get("node.name") == "OpenXLR_ins_ch_qa-channel_in_lv2_0":
+                        return int(props["application.process.id"])
+                return None
+
+            for fault in (signal.SIGKILL, signal.SIGSTOP):
+                previous_pid = native_pid()
+                assert previous_pid
+                os.kill(previous_pid, fault)
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline:
+                    if native_pid() not in (None, previous_pid):
+                        break
+                    time.sleep(0.5)
+                else:
+                    raise AssertionError(f"native host did not recover from {fault.name}")
+                recovered = capture_peak()
+                assert 0.095 < recovered < 0.105, recovered
+                print(f"PASS native host {fault.name} recovery preserves channel processing", flush=True)
+
+            eq = dict(id="qa-eq", kind="lv2", plugin="http://lsp-plug.in/plugins/lv2/para_equalizer_x8_stereo",
+                      label="QA EQ", bypass=False, params=dict(ft_0=1, f_0=440, g_0=0.25, q_0=2))
+            command(sock, "setInserts", channel="qa-channel", inserts=[eq])
+            at_band, away = capture_peak(), capture_peak(frequency=6000)
+            assert 0.04 < at_band < 0.065 and away > at_band * 2, (at_band, away)
+            print(f"PASS real EQ frequency response: 440Hz={at_band:.4f}, 6kHz={away:.4f}", flush=True)
+            if options.native_ui:
+                command(sock, "showInsertUi", channel="qa-channel", insertId="qa-eq")
+                capture_peak(screenshot=options.screenshots / "native-eq.png" if options.screenshots else None)
+                print("PASS actual native EQ UI opens on the processing instance", flush=True)
+
             # The rename acknowledgement forces a durable save of current settings.
             command(sock, "renameMix", mix="qa-output", name="QA Persisted")
             saved = json.loads((Path(config) / "openxlr/mixer.json").read_text())
             assert any(m["id"] == "qa-output" for m in saved["userMixes"])
-            for signal in ("SIGKILL", "SIGSTOP"):
+            for signal_name in ("SIGKILL", "SIGSTOP"):
                 previous = run("systemctl", "--user", "show", unit, "--property=MainPID", "--value")
-                run("systemctl", "--user", "kill", "--kill-whom=main", f"--signal={signal}", unit)
+                run("systemctl", "--user", "kill", "--kill-whom=main", f"--signal={signal_name}", unit)
                 sock.close(timeout=0)
                 sock = None
                 deadline = time.monotonic() + 90
@@ -200,15 +274,16 @@ def main():
                         break
                     time.sleep(0.5)
                 else:
-                    raise AssertionError(f"service did not recover from {signal}")
+                    raise AssertionError(f"service did not recover from {signal_name}")
                 sock = connect()
                 mixer = command(sock, "setMixVolume", mix="qa-output", value=1)
                 assert next(m for m in mixer["mixes"] if m["id"] == "qa-output")["name"] == "QA Persisted"
                 assert nodes().count("OpenXLR_qa-output") == 1
-                print(f"PASS automatic {signal} recovery + persisted layout + unique nodes", flush=True)
+                print(f"PASS automatic {signal_name} recovery + persisted layout + unique nodes", flush=True)
             command(sock, "deleteChannel", channel="qa-channel")
             mixer = command(sock, "deleteMix", mix="qa-output")
             assert "mix:qa-output" not in mixer.get("inserts", {})
+            assert "qa-channel" not in mixer.get("inserts", {})
             assert not any(n and ("qa-channel" in n or "qa-output" in n) for n in nodes())
             saved = json.loads((Path(config) / "openxlr/mixer.json").read_text())
             assert saved["appOverrides"]["openxlr-live-qa"] == "game"
@@ -227,6 +302,8 @@ def main():
             if was_active:
                 run("systemctl", "--user", "start", normal)
                 print("Original daemon service restored.", flush=True)
+            for kind, device in zip(("sink", "source"), defaults):
+                run("pactl", f"set-default-{kind}", device)
 
 
 if __name__ == "__main__":

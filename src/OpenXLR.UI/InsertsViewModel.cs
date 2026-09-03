@@ -9,7 +9,7 @@ using Avalonia.Threading;
 namespace OpenXLR.UI;
 
 /// <summary>A plugin the picker offers (mono in / mono out only for the mic path).</summary>
-public sealed record PluginChoice(string Uri, string Name, string Category, JsonNode Params)
+public sealed record PluginChoice(string Uri, string Name, string Category, JsonNode Params, bool HasNativeUi = false)
 {
     public override string ToString() => Category.Length > 0 ? $"{Name}  ({Category})" : Name;
 }
@@ -26,9 +26,11 @@ public sealed class InsertsViewModel : ViewModelBase
     private readonly int _channels;
     private bool _applying;
     private bool _pluginsRequested;
+    private bool _catalogLoaded;
+    public bool NativeUiSupported { get; set; }
 
-    /// <param name="channel">Insert key: "xlr1", "xlr2", or "mix:&lt;id&gt;".</param>
-    /// <param name="channels">1 for the mono mic path, 2 for a stereo mix.</param>
+    /// <param name="channel">Insert key: a channel ID or "mix:&lt;id&gt;".</param>
+    /// <param name="channels">1 for a mono mic, 2 for an application, Aux In or output mix.</param>
     public InsertsViewModel(DaemonClient client, string channel, int channels = 1, string? title = null)
     {
         _client = client;
@@ -108,8 +110,10 @@ public sealed class InsertsViewModel : ViewModelBase
                     p["plugin"]!.GetValue<string>(),
                     p["name"]?.GetValue<string>() ?? p["plugin"]!.GetValue<string>(),
                     p["category"]?.GetValue<string>() ?? "",
-                    p["params"] ?? new JsonArray()));
+                    p["params"] ?? new JsonArray(), p["hasNativeUi"]?.GetValue<bool>() ?? false));
             }
+            _catalogLoaded = true;
+            foreach (InsertViewModel insert in Items) insert.RefreshCatalog();
             string width = _channels == 1 ? "mono" : "stereo";
             Note = PluginChoices.Count == 0
                 ? $"No {width} LV2 plugins found (install e.g. lsp-plugins-lv2 or x42-plugins)"
@@ -117,10 +121,10 @@ public sealed class InsertsViewModel : ViewModelBase
         });
     }
 
-    public void ResetForNewConnection() { _pluginsRequested = false; _catalogTask = null; }
+    public void ResetForNewConnection() { _pluginsRequested = false; _catalogLoaded = false; _catalogTask = null; NativeUiSupported = false; }
 
     /// <summary>Whether the catalog has arrived for this chain.</summary>
-    public bool CatalogReady => PluginChoices.Count > 0;
+    public bool CatalogReady => _catalogLoaded || PluginChoices.Count > 0 && !_pluginsRequested;
 
     /// <summary>Apply the daemon's view of this channel's chain.</summary>
     public void Apply(JsonNode? chain)
@@ -141,6 +145,7 @@ public sealed class InsertsViewModel : ViewModelBase
                 if (!byId.TryGetValue(id, out InsertViewModel? vm))
                     vm = new InsertViewModel(this, id, ins["plugin"]!.GetValue<string>(), ins["label"]?.GetValue<string>() ?? id);
                 vm.ApplyFromDaemon(ins, entry?["error"]?.GetValue<string>());
+                vm.RefreshCatalog();
                 next.Add(vm);
             }
             if (!next.SequenceEqual(Items))
@@ -195,12 +200,15 @@ public sealed class InsertsViewModel : ViewModelBase
     internal void SendParam(InsertViewModel item, string symbol, double value)
     {
         if (_applying) return;
-        string key = $"ins:{item.Id}:{symbol}";
+        string key = ParamSyncKey(item.Id, symbol);
         SliderSync.Touch(key);
         SliderSync.Send(key, () => _ = _client.SetInsertParamAsync(_channel, item.Id, symbol, value));
     }
 
     internal bool Applying => _applying;
+    internal string ParamSyncKey(string id, string symbol) => $"ins:{_channel}:{id}:{symbol}";
+
+    internal Task<string?> ShowNativeUiAsync(string insertId) => _client.ShowInsertUiAsync(_channel, insertId);
 
     /// <summary>The current chain as the daemon wants it, minus an optional id.</summary>
     private List<object> Snapshot(IEnumerable<InsertViewModel>? order = null, string? skip = null)
@@ -256,8 +264,24 @@ public sealed class InsertViewModel : ViewModelBase
 
     /// <summary>Green LED: in the chain and processing. Red otherwise (bypassed or failed).</summary>
     public bool IsActive => !Bypass && !HasError;
+    public bool CanOpenNativeUi => !OpeningNativeUi && IsActive && _owner.NativeUiSupported
+        && _owner.PluginChoices.Any(p => p.Uri == Plugin && p.HasNativeUi);
 
     public ObservableCollection<InsertParamViewModel> Params { get; } = [];
+
+    private bool _openingNativeUi;
+    public bool OpeningNativeUi { get => _openingNativeUi; private set { Set(ref _openingNativeUi, value); Raise(nameof(CanOpenNativeUi)); } }
+    private string? _nativeUiNote;
+    public string? NativeUiNote { get => _nativeUiNote; private set => Set(ref _nativeUiNote, value); }
+
+    public async Task OpenNativeUiAsync()
+    {
+        if (OpeningNativeUi) return;
+        OpeningNativeUi = true;
+        NativeUiNote = "Opening the audio-processing plugin's editor…";
+        try { NativeUiNote = await _owner.ShowNativeUiAsync(Id); }
+        finally { OpeningNativeUi = false; }
+    }
 
     /// <summary>
     /// Controls grouped for the window. LV2 has no control-port grouping in
@@ -275,14 +299,13 @@ public sealed class InsertViewModel : ViewModelBase
     {
         if (Params.Count > 0) return;
         if (_owner.CatalogReady) { BuildParams(); return; }
-        void OnCatalog(object? s, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-        {
-            if (!_owner.CatalogReady || Params.Count > 0) return;
-            _owner.PluginChoices.CollectionChanged -= OnCatalog;
-            BuildParams();
-        }
-        _owner.PluginChoices.CollectionChanged += OnCatalog;
         _owner.EnsurePluginsLoaded();
+    }
+
+    internal void RefreshCatalog()
+    {
+        if (_owner.CatalogReady && Params.Count == 0) BuildParams();
+        Raise(nameof(CanOpenNativeUi));
     }
 
     private static readonly (string Group, string[] Keys)[] GroupRules =
@@ -341,7 +364,7 @@ public sealed class InsertViewModel : ViewModelBase
             // While a control is being dragged the daemon's echo lags the
             // slider; applying it would make the thumb jitter (the mixer's
             // faders use the same guard).
-            if (SliderSync.RecentlyTouched($"ins:{Id}:{p.Symbol}")) continue;
+            if (SliderSync.RecentlyTouched(_owner.ParamSyncKey(Id, p.Symbol))) continue;
             if (_params.TryGetValue(p.Symbol, out double v)) p.ApplyFromDaemon(v);
         }
     }

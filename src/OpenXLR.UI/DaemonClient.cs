@@ -110,7 +110,7 @@ public sealed class DaemonClient : IAsyncDisposable
                 foreach (var query in _queries.Values) query.TrySetResult(null);
                 _queries.Clear();
                 foreach (var command in _commands.Values)
-                    command.TrySetResult("Connection lost. Check the restored layout before retrying.");
+                    command.TrySetResult("Connection lost. Check the restored state before retrying.");
                 ConnectionChanged?.Invoke(false);
             }
             try { await Task.Delay(1000, _cts.Token); }
@@ -181,24 +181,24 @@ public sealed class DaemonClient : IAsyncDisposable
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setMixMuted", ["mix"] = mix, ["value"] = muted });
 
     public Task<string?> CreateChannelAsync(string name)
-        => EditLayoutAsync(new() { ["cmd"] = "createChannel", ["name"] = name });
+        => SendConfirmedAsync(new() { ["cmd"] = "createChannel", ["name"] = name });
 
     public Task<string?> RenameChannelAsync(string channel, string name)
-        => EditLayoutAsync(new() { ["cmd"] = "renameChannel", ["channel"] = channel, ["name"] = name });
+        => SendConfirmedAsync(new() { ["cmd"] = "renameChannel", ["channel"] = channel, ["name"] = name });
 
     public Task<string?> DeleteChannelAsync(string channel)
-        => EditLayoutAsync(new() { ["cmd"] = "deleteChannel", ["channel"] = channel });
+        => SendConfirmedAsync(new() { ["cmd"] = "deleteChannel", ["channel"] = channel });
 
     public Task<string?> CreateMixAsync(string name)
-        => EditLayoutAsync(new() { ["cmd"] = "createMix", ["name"] = name });
+        => SendConfirmedAsync(new() { ["cmd"] = "createMix", ["name"] = name });
 
     public Task<string?> RenameMixAsync(string mix, string name)
-        => EditLayoutAsync(new() { ["cmd"] = "renameMix", ["mix"] = mix, ["name"] = name });
+        => SendConfirmedAsync(new() { ["cmd"] = "renameMix", ["mix"] = mix, ["name"] = name });
 
     public Task<string?> DeleteMixAsync(string mix)
-        => EditLayoutAsync(new() { ["cmd"] = "deleteMix", ["mix"] = mix });
+        => SendConfirmedAsync(new() { ["cmd"] = "deleteMix", ["mix"] = mix });
 
-    private async Task<string?> EditLayoutAsync(Dictionary<string, object> payload)
+    private async Task<string?> SendConfirmedAsync(Dictionary<string, object> payload)
     {
         string id = Guid.NewGuid().ToString("N");
         var waiter = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -209,7 +209,7 @@ public sealed class DaemonClient : IAsyncDisposable
             if (!await SendAsync(payload)) return "Daemon disconnected; no change was sent.";
             return await waiter.Task.WaitAsync(TimeSpan.FromSeconds(45));
         }
-        catch (TimeoutException) { return "No confirmation from daemon. Check the layout before retrying."; }
+        catch (TimeoutException) { return "No confirmation from daemon. Check its state before retrying."; }
         finally { _commands.TryRemove(id, out _); }
     }
 
@@ -249,6 +249,9 @@ public sealed class DaemonClient : IAsyncDisposable
     /// <summary>Replace a channel's plugin insert chain (ordered).</summary>
     public Task SetInsertsAsync(string channel, IReadOnlyList<object> inserts)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setInserts", ["channel"] = channel, ["inserts"] = inserts });
+
+    public Task<string?> ShowInsertUiAsync(string channel, string insertId)
+        => SendConfirmedAsync(new() { ["cmd"] = "showInsertUi", ["channel"] = channel, ["insertId"] = insertId });
 
     public Task SetInsertBypassAsync(string channel, string insertId, bool bypass)
         => SendAsync(new Dictionary<string, object>

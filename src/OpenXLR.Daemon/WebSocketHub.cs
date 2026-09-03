@@ -77,7 +77,7 @@ public sealed class WebSocketHub
         _devices.Snapshot() with
         {
             DaemonVersion = OpenXLR.Daemon.DaemonVersion.Current,
-            Features = ["editableLayout", "commandResults"],
+            Features = ["editableLayout", "commandResults", "nativePluginUi", "channelInserts"],
             ActiveProfile = ActiveDeviceId() is string apId && _activeProfile.TryGetValue(apId, out string? ap) ? ap : null,
             Mixer = _mixer.Snapshot(),
             Devices = _mixer.Devices(),
@@ -201,6 +201,7 @@ public sealed class WebSocketHub
             case "setLowCutHz":
             case "setSoftClipGuard":
             case "setInserts":
+            case "showInsertUi":
             case "setInsertBypass":
             case "setInsertParam":
                 string? mixErr = _mixer.Apply(cmd);                     // broadcasts on success

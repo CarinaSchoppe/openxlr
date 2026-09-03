@@ -150,7 +150,21 @@ public static class Lv2Catalog
             }
             Lilv.lilv_nodes_free(req);
         }
-        return new PluginInfo("lv2", uri, name, category, audioIns, audioOuts, inSym, outSym, pars, features, inSyms, outSyms);
+        return new PluginInfo("lv2", uri, name, category, audioIns, audioOuts, inSym, outSym, pars, features, inSyms, outSyms, HasX11Ui(world, plugin));
+    }
+
+    private static bool HasX11Ui(IntPtr world, IntPtr plugin)
+    {
+        IntPtr uis = Lilv.lilv_plugin_get_uis(plugin);
+        if (uis == IntPtr.Zero) return false;
+        IntPtr type = Lilv.lilv_new_uri(world, "http://lv2plug.in/ns/extensions/ui#X11UI");
+        try
+        {
+            for (IntPtr it = Lilv.lilv_uis_begin(uis); !Lilv.lilv_uis_is_end(uis, it); it = Lilv.lilv_uis_next(uis, it))
+                if (Lilv.lilv_ui_is_a(Lilv.lilv_uis_get(uis, it), type)) return true;
+            return false;
+        }
+        finally { Lilv.lilv_node_free(type); Lilv.lilv_uis_free(uis); }
     }
 
     private static string ReadUnit(IntPtr world, IntPtr plugin, IntPtr port, IntPtr unitsUnit, IntPtr rdfsLabel)
@@ -189,13 +203,13 @@ public static class Lv2Catalog
         [DllImport(Lib)] public static extern IntPtr lilv_node_as_string(IntPtr node);
         [DllImport(Lib)] public static extern float lilv_node_as_float(IntPtr node);
         [DllImport(Lib)][return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_node_is_uri(IntPtr node);
-        [DllImport(Lib)] [return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_node_is_float(IntPtr node);
-        [DllImport(Lib)] [return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_node_is_int(IntPtr node);
+        [DllImport(Lib)][return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_node_is_float(IntPtr node);
+        [DllImport(Lib)][return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_node_is_int(IntPtr node);
 
         [DllImport(Lib)] public static extern IntPtr lilv_plugins_begin(IntPtr plugins);
         [DllImport(Lib)] public static extern IntPtr lilv_plugins_get(IntPtr plugins, IntPtr iter);
         [DllImport(Lib)] public static extern IntPtr lilv_plugins_next(IntPtr plugins, IntPtr iter);
-        [DllImport(Lib)] [return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_plugins_is_end(IntPtr plugins, IntPtr iter);
+        [DllImport(Lib)][return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_plugins_is_end(IntPtr plugins, IntPtr iter);
 
         [DllImport(Lib)] public static extern IntPtr lilv_plugin_get_uri(IntPtr plugin);
         [DllImport(Lib)] public static extern IntPtr lilv_plugin_get_name(IntPtr plugin);
@@ -205,9 +219,16 @@ public static class Lv2Catalog
         [DllImport(Lib)] public static extern IntPtr lilv_plugin_get_port_by_index(IntPtr plugin, uint index);
         [DllImport(Lib)] public static extern void lilv_plugin_get_port_ranges_float(IntPtr plugin, float[] mins, float[] maxs, float[] defs);
         [DllImport(Lib)] public static extern IntPtr lilv_plugin_get_required_features(IntPtr plugin);
+        [DllImport(Lib)] public static extern IntPtr lilv_plugin_get_uis(IntPtr plugin);
+        [DllImport(Lib)] public static extern IntPtr lilv_uis_begin(IntPtr uis);
+        [DllImport(Lib)][return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_uis_is_end(IntPtr uis, IntPtr iterator);
+        [DllImport(Lib)] public static extern IntPtr lilv_uis_next(IntPtr uis, IntPtr iterator);
+        [DllImport(Lib)] public static extern IntPtr lilv_uis_get(IntPtr uis, IntPtr iterator);
+        [DllImport(Lib)][return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_ui_is_a(IntPtr ui, IntPtr type);
+        [DllImport(Lib)] public static extern void lilv_uis_free(IntPtr uis);
 
-        [DllImport(Lib)] [return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_port_is_a(IntPtr plugin, IntPtr port, IntPtr cls);
-        [DllImport(Lib)] [return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_port_has_property(IntPtr plugin, IntPtr port, IntPtr prop);
+        [DllImport(Lib)][return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_port_is_a(IntPtr plugin, IntPtr port, IntPtr cls);
+        [DllImport(Lib)][return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_port_has_property(IntPtr plugin, IntPtr port, IntPtr prop);
         [DllImport(Lib)] public static extern IntPtr lilv_port_get_symbol(IntPtr plugin, IntPtr port);
         [DllImport(Lib)] public static extern IntPtr lilv_port_get_name(IntPtr plugin, IntPtr port);
         [DllImport(Lib)] public static extern IntPtr lilv_port_get(IntPtr plugin, IntPtr port, IntPtr predicate);
@@ -216,7 +237,7 @@ public static class Lv2Catalog
         [DllImport(Lib)] public static extern IntPtr lilv_scale_points_begin(IntPtr sps);
         [DllImport(Lib)] public static extern IntPtr lilv_scale_points_get(IntPtr sps, IntPtr iter);
         [DllImport(Lib)] public static extern IntPtr lilv_scale_points_next(IntPtr sps, IntPtr iter);
-        [DllImport(Lib)] [return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_scale_points_is_end(IntPtr sps, IntPtr iter);
+        [DllImport(Lib)][return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_scale_points_is_end(IntPtr sps, IntPtr iter);
         [DllImport(Lib)] public static extern void lilv_scale_points_free(IntPtr sps);
         [DllImport(Lib)] public static extern IntPtr lilv_scale_point_get_label(IntPtr sp);
         [DllImport(Lib)] public static extern IntPtr lilv_scale_point_get_value(IntPtr sp);
@@ -224,7 +245,7 @@ public static class Lv2Catalog
         [DllImport(Lib)] public static extern IntPtr lilv_nodes_begin(IntPtr nodes);
         [DllImport(Lib)] public static extern IntPtr lilv_nodes_get(IntPtr nodes, IntPtr iter);
         [DllImport(Lib)] public static extern IntPtr lilv_nodes_next(IntPtr nodes, IntPtr iter);
-        [DllImport(Lib)] [return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_nodes_is_end(IntPtr nodes, IntPtr iter);
+        [DllImport(Lib)][return: MarshalAs(UnmanagedType.I1)] public static extern bool lilv_nodes_is_end(IntPtr nodes, IntPtr iter);
         [DllImport(Lib)] public static extern void lilv_nodes_free(IntPtr nodes);
 
         public static string? Str(IntPtr utf8) => utf8 == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(utf8);

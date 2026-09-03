@@ -153,10 +153,12 @@ channel, with its level and lock in the INPUTS card.
 
 ### 3.5 Add a plugin to the signal path
 
-1. Under XLR 1, XLR 2 or a mix, press "Add plugin…". The picker lists
+1. Under XLR 1, XLR 2 or a mix, press "Add plugin…". For a program channel,
+   open its card (also possible from Flow), then **Inserts… → Add plugin…**.
+   The picker lists
    the installed LV2 plugins that fit the slot (mono for an input,
    stereo for a mix), searchable by name or category. `lsp-plugins-lv2`
-   is the set used during development; any LV2 plugin set works.
+   is the set used during development. Unsupported plugin requirements are reported.
 2. Add. The plugin appears in the Inserts row with a green light while
    active.
 3. Controls opens a window generated from the plugin's parameters. EQs
@@ -169,12 +171,15 @@ channel, with its level and lock in the INPUTS card.
    (red light); the arrows reorder the chain; the cross removes it.
 4. Chains are saved with the mixer and with profiles.
 
-The plugin's own graphical interface, if it has one, is not shown. The
-actual DSP instance lives inside PipeWire, whose filter-chain interface
-does not provide the LV2 UI-host connection needed to attach that vendor
-window. Opening it as a separate host would create and display a different
-instance. OpenXLR's controls and graphs instead change the real PipeWire
-instance. VST and CLAP plugins cannot be loaded.
+For LSP, use **Native plugin UI…** in the controls window. This opens the
+manufacturer's editor with live EQ/compressor analysis on the same DSP
+instance that processes your audio. Native control changes are saved;
+closing its window does not remove the effect. The button requires an
+active insert, an X11 UI in the plugin metadata and a matching daemon.
+XWayland is supported; GTK/Qt-only vendor UIs are not. If the user service
+has no display, the opening error is shown without stopping the audio.
+File-based plugin state (for example loaded impulse responses) is not
+persisted by this control-port host. VST and CLAP plugins cannot be loaded.
 
 ### 3.6 Save and recall a scene
 

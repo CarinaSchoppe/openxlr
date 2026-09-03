@@ -18,11 +18,11 @@ public partial class App : Application
             // An earlier version wrote a user unit with a build-tree path on
             // packaged installs; fix it before the user has to notice.
             if (UiSettings.Load().StartDaemonAtLogin)
-                StartupIntegration.RepairDaemonUnit();
+                _ = StartupIntegration.RepairDaemonUnitAsync();
 
             desktop.MainWindow = new MainWindow();
         }
 
         base.OnFrameworkInitializationCompleted();
     }
-}
+}

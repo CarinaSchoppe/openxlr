@@ -53,10 +53,34 @@ public sealed class OptionsViewModel : ViewModelBase
         get => _startDaemonAtLogin;
         set
         {
-            if (!Set(ref _startDaemonAtLogin, value)) return;
-            StartupIntegration.SetDaemonAtLogin(value);
-            Persist();
+            if (DaemonStartupChanging || !Set(ref _startDaemonAtLogin, value)) return;
+            _ = ChangeDaemonStartupAsync(value);
         }
+    }
+
+    private bool _daemonStartupChanging;
+    public bool DaemonStartupChanging { get => _daemonStartupChanging; private set => Set(ref _daemonStartupChanging, value); }
+    private string? _daemonStartupNote;
+    public string? DaemonStartupNote { get => _daemonStartupNote; private set => Set(ref _daemonStartupNote, value); }
+
+    private async System.Threading.Tasks.Task ChangeDaemonStartupAsync(bool enabled)
+    {
+        DaemonStartupChanging = true;
+        DaemonStartupNote = "Updating service…";
+        try
+        {
+            if (await StartupIntegration.SetDaemonAtLoginAsync(enabled))
+            {
+                Persist();
+                DaemonStartupNote = null;
+            }
+            else
+            {
+                Set(ref _startDaemonAtLogin, !enabled, nameof(StartDaemonAtLogin));
+                DaemonStartupNote = "Could not update autostart. Check the user systemd service and retry.";
+            }
+        }
+        finally { DaemonStartupChanging = false; }
     }
 
     private bool _openWindowAtLogin;

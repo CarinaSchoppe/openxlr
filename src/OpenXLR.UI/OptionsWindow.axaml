@@ -29,7 +29,8 @@
       <StackPanel Spacing="6">
         <TextBlock Text="STARTUP" Classes="h"/>
         <CheckBox Content="Start the daemon at login (systemd user service)"
-                  IsChecked="{Binding StartDaemonAtLogin, Mode=TwoWay}"/>
+                  IsChecked="{Binding StartDaemonAtLogin, Mode=TwoWay}" IsEnabled="{Binding !DaemonStartupChanging}"/>
+        <TextBlock Text="{Binding DaemonStartupNote}" Foreground="#e0a84a" TextWrapping="Wrap"/>
         <CheckBox Content="Start the mixer UI at login"
                   IsChecked="{Binding OpenWindowAtLogin, Mode=TwoWay}"/>
         <CheckBox Content="Close button minimizes to tray instead of quitting"

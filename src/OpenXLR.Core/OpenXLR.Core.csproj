@@ -8,6 +8,11 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="OpenXLR.Tests" />
+    <None Include="../../native/openxlr-lv2-host" Link="openxlr-lv2-host" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>
+
+  <Target Name="BuildNativeLv2Host" BeforeTargets="BeforeBuild" Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+    <Exec Command="make -C &quot;$(MSBuildProjectDirectory)/../../native&quot;" />
+  </Target>
 
 </Project>

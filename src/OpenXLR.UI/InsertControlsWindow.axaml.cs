@@ -18,4 +18,9 @@ public partial class InsertControlsWindow : Window
     private void OnDefaults(object? sender, RoutedEventArgs e) => (DataContext as InsertViewModel)?.ResetToDefaults();
 
     private void OnClose(object? sender, RoutedEventArgs e) => Close();
+
+    private async void OnNativeUi(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is InsertViewModel insert) await insert.OpenNativeUiAsync();
+    }
 }

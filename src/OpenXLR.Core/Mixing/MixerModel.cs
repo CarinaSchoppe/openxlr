@@ -205,6 +205,8 @@ public sealed record ChannelDefinition(string Id, string Name)
 
     /// <summary>PipeWire node name of the sink applications play into.</summary>
     public string SinkName => $"OpenXLR_ch_{Id}";
+    /// <summary>Application channels process before fan-out; their public sink name stays stable.</summary>
+    public string FanOutSinkName => InputPair is null ? $"OpenXLR_fanout_{Id}" : SinkName;
 }
 
 /// <summary>Live mixer state pushed to clients.</summary>

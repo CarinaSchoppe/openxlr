@@ -30,6 +30,22 @@ def command(connection, cmd, **fields):
     raise AssertionError(f"No response to {cmd}")
 
 
+def wait_for_ui_window(audio, desktop, seconds=30):
+    """Wait until the installed UI maps its real main window on X11."""
+    deadline = time.monotonic() + seconds
+    windows = "xwininfo did not return a window tree"
+    while time.monotonic() < deadline:
+        assert desktop.poll() is None, f"installed UI exited {desktop.returncode}"
+        try:
+            windows = audio.run("xwininfo", "-root", "-tree")
+        except subprocess.CalledProcessError as error:
+            windows = error.stdout or error.stderr or str(error)
+        if '"OpenXLR"' in windows:
+            return
+        time.sleep(0.1)
+    raise AssertionError(f"installed UI did not map its main window within {seconds}s\n{windows}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prefix", type=Path, default=Path("/usr"))
@@ -65,6 +81,7 @@ def main():
         assert connection is not None, "installed daemon API did not start"
         try:
             desktop = audio.logged(str(ui))
+            wait_for_ui_window(audio, desktop)
             command(connection, "createChannel", name="Package QA")
             command(connection, "createMix", name="Package Output")
             command(connection, "renameChannel", channel="package-qa", name='QA "renamed"')
@@ -80,9 +97,6 @@ def main():
             saved = json.loads((config / "mixer.json").read_text())
             assert not saved["userMixes"] and len(saved["userChannels"]) == 1
             assert desktop.poll() is None, f"installed UI exited {desktop.returncode}"
-            # X11 actually has an OpenXLR window, not just an idle process.
-            windows = audio.run("xwininfo", "-root", "-tree")
-            assert '"OpenXLR"' in windows, windows
             server.terminate()  # deliberately keep the UI/WebSocket connected
             assert server.wait(timeout=15) == 0
             assert desktop.poll() is None, "UI failed when daemon disconnected"

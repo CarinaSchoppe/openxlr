@@ -254,10 +254,10 @@ run `gh --version` before compiling their packages. Release uploads remain
 gated to an actual GitHub release event; a manual workflow dispatch therefore
 tests the CLI, build and package checks without publishing a release asset.
 
-The listen/reorder phase brings the suite to **133 .NET tests** (plus the same
-nine Python tests). The CachyOS live run also reverses all editable channel and
-mix ids, confirms the settings file contains that exact order, and verifies the
-same PipeWire registry ids remain alive across the change. A disposable null
+The listen/reorder phase brings the suite to **133 .NET tests**. In the CachyOS
+live run, the driver also reverses all editable channel and mix ids, confirms
+the settings file contains that exact order, and verifies the same PipeWire
+registry ids remain alive across the change. A disposable null
 sink stands in for headphones: listening to the isolated QA mix measured
 0.2000, switching back to its muted Monitor send measured 0.0000. The remaining
 end-to-end assertions passed unchanged: app routing, 0.2000/0.0500/0.2000
@@ -266,3 +266,10 @@ plugin-host SIGKILL/SIGSTOP recovery, 0.0500/0.1980 EQ response, daemon
 SIGKILL/SIGSTOP recovery, selected-mix deletion fallback, graph cleanup, and a
 0.68-second connected-client shutdown. The original user service and audio
 defaults were restored afterward.
+
+The installed-package driver now waits up to 30 seconds for the actual named
+OpenXLR X11 window instead of assuming a fixed startup duration. It continues to
+fail immediately if the UI exits and includes the last X11 tree when readiness
+times out. Three offline success, early-exit and timeout tests bring the Python
+suite to **12 tests**. The real UI assertion is not skipped or replaced by a
+process-only check.

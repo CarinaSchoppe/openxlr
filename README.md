@@ -102,10 +102,11 @@ still expose the underlying routing stages. They are not duplicate user channels
 The concrete Wave Link comparison and roadmap are listed near the end of this
 README. Planned items are not claimed as implemented.
 
-Verification includes 133 automated .NET tests, real LSP editor/audio tests,
-installed-package runtime checks on Ubuntu/Fedora/Arch, and a CachyOS live
-service-recovery test. Reproduction commands, measured results and tested
-limitations are recorded in [docs/verification.md](docs/verification.md).
+Verification includes 133 automated .NET tests, 12 offline acceptance-driver
+tests, real LSP editor/audio tests, installed-package runtime checks on
+Ubuntu/Fedora/Arch, and a CachyOS live service-recovery test. Reproduction
+commands, measured results and tested limitations are recorded in
+[docs/verification.md](docs/verification.md).
 
 ### OpenDeck plugin
 

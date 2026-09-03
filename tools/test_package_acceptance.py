@@ -6,7 +6,9 @@ import unittest
 from unittest.mock import Mock, patch
 from pipewire_snapshot import parse_dump
 
-command = runpy.run_path(str(Path(__file__).with_name("verify-installed.py")))["command"]
+installed = runpy.run_path(str(Path(__file__).with_name("verify-installed.py")))
+command = installed["command"]
+wait_for_ui_window = installed["wait_for_ui_window"]
 wait_application_sink = runpy.run_path(str(Path(__file__).with_name("verify-live-mixer.py")))["wait_application_sink"]
 capture_with_minimum_samples = runpy.run_path(str(Path(__file__).with_name("verify-native-host.py")))["capture_with_minimum_samples"]
 
@@ -76,6 +78,33 @@ class PackageCommandTests(unittest.TestCase):
     def test_daemon_errors_fail_acceptance(self):
         with self.assertRaises(AssertionError):
             command(self.connection("graph unavailable"), "deleteMix", mix="qa")
+
+
+class InstalledUiStartupTests(unittest.TestCase):
+    def test_waits_for_the_real_window_instead_of_an_idle_process(self):
+        audio = Mock()
+        audio.run.side_effect = ["unnamed helper windows", '0x1 "OpenXLR"']
+        desktop = Mock(returncode=None)
+        desktop.poll.return_value = None
+        with patch("time.monotonic", side_effect=[0, 0, 0]), patch("time.sleep"):
+            wait_for_ui_window(audio, desktop)
+        self.assertEqual(2, audio.run.call_count)
+
+    def test_reports_an_early_ui_exit(self):
+        desktop = Mock(returncode=17)
+        desktop.poll.return_value = 17
+        with patch("time.monotonic", return_value=0), self.assertRaisesRegex(
+                AssertionError, "installed UI exited 17"):
+            wait_for_ui_window(Mock(), desktop)
+
+    def test_timeout_includes_the_last_window_tree(self):
+        audio = Mock()
+        audio.run.return_value = "last X11 tree"
+        desktop = Mock(returncode=None)
+        desktop.poll.return_value = None
+        with patch("time.monotonic", side_effect=[0, 0, 31]), patch("time.sleep"), \
+                self.assertRaisesRegex(AssertionError, "last X11 tree"):
+            wait_for_ui_window(audio, desktop)
 
 
 if __name__ == "__main__":

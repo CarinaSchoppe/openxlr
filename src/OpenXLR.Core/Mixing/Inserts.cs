@@ -35,7 +35,9 @@ public sealed record PluginParam(
     string Symbol, string Name,
     double Min, double Max, double Default,
     bool Toggled, bool Integer, bool Logarithmic, bool Enumeration,
-    IReadOnlyList<ScalePoint> ScalePoints);
+    IReadOnlyList<ScalePoint> ScalePoints,
+    /// <summary>LV2 units URI suffix or custom unit label (for example hz, ms, gain).</summary>
+    string Unit);
 
 public sealed record ScalePoint(string Label, double Value);
 

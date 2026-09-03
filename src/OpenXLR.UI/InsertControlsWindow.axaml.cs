@@ -4,7 +4,7 @@ using Avalonia.Interactivity;
 namespace OpenXLR.UI;
 
 /// <summary>
-/// One insert's generated controls in its own window (non-modal, one per
+/// One insert's visual, parameter-aware controls in its own window (non-modal, one per
 /// insert; the main window keeps them and closes them when the insert goes).
 /// </summary>
 public partial class InsertControlsWindow : Window

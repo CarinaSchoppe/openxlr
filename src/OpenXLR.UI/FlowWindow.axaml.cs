@@ -13,11 +13,12 @@ namespace OpenXLR.UI;
 /// state push: sources (apps and hardware inputs) into channels, channels
 /// into mixes, mixes to physical and virtual outputs, with the filter chains
 /// (built-in DSP and LV2 inserts) drawn where they sit in the path.
-/// Read-only by design; the mixer cards are where things are changed.
+/// Application source nodes include a channel picker, so routing can be edited
+/// where the relationship is visible. Levels and inserts stay in mixer cards.
 /// </summary>
 public partial class FlowWindow : Window
 {
-    private const double NodeW = 190, NodeH = 40, ColGap = 130, RowGap = 10, Pad = 8;
+    private const double NodeW = 190, NodeH = 58, ColGap = 130, RowGap = 10, Pad = 8;
 
     private static readonly IBrush NodeBg = new SolidColorBrush(Color.Parse("#23262f"));
     private static readonly IBrush NodeBgDim = new SolidColorBrush(Color.Parse("#1c1f26"));
@@ -68,10 +69,11 @@ public partial class FlowWindow : Window
         var mixes = _vm.Mixes.ToList();
 
         var outputs = new List<(string Key, string Label, string MixId, bool Active)>();
+        string? monitorId = mixes.FirstOrDefault(m => m.IsMonitor)?.Id;
         foreach (MonitorOutputItem o in _vm.MonitorOutputs.Where(o => o.IsSelected))
-            outputs.Add(($"out:{o.Name}", o.Label, "monitor", true));
-        outputs.Add(("vm:stream", "OpenXLR Stream (virtual mic)", "stream", true));
-        outputs.Add(("vm:chat", "OpenXLR Chat (virtual mic)", "chat", true));
+            if (monitorId is not null) outputs.Add(($"out:{o.Name}", o.Label, monitorId, true));
+        foreach (MixViewModel virtualMix in mixes.Where(m => m.IsVirtualMic))
+            outputs.Add(($"vm:{virtualMix.Id}", $"OpenXLR {virtualMix.Name} (virtual mic)", virtualMix.Id, true));
         MixViewModel? auxMix = mixes.FirstOrDefault(m => m.IsAuxPort);
         if (auxMix is not null)
             outputs.Add(("aux:port", "USB Aux port (second PC)", auxMix.Id, auxMix.AuxPortEnabled));
@@ -197,7 +199,14 @@ public partial class FlowWindow : Window
         }
 
         // ---- nodes ----
-        foreach (var s in sources) Node(c, pos[s.Key], s.Label, s.Playing ? null : "silent", s.Playing);
+        foreach (var s in sources)
+        {
+            AppStreamViewModel? app = s.Key.StartsWith("app:", StringComparison.Ordinal)
+                ? _vm.ActiveApps.FirstOrDefault(a => a.Identity == s.Key[4..])
+                : null;
+            if (app is not null) AppNode(c, pos[s.Key], app, s.Playing, ChannelBrush(s.Channel));
+            else Node(c, pos[s.Key], s.Label, s.Playing ? null : "silent", s.Playing);
+        }
         foreach (ChannelViewModel ch in channels)
             Node(c, pos[$"ch:{ch.Id}"], ch.Name, null, true, ChannelBrush(ch.Id));
         foreach (MixViewModel m in mixes)
@@ -278,6 +287,48 @@ public partial class FlowWindow : Window
             BorderThickness = new Thickness(3, 0, 0, 0),
             BorderBrush = accent ?? Brushes.Transparent,
             Child = text,
+        };
+        Canvas.SetLeft(node, r.X);
+        Canvas.SetTop(node, r.Y);
+        c.Children.Add(node);
+    }
+
+    /// <summary>An app source with an in-place channel assignment picker.</summary>
+    private static void AppNode(Canvas c, Rect r, AppStreamViewModel app, bool lit, IBrush accent)
+    {
+        var picker = new ComboBox
+        {
+            ItemsSource = app.Channels,
+            SelectedItem = app.SelectedChannel,
+            FontSize = 10,
+            MinHeight = 0,
+            Height = 24,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+        };
+        picker.SelectionChanged += (_, _) =>
+        {
+            if (picker.SelectedItem is ChannelOption channel && channel.Id != app.ChannelId)
+                app.ChannelId = channel.Id;
+        };
+        var content = new StackPanel { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Spacing = 3 };
+        content.Children.Add(new TextBlock
+        {
+            Text = app.Label,
+            FontSize = 11,
+            Foreground = lit ? TextFg : TextDim,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        content.Children.Add(picker);
+        var node = new Border
+        {
+            Width = r.Width,
+            Height = r.Height,
+            Background = lit ? NodeBg : NodeBgDim,
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 3),
+            BorderThickness = new Thickness(3, 0, 0, 0),
+            BorderBrush = accent,
+            Child = content,
         };
         Canvas.SetLeft(node, r.X);
         Canvas.SetTop(node, r.Y);

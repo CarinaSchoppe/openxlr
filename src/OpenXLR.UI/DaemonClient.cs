@@ -155,6 +155,24 @@ public sealed class DaemonClient : IAsyncDisposable
     public Task SetMixMutedAsync(string mix, bool muted)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setMixMuted", ["mix"] = mix, ["value"] = muted });
 
+    public Task CreateChannelAsync(string name)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "createChannel", ["name"] = name });
+
+    public Task RenameChannelAsync(string channel, string name)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "renameChannel", ["channel"] = channel, ["name"] = name });
+
+    public Task DeleteChannelAsync(string channel)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "deleteChannel", ["channel"] = channel });
+
+    public Task CreateMixAsync(string name)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "createMix", ["name"] = name });
+
+    public Task RenameMixAsync(string mix, string name)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "renameMix", ["mix"] = mix, ["name"] = name });
+
+    public Task DeleteMixAsync(string mix)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "deleteMix", ["mix"] = mix });
+
     /// <summary>Send the monitor mix to a different output (null disconnects).</summary>
     public Task SetMonitorOutputAsync(string? device)
         => SendAsync(new Dictionary<string, object?> { ["cmd"] = "setMonitorOutput", ["device"] = device });

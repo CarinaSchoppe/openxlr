@@ -64,20 +64,23 @@ does not reach the speakers until unmuted.
 ## Submixer
 
 Built from PipeWire nodes, no kernel modules or custom drivers:
-- Channels for the hardware inputs (XLR 1, XLR 2, Aux In) and for
-  application groups (Game, Music, Browser, System, Voice Chat, SFX)
-- Four mixes: Monitor (what you hear), Stream and Chat (published as the
-  capture devices `OpenXLR Stream` and `OpenXLR Chat`, selectable in OBS
-  or Discord like a microphone), and Aux (what a second computer on the
-  USB Aux port receives)
+- Structural channels for the hardware inputs (XLR 1, XLR 2, Aux In) and
+  user-managed application channels. Game, Music, Browser, System, Voice
+  Chat, and SFX are the initial layout; they can be added, renamed, or removed.
+- Structural Monitor (what you hear) and Aux (what a second computer on
+  the USB Aux port receives) mixes, plus user-managed output mixes. Stream
+  and Chat are the initial outputs; every added output is published as an
+  `OpenXLR <name>` virtual microphone for OBS, Discord, or another app.
 - Per-channel, per-mix send levels and mutes; per-mix masters
 - The monitor mix can play on several outputs at once, hardware outputs
   included
 - Level meters throughout, dB-scaled, pushed at 15 Hz
 
 Each channel is a combine sink with one internal stream per mix; that
-stream's volume is the send fader. The 9 by 4 matrix is 13 sinks and no
-loopback processes. Details in [architecture.md](architecture.md).
+stream's volume is the send fader. The Channels & outputs dialog changes
+the persistent layout with stable internal ids and rebuilds those owned PipeWire nodes, including
+removing deleted devices from WirePlumber. Details in
+[architecture.md](architecture.md).
 
 ## Inserts
 
@@ -88,7 +91,9 @@ active or bypassed, a bypass button, and a gear that opens the plugin's
 controls in their own window. The picker shows every installed LV2
 plugin that fits the slot (mono for inputs, stereo for mixes), grouped
 by category. The controls window is generated from the plugin's port
-descriptions, grouped by parameter family, with a Defaults button.
+descriptions, with rotary controls, named enumeration menus, readable
+units and a live parameter response graph for equalizers and dynamics
+processors. It is grouped by parameter family and has a Defaults button.
 Chains are saved with the mixer and recalled by profiles.
 
 Every chain is a PipeWire filter-chain node, the same mechanism as the
@@ -97,9 +102,13 @@ with no extra process, and a chain adds latency only while it holds a
 plugin. Plugins are found in the standard LV2 directories
 (`/usr/lib/lv2`, `~/.lv2`, or wherever `LV2_PATH` points); the daemon
 reads them through lilv. `lsp-plugins-lv2` is the set used during
-development. Plugins that ship a custom GUI still load; the generated
-controls are shown instead of their window. VST and CLAP plugins are
-not supported; loading them would need a plugin host.
+development. Plugins that ship a custom GUI still load, but that native
+window is not instantiated: PipeWire owns the actual DSP instance and its
+filter-chain API exposes control ports, not an LV2 UI host connection.
+Launching the vendor UI separately would control a different instance.
+The OpenXLR view therefore controls the real PipeWire instance directly.
+VST and CLAP plugins are not supported; loading them would need a plugin
+host.
 
 The submixer can be switched off in Options. The daemon then controls
 the hardware only, restarts itself, and leaves the sound card in its
@@ -122,6 +131,8 @@ restores the split profile when it stops.
   Discord
 - A Manage dialog shows the full registry, and an installed-application
   picker pre-assigns channels from `.desktop` entries
+- The Flow graph puts a channel picker on every running application node,
+  so an app can be assigned while its signal path is visible
 
 ## Profiles
 
@@ -178,7 +189,7 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 
 ## Other
 
-- Audio Flow window: a graph of the current routing, sources through
+- Audio Flow window: an interactive graph of the current routing, sources through
   outputs, with the filter chains (built-in low cut and ClipGuard, LV2
   inserts) drawn where they sit in the path and each stage marked active,
   bypassed or broken

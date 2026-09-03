@@ -92,7 +92,12 @@ public sealed class MixerService : IHostedService, IDisposable
 
     public Task StartAsync(CancellationToken ct)
     {
-        bool launchDefault = _config.GetValue("mixer", false) ||
+        // Microsoft.Extensions.Configuration treats a bare command-line
+        // switch as an empty value, so GetValue<bool> alone does not honour
+        // the documented `--mixer` form. Accept it explicitly as well as
+        // `--mixer=true` and the packaged service environment variable.
+        bool mixerSwitch = HasBareMixerSwitch(Environment.GetCommandLineArgs());
+        bool launchDefault = mixerSwitch || _config.GetValue("mixer", false) ||
                              Environment.GetEnvironmentVariable("OPENXLR_BUILD_MIXER") == "1";
         bool wanted = OpenXLR.Core.DaemonSettings.SubmixerEnabled(launchDefault);
         if (!wanted)
@@ -120,11 +125,11 @@ public sealed class MixerService : IHostedService, IDisposable
 
         try
         {
-            _mixer.Build(MixerConfig.Default(), output);
-
-            // Restore the user's saved levels, mutes, device picks, and per-app
-            // assignments. Env vars, when set, still win for the device picks.
             MixerSettings? saved = MixerSettings.Load();
+            _mixer.Build(MixerConfig.FromSettings(saved), output);
+
+            // Restore the user's saved layout, levels, mutes, device picks, and
+            // per-app assignments. Env vars, when set, still win for picks.
             if (saved is not null)
             {
                 _mixer.ApplySettings(saved with
@@ -221,6 +226,9 @@ public sealed class MixerService : IHostedService, IDisposable
         return Task.CompletedTask;
     }
 
+    internal static bool HasBareMixerSwitch(IEnumerable<string> args)
+        => args.Any(a => a.Equals("--mixer", StringComparison.OrdinalIgnoreCase));
+
     private static string Run(string exe, params string[] args)
     {
         var psi = new System.Diagnostics.ProcessStartInfo(exe)
@@ -277,6 +285,28 @@ public sealed class MixerService : IHostedService, IDisposable
                 case "setMixMuted":
                     if (cmd.Mix is null) return "setMixMuted: need 'mix'";
                     _mixer.SetMixMuted(cmd.Mix, cmd.Value.GetBoolean());
+                    break;
+                case "createChannel":
+                    CreateChannel(cmd.Name);
+                    break;
+                case "renameChannel":
+                    if (cmd.Channel is null) return "renameChannel: need 'channel'";
+                    RenameChannel(cmd.Channel, cmd.Name);
+                    break;
+                case "deleteChannel":
+                    if (cmd.Channel is null) return "deleteChannel: need 'channel'";
+                    DeleteChannel(cmd.Channel);
+                    break;
+                case "createMix":
+                    CreateMix(cmd.Name);
+                    break;
+                case "renameMix":
+                    if (cmd.Mix is null) return "renameMix: need 'mix'";
+                    RenameMix(cmd.Mix, cmd.Name);
+                    break;
+                case "deleteMix":
+                    if (cmd.Mix is null) return "deleteMix: need 'mix'";
+                    DeleteMix(cmd.Mix);
                     break;
                 case "assignStream":
                     if (cmd.Channel is null || cmd.StreamId is null) return "assignStream: need 'channel' and 'streamId'";
@@ -345,6 +375,149 @@ public sealed class MixerService : IHostedService, IDisposable
         Changed?.Invoke();
         ScheduleSave();
         return null;
+    }
+
+    private static string LayoutName(string? name, string command)
+    {
+        string clean = name?.Trim() ?? "";
+        if (clean.Length is 0 or > 60 || clean.Any(char.IsControl))
+            throw new InvalidOperationException($"{command}: name must contain 1 to 60 printable characters");
+        return clean;
+    }
+
+    private void CreateChannel(string? requestedName)
+    {
+        string name = LayoutName(requestedName, "createChannel");
+        MixerSettings current = _mixer.ExportSettings();
+        var channels = current.UserChannels?.ToList() ?? [];
+        string id = MixerConfig.NewId(name, "channel", _mixer.Config.Channels.Select(c => c.Id));
+        channels.Add(new UserChannelDefinition(id, name));
+        RebuildLayout(current with { UserChannels = channels });
+    }
+
+    private void RenameChannel(string id, string? requestedName)
+    {
+        string name = LayoutName(requestedName, "renameChannel");
+        ChannelDefinition? channel = _mixer.Config.Channels.FirstOrDefault(c => c.Id == id);
+        if (channel is null) throw new InvalidOperationException($"renameChannel: unknown channel '{id}'");
+        if (channel.InputPair is not null) throw new InvalidOperationException("hardware input channels cannot be renamed");
+
+        MixerSettings current = _mixer.ExportSettings();
+        RebuildLayout(current with
+        {
+            UserChannels = [.. (current.UserChannels ?? [])
+                .Select(c => c.Id == id ? c with { Name = name } : c)],
+        });
+    }
+
+    private void DeleteChannel(string id)
+    {
+        ChannelDefinition? channel = _mixer.Config.Channels.FirstOrDefault(c => c.Id == id);
+        if (channel is null) throw new InvalidOperationException($"deleteChannel: unknown channel '{id}'");
+        if (channel.InputPair is not null) throw new InvalidOperationException("hardware input channels cannot be deleted");
+        var remaining = _mixer.Config.Channels.Where(c => c.InputPair is null && c.Id != id).ToList();
+        if (remaining.Count == 0) throw new InvalidOperationException("the last application channel cannot be deleted");
+
+        string fallback = remaining[0].Id;
+        MixerSettings current = _mixer.ExportSettings();
+        var overrides = current.AppOverrides.ToDictionary(e => e.Key,
+            e => e.Value == id ? fallback : e.Value, StringComparer.OrdinalIgnoreCase);
+        var apps = current.KnownApps.Select(a => a.ChannelId == id ? a with { ChannelId = fallback } : a).ToList();
+        RebuildLayout(current with
+        {
+            UserChannels = [.. (current.UserChannels ?? []).Where(c => c.Id != id)],
+            AppOverrides = overrides,
+            KnownApps = apps,
+            Levels = current.Levels.Where(e => !e.Key.StartsWith(id + "|", StringComparison.Ordinal))
+                .ToDictionary(),
+            ChannelMuted = [.. current.ChannelMuted.Where(c => !c.StartsWith(id + "|", StringComparison.Ordinal))],
+        });
+    }
+
+    private void CreateMix(string? requestedName)
+    {
+        string name = LayoutName(requestedName, "createMix");
+        MixerSettings current = _mixer.ExportSettings();
+        var mixes = current.UserMixes?.ToList() ?? [];
+        string id = MixerConfig.NewId(name, "output", _mixer.Config.Mixes.Select(m => m.Id));
+        mixes.Add(new UserMixDefinition(id, name));
+        RebuildLayout(current with { UserMixes = mixes });
+    }
+
+    private void RenameMix(string id, string? requestedName)
+    {
+        string name = LayoutName(requestedName, "renameMix");
+        MixDefinition? mix = _mixer.Config.Mixes.FirstOrDefault(m => m.Id == id);
+        if (mix is null) throw new InvalidOperationException($"renameMix: unknown mix '{id}'");
+        if (mix.Kind != MixKind.VirtualMic)
+            throw new InvalidOperationException("Monitor and hardware Aux mixes cannot be renamed");
+
+        MixerSettings current = _mixer.ExportSettings();
+        RebuildLayout(current with
+        {
+            UserMixes = [.. (current.UserMixes ?? [])
+                .Select(m => m.Id == id ? m with { Name = name } : m)],
+        });
+    }
+
+    private void DeleteMix(string id)
+    {
+        MixDefinition? mix = _mixer.Config.Mixes.FirstOrDefault(m => m.Id == id);
+        if (mix is null) throw new InvalidOperationException($"deleteMix: unknown mix '{id}'");
+        if (mix.Kind != MixKind.VirtualMic)
+            throw new InvalidOperationException("Monitor and hardware Aux mixes cannot be deleted");
+
+        MixerSettings current = _mixer.ExportSettings();
+        RebuildLayout(current with
+        {
+            UserMixes = [.. (current.UserMixes ?? []).Where(m => m.Id != id)],
+            MixVolumes = current.MixVolumes.Where(e => e.Key != id).ToDictionary(),
+            MixMuted = [.. current.MixMuted.Where(m => m != id)],
+            Levels = current.Levels.Where(e => !e.Key.EndsWith("|" + id, StringComparison.Ordinal)).ToDictionary(),
+            ChannelMuted = [.. current.ChannelMuted.Where(c => !c.EndsWith("|" + id, StringComparison.Ordinal))],
+            Inserts = current.Inserts.Where(e => e.Key != $"mix:{id}").ToDictionary(e => e.Key, e => e.Value),
+        });
+    }
+
+    /// <summary>
+    /// Apply a structural edit by rebuilding PipeWire's module graph. If the
+    /// new graph fails, restore the previous one so a typo or resource failure
+    /// cannot leave the desktop without its OpenXLR sinks.
+    /// </summary>
+    private void RebuildLayout(MixerSettings desired)
+    {
+        MixerSettings previous = _mixer.ExportSettings();
+        MixerConfig previousConfig = _mixer.Config;
+        try
+        {
+            _mixer.Build(MixerConfig.FromSettings(desired));
+            _mixer.ApplySettings(desired);
+            _mixer.SyncStreams();
+            SyncOutputSelectors();
+        }
+        catch
+        {
+            // Build can fail before it marks the graph as built. TearDown is
+            // still required here because PipeWireAdapter may already own a
+            // partial set of modules with the same names as the rollback.
+            try { _mixer.TearDown(); }
+            catch (Exception cleanupError)
+            {
+                _log.LogError("failed to clean partial mixer layout: {msg}", cleanupError.Message);
+            }
+            try
+            {
+                _mixer.Build(previousConfig);
+                _mixer.ApplySettings(previous);
+                _mixer.SyncStreams();
+                SyncOutputSelectors();
+            }
+            catch (Exception restoreError)
+            {
+                _log.LogError("mixer layout rollback failed: {msg}", restoreError.Message);
+            }
+            throw;
+        }
     }
 
     /// <summary>The current mixer scene for saving into a profile, or null.</summary>

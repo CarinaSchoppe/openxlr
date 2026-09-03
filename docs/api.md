@@ -13,7 +13,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 | `plugins` | in answer to `listPlugins` | the installed LV2 plugins |
 | `error` | when a command is rejected | `message` |
 
-Commands are single JSON objects with a `type` field:
+Commands are single JSON objects with a `cmd` field:
 
 | Command | Fields | Purpose |
 |---|---|---|
@@ -24,6 +24,12 @@ Commands are single JSON objects with a `type` field:
 | `setLevel` | `channel`, `mix`, `value` | one send fader |
 | `setChannelMuted` | `channel`, `mix`, `value` | one send mute |
 | `setMixVolume` / `setMixMuted` | `mix`, `value` | mix masters |
+| `createChannel` | `name` | add an application channel and rebuild the owned PipeWire graph |
+| `renameChannel` | `channel`, `name` | change its display/device name while keeping its stable id and references |
+| `deleteChannel` | `channel` | delete an application channel; assigned apps move to the first remaining application channel |
+| `createMix` | `name` | add a virtual output mix and publish its `OpenXLR <name>` recording device |
+| `renameMix` | `mix`, `name` | change an output's display/device name while keeping its stable id and sends |
+| `deleteMix` | `mix` | delete a user-created virtual output, its sends, inserts and PipeWire devices |
 | `setMonitorOutputs` | `devices[]` | every sink the monitor mix feeds |
 | `setMonitorOutput` | `device` | a single monitor sink; `null` disconnects the route |
 | `setAuxPortEnabled` | `value` | send the Aux mix to the USB Aux port |
@@ -48,9 +54,9 @@ handler is `WebSocketHub.cs` and the message shapes are in
 
 All under `~/.config/openxlr/` (or `$XDG_CONFIG_HOME/openxlr/`):
 
-- `mixer.json`: every mixer decision: levels, mutes, device choices, the
-  app registry, enforced defaults, the software low cut, the insert
-  chains. Written by the daemon.
+- `mixer.json`: every mixer decision: the user-managed channel/output
+  layout, levels, mutes, device choices, the app registry, enforced
+  defaults, the software low cut, and insert chains. Written by the daemon.
 - `profiles/<vid-pid>/<name>.json`: the named scenes, one file each
 - `gainlock.json`: which devices have the gain lock set
 - `daemon.json`: the daemon's own preferences, read once at start.

@@ -24,7 +24,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--native-ui", action="store_true", help="Test a real native LSP control gesture; use xvfb-run in CI")
     parser.add_argument("--screenshot", type=Path, help="Capture the tested native editor before the gesture (requires ImageMagick)")
+    parser.add_argument("--disposable-ci-profile", action="store_true",
+                        help="Use a fresh GitHub-hosted runner's disposable LSP profile instead of bubblewrap")
     options = parser.parse_args()
+    if options.disposable_ci_profile:
+        if not options.native_ui or os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted":
+            parser.error("--disposable-ci-profile requires --native-ui on a GitHub-hosted runner")
+        if (Path.home() / ".config/lsp-plugins").exists():
+            parser.error("the disposable runner must have a fresh LSP profile")
     repo = Path(__file__).resolve().parents[1]
     processes = []
     with tempfile.TemporaryDirectory(prefix="openxlr-native-test-") as runtime:
@@ -82,7 +89,7 @@ def main():
                     " media.class = Audio/Sink audio.position = [ FL FR ] object.linger = true "
                     "adapter.auto-port-config = { mode = dsp monitor = true position = preserve } }")
             host_command = [str(repo / "native/openxlr-lv2-host")]
-            if options.native_ui:
+            if options.native_ui and not options.disposable_ci_profile:
                 assert shutil.which("bwrap"), "native UI isolation requires bubblewrap (bwrap)"
                 # LSP 1.2.14 ignores XDG_CONFIG_HOME. Overlay only this child
                 # process's legacy config directory; never edit user settings

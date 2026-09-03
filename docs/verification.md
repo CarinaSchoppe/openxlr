@@ -36,6 +36,10 @@ Its optional `--native-ui` mode requires an X11/XWayland display (or Xvfb)
 and bubblewrap. The test overlays the child host's legacy `.config` directory:
 LSP 1.2.14 ignores `XDG_CONFIG_HOME`, so that variable alone neither isolates
 user settings nor reliably exercises a fresh first-run profile.
+CI explicitly uses `--disposable-ci-profile` on GitHub-hosted runners, where
+the test checks that no existing LSP profile is present. That option rejects
+local/self-hosted runs. It avoids changing Ubuntu's namespace restrictions;
+local runs still use bubblewrap and leave the user's settings untouched.
 Set `OPENXLR_SCREENSHOT_DIR` to a directory when running the tests to export
 rendered PNGs of the layout editor, individual card and plugin controls.
 

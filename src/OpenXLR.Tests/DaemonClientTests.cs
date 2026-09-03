@@ -9,6 +9,7 @@ public sealed class DaemonClientTests
     public async Task ParallelCatalogRequestsShareOneRequestAndLayoutErrorsAreCorrelated()
     {
         int catalogRequests = 0;
+        var releaseCatalog = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var server = await SocketTestServer.Start(async (socket, stop) =>
         {
             while (!stop.IsCancellationRequested)
@@ -17,7 +18,7 @@ public sealed class DaemonClientTests
                 if (command["cmd"]!.GetValue<string>() == "listPlugins")
                 {
                     Interlocked.Increment(ref catalogRequests);
-                    await Task.Delay(100, stop);
+                    await releaseCatalog.Task.WaitAsync(stop);
                     await SocketTestServer.Send(socket, new { type = "plugins", plugins = new[] { new { name = "Test EQ" } } }, stop);
                 }
                 else
@@ -31,10 +32,17 @@ public sealed class DaemonClientTests
         client.Start();
         client.Start(); // idempotent: no competing receive/reconnect loops
         await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var catalogs = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => client.RequestPluginsAsync(TimeSpan.FromSeconds(2))));
-        Assert.Equal(1, catalogRequests);
+        // Hold the reply until all callers are pending. An arbitrary sleep
+        // tests scheduler speed rather than request coalescing on busy CI hosts.
+        var requests = Enumerable.Range(0, 4).Select(_ => client.RequestPluginsAsync(TimeSpan.FromSeconds(10))).ToArray();
+        Assert.All(requests, request => Assert.False(request.IsCompleted));
+        releaseCatalog.SetResult();
+        var catalogs = await Task.WhenAll(requests);
         Assert.All(catalogs, p => Assert.Equal("Test EQ", p![0]!["name"]!.GetValue<string>()));
         Assert.Equal("protected mix", await client.DeleteMixAsync("monitor"));
+        // The command acknowledgement is also a server-side ordering barrier:
+        // any accidental extra catalog requests have been consumed by now.
+        Assert.Equal(1, catalogRequests);
     }
 
     [Fact]

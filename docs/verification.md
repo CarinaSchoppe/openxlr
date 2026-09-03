@@ -204,3 +204,10 @@ This adds real package/runtime evidence for all three distributions, not a
 claim of physical-device or systemd-boot testing inside the CI containers.
 NixOS packaging and every possible LV2/device combination remain outside this
 acceptance run.
+
+The first upstream PR run exposed a scheduler-sensitive catalog-coalescing
+test (a 100 ms artificial reply delay and two-second response timeout). Its
+reply now waits on an explicit gate until all four requests are pending;
+the test still requires exactly one request and four valid responses. The
+bounded ten-second test budget accommodates loaded hosted runners without
+changing production timeouts or relaxing the coalescing assertions.

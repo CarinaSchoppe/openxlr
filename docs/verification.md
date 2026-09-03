@@ -173,3 +173,34 @@ Hardware metering and mix/capture taps still require Pulse sink/monitor
 semantics, carry distinct role labels/filter metadata, and remain visible in
 low-level graph tools. Distribution package jobs are an additional independent
 gate, not covered by these local measurements.
+
+### Completed package and installed-application checks
+
+For implementation commit `eda5967`, both [general CI](https://github.com/CarinaSchoppe/openxlr/actions/runs/33778085812)
+and the [package/runtime matrix](https://github.com/CarinaSchoppe/openxlr/actions/runs/33778085911)
+completed successfully. Each of Ubuntu 24.04, Fedora 44 and Arch rolling passed
+all 113 .NET tests with zero skips, the two Python driver tests, package build
+and installation, the installed UI/daemon acceptance, and the installed native
+helper's LSP editor gesture and measured DSP regression. Ubuntu uses its older
+LSP package rather than substituting a newer development build.
+
+The generated Arch archive was also extracted locally and its packaged
+executables passed the private-server UI/API and native-editor/audio checks on
+CachyOS. The installed user build then passed the real manual restart path:
+the asynchronous request returned in 0.01 seconds, systemd replaced the daemon,
+and the connected client recovered a fresh state automatically. The desktop UI
+remained running; the service reported `WatchdogUSec=1min` and continuing
+watchdog timestamps.
+
+The packaged update checker queried GitHub successfully and correctly identified
+`CarinaSchoppe/openxlr`, revision `eda5967`, as a development snapshot with no
+newer build at that time. The real diagnostics export contained 21 entries,
+including service health, audio journals and UI-session events. Its graph/state
+JSON parsed, the graph had no duplicate OpenXLR node names, the home path was
+redacted and the archive permissions were owner-only (`0600`). Nothing was
+uploaded. Empty session logs remain valid archive entries.
+
+This adds real package/runtime evidence for all three distributions, not a
+claim of physical-device or systemd-boot testing inside the CI containers.
+NixOS packaging and every possible LV2/device combination remain outside this
+acceptance run.

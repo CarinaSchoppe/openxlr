@@ -102,6 +102,11 @@ Further work includes broader hardware acceptance, additional native UI types,
 LV2 state/worker support, and replacing remaining Pulse routing buses with a
 smaller native graph. Those are planned, not claimed as implemented.
 
+Verification includes 113 automated .NET tests, real LSP editor/audio tests,
+installed-package runtime checks on Ubuntu/Fedora/Arch, and a CachyOS live
+service-recovery test. Reproduction commands, measured results and tested
+limitations are recorded in [docs/verification.md](docs/verification.md).
+
 ### OpenDeck plugin
 
 Dials get a touch panel with a knob, a level meter, the value and a

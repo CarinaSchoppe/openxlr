@@ -41,4 +41,16 @@ public sealed class DiagnosticsTests
 
         Assert.Equal("\"clock.max-quantum\": 8192", redacted);
     }
+
+    [Fact]
+    public void Redact_DoesNotTouchDigitsInsideLargerNumbers()
+    {
+        // A numeric USB serial must not be found inside int.MaxValue in a graph dump.
+        string json = "{ \"max\": 2147483647, \"node.name\": \"alsa_card.usb-Foo_147483647-00\" }";
+
+        string redacted = Diagnostics.Redact(json, ["147483647"]);
+
+        Assert.Contains("\"max\": 2147483647", redacted);
+        Assert.Contains("alsa_card.usb-Foo_<redacted>-00", redacted);
+    }
 }

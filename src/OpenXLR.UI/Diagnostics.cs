@@ -155,11 +155,17 @@ public static class Diagnostics
     /// </summary>
     internal static string Redact(string text, IEnumerable<string> secrets)
     {
+        // Whole tokens only: a numeric USB serial once matched inside the
+        // number 2147483647 in a pw-dump and left "2<redacted>", which broke
+        // the JSON. A serial in a node name is bounded by "_" and "-", a host
+        // name by spaces, a path by quotes, so alphanumeric lookarounds keep
+        // those and skip digits inside larger numbers.
         foreach (string value in secrets
                      .Where(v => !string.IsNullOrWhiteSpace(v) && v.Length >= 3)
                      .Distinct(StringComparer.Ordinal)
                      .OrderByDescending(v => v.Length))
-            text = text.Replace(value, "<redacted>", StringComparison.Ordinal);
+            text = Regex.Replace(text,
+                "(?<![A-Za-z0-9])" + Regex.Escape(value) + "(?![A-Za-z0-9])", "<redacted>");
 
         return Regex.Replace(text,
             "(\"(?:device\\.serial|object\\.serial|application\\.process\\.id|" +

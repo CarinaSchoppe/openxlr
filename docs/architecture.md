@@ -42,11 +42,14 @@ modules or custom drivers:
 
 - One null sink per mix (`pactl load-module module-null-sink`). Monitor
   and Aux are structural; every user-created output adds another one.
-- One combine sink per channel (`module-combine-sink`) whose internal
+- One combine fan-out per channel (`module-combine-sink`) whose internal
   streams, one per mix, are the send faders: setting a send is setting
   that stream's volume. Hardware feeds these sinks directly. Applications
   play into stable public null sinks; each is linked through its stereo
-  insert chain (or a direct bypass) into its internal fan-out sink. The graph has
+  insert chain (or a direct bypass) into its internal fan-out. Application fan-outs
+  are `Audio/Filter` nodes with explicitly configured DSP input ports: they do
+  not advertise a second Pulse playback device. Hardware fan-outs retain sink
+  classification because their monitor taps supply the hardware meters. The graph has
   one combine per hardware or user-created application channel and uses no
   loopback processes.
 - For every user-created virtual output mix, a post sink fed from the mix (directly

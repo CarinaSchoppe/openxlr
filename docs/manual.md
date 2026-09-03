@@ -287,7 +287,8 @@ The repository and revision matter: a fork snapshot can contain additional
 features without the upstream developer having published a new version. A
 different or divergent SHA alone is not advertised as an upgrade.
 
-Each application channel has one public input; output mixes expose a named
+Each application channel has one public input; its post-effect fan-out is an
+internal filter, not a second playback device. Output mixes expose a named
 virtual microphone. OpenXLR hides its internal buses from device choices and
 labels them as internal distribution, mix bus or capture tap in the raw graph.
 PipeWire tools intentionally show graph internals; some external Pulse mixers

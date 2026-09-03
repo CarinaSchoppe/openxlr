@@ -27,7 +27,9 @@ jobs:
             libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev python3-websocket \
             xvfb x11-utils dbus pipewire pipewire-pulse wireplumber lsp-plugins-lv2
       - name: Compile and test
-        run: dotnet test src/OpenXLR.slnx -c Release
+        run: |
+          python3 -m unittest discover -s tools -p 'test_*.py'
+          dotnet test src/OpenXLR.slnx -c Release
       - name: Build and install Debian package
         run: |
           dpkg-buildpackage -b -us -uc
@@ -54,11 +56,12 @@ jobs:
           dnf install -y --setopt=install_weak_deps=False rpm-build git-core dotnet-sdk-10.0 \
             systemd-rpm-macros gcc make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel \
             python3-websocket-client xorg-x11-server-Xvfb xwininfo dbus-daemon pipewire pipewire-pulseaudio \
-            wireplumber lsp-plugins-lv2 ImageMagick shadow-utils
+            wireplumber pipewire-utils lsp-plugins-lv2 ImageMagick shadow-utils
       - uses: actions/checkout@v4
       - name: Compile, test and build RPM
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          python3 -m unittest discover -s tools -p 'test_*.py'
           dotnet test src/OpenXLR.slnx -c Release
           version=$(rpmspec -q --srpm --qf '%{version}' packaging/rpm/openxlr.spec)
           mkdir -p rpmbuild/SOURCES dist
@@ -86,12 +89,13 @@ jobs:
         run: |
           pacman -Syu --noconfirm --needed git dotnet-sdk aspnet-runtime pipewire pipewire-audio pipewire-pulse \
             wireplumber libpulse libusb lilv lv2 libx11 libice libsm fontconfig \
-            python python-websocket-client xorg-server-xvfb xorg-xwininfo dbus lsp-plugins-lv2 imagemagick
+            python python-websocket-client xorg-server-xvfb xorg-xwininfo dbus lsp-plugins-lv2 imagemagick ttf-dejavu
       - uses: actions/checkout@v4
       - name: Compile, test and build Arch package (unprivileged)
         run: |
           useradd --create-home tester
           chown -R tester:tester "$GITHUB_WORKSPACE"
+          runuser -u tester -- python3 -m unittest discover -s tools -p 'test_*.py'
           runuser -u tester -- dotnet test src/OpenXLR.slnx -c Release
           runuser -u tester -- bash tools/build-arch-package.sh
           pacman -U --noconfirm dist/openxlr-*.pkg.tar.zst

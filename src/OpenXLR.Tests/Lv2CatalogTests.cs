@@ -21,6 +21,11 @@ public sealed class RequiresLspFactAttribute : FactAttribute
 {
     public RequiresLspFactAttribute()
     {
-        if (!Directory.Exists("/usr/lib/lv2/lsp-plugins.lv2")) Skip = "LSP LV2 bundle is not installed in /usr/lib/lv2.";
+        // Fedora installs 64-bit bundles under lib64; Debian/Arch use lib.
+        string[] paths = (Environment.GetEnvironmentVariable("LV2_PATH") ?? "").Split(Path.PathSeparator,
+            StringSplitOptions.RemoveEmptyEntries);
+        if (!paths.Concat(["/usr/lib/lv2", "/usr/lib64/lv2", "/usr/local/lib/lv2"])
+                .Any(p => Directory.Exists(Path.Combine(p, "lsp-plugins.lv2"))))
+            Skip = "LSP LV2 bundle is not installed in a standard/configured search directory.";
     }
 }

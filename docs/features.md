@@ -76,8 +76,10 @@ Built from PipeWire nodes, no kernel modules or custom drivers:
   included
 - Level meters throughout, dB-scaled, pushed at 15 Hz
 
-Each channel is a combine sink with one internal stream per mix; that
-stream's volume is the send fader. The Channels & outputs dialog changes
+Each channel has an internal fan-out with one stream per mix; that
+stream's volume is the send fader. Application fan-outs do not advertise extra
+playback devices; technical mix/monitor taps remain visible in low-level graph
+tools and carry distinct internal-role labels. The Channels & outputs dialog changes
 the persistent layout with stable internal ids and rebuilds those owned PipeWire nodes, including
 removing deleted devices from WirePlumber. Details in
 [architecture.md](architecture.md).

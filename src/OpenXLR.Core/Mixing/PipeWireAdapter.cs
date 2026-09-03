@@ -151,10 +151,11 @@ public sealed class PipeWireAdapter
 
     /// <summary>
     /// One internal fan-out per channel. Applications address the stable
-    /// public input, not this post-effect stage. Keep the sink classification:
-    /// Pulse monitor taps and PipeWire's multi-driver scheduling rely on it.
+    /// public input, not this post-effect stage. Hardware channels retain their
+    /// Pulse monitor tap for metering; app fan-outs configure their own DSP
+    /// ports without advertising another playback device to desktop clients.
     /// </summary>
-    public uint CreateCombineSink(string nodeName, IEnumerable<string> slaveSinks, string description)
+    public uint CreateCombineSink(string nodeName, IEnumerable<string> slaveSinks, string description, bool needsMonitor)
     {
         string outp = Run("pactl",
             "load-module", "module-combine-sink",
@@ -167,7 +168,9 @@ public sealed class PipeWireAdapter
             // sinks, which also accept top-level node keys). Quote the entire
             // property list or everything after description is silently lost.
             "sink_properties=" + ModuleProperties(description,
-                "priority.session=100 node.suspend-on-idle=false" + InternalProperties(true)));
+                "priority.session=100 node.suspend-on-idle=false" + InternalProperties(true) +
+                (needsMonitor ? "" : " media.class=Audio/Filter node.autoconnect=false " +
+                    "adapter.auto-port-config=\"{ mode = dsp monitor = true position = preserve }\"")));
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;

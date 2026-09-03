@@ -239,9 +239,12 @@ def main():
                      if n["type"] == "PipeWire:Interface:Node"]
             fanout = next(p for p in graph if p.get("node.name") == "OpenXLR_fanout_qa-channel")
             assert fanout["openxlr.internal"] is True, fanout
+            assert fanout["media.class"] == "Audio/Filter", fanout
             public_input = next(p for p in graph if p.get("node.name") == "OpenXLR_ch_qa-channel")
             assert public_input["node.description"] == "OpenXLR " + channel_label, public_input
             assert fanout["node.description"] != public_input["node.description"], fanout
+            sinks = json.loads(run("pactl", "-f", "json", "list", "sinks"))
+            assert not any(s["name"] == "OpenXLR_fanout_qa-channel" for s in sinks), sinks
             print("PASS public channel label and distinct internal distribution label survive punctuation", flush=True)
             print("PASS create/rename/app assignment and actual PipeWire node creation", flush=True)
 

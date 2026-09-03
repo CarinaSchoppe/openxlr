@@ -17,16 +17,16 @@ import websocket
 from private_audio import PrivateAudio
 
 
-def command(connection, name, **fields):
+def command(connection, cmd, **fields):
     request = uuid.uuid4().hex
-    connection.send(json.dumps(dict(cmd=name, requestId=request, **fields)))
+    connection.send(json.dumps(dict(cmd=cmd, requestId=request, **fields)))
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
         message = json.loads(connection.recv())
         if message.get("type") == "commandResult" and message.get("requestId") == request:
             assert not message.get("error"), message
             return
-    raise AssertionError(f"No response to {name}")
+    raise AssertionError(f"No response to {cmd}")
 
 
 def main():

@@ -94,7 +94,8 @@ displayed commit; check the build identity in About.
 
 The workflow aims at Wave Link-style routing, not complete Elgato Wave 3/Wave
 Link feature parity. Hardware inputs, Monitor/Aux and the last application
-channel are protected. Internal PipeWire buses are labelled by role and excluded
+channel are protected. Application fan-outs no longer advertise duplicate
+playback devices. Internal PipeWire buses are labelled by role and excluded
 from OpenXLR's device pickers; low-level graph tools and some desktop mixers
 still expose the underlying routing stages. They are not duplicate user channels.
 Further work includes broader hardware acceptance, additional native UI types,

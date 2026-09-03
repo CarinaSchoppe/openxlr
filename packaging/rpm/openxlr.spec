@@ -22,6 +22,7 @@ BuildRequires:  gcc make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel 
 AutoReqProv:    no
 Requires:       aspnetcore-runtime-10.0
 Requires:       pipewire
+Requires:       pipewire-utils
 Requires:       pipewire-libs
 Requires:       pipewire-pulseaudio
 Requires:       wireplumber

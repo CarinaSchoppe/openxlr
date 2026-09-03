@@ -325,7 +325,9 @@ public sealed class MixerUiSession : IDisposable
 {
     private readonly HeadlessUnitTestSession _session = HeadlessUnitTestSession.StartNew(typeof(MixerUiSession), AvaloniaTestIsolationLevel.PerAssembly);
     public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>()
-        .UseSkia().WithInterFont().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
+        .UseSkia().WithInterFont()
+        .With(new Avalonia.Media.FontManagerOptions { DefaultFamilyName = App.DefaultFontFamily })
+        .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
     public Task Run(Func<Task> action) => _session.Dispatch(async () => { await action(); return true; }, CancellationToken.None);
     public void Dispose() => _session.Dispose();
 }

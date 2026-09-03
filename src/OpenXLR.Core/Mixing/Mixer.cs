@@ -124,7 +124,7 @@ public sealed class Mixer : IDisposable
                 if (ch.InputPair is null) _pw.CreateNullSink(ch.SinkName, $"OpenXLR {ch.Name}");
                 _combineModules[ch.Id] = _pw.CreateCombineSink(ch.FanOutSinkName,
                     config.Mixes.Select(m => m.SinkName),
-                    $"OpenXLR {ch.Name} (internal distribution)");
+                    $"OpenXLR {ch.Name} (internal distribution)", needsMonitor: ch.InputPair is not null);
             }
             DiscoverLegsLocked();
 
@@ -521,7 +521,7 @@ public sealed class Mixer : IDisposable
                 FilterHandle chain = _pw.CreateMixChain($"ch_{key}", $"OpenXLR {channel.Name} Inserts", InsertsFor(key));
                 _chains[key] = chain;
                 _appFeeds[key] = _pw.LinkNodes(channel.SinkName, "monitor", chain.SinkName, "playback");
-                _appOutputs[key] = _pw.LinkNodes(chain.SourceName, "capture", channel.FanOutSinkName, "playback");
+                _appOutputs[key] = _pw.LinkNodes(chain.SourceName, "capture", channel.FanOutSinkName, "input");
                 if (_appFeeds[key].Pairs.Count < 2 || _appOutputs[key].Pairs.Count < 2)
                     throw new InvalidOperationException("Could not connect the application channel's stereo insert chain.");
                 return;
@@ -534,7 +534,7 @@ public sealed class Mixer : IDisposable
                 _insertErrors[key] = ex.Message;
             }
         }
-        _appFeeds[key] = _pw.LinkNodes(channel.SinkName, "monitor", channel.FanOutSinkName, "playback");
+        _appFeeds[key] = _pw.LinkNodes(channel.SinkName, "monitor", channel.FanOutSinkName, "input");
         if (_appFeeds[key].Pairs.Count < 2) throw new InvalidOperationException($"Could not connect channel '{key}' to its sends.");
     }
 

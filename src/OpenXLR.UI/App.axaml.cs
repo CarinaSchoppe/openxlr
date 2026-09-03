@@ -6,6 +6,10 @@ namespace OpenXLR.UI;
 
 public partial class App : Application
 {
+    // The embedded font must also be the default: a minimal Linux install
+    // can have fontconfig but no system fonts for Avalonia to choose from.
+    public const string DefaultFontFamily = "fonts:Inter#Inter";
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);

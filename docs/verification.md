@@ -13,6 +13,7 @@ dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release
 dotnet format style src/OpenXLR.slnx --verify-no-changes --no-restore
 dotnet format analyzers src/OpenXLR.slnx --severity warn --verify-no-changes --no-restore
 git diff --check
+python3 -m unittest discover -s tools -p 'test_*.py'
 python3 tools/verify-native-host.py
 ```
 
@@ -148,8 +149,11 @@ updated, and release workflows check the packaged executable.
 
 ## Recovery/update follow-up (2026-09-04)
 
-The extended suite passes 113 tests, including the actual restart/update UI
-controls. The full live signal test also passes after restarting a stalled
+The extended suite passes 113 .NET tests, including the actual restart/update UI
+controls, and two offline Python acceptance-driver tests. The .NET suite also
+passes with an empty fontconfig configuration (no installed system fonts),
+using the application's embedded Inter font as its explicit default.
+The full live signal test also passes after restarting a stalled
 PipeWire user session: both the unchanged `ae1bbbc` baseline and the new build
 initially produced no capture samples, while private servers passed. Restarting
 the audio session restored the live graph; this is not evidence that a daemon
@@ -160,7 +164,12 @@ independent channels 0.1000 / 0.2000, and EQ 0.0500 at 440 Hz versus 0.1980 at
 6 kHz. Plugin SIGKILL/SIGSTOP and daemon SIGKILL/watchdog recovery passed, as did
 persisted deletion and shutdown with a client connected (0.56 seconds).
 Descriptions containing quotes, apostrophes and backslashes survive real
-module parsing. Internal stages retain required Pulse sink/monitor semantics
-and have distinct names and filter metadata; they are not hidden from every
-external graph tool. Distribution package jobs are an additional independent
+module parsing. A subsequent full run also passed with application fan-outs
+classified as internal `Audio/Filter` nodes (not selectable Pulse sinks),
+including native compressor/EQ editors, a real gesture, host and daemon
+recovery, deletion and a 0.62-second shutdown. Their DSP ports are configured
+explicitly because WirePlumber does not configure sink ports for that class.
+Hardware metering and mix/capture taps still require Pulse sink/monitor
+semantics, carry distinct role labels/filter metadata, and remain visible in
+low-level graph tools. Distribution package jobs are an additional independent
 gate, not covered by these local measurements.

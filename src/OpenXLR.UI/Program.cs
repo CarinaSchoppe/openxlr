@@ -20,5 +20,6 @@ class Program
             .WithDeveloperTools()
 #endif
             .WithInterFont()
+            .With(new Avalonia.Media.FontManagerOptions { DefaultFamilyName = App.DefaultFontFamily })
             .LogToTrace();
 }

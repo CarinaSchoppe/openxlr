@@ -355,6 +355,8 @@ public sealed class PipeWireAdapter
         psi.ArgumentList.Add("--playback-props=" +
             $"node.name={playName} target.object={toSink}");
         var p = Process.Start(psi) ?? throw new InvalidOperationException("failed to start pw-loopback");
+        _ = p.StandardOutput.BaseStream.CopyToAsync(Stream.Null);
+        _ = p.StandardError.BaseStream.CopyToAsync(Stream.Null);
         _loopbacks.Add(p);
 
         var handle = new LoopbackHandle(id, capName, playName, p);
@@ -452,8 +454,11 @@ public sealed class PipeWireAdapter
         // pipes continuously: leaving redirected output unread can fill the OS
         // pipe and freeze the holder process (and every graph operation waiting
         // behind the mixer's lock).
-        Task<string> stdoutTask = p.StandardOutput.ReadToEndAsync();
-        Task<string> stderrTask = p.StandardError.ReadToEndAsync();
+        // pw-cli -m reports every registry event for as long as it lives, so
+        // the pipes are drained for its lifetime but only the first few KB
+        // are kept, which is where a load failure explains itself.
+        Task<string> stdoutTask = DrainKeepingHead(p.StandardOutput.BaseStream);
+        Task<string> stderrTask = DrainKeepingHead(p.StandardError.BaseStream);
         _filters.Add(p);
         var handle = new FilterHandle(sinkName, sinkName, srcName, p);
         // Ports lag node registration; linking a port-less node silently
@@ -503,6 +508,24 @@ public sealed class PipeWireAdapter
             Thread.Sleep(100);
         }
         return false;
+    }
+
+    /// <summary>
+    /// Read a pipe until it closes, retaining only its first <paramref name="keep"/>
+    /// bytes as text. Long-lived holder processes keep printing for hours;
+    /// nothing after the start is ever wanted.
+    /// </summary>
+    private static async Task<string> DrainKeepingHead(Stream pipe, int keep = 8192)
+    {
+        var buf = new byte[4096];
+        var head = new MemoryStream();
+        int n;
+        while ((n = await pipe.ReadAsync(buf).ConfigureAwait(false)) > 0)
+        {
+            int room = keep - (int)head.Length;
+            if (room > 0) head.Write(buf, 0, Math.Min(n, room));
+        }
+        return System.Text.Encoding.UTF8.GetString(head.ToArray());
     }
 
     private string StopFailedFilter(FilterHandle handle, Task<string> stdoutTask, Task<string> stderrTask)
@@ -761,7 +784,7 @@ public sealed class PipeWireAdapter
         bool exposeHardwareMonitorOutputs = false, string? hardwareSinkHint = null)
     {
         var found = new List<AudioNode>();
-        string json = Run("pw-dump");
+        byte[] json = DumpJson();
         JsonDocument doc;
         try { doc = JsonDocument.Parse(json); }
         catch (JsonException) { return found; }
@@ -875,7 +898,7 @@ public sealed class PipeWireAdapter
     public IReadOnlyList<AudioStream> ListClients()
     {
         var found = new List<AudioStream>();
-        string json = Run("pw-dump");
+        byte[] json = DumpJson();
         JsonDocument doc;
         try { doc = JsonDocument.Parse(json); }
         catch (JsonException) { return found; }
@@ -917,7 +940,7 @@ public sealed class PipeWireAdapter
     public IReadOnlyList<AudioStream> ListStreams()
     {
         var found = new List<AudioStream>();
-        string json = Run("pw-dump");
+        byte[] json = DumpJson();
         JsonDocument doc;
         try { doc = JsonDocument.Parse(json); }
         catch (JsonException) { return found; }
@@ -971,7 +994,7 @@ public sealed class PipeWireAdapter
     /// <summary>All audio nodes as (id, node.name, media.class).</summary>
     public IEnumerable<(int Id, string Name, string MediaClass)> DumpNodes()
     {
-        string json = Run("pw-dump");
+        byte[] json = DumpJson();
         JsonDocument doc;
         try { doc = JsonDocument.Parse(json); }
         catch (JsonException) { yield break; }
@@ -1022,9 +1045,55 @@ public sealed class PipeWireAdapter
         _modules.Clear();
     }
 
+    // The sweep asks for the graph several times a second (streams, devices,
+    // routes); each pw-dump is about 2 MB of JSON, so one snapshot serves a
+    // whole sweep. Staleness is bounded by the window below.
+    private static readonly object DumpGate = new();
+    private static byte[]? _dumpJson;
+    private static DateTime _dumpAt;
+    private static readonly TimeSpan DumpWindow = TimeSpan.FromMilliseconds(400);
+
+    // Kept as UTF-8 bytes and parsed from them: the string form is twice
+    // the size and was the bulk of the daemon's large-object garbage.
+    private static byte[] DumpJson()
+    {
+        lock (DumpGate)
+        {
+            if (_dumpJson is not null && DateTime.UtcNow - _dumpAt < DumpWindow) return _dumpJson;
+            _dumpJson = RunBytes("pw-dump");
+            _dumpAt = DateTime.UtcNow;
+            return _dumpJson;
+        }
+    }
+
+    private static byte[] RunBytes(string exe, params string[] args)
+    {
+        var psi = new ProcessStartInfo(exe) { RedirectStandardOutput = true, RedirectStandardError = true };
+        psi.Environment["LC_ALL"] = "C";
+        foreach (string a in args) psi.ArgumentList.Add(a);
+        using Process p = Process.Start(psi) ?? throw new InvalidOperationException($"failed to start {exe}");
+        var stdout = new MemoryStream();
+        Task copy = p.StandardOutput.BaseStream.CopyToAsync(stdout);
+        Task<string> stderrTask = DrainKeepingHead(p.StandardError.BaseStream);
+        if (!p.WaitForExit(5000))
+        {
+            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            throw new InvalidOperationException($"{exe} {string.Join(' ', args)} timed out after 5 seconds");
+        }
+        copy.GetAwaiter().GetResult();
+        if (p.ExitCode != 0)
+            throw new InvalidOperationException($"{exe} {string.Join(' ', args)}: {stderrTask.GetAwaiter().GetResult().Trim()}");
+        return stdout.ToArray();
+    }
+
     private static string Run(string exe, params string[] args)
     {
         var psi = new ProcessStartInfo(exe) { RedirectStandardOutput = true, RedirectStandardError = true };
+        // pactl's human-readable output is parsed ("Sink Input #", "Owner
+        // Module:") and pactl is localised; a German desktop would break
+        // every fader. Every helper runs in the C locale.
+        psi.Environment["LC_ALL"] = "C";
+        psi.Environment["LANGUAGE"] = "C";
         foreach (string a in args) psi.ArgumentList.Add(a);
         using Process p = Process.Start(psi) ?? throw new InvalidOperationException($"failed to start {exe}");
         Task<string> stdoutTask = p.StandardOutput.ReadToEndAsync();

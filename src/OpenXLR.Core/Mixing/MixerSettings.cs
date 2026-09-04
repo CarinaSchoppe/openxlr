@@ -13,6 +13,16 @@ namespace OpenXLR.Core.Mixing;
 /// </summary>
 public sealed record MixerSettings
 {
+    /// <summary>
+    /// The saved settings with the monitor selection replaced by an
+    /// environment or command-line override, when one is given. Both the
+    /// legacy single field and the current list are set, because
+    /// ApplySettings prefers the list and a saved list used to win over
+    /// the override silently.
+    /// </summary>
+    public MixerSettings WithMonitorOverride(string? output) =>
+        output is null ? this : this with { MonitorOutput = output, MonitorOutputs = [output] };
+
     /// <summary>Mix id to master volume.</summary>
     public Dictionary<string, double> MixVolumes { get; init; } = [];
 

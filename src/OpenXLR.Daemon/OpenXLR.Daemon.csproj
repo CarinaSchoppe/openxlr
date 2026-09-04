@@ -5,6 +5,22 @@
   </ItemGroup>
 
   <PropertyGroup>
+    <!-- The Web SDK defaults to Server GC, which keeps one heap per core and
+         held the daemon at 480 MB RSS while it parsed a 2 MB pw-dump every
+         second. This is a one-user control daemon: workstation GC. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <!-- The daemon's live data is a few tens of MB; what it allocates is the
+       PipeWire graph dump, parsed every sweep. Without a limit the runtime
+       let that garbage grow the heap past 500 MB before collecting. -->
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.HeapHardLimit" Value="268435456" />
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
+  </ItemGroup>
+
+  <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

@@ -79,6 +79,7 @@ public static class CardProfile
     private static string Run(string cmd, params string[] args)
     {
         var psi = new ProcessStartInfo(cmd) { RedirectStandardOutput = true, RedirectStandardError = true };
+        psi.Environment["LC_ALL"] = "C";
         foreach (string a in args) psi.ArgumentList.Add(a);
         using var p = Process.Start(psi) ?? throw new InvalidOperationException($"could not start {cmd}");
         Task<string> outTask = p.StandardOutput.ReadToEndAsync();

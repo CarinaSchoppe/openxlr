@@ -141,10 +141,7 @@ public sealed class MixerService : IHostedService, IDisposable
             MixerSettings? saved = MixerSettings.Load();
             if (saved is not null)
             {
-                _mixer.ApplySettings(saved with
-                {
-                    MonitorOutput = output ?? saved.MonitorOutput,
-                });
+                _mixer.ApplySettings(saved.WithMonitorOverride(output));
                 _log.LogInformation("restored settings from {path}", MixerSettings.DefaultPath);
             }
             SyncOutputSelectors();
@@ -381,14 +378,31 @@ public sealed class MixerService : IHostedService, IDisposable
     /// Persist a moment after the last change, so dragging a fader writes once
     /// instead of on every pixel of travel.
     /// </summary>
+    private readonly object _saveGate = new();
+    private bool _saveDirty;
+
     private void ScheduleSave()
     {
-        _saveDebounce ??= new Timer(_ =>
+        lock (_saveGate)
         {
+            _saveDirty = true;
+            _saveDebounce ??= new Timer(_ => SaveNow(), null, Timeout.Infinite, Timeout.Infinite);
+            _saveDebounce.Change(TimeSpan.FromSeconds(2), Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    // One writer at a time, and only when something changed since the last
+    // write; Dispose flushes a pending save so a change made just before
+    // shutdown is not lost.
+    private void SaveNow()
+    {
+        lock (_saveGate)
+        {
+            if (!_saveDirty) return;
+            _saveDirty = false;
             try { _mixer.ExportSettings().Save(); }
             catch (Exception ex) { _log.LogDebug("settings save: {msg}", ex.Message); }
-        }, null, Timeout.Infinite, Timeout.Infinite);
-        _saveDebounce.Change(TimeSpan.FromSeconds(2), Timeout.InfiniteTimeSpan);
+        }
     }
 
     public void Dispose()
@@ -396,5 +410,6 @@ public sealed class MixerService : IHostedService, IDisposable
         _streamSweep?.Dispose();
         _saveDebounce?.Dispose();
         _meterPush?.Dispose();
+        SaveNow();
     }
 }

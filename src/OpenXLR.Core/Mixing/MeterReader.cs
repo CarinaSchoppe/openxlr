@@ -66,6 +66,30 @@ public sealed class MeterReader : IDisposable
         }
     }
 
+    /// <summary>
+    /// Sum the squares of every complete stereo float frame in
+    /// <paramref name="buf"/>[0..<paramref name="length"/>), move any trailing
+    /// partial frame to the front of the buffer, and return its length so
+    /// the next read appends after it.
+    /// </summary>
+    public static (double SumL, double SumR, int Frames, int Carry) AccumulateFrames(byte[] buf, int length)
+    {
+        double sumL = 0, sumR = 0;
+        int frames = 0;
+        int i = 0;
+        for (; i + 8 <= length; i += 8)
+        {
+            float l = BitConverter.ToSingle(buf, i);
+            float r = BitConverter.ToSingle(buf, i + 4);
+            sumL += l * l;
+            sumR += r * r;
+            frames++;
+        }
+        int rest = length - i;
+        if (rest > 0) Buffer.BlockCopy(buf, i, buf, 0, rest);
+        return (sumL, sumR, frames, rest);
+    }
+
     private static void Drain(Process p)
     {
         var buf = new byte[4096];
@@ -75,25 +99,20 @@ public sealed class MeterReader : IDisposable
 
     private void Pump(Meter meter)
     {
+        // A pipe read can end anywhere inside an 8-byte stereo frame; the
+        // remainder is carried into the next read so the stream never goes
+        // out of alignment (which would turn the meters into noise).
         var buf = new byte[8192];
+        int carry = 0;
         Stream stdout = meter.Process.StandardOutput.BaseStream;
         while (!_disposed)
         {
             int read;
-            try { read = stdout.Read(buf, 0, buf.Length); }
+            try { read = stdout.Read(buf, carry, buf.Length - carry); }
             catch (Exception) { return; }
             if (read <= 0) return;
 
-            double sumL = 0, sumR = 0;
-            int frames = 0;
-            for (int i = 0; i + 8 <= read; i += 8)
-            {
-                float l = BitConverter.ToSingle(buf, i);
-                float r = BitConverter.ToSingle(buf, i + 4);
-                sumL += l * l;
-                sumR += r * r;
-                frames++;
-            }
+            (double sumL, double sumR, int frames, carry) = AccumulateFrames(buf, carry + read);
 
             lock (_gate)
             {

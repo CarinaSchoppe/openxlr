@@ -185,6 +185,55 @@ Open Options, then SUPPORT, then Collect diagnostics. It writes
 state, a raw vendor-block dump, the PipeWire graph, daemon logs and
 configs. Nothing gets uploaded; attach the archive to an issue yourself.
 
+## Credits
+
+OpenXLR is written and maintained by Emanuele Sparvoli. It exists in its
+current form because other people gave it code, hardware time and prior
+work.
+
+Code:
+
+- [Carina Schoppe](https://github.com/CarinaSchoppe): routing and device
+  control hardening, transactional graph changes, the bounded WebSocket
+  send queue, diagnostics redaction, systemd sandboxing, the xUnit test
+  project and the CI workflow ([#4](https://github.com/emaspa/openxlr/pull/4)),
+  and the editable mixer layout and plugin editor work in progress
+  ([#10](https://github.com/emaspa/openxlr/pull/10)).
+- [Michael Brooks](https://github.com/Michael-Brooks): the stream-sweep
+  starvation fix ([#7](https://github.com/emaspa/openxlr/pull/7)) and the
+  diagnosis that led to it.
+
+Hardware testing, on devices the maintainer does not own:
+
+- [BenjyEX3](https://github.com/BenjyEX3): Wave XLR MK.2, every control
+  verified, including the block dump that placed phantom power, ClipGuard
+  and the compressor ([#2](https://github.com/emaspa/openxlr/issues/2)).
+- [Michael Brooks](https://github.com/Michael-Brooks) and a second owner:
+  the original Wave XLR on two units
+  ([#6](https://github.com/emaspa/openxlr/issues/6)).
+- [chromacurse](https://github.com/chromacurse): the Wave XLR Pro
+  headphone-mix report and the two diagnostics archives that let the
+  hardware mix membership be decoded
+  ([#8](https://github.com/emaspa/openxlr/issues/8)).
+- [Astros52](https://github.com/Astros52): the XLR Dock MK.2 report
+  ([#1](https://github.com/emaspa/openxlr/issues/1)).
+- The CachyOS tester whose first-run failure found the missing ASP.NET
+  runtime dependency in the AUR package.
+
+Prior work OpenXLR builds on:
+
+- [openwave](https://github.com/rikkichy/openwave) by rikkichy: the
+  original Wave XLR's class protocol, and the phantom-power byte found in
+  [openwave PR #8](https://github.com/rikkichy/openwave/pull/8), which the
+  XLR Dock turned out to share.
+- [OpenDeck](https://github.com/nekename/OpenDeck) by nekename: the
+  Stream Deck host the plugin runs in, including the touch-tap support
+  merged upstream for the Stream Deck + XL.
+- [openwave-streamdeck](https://github.com/NyleGarcia/openwave-streamdeck)
+  by NyleGarcia: the touch-and-drag dial idea.
+- The author of goxlr-utility and PipeWeaver, for suggesting ALSA UCM
+  for the Pro's channel split.
+
 ## Status
 
 Developed and used daily by the author with a Wave XLR Pro, an XLR

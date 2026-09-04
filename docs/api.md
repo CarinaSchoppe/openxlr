@@ -25,7 +25,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 | `plugins` | in answer to `listPlugins` | the installed LV2 plugins with their controls; `supported` is false, with `unsupportedFeatures` listed, for a plugin that needs a host feature the PipeWire chain lacks |
 | `error` | when a command is rejected | `message` |
 
-Commands are single JSON objects with a `type` field:
+Commands are single JSON objects with a `cmd` field:
 
 | Command | Fields | Purpose |
 |---|---|---|

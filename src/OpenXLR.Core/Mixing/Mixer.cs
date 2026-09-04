@@ -133,7 +133,8 @@ public sealed class Mixer : IDisposable
                 }
                 _combineModules[ch.Id] = _pw.CreateCombineSink(ch.SinkName,
                     config.Mixes.Select(m => m.SinkName),
-                    $"OpenXLR {ch.Name}");
+                    $"OpenXLR {ch.Name}",
+                    visible: ch.InputPair is null);   // hardware inputs are not playback devices
             }
             DiscoverLegsLocked();
 

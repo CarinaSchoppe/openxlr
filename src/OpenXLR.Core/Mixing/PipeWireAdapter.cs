@@ -171,7 +171,13 @@ public sealed class PipeWireAdapter
     /// channel: applications play into it and every mix receives the audio
     /// through that channel's remap cells.
     /// </summary>
-    public uint CreateCombineSink(string nodeName, IEnumerable<string> slaveSinks, string description)
+    /// <param name="visible">
+    /// Whether desktop audio applets should list the sink as a playback
+    /// device. Application channels are (users assign apps to them);
+    /// hardware input channels are not, since nothing should play into a
+    /// channel that carries a microphone.
+    /// </param>
+    public uint CreateCombineSink(string nodeName, IEnumerable<string> slaveSinks, string description, bool visible = true)
     {
         string outp = Run("pactl",
             "load-module", "module-combine-sink",
@@ -181,7 +187,7 @@ public sealed class PipeWireAdapter
             // a suspended monitor makes the channel's level meter read silence
             // even while audio flows through the sink.
             "sink_properties=" + PropList($"node.description={PropValue(description)}" +
-            " priority.session=100 node.suspend-on-idle=false node.virtual=false"));
+            $" priority.session=100 node.suspend-on-idle=false node.virtual={(visible ? "false" : "true")}"));
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;

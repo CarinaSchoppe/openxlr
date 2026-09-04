@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.14
+Version:        0.1.15
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -137,6 +137,13 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Fri Sep 04 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.15-1
+- UI: starting minimized to the tray no longer shows the window and
+  hides it a moment later, which left a hollow window frame at login on
+  KDE Wayland (issue #11, reported by chromacurse). The window is never
+  mapped until the tray asks for it.
+- Docs: a roadmap (docs/roadmap.md) and a Credits section in the README.
+
 * Fri Sep 04 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.14-1
 - Wave XLR Pro: the headphone jacks always hear the Monitor mix. The
   jacks are fed by a mix inside the device; Wave Link on Windows can

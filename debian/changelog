@@ -1,3 +1,20 @@
+openxlr (0.1.16) resolute; urgency=medium
+
+  * Daemon memory: workstation GC with a 256 MB hard limit, one PipeWire
+    graph dump per sweep parsed from bytes, holder processes no longer
+    retain their output. Resident size settles around 350 MB instead of
+    climbing past 650 MB.
+  * Control API: a WebSocket handshake with a browser Origin from anywhere
+    but localhost is refused; native clients are unaffected.
+  * Helpers run in the C locale, so a localised pactl no longer breaks the
+    faders; meter reads stay frame-aligned; settings saves are serialized
+    and flushed on shutdown; OPENXLR_MONITOR_OUTPUT wins over a saved list.
+  * Packaging: the sysctl drop-in that reserved port 37890 is gone (it
+    replaced the kernel's whole reserved-port list); the daemon waits for
+    a busy port instead. Release builds run the test suite.
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Fri, 04 Sep 2026 17:40:00 +0100
+
 openxlr (0.1.15) resolute; urgency=medium
 
   * UI: starting minimized to the tray no longer shows the window and

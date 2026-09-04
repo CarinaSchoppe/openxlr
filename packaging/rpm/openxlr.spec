@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.15
+Version:        0.1.16
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -133,6 +133,20 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Fri Sep 04 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.16-1
+- Daemon memory: workstation GC with a 256 MB hard limit, one PipeWire
+  graph dump per sweep parsed from bytes, holder processes no longer
+  retain their output. Resident size settles around 350 MB instead of
+  climbing past 650 MB.
+- Control API: a WebSocket handshake with a browser Origin from anywhere
+  but localhost is refused; native clients are unaffected.
+- Helpers run in the C locale, so a localised pactl no longer breaks the
+  faders; meter reads stay frame-aligned; settings saves are serialized
+  and flushed on shutdown; OPENXLR_MONITOR_OUTPUT wins over a saved list.
+- Packaging: the sysctl drop-in that reserved port 37890 is gone (it
+  replaced the kernel's whole reserved-port list); the daemon waits for
+  a busy port instead. Release builds run the test suite.
+
 * Fri Sep 04 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.15-1
 - UI: starting minimized to the tray no longer shows the window and
   hides it a moment later, which left a hollow window frame at login on

@@ -59,6 +59,10 @@ public interface IAudioDevice
     IReadOnlyDictionary<string, string> DumpBlocks() => new Dictionary<string, string>();
 
     void SetOutHp1(bool on) { }
+    /// <summary>Wave XLR Pro: whether USB return pair 2/3 (the Monitor stream) is summed into the headphone mix.</summary>
+    void SetHpMixMonitorReturn(bool on) { }
+    /// <summary>Wave XLR Pro: the mic's zero-latency hardware path into the headphone mix.</summary>
+    void SetHpMixMicDirect(bool on) { }
     void SetOutHp2(bool on) { }
     void SetOutUsbAux(bool on) { }
     void SetOutLineOut(bool on) { }

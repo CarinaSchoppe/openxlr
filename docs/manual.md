@@ -111,6 +111,13 @@ configuration.
    the zero-latency direct monitor inside the device: left is only your
    microphone, right is only computer audio.
 
+On the Wave XLR Pro the headphone jacks are fed by a mix inside the
+device. When a jack is the only monitor output, XLR 1's send to the
+Monitor mix drives that hardware path: unmuted, you hear yourself with
+zero latency; muted, you do not. If another device (speakers, a headset)
+is ticked as well, the microphone reaches everything through the
+software mix instead, with a few milliseconds of delay.
+
 ### 3.3 Put an application on a different channel
 
 The APPLICATIONS card lists every app that is currently registered with

@@ -48,6 +48,14 @@ public sealed record DeviceState
     public bool OutUsbAux { get; init; }
     public bool OutLineOut { get; init; }
 
+    // The Pro's headphone ("Personal", selector 0x1e) mix membership, block
+    // 0x0001 bytes 12 and 13, decoded by ear on hardware (issue #8): bit 5
+    // of byte 12 sums USB return pair 2/3 (where the Monitor mix streams)
+    // into the jacks; bit 1 of byte 13 is the mic's direct, zero-latency
+    // path into them. Wave Link on Windows may leave either state behind.
+    public bool HpMixMonitorReturn { get; init; }
+    public bool HpMixMicDirect { get; init; }
+
     /// <summary>
     /// Whether the aux mix's Music-return matrix cell is open (level 0 dB +
     /// membership bit). Required, with the aux selector, for USB playback to

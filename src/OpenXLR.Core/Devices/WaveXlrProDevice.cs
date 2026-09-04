@@ -70,6 +70,13 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     private const byte OutSourceMonitor = 0x1e;
     private const byte OutSourceAuxMix = 0x20;
     private const byte OutSourceOff = 0x23;
+    // Headphone-mix membership (issue #8, verified by ear): byte 12 bit 5 =
+    // USB return pair 2/3 in the jacks' mix, byte 13 bit 1 = mic direct path.
+    // The notes' "Personal section" at off16..33 does not affect the jacks.
+    private const int HpMixReturnsOffset = 12;
+    private const byte HpMixMonitorReturnMask = 0x20;
+    private const int HpMixInputsOffset = 13;
+    private const byte HpMixMicDirectMask = 0x02;
 
     // The aux mix's matrix cell for the Music return channel (USB playback
     // pair 10/11), decoded from capture 4 where music was confirmed flowing to
@@ -215,6 +222,8 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
             OutHp2 = b1[OutHp2Offset] != OutSourceOff,
             OutUsbAux = b1[OutUsbAuxOffset] != OutSourceOff,
             OutLineOut = b1[OutLineOutOffset] != OutSourceOff,
+            HpMixMonitorReturn = (b1[HpMixReturnsOffset] & HpMixMonitorReturnMask) != 0,
+            HpMixMicDirect = (b1[HpMixInputsOffset] & HpMixMicDirectMask) != 0,
             AuxReturnEnabled = b1[AuxMixMusicLevelOffset] == 0x00 &&
                                (b1[AuxMixMusicMemberOffset] & AuxMixMusicMemberMask) != 0,
             AuxLevelDb = -b4[AuxLevelOffset] / 4.0,
@@ -342,6 +351,18 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     {
         byte[] b = Read(BlockCrossfade, CrossfadeLen);
         b[offset] = on ? OutSourceMonitor : OutSourceOff;
+        WriteCommitted(BlockCrossfade, b);
+    }
+
+    // The headphone mix latches membership changes when the host playback
+    // stream (re)starts, like the aux return; the caller bounces the sink.
+    public void SetHpMixMonitorReturn(bool on) => SetBlock1Bit(HpMixReturnsOffset, HpMixMonitorReturnMask, on);
+    public void SetHpMixMicDirect(bool on) => SetBlock1Bit(HpMixInputsOffset, HpMixMicDirectMask, on);
+
+    private void SetBlock1Bit(int offset, byte mask, bool on)
+    {
+        byte[] b = Read(BlockCrossfade, CrossfadeLen);
+        b[offset] = (byte)(on ? b[offset] | mask : b[offset] & ~mask);
         WriteCommitted(BlockCrossfade, b);
     }
 

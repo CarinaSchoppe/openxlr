@@ -281,7 +281,14 @@ second computer on the aux port. Everything below is verified live on Linux by e
   0x20 = the aux/user mix, 0x23 = unassigned. (Not "modes" as earlier assumed.)
 - The matrix is stored in aa5555-delimited per-mix sections full of quarter-dB attenuation
   bytes (0x00 = 0 dB, 0xc4 = -49 dB, 0xf4 = -61 dB) plus membership bit-bytes:
-  - Personal section: line-in level off21, membership off30 (bit3 = line-in).
+  - Personal section: line-in level off21, membership off30 (bit3 = line-in). CORRECTION
+    (2026-09-04, issue #8, by ear on hardware): none of off16..33 nor the head cells off3..10
+    change what the headphone jacks hear. The jacks' mix membership is in the HEAD: off12
+    bit5 (0x20) = USB return pair 2/3 (the Monitor stream) summed into the jacks, off13 bit1
+    (0x02) = the mic's direct zero-latency path. A unit Wave Link left with off12 bit5 clear
+    (reporter's: off12 = 0x90 vs 0x24 here) hears no Monitor mix on Headphones 1 at all; the
+    daemon now asserts bit5 whenever a jack is the monitor output and drives bit1 from the
+    XLR 1 -> Monitor send's mute. Both need the commit and a playback-stream restart to latch.
   - Aux-mix section: music-return level off45, line-in membership off48 bit3 (bit0 = mic,
     set on this unit), music membership off49 bit1.
 - USB playback pairs are Wave Link channel returns; the Music channel = pair 10/11 (proven

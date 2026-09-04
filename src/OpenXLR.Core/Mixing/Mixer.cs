@@ -23,6 +23,10 @@ public sealed class Mixer : IDisposable
     private readonly PipeWireAdapter _pw;
     private readonly Dictionary<string, double> _levels = [];   // "channel|mix" -> level
     private readonly HashSet<string> _muted = [];               // "channel|mix"
+    // While the Pro's hardware mic path feeds the headphone jacks, the
+    // software XLR 1 -> Monitor send is silenced in the graph (not in the
+    // saved mix) so the mic is not heard twice with a few ms between them.
+    private bool _hardwareMicMonitor;
     private readonly HashSet<string> _cells = [];               // cells that exist
     private readonly Dictionary<string, double> _mixVolume = [];
     private readonly HashSet<string> _mixMuted = [];
@@ -1034,6 +1038,50 @@ public sealed class Mixer : IDisposable
     /// <summary>All selected monitor outputs, in selection order.</summary>
     public IReadOnlyList<string> MonitorOutputs { get { lock (_gate) return [.. _monitorOutputs]; } }
 
+    public bool IsChannelMutedIn(string channelId, string mixId)
+    {
+        lock (_gate) return _muted.Contains(Cell(channelId, mixId));
+    }
+
+    /// <summary>
+    /// The Pro's hardware mic path is carrying XLR 1 to the headphone jacks
+    /// (or not); the software send for that cell is muted in the graph
+    /// while it does, and restored when it stops.
+    /// </summary>
+    public void SetHardwareMicMonitor(bool on)
+    {
+        lock (_gate)
+        {
+            if (_hardwareMicMonitor == on) return;
+            _hardwareMicMonitor = on;
+            MixDefinition? monitor = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor);
+            if (_built && monitor is not null) ApplyCellLocked("xlr1", monitor.Id);
+        }
+    }
+
+    /// <summary>
+    /// Restart the Pro sink's playback stream after a headphone-mix change,
+    /// which is when the device latches its matrix (same as the aux return).
+    /// The monitor routes are dropped for the bounce and rebuilt after it.
+    /// </summary>
+    public void BounceMonitorHardwareOutput()
+    {
+        string? sink;
+        IReadOnlyList<string> monitorSelection;
+        lock (_gate)
+        {
+            if (!_built) return;
+            string? pseudo = _monitorOutputs.FirstOrDefault(o => o.Contains('#'));
+            if (pseudo is null) return;
+            sink = pseudo[..pseudo.IndexOf('#')];
+            monitorSelection = [.. _monitorOutputs];
+            foreach (PortLink route in _monitorRoutes.Values) _pw.Unlink(route);
+            _monitorRoutes.Clear();
+        }
+        _pw.BounceSink(sink);
+        lock (_gate) SetMonitorOutputsLocked(monitorSelection);
+    }
+
     /// <summary>
     /// Send the monitor mix to one output device (or none). Kept for clients
     /// that think in a single monitor destination.
@@ -1372,6 +1420,9 @@ public sealed class Mixer : IDisposable
         string cell = Cell(channelId, mixId);
         double level = _levels.GetValueOrDefault(cell, 0.0) * _mixVolume.GetValueOrDefault(mixId, 1.0);
         bool muted = _muted.Contains(cell) || _mixMuted.Contains(mixId);
+        if (_hardwareMicMonitor && channelId == "xlr1"
+            && _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor)?.Id == mixId)
+            muted = true;   // the hardware direct path carries it to the jacks
 
         if (!_legIndex.TryGetValue(cell, out int idx)) { DiscoverLegsLocked(); if (!_legIndex.TryGetValue(cell, out idx)) return; }
         try

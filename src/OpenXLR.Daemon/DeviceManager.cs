@@ -557,6 +557,41 @@ public sealed class DeviceManager : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Drive the Pro's headphone-mix membership toward the wanted state (issue
+    /// #8): the Monitor stream's return pair must be a member for the jacks to
+    /// hear the Monitor mix at all, and the mic's hardware direct path follows
+    /// the software mixer. Returns true when a bit was written, so the caller
+    /// can restart the playback stream, which is what latches the change.
+    /// </summary>
+    public bool EnsureHeadphoneMix(bool monitorReturn, bool micDirect)
+    {
+        lock (_gate)
+        {
+            if (_device is null || !_device.Connected || !_device.Capabilities.OutputRouting) return false;
+            DeviceState? s = _last;
+            if (s is null) return false;
+            try
+            {
+                bool changed = false;
+                if (s.HpMixMonitorReturn != monitorReturn) { _device.SetHpMixMonitorReturn(monitorReturn); changed = true; }
+                if (s.HpMixMicDirect != micDirect) { _device.SetHpMixMicDirect(micDirect); changed = true; }
+                if (changed)
+                {
+                    _log.LogInformation("headphone mix: monitor return {ret}, mic direct {mic}", monitorReturn, micDirect);
+                    _last = Stamp(_device.ReadState());
+                    RaiseFromLocked();
+                }
+                return changed;
+            }
+            catch (Exception ex)
+            {
+                _log.LogDebug("headphone mix sync: {msg}", ex.Message);
+                return false;
+            }
+        }
+    }
+
     /// <summary>Vendor block dumps for diagnostics; empty without a device.</summary>
     public IReadOnlyDictionary<string, string> DumpBlocks()
     {

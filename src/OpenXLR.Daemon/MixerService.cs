@@ -73,6 +73,20 @@ public sealed class MixerService : IHostedService, IDisposable
             _mixer.BounceAuxTarget();
         _prevAuxDesired = auxDesired;
         _ = anyProOutput;
+
+        // The Pro's headphone mix (issue #8). The jacks only hear the Monitor
+        // stream while USB return pair 2/3 is a member, which Wave Link on
+        // Windows may have cleared, so it is asserted whenever a jack is the
+        // monitor output. The mic's zero-latency hardware path follows the
+        // XLR 1 -> Monitor send's mute, but only while every monitor output is
+        // a Pro jack: with another device in the set the software send has
+        // to carry the mic there, and the hardware path would double it.
+        bool anyJack = suffixes.Contains("hp1") || suffixes.Contains("hp2") || suffixes.Contains("lineout");
+        bool jacksOnly = anyJack && _mixer.MonitorOutputs.All(o => o.Contains('#'));
+        bool micDirect = jacksOnly && !_mixer.IsChannelMutedIn("xlr1", "monitor");
+        _mixer.SetHardwareMicMonitor(micDirect);
+        if (anyJack && _devices.EnsureHeadphoneMix(monitorReturn: true, micDirect: micDirect) && _mixer.Built)
+            _mixer.BounceMonitorHardwareOutput();
     }
 
     /// <summary>Raised when mixer state changes, so the hub can broadcast.</summary>
@@ -269,6 +283,7 @@ public sealed class MixerService : IHostedService, IDisposable
                 case "setChannelMuted":
                     if (cmd.Channel is null || cmd.Mix is null) return "setChannelMuted: need 'channel' and 'mix'";
                     _mixer.SetChannelMuted(cmd.Channel, cmd.Mix, cmd.Value.GetBoolean());
+                    SyncOutputSelectors();   // the XLR 1 mute may move the Pro's hardware mic path
                     break;
                 case "setMixVolume":
                     if (cmd.Mix is null) return "setMixVolume: need 'mix'";

@@ -269,6 +269,8 @@ public sealed class MixerService : IHostedService, IDisposable
     public string? Apply(Command cmd)
     {
         if (!_mixer.Built) return "mixer not built (start the daemon with --mixer)";
+        string? invalid = CommandValidation.Check(cmd, _mixer, OpenXLR.Core.Mixing.Lv2Catalog.Find);
+        if (invalid is not null) return invalid;
         try
         {
             switch (cmd.Cmd)

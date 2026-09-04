@@ -18,7 +18,7 @@ namespace OpenXLR.Core.Mixing;
 /// The graph is built once; level changes touch only stream volumes, so audio
 /// is never interrupted.
 /// </summary>
-public sealed class Mixer : IDisposable
+public sealed class Mixer : IDisposable, ILayoutInfo
 {
     private readonly PipeWireAdapter _pw;
     private readonly Dictionary<string, double> _levels = [];   // "channel|mix" -> level
@@ -496,6 +496,12 @@ public sealed class Mixer : IDisposable
 
     /// <summary>Insert keys: the mono XLR inputs (Aux In is stereo) and "mix:&lt;id&gt;" for every mix.</summary>
     private bool IsInsertChannel(string key) => key is "xlr1" or "xlr2" || MixForKey(key) is not null;
+
+    // ILayoutInfo, for command validation ahead of the mixer methods.
+    public bool HasChannel(string id) { lock (_gate) return _config.Channels.Any(c => c.Id == id); }
+    public bool HasMix(string id) { lock (_gate) return _config.Mixes.Any(m => m.Id == id); }
+    public bool IsInsertKey(string key) { lock (_gate) return IsInsertChannel(key); }
+    public int OverrideCount { get { lock (_gate) return Matcher.Overrides.Count; } }
 
     private MixDefinition? MixForKey(string key)
         => key.StartsWith("mix:", StringComparison.Ordinal) ? _config.Mixes.FirstOrDefault(m => m.Id == key[4..]) : null;

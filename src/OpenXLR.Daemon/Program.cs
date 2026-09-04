@@ -21,6 +21,13 @@ builder.Services.AddSingleton<WebSocketHub>();
 
 // Local-only control API. 127.0.0.1 keeps the device off the network.
 builder.WebHost.UseUrls($"http://127.0.0.1:{ApiPort}");
+// A handful of local clients (the window, the deck plugin, a script or
+// two); anything beyond that is a runaway client, not a use case.
+builder.WebHost.ConfigureKestrel(k =>
+{
+    k.Limits.MaxConcurrentUpgradedConnections = 32;
+    k.Limits.MaxConcurrentConnections = 64;
+});
 
 var app = builder.Build();
 app.Services.GetRequiredService<WebSocketHub>();   // construct so it subscribes to StateChanged

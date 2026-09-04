@@ -7,6 +7,15 @@ cannot drive the hardware; native clients send no Origin. If the port
 is busy at startup (it sits inside the kernel's ephemeral range) the
 daemon waits for it instead of touching PipeWire.
 
+Limits. Commands are validated before the mixer sees them: unknown
+channel or mix ids, plugins that are not installed or need a host
+feature the PipeWire chain lacks, undeclared parameter symbols,
+non-finite numbers, and over-long strings or lists all come back as an
+`error` message instead of being silently ignored. A client may send
+bursts of up to 300 commands and a sustained 100 per second; beyond
+that it is disconnected with close code 1008. At most 32 clients can be
+connected at once.
+
 Messages from the daemon, each a JSON object with a `type` field:
 
 | Type | When | Content |

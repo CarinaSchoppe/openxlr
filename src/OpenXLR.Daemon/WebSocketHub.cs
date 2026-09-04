@@ -128,6 +128,12 @@ public sealed class WebSocketHub
                 ms.Write(buf, 0, res.Count);
             } while (!res.EndOfMessage);
 
+            if (!client.Budget.TryTake())
+            {
+                await client.Socket.CloseAsync(WebSocketCloseStatus.PolicyViolation,
+                    "too many commands", CancellationToken.None);
+                return;
+            }
             await Dispatch(client, Encoding.UTF8.GetString(ms.ToArray()));
         }
     }
@@ -283,6 +289,7 @@ public sealed class WebSocketHub
 
         public Guid Id { get; } = Guid.NewGuid();
         public WebSocket Socket { get; }
+        public CommandBudget Budget { get; } = new();
         private readonly Channel<PendingSend> _outgoing;
         private readonly CancellationTokenSource _lifetime;
         private readonly Task _sendPump;

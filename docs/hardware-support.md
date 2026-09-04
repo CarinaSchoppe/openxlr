@@ -47,6 +47,7 @@ expose, reached over the original Wave XLR's protocol dialect.
 | Gain lock | software | the daemon rejects all gain changes while set; the dock has no physical dial to bypass it |
 | Phantom power | verified | byte 6 of the dock's config block over the original Wave XLR's protocol dialect. Identified by [openwave PR #8](https://github.com/rikkichy/openwave/pull/8) on the MK.1 against its 48V LED; confirmed here with a condenser microphone on the dock's XLR. Wave Link does not write it for the dock |
 | Low impedance | verified | byte 33 of the same config block, verified by listening on the dock's headphone jack |
+| Device info block (0x000A) | read | 51 bytes; carries the unit's USB serial in ASCII from offset 35, so the diagnostics exporter masks it in the hex dump |
 | Hardware sidetone | not present | no control path found; a byte sweep came back negative |
 
 Kernel behaviour: the kernel starves the dock's capture endpoint when

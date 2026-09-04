@@ -51,7 +51,7 @@ public static class Diagnostics
                 Redact(client.LastStateJson ?? "no state received (daemon not running?)"));
             var blocks = await client.RequestDiagnosticsAsync(TimeSpan.FromSeconds(5));
             await File.WriteAllTextAsync(Path.Combine(work, "device-blocks.json"),
-                blocks?.ToJsonString() ?? "unavailable (daemon not running or no device)");
+                RedactHex(blocks?.ToJsonString() ?? "unavailable (daemon not running or no device)", DefaultSecrets()));
 
             // Audio stack.
             await WriteCmd(work, "pw-dump.json", "pw-dump");
@@ -172,6 +172,28 @@ public static class Diagnostics
             "application\\.process\\.user|application\\.process\\.host)\"\\s*:\\s*)" +
             "(?:\"[^\"]*\"|[0-9]+)",
             "$1\"<redacted>\"", RegexOptions.IgnoreCase);
+    }
+
+    /// <summary>
+    /// The raw vendor blocks are hex, and a device can carry its USB serial
+    /// inside one of them as ASCII (the XLR Dock's devinfo block 0x000A does,
+    /// verified on hardware), where the plain-text pass cannot see it. Each
+    /// secret is also looked for as the hex of its ASCII bytes and replaced by
+    /// the hex of "?" characters of the same length, so offsets stay valid
+    /// for anyone decoding the block.
+    /// </summary>
+    internal static string RedactHex(string text, IEnumerable<string> secrets)
+    {
+        foreach (string value in secrets
+                     .Where(v => !string.IsNullOrWhiteSpace(v) && v.Length >= 4 && v.All(char.IsAscii))
+                     .Distinct(StringComparer.Ordinal)
+                     .OrderByDescending(v => v.Length))
+        {
+            string hex = Convert.ToHexString(System.Text.Encoding.ASCII.GetBytes(value));
+            string mask = string.Concat(Enumerable.Repeat("3F", value.Length));
+            text = Regex.Replace(text, Regex.Escape(hex), mask, RegexOptions.IgnoreCase);
+        }
+        return text;
     }
 
     private static void CopyRedactedIfExists(string dir, string file, string dest)

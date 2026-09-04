@@ -23,6 +23,22 @@ public sealed class DiagnosticsTests
     }
 
     [Fact]
+    public void RedactHex_MasksSerialsEncodedInsideVendorBlocks()
+    {
+        const string serial = "A8A9A40410KH90";
+        string hex = Convert.ToHexString(System.Text.Encoding.ASCII.GetBytes(serial));
+        string block = "0104000009020001" + hex + "8403";
+        string json = "{\"blocks\":{\"devinfo\":\"" + block + "\"}}";
+
+        string redacted = Diagnostics.RedactHex(json, [serial, "short"]);
+
+        Assert.DoesNotContain(hex, redacted, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(serial, redacted);
+        Assert.Contains("0104000009020001" + string.Concat(Enumerable.Repeat("3F", serial.Length)) + "8403", redacted);
+        Assert.Equal(json.Length, redacted.Length);
+    }
+
+    [Fact]
     public void Redact_StripsUsbSerialsInsidePipeWireNodeNames()
     {
         const string serial = "AAY4I55111P6X2";

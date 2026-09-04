@@ -109,6 +109,13 @@ plugin world, and it has to keep the audio path inside PipeWire.
   portal-based approach that works on Wayland.
 - [ ] Generic PipeWire output volume and mute keys, and a main-output
   switch tied to the enforced default sink.
+- [ ] Graph discovery without polling: the sweep parses a 2 MB pw-dump
+  every second; the daemon should subscribe to registry events (pw-mon,
+  or libpipewire directly) and keep an incremental view, which is what
+  finally brings its memory and CPU to what a control daemon should use.
+- [ ] Client authentication for the control API (a per-user secret), on
+  top of the origin check that exists, before any API is documented as
+  a public contract.
 
 ## Devices
 

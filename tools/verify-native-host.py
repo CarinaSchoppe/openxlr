@@ -33,6 +33,18 @@ def capture_with_minimum_samples(capture, minimum=48000, attempts=3):
     raise AssertionError(f"insufficient captured audio after {attempts} attempts: {counts} samples")
 
 
+def pulse_endpoint_exists(listing, name):
+    """Match an exact Pulse endpoint name in pactl's tabular short output."""
+    return any(len(fields) > 1 and fields[1] == name
+               for line in listing.splitlines()
+               if (fields := line.split()))
+
+
+def pulse_process_exists(listing, process_id):
+    """Match the OS process that owns a Pulse stream in verbose pactl output."""
+    return f'application.process.id = "{process_id}"' in listing
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", type=Path, help="Test an installed package's native helper instead of the build-tree binary")
@@ -60,7 +72,7 @@ def main():
         def run(*args):
             return subprocess.run(args, env=env, check=True, capture_output=True, text=True, timeout=15).stdout
 
-        def wait_for(check):
+        def wait_for(check, description="private audio server/ports"):
             deadline = time.monotonic() + 10
             while time.monotonic() < deadline:
                 try:
@@ -69,7 +81,18 @@ def main():
                 except subprocess.CalledProcessError:
                     pass
                 time.sleep(0.05)
-            raise AssertionError("private audio server/ports did not become ready")
+            raise AssertionError(f"{description} did not become ready")
+
+        def wait_for_pulse_stream(process, kind, description):
+            def ready():
+                if process.poll() is not None:
+                    detail = process.stderr.read().decode(errors="replace").strip() if process.stderr else ""
+                    raise AssertionError(
+                        f"{description} exited {process.returncode} before publication"
+                        + (f": {detail}" if detail else ""))
+                return pulse_process_exists(run("pactl", "list", kind), process.pid)
+
+            wait_for(ready, description)
 
         try:
             bus = start("dbus-daemon", "--session", "--nofork", "--print-address=1", stdout=subprocess.PIPE, text=True)
@@ -102,6 +125,14 @@ def main():
                     "{ factory.name = support.null-audio-sink node.name = " + name +
                     " media.class = Audio/Sink audio.position = [ FL FR ] object.linger = true "
                     "adapter.auto-port-config = { mode = dsp monitor = true position = preserve } }")
+            # pw-cli acknowledges node creation before pipewire-pulse has
+            # necessarily published the corresponding Pulse endpoints. Starting
+            # parec in that gap exits successfully with no samples on some
+            # hosted runners, so synchronize on the names the clients use.
+            wait_for(lambda: pulse_endpoint_exists(run("pactl", "list", "short", "sinks"), "qa_in"),
+                     "qa_in Pulse sink")
+            wait_for(lambda: pulse_endpoint_exists(run("pactl", "list", "short", "sources"), "qa_out.monitor"),
+                     "qa_out Pulse monitor")
             host_command = [str(options.host or repo / "native/openxlr-lv2-host")]
             if options.native_ui and not options.disposable_ci_profile:
                 assert shutil.which("bwrap"), "native UI isolation requires bubblewrap (bwrap)"
@@ -137,12 +168,14 @@ def main():
                                           for i in range(48000 * 3) for _ in range(2))).tobytes()
                 capture = start("parec", "-d", "qa_out.monitor", "--format=float32le", "--channels=2", "--rate=48000",
                                 "--property=node.name=qa_capture",
-                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False)
+                wait_for_pulse_stream(capture, "source-outputs", "qa_capture Pulse stream")
                 playback = start("pacat", "-d", "qa_in", "--format=float32le", "--channels=2", "--rate=48000",
                                  "--property=node.name=qa_playback",
-                                 stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                                 stdin=subprocess.PIPE, stderr=subprocess.PIPE, text=False)
                 writer = threading.Thread(target=lambda: playback.communicate(data), daemon=True)
                 writer.start()
+                wait_for_pulse_stream(playback, "sink-inputs", "qa_playback Pulse stream")
                 received = bytearray()
                 with selectors.DefaultSelector() as poll:
                     poll.register(capture.stdout, selectors.EVENT_READ)

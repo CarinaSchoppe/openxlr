@@ -37,10 +37,11 @@ jobs:
 
       - name: Native audio regression (private servers, no hardware)
         run: |
-          sudo apt-get install -y pipewire pipewire-pulse wireplumber pulseaudio-utils lsp-plugins-lv2 dbus xvfb xauth imagemagick
+          sudo apt-get install -y pipewire pipewire-pulse wireplumber pulseaudio-utils lsp-plugins-lv2 dbus xvfb imagemagick
           # Ubuntu restricts unprivileged namespaces. Use this disposable
           # hosted runner's fresh profile; do not weaken AppArmor/sysctls.
-          xvfb-run -a python3 tools/verify-native-host.py --native-ui --disposable-ci-profile --screenshot native-compressor.png
+          python3 tools/with-xvfb.py python3 tools/verify-native-host.py \
+            --native-ui --disposable-ci-profile --screenshot native-compressor.png
 
       - name: Retain native UI diagnostics
         if: failure()

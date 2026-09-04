@@ -11,6 +11,8 @@ command = installed["command"]
 wait_for_ui_window = installed["wait_for_ui_window"]
 wait_application_sink = runpy.run_path(str(Path(__file__).with_name("verify-live-mixer.py")))["wait_application_sink"]
 capture_with_minimum_samples = runpy.run_path(str(Path(__file__).with_name("verify-native-host.py")))["capture_with_minimum_samples"]
+pulse_endpoint_exists = runpy.run_path(str(Path(__file__).with_name("verify-native-host.py")))["pulse_endpoint_exists"]
+pulse_process_exists = runpy.run_path(str(Path(__file__).with_name("verify-native-host.py")))["pulse_process_exists"]
 
 
 class RoutePublicationTests(unittest.TestCase):
@@ -40,6 +42,17 @@ class NativeCaptureStartupTests(unittest.TestCase):
     def test_repeated_short_captures_still_fail(self):
         with patch("time.sleep"), self.assertRaisesRegex(AssertionError, r"\[1, 2, 3\] samples"):
             capture_with_minimum_samples(Mock(side_effect=[[0], [0, 0], [0, 0, 0]]))
+
+    def test_pulse_endpoint_names_match_exactly(self):
+        listing = "42\tqa_out.monitor\tmodule-protocol-pulse.c\tfloat32le 2ch 48000Hz\n"
+        self.assertTrue(pulse_endpoint_exists(listing, "qa_out.monitor"))
+        self.assertFalse(pulse_endpoint_exists(listing, "qa_out"))
+        self.assertFalse(pulse_endpoint_exists("malformed\n", "qa_out.monitor"))
+
+    def test_pulse_stream_matches_its_process(self):
+        listing = '\t\tapplication.process.id = "4321"\n\t\tnode.name = "qa_capture"\n'
+        self.assertTrue(pulse_process_exists(listing, 4321))
+        self.assertFalse(pulse_process_exists(listing, 432))
 
 
 class PipeWireSnapshotTests(unittest.TestCase):

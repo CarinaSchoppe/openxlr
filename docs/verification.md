@@ -277,11 +277,20 @@ process-only check.
 ## Integration API and OpenDeck follow-up (2026-09-04)
 
 The versioned API and dynamic OpenDeck work bring the local suite to **147 .NET
-tests**, **12 Python acceptance tests**, and **7 Node plugin tests**. Release
+tests**, **14 Python acceptance tests**, and **7 Node plugin tests**. Release
 builds pass with warnings treated as errors, the complete .NET format/analyzer
 check changes zero files, and an ESLint dead-code pass reports no unused
 variables/parameters or unreachable JavaScript in the runtime, property
 inspectors, helpers, or tests.
+
+An upstream Ubuntu CI run then exposed a private-audio startup race: `pw-cli`
+had acknowledged the two test nodes, but PipeWire-Pulse had not yet published
+the `qa_in` sink and `qa_out.monitor` source. `parec` could therefore exit
+before capturing a sample. The driver now waits for the exact Pulse endpoint
+names and for both client streams, reports early process failures with their
+stderr, and still retains bounded short-capture retries. CI and the package
+matrix use the same Xvfb wrapper so the native editor path has one startup
+contract. Exact endpoint matching has offline regression coverage.
 
 The new daemon was run against the attached XLR Dock and the existing real
 PipeWire settings. It restored 4 mixes and 9 channels. Runtime assertions

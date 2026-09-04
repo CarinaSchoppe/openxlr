@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.17
+Version:        0.1.18
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -133,6 +133,18 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Fri Sep 04 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.18-1
+- Control API: commands are validated before they reach the mixer.
+  Unknown channel or mix ids, uninstalled or unsupported plugins,
+  undeclared parameter symbols, non-finite numbers and over-long strings
+  or lists come back as errors instead of being silently ignored; each
+  client has a command budget and at most 32 clients connect at once.
+- Plugin inserts: LV2 plugins that need a host feature PipeWire's chain
+  does not provide are hidden from the picker and refused by the daemon
+  instead of failing at graph build.
+- Diagnostics: USB serials are masked inside the hex vendor-block dump
+  too (the XLR Dock's device-info block carries one).
+
 * Fri Sep 04 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.17-1
 - Application channels and the virtual microphones appear in desktop
   audio applets (KDE's, for one): the properties the daemon passed to

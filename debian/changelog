@@ -1,3 +1,18 @@
+openxlr (0.1.18) resolute; urgency=medium
+
+  * Control API: commands are validated before they reach the mixer.
+    Unknown channel or mix ids, uninstalled or unsupported plugins,
+    undeclared parameter symbols, non-finite numbers and over-long strings
+    or lists come back as errors instead of being silently ignored; each
+    client has a command budget and at most 32 clients connect at once.
+  * Plugin inserts: LV2 plugins that need a host feature PipeWire's chain
+    does not provide are hidden from the picker and refused by the daemon
+    instead of failing at graph build.
+  * Diagnostics: USB serials are masked inside the hex vendor-block dump
+    too (the XLR Dock's device-info block carries one).
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Fri, 04 Sep 2026 21:00:00 +0100
+
 openxlr (0.1.17) resolute; urgency=medium
 
   * Application channels and the virtual microphones appear in desktop

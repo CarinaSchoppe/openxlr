@@ -29,6 +29,7 @@ public sealed class WebSocketHub
     // enough for systemd to SIGKILL the daemon before the other services
     // ever get to tear down.
     private readonly CancellationToken _stopping;
+    private readonly StateBroadcastQueue _stateBroadcasts;
 
     public WebSocketHub(DeviceManager devices, MixerService mixer, ILogger<WebSocketHub> log,
         IHostApplicationLifetime lifetime)
@@ -39,8 +40,13 @@ public sealed class WebSocketHub
         _stopping = lifetime.ApplicationStopping;
         // Either half changing pushes the combined state, so clients always see
         // device and mixer consistently in one message.
-        _devices.StateChanged += ignored => Broadcast(Snapshot());
-        _mixer.Changed += () => Broadcast(Snapshot());
+        _stateBroadcasts = new(() =>
+        {
+            if (!_clients.IsEmpty) Broadcast(Snapshot());
+        }, _log);
+        _devices.StateChanged += ignored => _stateBroadcasts.Signal();
+        _mixer.Changed += _stateBroadcasts.Signal;
+        _ = _stateBroadcasts.RunAsync(_stopping);
         _mixer.MetersUpdated += () =>
         {
             if (_clients.IsEmpty) return;                    // nobody watching

@@ -98,6 +98,7 @@ public sealed class InsertsViewModel : ViewModelBase
                 if (p is null) continue;
                 // Mono chains take mono in / mono out plugins; stereo chains take
                 // plugins with at least two ins and two outs (extra ports stay unlinked).
+                if (p["supported"]?.GetValue<bool>() == false) continue;   // needs a host feature the chain lacks
                 int ins = p["audioIns"]?.GetValue<int>() ?? 0, outs = p["audioOuts"]?.GetValue<int>() ?? 0;
                 bool fits = _channels == 1 ? ins == 1 && outs == 1 : ins >= 2 && outs >= 2;
                 if (!fits) continue;

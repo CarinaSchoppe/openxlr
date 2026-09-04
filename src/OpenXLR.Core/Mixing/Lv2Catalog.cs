@@ -18,6 +18,28 @@ public static class Lv2Catalog
 {
     private static readonly Lazy<IReadOnlyList<PluginInfo>> Scan = new(ScanNow, LazyThreadSafetyMode.ExecutionAndPublication);
 
+    /// <summary>
+    /// The host features PipeWire's filter-chain LV2 loader provides (read
+    /// from libspa-filter-graph-plugin-lv2.so, PipeWire 1.6): a plugin that
+    /// requires anything else, an instance-access UI, data-access, a
+    /// resize-port host, cannot run in the chain.
+    /// </summary>
+    public static readonly IReadOnlySet<string> FilterChainFeatures = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "http://lv2plug.in/ns/ext/urid#map",
+        "http://lv2plug.in/ns/ext/urid#unmap",
+        "http://lv2plug.in/ns/ext/options#options",
+        "http://lv2plug.in/ns/ext/log#log",
+        "http://lv2plug.in/ns/ext/worker#schedule",
+        "http://lv2plug.in/ns/ext/buf-size#boundedBlockLength",
+        "http://lv2plug.in/ns/ext/buf-size#fixedBlockLength",
+        "http://lv2plug.in/ns/ext/buf-size#powerOf2BlockLength",
+    };
+
+    /// <summary>Required features the chain host lacks, in catalog order.</summary>
+    public static IReadOnlyList<string> UnsupportedFeatures(IEnumerable<string> required)
+        => [.. required.Where(f => !FilterChainFeatures.Contains(f))];
+
     /// <summary>Every LV2 plugin lilv can see (blocks on the first call).</summary>
     public static IReadOnlyList<PluginInfo> Plugins => Scan.Value;
 
@@ -145,7 +167,10 @@ public static class Lv2Catalog
             }
             Lilv.lilv_nodes_free(req);
         }
-        return new PluginInfo("lv2", uri, name, category, audioIns, audioOuts, inSym, outSym, pars, features, inSyms, outSyms);
+        return new PluginInfo("lv2", uri, name, category, audioIns, audioOuts, inSym, outSym, pars, features, inSyms, outSyms)
+        {
+            UnsupportedFeatures = UnsupportedFeatures(features),
+        };
     }
 
     /// <summary>The slice of liblilv this catalog uses.</summary>

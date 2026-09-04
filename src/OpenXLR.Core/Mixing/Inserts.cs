@@ -49,4 +49,14 @@ public sealed record PluginInfo(
     IReadOnlyList<string> RequiredFeatures,
     /// <summary>All audio input and output port symbols, in port order (stereo chains link both).</summary>
     IReadOnlyList<string> InputSymbols,
-    IReadOnlyList<string> OutputSymbols);
+    IReadOnlyList<string> OutputSymbols)
+{
+    /// <summary>
+    /// Required features the PipeWire filter-chain host does not provide.
+    /// Empty for every plugin that can be inserted; the picker hides the
+    /// rest and the daemon refuses them, instead of failing at graph build.
+    /// </summary>
+    public IReadOnlyList<string> UnsupportedFeatures { get; init; } = [];
+
+    public bool Supported => UnsupportedFeatures.Count == 0;
+}

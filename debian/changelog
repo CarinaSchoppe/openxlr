@@ -1,3 +1,18 @@
+openxlr (0.1.14) resolute; urgency=medium
+
+  * Wave XLR Pro: the headphone jacks always hear the Monitor mix. The
+    jacks are fed by a mix inside the device; Wave Link on Windows can
+    leave it without the USB return the Monitor mix streams on, so
+    Headphones 1 heard nothing from the software mixer (issue #8). The
+    daemon now asserts that membership whenever a jack is the monitor
+    output, and the mic's zero-latency hardware path into the jacks
+    follows the XLR 1 send's mute in the Monitor mix.
+  * UI: collapsed sections are remembered across restarts.
+  * Diagnostics: secrets are redacted as whole tokens only, so a numeric
+    serial no longer corrupts the graph dump.
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Fri, 04 Sep 2026 15:30:00 +0100
+
 openxlr (0.1.13) resolute; urgency=medium
 
   * Wave XLR (MK.1): the daemon no longer stalls when the once-a-second

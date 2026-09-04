@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.13
+Version:        0.1.14
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -137,6 +137,18 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Fri Sep 04 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.14-1
+- Wave XLR Pro: the headphone jacks always hear the Monitor mix. The
+  jacks are fed by a mix inside the device; Wave Link on Windows can
+  leave it without the USB return the Monitor mix streams on, so
+  Headphones 1 heard nothing from the software mixer (issue #8). The
+  daemon now asserts that membership whenever a jack is the monitor
+  output, and the mic's zero-latency hardware path into the jacks
+  follows the XLR 1 send's mute in the Monitor mix.
+- UI: collapsed sections are remembered across restarts.
+- Diagnostics: secrets are redacted as whole tokens only, so a numeric
+  serial no longer corrupts the graph dump.
+
 * Wed Sep 02 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.13-1
 - Wave XLR (MK.1): the daemon no longer stalls when the once-a-second
   stream sweep piles up on itself (Michael Brooks, PR #7); helper

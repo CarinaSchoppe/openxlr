@@ -2,7 +2,7 @@
 	"Name": "OpenXLR",
 	"Description": "Wave Link-style control for OpenXLR: visual level keys, mixer dials, routing, effects, monitoring, and live meters.",
 	"Author": "Emanuele Sparvoli",
-	"Version": "0.1.13",
+	"Version": "0.1.16",
 	"CodePath": "plugin.mjs",
 	"Icon": "icons/plugin",
 	"Category": "OpenXLR",

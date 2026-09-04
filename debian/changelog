@@ -1,3 +1,16 @@
+openxlr (0.1.16) resolute; urgency=medium
+
+  * Add editable application channels and output mixes with stable identities,
+    per-send routing, Flow assignment, ordering, cleanup and listening mixes.
+  * Add native LSP editors, independent per-channel processing and supervised
+    recovery for the daemon and plugin hosts.
+  * Add a loopback-only versioned integration API with OpenAPI documentation,
+    dynamic OpenDeck controls, update notices and expanded diagnostics.
+  * Validate installed packages and runtime behaviour on Ubuntu, Fedora and
+    Arch Linux.
+
+ -- Carina Schoppe <info@carinaschoppe.com>  Fri, 04 Sep 2026 14:10:14 +1000
+
 openxlr (0.1.13) resolute; urgency=medium
 
   * Wave XLR (MK.1): the daemon no longer stalls when the once-a-second

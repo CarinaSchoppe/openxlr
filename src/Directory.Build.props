@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <Version>0.1.13</Version>
+    <Version>0.1.16</Version>
     <!-- Source archives have no .git; package builders supply the originating
          commit so startup checks compare against the build actually installed. -->
     <SourceRevisionId Condition="'$(OPENXLR_BUILD_REVISION)' != ''">$(OPENXLR_BUILD_REVISION)</SourceRevisionId>

@@ -1,7 +1,7 @@
 # Build a trusted local git archive, not an unpinned network download. See
 # tools/build-arch-package.sh; the supplied checksum is required by makepkg.
 pkgname=openxlr
-pkgver=0.1.13
+pkgver=0.1.16
 pkgrel=1
 pkgdesc='Elgato XLR controls, editable PipeWire mixer and native LSP editors'
 arch=('x86_64')

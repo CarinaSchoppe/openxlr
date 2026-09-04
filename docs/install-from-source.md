@@ -117,17 +117,6 @@ systemctl --user enable --now openxlr-daemon.service
 journalctl --user -u openxlr-daemon.service -f   # watch it come up
 ```
 
-Also reserve the daemon's port. 37890 sits inside the kernel's
-ephemeral range, so without this any local program's outgoing
-connection can be handed that port while the daemon restarts, and the
-daemon then waits for it to free up:
-
-```sh
-sudo cp packaging/60-openxlr-port.conf /etc/sysctl.d/60-openxlr.conf
-sudo sysctl -p /etc/sysctl.d/60-openxlr.conf
-```
-
-The packages do this for you.
 
 ## 7. OpenDeck plugin (optional)
 
@@ -154,7 +143,7 @@ Restart the UI and, if you use it, recopy the OpenDeck plugin folder.
 ```sh
 systemctl --user disable --now openxlr-daemon.service
 rm ~/.config/systemd/user/openxlr-daemon.service
-sudo rm /etc/udev/rules.d/70-openxlr.rules /etc/sysctl.d/60-openxlr.conf
+sudo rm /etc/udev/rules.d/70-openxlr.rules
 rm -rf ~/.config/openxlr ~/.config/opendeck/plugins/com.emaspa.openxlr.sdPlugin
 rm ~/.config/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf
 ```

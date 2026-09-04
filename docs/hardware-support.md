@@ -73,7 +73,7 @@ but the daemon's stream sweep starving its own clients; fixed in
 | Phantom 48V | coded | config byte 6, found by [openwave PR #8](https://github.com/rikkichy/openwave/pull/8) against the MK.1's own 48V LED; the same byte is verified on the XLR Dock. Added after the tester's run, so an LED check on a MK.1 is still open |
 | Low cut, voice DSP, crossfade | unmapped | the hardware has them; their offsets are unknown. A [USB capture](usb-capture.md) from an owner would map them |
 
-## Wave XLR MK.2 (0fd9:00b6) and XLR Dock MK.2 (0fd9:00c7), need testers
+## Wave XLR MK.2 (0fd9:00b6), verified; XLR Dock MK.2 (0fd9:00c7), needs a tester
 
 Decoded from USB captures of Wave Link, using the Pro's protocol family
 at its own address. On 2026-09-02 a community tester

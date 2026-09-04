@@ -30,6 +30,12 @@ app.UseWebSockets();
 app.Map("/ws", async (HttpContext ctx, WebSocketHub hub) =>
 {
     if (!ctx.WebSockets.IsWebSocketRequest) { ctx.Response.StatusCode = 400; return; }
+    // Browser pages from other origins do not get to drive the hardware.
+    if (!OpenXLR.Core.LoopbackOrigin.IsAllowed(ctx.Request.Headers.Origin))
+    {
+        ctx.Response.StatusCode = 403;
+        return;
+    }
     using var socket = await ctx.WebSockets.AcceptWebSocketAsync();
     await hub.HandleAsync(socket);
 });

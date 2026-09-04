@@ -41,11 +41,6 @@ in
     # Device access for regular users (uaccess tag).
     services.udev.packages = [ cfg.package ];
 
-    # The control API port sits inside the ephemeral range; keep the kernel
-    # from handing it to some other program's outgoing connection while the
-    # daemon restarts (see packaging/60-openxlr-port.conf).
-    boot.kernel.sysctl."net.ipv4.ip_local_reserved_ports" = "37890";
-
     # Keeps the XLR Dock's capture source always active; without it the
     # kernel starves capture when playback starts first and the mic
     # records silence.

@@ -1,12 +1,6 @@
 #!/bin/sh
 set -e
 
-# Keep the daemon's port out of the ephemeral range right away; the
-# drop-in in /usr/lib/sysctl.d covers every later boot.
-if [ "$1" = "configure" ]; then
-    sysctl -q -w net.ipv4.ip_local_reserved_ports=37890 2>/dev/null || true
-fi
-
 if [ "$1" = "configure" ] && [ -z "$2" ]; then
     cat <<'MSG'
 OpenXLR: replug your interface once so the udev rule applies.

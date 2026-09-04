@@ -20,6 +20,11 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential debhelper dotnet-sdk-10.0
 
+      - name: Run tests
+        run: |
+          dotnet build src/OpenXLR.slnx -c Release
+          dotnet test src/OpenXLR.slnx -c Release --no-build
+
       - name: Build package
         run: |
           dpkg-buildpackage -b -us -uc

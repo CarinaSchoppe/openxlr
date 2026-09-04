@@ -1,7 +1,10 @@
 # WebSocket API
 
-The daemon serves `ws://127.0.0.1:37890/ws`. The packages reserve that
-port from the kernel's ephemeral range; if it is busy at startup the
+The daemon serves `ws://127.0.0.1:37890/ws` on the loopback interface
+only. A handshake that carries a browser `Origin` header from anywhere
+but localhost is refused with 403, so a web page you happen to visit
+cannot drive the hardware; native clients send no Origin. If the port
+is busy at startup (it sits inside the kernel's ephemeral range) the
 daemon waits for it instead of touching PipeWire.
 
 Messages from the daemon, each a JSON object with a `type` field:

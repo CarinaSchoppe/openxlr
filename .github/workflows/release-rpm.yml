@@ -20,6 +20,11 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - name: Run tests
+        run: |
+          dotnet build src/OpenXLR.slnx -c Release
+          dotnet test src/OpenXLR.slnx -c Release --no-build
+
       - name: Build package
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"

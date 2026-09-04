@@ -317,6 +317,12 @@ other devices this would be new information: collect diagnostics
 
 ### 5.7 The daemon froze, or a control hung the window
 
+The header's **Restart daemon** button restarts the systemd user service.
+Audio is interrupted during the restart. The window stays responsive, and
+the button is disabled until the service command finishes. If it fails,
+check `journalctl --user -u openxlr-daemon`. A daemon started by hand must
+be restarted by hand.
+
 Since 0.1.11 a USB transfer that never returns fails after a few
 seconds instead of stalling the daemon; the device is dropped and
 reconnected after 10 seconds, and the fault is recorded. Collect

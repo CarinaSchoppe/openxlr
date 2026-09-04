@@ -29,15 +29,19 @@ public sealed class PipeWireAdapter
         => _clipGuardAvailabilityOverride = clipGuardAvailabilityOverride;
 
     /// <summary>
-    /// pactl joins its arguments into one module-argument string and re-splits on
-    /// whitespace, so a description containing spaces is truncated unless each
-    /// space is backslash-escaped *inside* the quoted value. Verified on
-    /// PipeWire 1.6: node.description="OpenXLR\ Monitor" survives, while plain
-    /// quoting, single quotes, and a bare backslash all lose everything after
-    /// the first space. Without this, every OpenXLR node shows as just
-    /// "OpenXLR" in pavucontrol, OBS, and Discord.
+    /// pactl joins its arguments into one module-argument string, and PipeWire's
+    /// module parser splits that on whitespace, honouring double quotes; the
+    /// value of sink_properties is then parsed again as key=value pairs,
+    /// honouring single quotes. So the whole property list goes in double
+    /// quotes and a description with spaces in single quotes. The earlier
+    /// form (a backslash-escaped description, no outer quotes) kept the
+    /// description but silently dropped every property after it: the
+    /// channels ran for months without priority.session, without
+    /// suspend-on-idle=false, and flagged node.virtual, which KDE's audio
+    /// applet hides. Verified on PipeWire 1.6 with all four properties.
     /// </summary>
-    private static string PropValue(string value) => '"' + value.Replace(" ", "\\ ") + '"';
+    private static string PropList(string props) => '"' + props + '"';
+    private static string PropValue(string value) => "'" + value.Replace("\\", "\\\\").Replace("'", "\\'") + "'";
 
     /// <summary>
     /// Check the optional LADSPA dependency before changing a live graph. PipeWire
@@ -135,8 +139,10 @@ public sealed class PipeWireAdapter
             // priority.session far below any hardware sink, so WirePlumber never
             // auto-switches the system default to one of our internal sinks
             // (which silently swallows the user's desktop audio).
-            $"sink_properties=node.description={PropValue(description)}" +
-            " node.suspend-on-idle=false priority.session=100");
+            // node.virtual=false: KDE's audio applet hides virtual devices,
+            // and these are devices the user assigns applications to.
+            "sink_properties=" + PropList($"node.description={PropValue(description)}" +
+            " node.suspend-on-idle=false priority.session=100 node.virtual=false"));
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;
@@ -154,8 +160,7 @@ public sealed class PipeWireAdapter
             "load-module", "module-remap-sink",
             $"sink_name={nodeName}",
             $"master={masterSink}",
-            $"sink_properties=node.description={PropValue(description)}" +
-            " priority.session=90");
+            "sink_properties=" + PropList($"node.description={PropValue(description)} priority.session=90"));
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;
@@ -175,8 +180,8 @@ public sealed class PipeWireAdapter
             // suspend-on-idle=false keeps the combine's monitor source running;
             // a suspended monitor makes the channel's level meter read silence
             // even while audio flows through the sink.
-            $"sink_properties=node.description={PropValue(description)}" +
-            " priority.session=100 node.suspend-on-idle=false");
+            "sink_properties=" + PropList($"node.description={PropValue(description)}" +
+            " priority.session=100 node.suspend-on-idle=false node.virtual=false"));
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;
@@ -320,8 +325,8 @@ public sealed class PipeWireAdapter
             // Both properties: apps read one or the other depending on the API.
             // Low priority.session so WirePlumber never promotes a virtual mic
             // to system default capture on its own.
-            $"source_properties=device.description={PropValue(description)}" +
-            $" node.description={PropValue(description)} priority.session=100");
+            "source_properties=" + PropList($"device.description={PropValue(description)}" +
+            $" node.description={PropValue(description)} priority.session=100 node.virtual=false"));
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;

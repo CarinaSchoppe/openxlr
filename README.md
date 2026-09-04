@@ -153,7 +153,7 @@ OPENXLR_BUILD_MIXER=1 ./OpenXLR.Daemon/bin/Release/net10.0/OpenXLR.Daemon   # te
 Device access needs the udev rule from `packaging/70-openxlr.rules`
 installed under `/etc/udev/rules.d/` and a replug. The XLR Dock also
 needs the WirePlumber rule from `packaging/`. Running the daemon as a
-user service, the sysctl port reservation, updating and uninstalling:
+user service, updating and uninstalling:
 [docs/install-from-source.md](docs/install-from-source.md).
 
 ## Documentation
@@ -237,9 +237,9 @@ Prior work OpenXLR builds on:
 ## Status
 
 Developed and used daily by the author with a Wave XLR Pro, an XLR
-Dock and a Stream Deck + XL. The Wave XLR MK.2 backend is written from
-USB captures and has not been run on hardware; see the device table
-for how to help.
+Dock and a Stream Deck + XL. The Wave XLR and Wave XLR MK.2 backends
+were verified on hardware by community testers; the XLR Dock MK.2 still
+needs one. See the device table for how to help.
 
 The majority of the code was produced by the author, with AI tooling
 (Anthropic's Claude) assisting with protocol capture analysis, UI design

@@ -79,6 +79,19 @@ Each channel is a combine sink with one internal stream per mix; that
 stream's volume is the send fader. The 9 by 4 matrix is 13 sinks and no
 loopback processes. Details in [architecture.md](architecture.md).
 
+On the Wave XLR Pro the headphone jacks are fed by a mix inside the
+device. Whenever a Pro jack is a monitor output the daemon makes sure
+that mix carries the Monitor stream (a unit set up by Wave Link on
+Windows may not), and when a jack is the only monitor output the
+microphone's zero-latency hardware path into the jacks follows XLR 1's
+send in the Monitor mix: unmuted, you hear yourself with no delay;
+muted, you do not. With another device in the monitor set the software
+send carries the microphone to everything instead.
+
+Channels appear as playback devices in the desktop's audio applet, and
+the Stream and Chat virtual microphones as recording devices; the
+hardware input channels are hidden from it.
+
 ## Inserts
 
 LV2 plugins in the signal path. Each XLR input carries a mono chain and
@@ -98,8 +111,11 @@ plugin. Plugins are found in the standard LV2 directories
 (`/usr/lib/lv2`, `~/.lv2`, or wherever `LV2_PATH` points); the daemon
 reads them through lilv. `lsp-plugins-lv2` is the set used during
 development. Plugins that ship a custom GUI still load; the generated
-controls are shown instead of their window. VST and CLAP plugins are
-not supported; loading them would need a plugin host.
+controls are shown instead of their window. A plugin that requires a
+host feature the chain does not provide (an editor needing instance
+access, for example) is left out of the picker and refused by the
+daemon rather than failing when the chain is built. VST and CLAP
+plugins are not supported; loading them would need a plugin host.
 
 The submixer can be switched off in Options. The daemon then controls
 the hardware only, restarts itself, and leaves the sound card in its
@@ -185,6 +201,10 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 - Enforced defaults: the daemon re-asserts the chosen system default
   sink and source on its one-second sweep, undoing WirePlumber's
   auto-switch to newly created nodes
+- The control API validates every command before the mixer sees it and
+  answers with an error instead of ignoring it; clients are rate-limited
+  and browser pages from other origins are refused; see
+  [api.md](api.md)
 - Tray icon, start-minimized option, daemon and window autostart from
   Options
 - Diagnostics archive: one action collects app and device state, a

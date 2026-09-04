@@ -124,7 +124,11 @@ The APPLICATIONS card lists every app that is currently registered with
 PipeWire as an audio client; a green light means it is playing.
 
 1. Change the channel in the dropdown next to the app. The move happens
-   immediately and is remembered for that app.
+   immediately and is remembered for that app. The channels also appear
+   as playback devices in your desktop's audio applet (KDE's, for one),
+   so you can see there which OpenXLR channel an app is playing into;
+   the hardware inputs (XLR 1, XLR 2, Aux In) are deliberately not
+   listed, nothing should play into a microphone's channel.
 2. To pre-assign an app that has not played yet, open Manage…, pick it
    from the installed-application list, choose a channel and press Add.
    The identity is guessed from its launcher; if the app reports a
@@ -201,7 +205,8 @@ Options, STARTUP:
 - "Start the mixer UI at login" adds an autostart entry for the window.
 - With "Close button minimizes to tray", the window hides instead of
   quitting; the tray icon's menu shows it again or quits. "Start
-  minimized to tray" opens the window hidden.
+  minimized to tray" starts with no window at all; the tray icon shows
+  it the first time you click it.
 
 The window also remembers which of its sections (INPUTS, HEADPHONES,
 MONITOR, APPLICATIONS, SUBMIXER) you collapsed with the chevron in
@@ -280,9 +285,10 @@ restart WirePlumber.
   before 0.1.9; opening the mixer window once repairs it, or remove the
   file, `systemctl --user daemon-reload`, then
   `systemctl --user enable --now openxlr-daemon`.
-- "port 37890 busy": another program holds the daemon's API port. The
-  packages reserve it from the kernel's ephemeral range; the daemon
-  waits for it rather than failing.
+- "port 37890 busy": another program holds the daemon's API port,
+  which sits inside the kernel's ephemeral range. The daemon waits up
+  to a minute for it and otherwise exits for systemd to retry; nothing
+  needs to be configured.
 
 ### 5.4 ClipGuard greyed out, empty plugin picker
 
@@ -324,9 +330,10 @@ Options, SUPPORT, Collect diagnostics. It writes
 capabilities, a dump of the interface's vendor blocks, the PipeWire
 graph and device listings, the recent daemon journal, the
 configuration files and version information. The home path, host name
-and the serial numbers of attached USB devices are redacted; review the
-archive anyway before attaching it to a public issue. Nothing is
-uploaded automatically.
+and the serial numbers of attached USB devices are redacted, in the
+text files and inside the hex dump of the vendor blocks (the XLR Dock
+stores its serial in one); review the archive anyway before attaching
+it to a public issue. Nothing is uploaded automatically.
 
 ## 6. Files and services
 

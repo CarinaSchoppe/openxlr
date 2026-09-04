@@ -23,7 +23,12 @@
   interface, polls its state every 100 ms, builds and maintains the
   PipeWire graph, routes application streams, and serves the WebSocket
   API. Every state change is broadcast to all clients, whichever client
-  (or the hardware) caused it. It is a systemd user service.
+  (or the hardware) caused it. Commands are validated before the mixer
+  sees them (known channel and mix ids, catalogued and supported
+  plugins, declared parameter symbols, bounded strings and lists), each
+  client has a command budget, and a WebSocket handshake with a browser
+  Origin from anywhere but localhost is refused. It is a systemd user
+  service, running workstation GC under a 256 MB hard limit.
 - `OpenXLR.UI` is a view over that API with no dependency on
   `OpenXLR.Core`: it parses the state JSON and sends commands. Outside
   the API it only runs `systemctl --user` for the daemon's unit and
@@ -61,9 +66,17 @@ modules or custom drivers:
   wired by capture-channel pair (XLR 1 = pair 0, XLR 2 = pair 1, Line
   In/USB Aux = pair 2); the Aux mix feeds the device's aux return pair
   so the hardware forwards it to the USB Aux port.
-- `pw-dump` reads the graph, `wpctl` sets card profiles (parking the
-  Pro on pro-audio) and node volumes, and `parec` on the sinks'
-  monitors feeds the level meters.
+- `pw-dump` reads the graph, once per sweep and parsed straight from
+  its bytes; `wpctl` sets card profiles (parking the Pro on pro-audio)
+  and node volumes, and `parec` on the sinks' monitors feeds the level
+  meters. Helpers run in the C locale, since `pactl`'s output is parsed
+  and localised.
+- Sink and source properties reach `pactl` as one double-quoted list
+  with descriptions single-quoted inside (PipeWire's module parser
+  splits the argument on whitespace, then parses the list). Application
+  channels and the virtual microphones carry `node.virtual=false` so
+  desktop applets list them; hardware input channels keep the flag and
+  stay hidden.
 
 ## The device protocols
 
@@ -96,7 +109,7 @@ src/            .NET solution: Core (device + mixer), Daemon, UI, Probe, Tests
 plugin/         the OpenDeck (Stream Deck) plugin
 docs/           this documentation, protocol write-up, capture guides
 tools/          proprobe.py, a standalone Python probe for the vendor protocol
-packaging/      systemd unit, udev rule, WirePlumber rules, sysctl drop-in,
-                UCM profile, rpm and nix packaging, OpenDeck patches
+packaging/      systemd unit, udev rule, WirePlumber rules, UCM profile,
+                rpm and nix packaging, OpenDeck patches
 debian/         Debian/Ubuntu packaging
 ```

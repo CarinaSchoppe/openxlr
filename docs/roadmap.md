@@ -12,7 +12,7 @@ behaviour verified on hardware before it ships. The project is small on
 purpose. It prefers one small, idiomatic change over a framework, and a
 feature that is measured over one that is described.
 
-## Where it stands (0.1.14)
+## Where it stands (0.1.18)
 
 - [x] Wave XLR Pro, XLR Dock (MK.1 and MK.2 modules), Wave XLR, Wave XLR
   MK.2: hardware controls, verified by owners of each device.
@@ -29,6 +29,11 @@ feature that is measured over one that is described.
 - [x] Packages: AUR, Debian/Ubuntu, Fedora, NixOS flake and module.
 - [x] Daemon recovery basics: fast shutdown, busy-port wait, self-healing
   input feeds, UCM coexistence on the Pro.
+- [x] Control API hygiene: commands validated before the mixer, per-client
+  command budget, connection cap, foreign browser origins refused.
+- [x] Daemon memory: workstation GC under a hard limit, one graph dump
+  per sweep; channels and virtual microphones visible in desktop audio
+  applets; LV2 plugins gated on the chain host's features.
 
 ## Next: mixer layout and customization
 
@@ -102,9 +107,10 @@ plugin world, and it has to keep the audio path inside PipeWire.
   server is down; the daemon degrades to device control instead.
 - [ ] Update notice: an opt-in, throttled check against the project's
   releases, presented once, never automatic installation.
-- [ ] A documented, versioned local API for third parties, once
-  cross-origin protection exists; today the WebSocket on the loopback is
-  the API and the OpenDeck plugin is its reference client.
+- [ ] A documented, versioned local API for third parties, once client
+  authentication exists on top of the origin check; today the WebSocket
+  on the loopback is the API and the OpenDeck plugin is its reference
+  client.
 - [ ] Route the focused application to a channel from a key, with a
   portal-based approach that works on Wayland.
 - [ ] Generic PipeWire output volume and mute keys, and a main-output

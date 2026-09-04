@@ -162,6 +162,8 @@ user service, the sysctl port reservation, updating and uninstalling:
   step-by-step tasks, the Stream Deck plugin, troubleshooting
 - [Features](docs/features.md): every control, the submixer, inserts,
   routing, profiles and the OpenDeck plugin in detail
+- [Roadmap](docs/roadmap.md): what comes next, in order, and the rules a
+  change has to meet to land
 - [Installing from source](docs/install-from-source.md): prerequisites
   by distribution, device access, the user service, updating,
   uninstall, environment variables

@@ -134,8 +134,9 @@ plugin world, and it has to keep the audio path inside PipeWire.
 - Versions, tags, releases, distribution changelogs and package identity
   are set by the maintainer at release time. A pull request does not bump
   them.
-- Credits go in the release notes and the commit history, where they are
-  permanent, not in the README.
+- Contributors are credited in the README once their work is merged, in
+  a Credits section the maintainer writes, and in the release notes. A
+  pull request does not add its own credit paragraph.
 - The .NET build stays a .NET build. Native helpers, when they come, are
   optional at build time and packaged separately.
 - The audio graph is not rebuilt for a change that does not need it;

@@ -22,6 +22,18 @@ public sealed class DaemonClient : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private ClientWebSocket? _socket;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
+    private readonly object _lifecycle = new();
+    private Task? _runTask;
+    private Task? _disposeTask;
+    private bool _disposed;
+    private readonly Dictionary<string, PendingQuery> _queries = new();
+    private const int MaxMessageBytes = 8 * 1024 * 1024;
+
+    private sealed class PendingQuery
+    {
+        public readonly TaskCompletionSource<JsonNode?> Reply = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int Callers;
+    }
 
     public DaemonClient(string url = "ws://127.0.0.1:37890/ws") => _uri = new Uri(url);
 
@@ -31,30 +43,48 @@ public sealed class DaemonClient : IAsyncDisposable
     /// <summary>The raw JSON of the newest state push, for diagnostics.</summary>
     public string? LastStateJson { get; private set; }
 
-    private TaskCompletionSource<JsonNode>? _diagnosticsWaiter;
-
     /// <summary>Request the daemon's vendor-block dump; null on timeout.</summary>
-    public async Task<JsonNode?> RequestDiagnosticsAsync(TimeSpan timeout)
-    {
-        var tcs = new TaskCompletionSource<JsonNode>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _diagnosticsWaiter = tcs;
-        await SendAsync(new Dictionary<string, object> { ["cmd"] = "getDiagnostics" });
-        Task done = await Task.WhenAny(tcs.Task, Task.Delay(timeout));
-        _diagnosticsWaiter = null;
-        return done == tcs.Task ? tcs.Task.Result : null;
-    }
-
-    private TaskCompletionSource<JsonNode>? _pluginsWaiter;
+    public Task<JsonNode?> RequestDiagnosticsAsync(TimeSpan timeout)
+        => QueryAsync("diagnostics", "getDiagnostics", timeout);
 
     /// <summary>Request the daemon's plugin catalog (the "plugins" array); null on timeout.</summary>
-    public async Task<JsonNode?> RequestPluginsAsync(TimeSpan timeout)
+    public Task<JsonNode?> RequestPluginsAsync(TimeSpan timeout)
+        => QueryAsync("plugins", "listPlugins", timeout);
+
+    private async Task<JsonNode?> QueryAsync(string type, string command, TimeSpan timeout)
     {
-        var tcs = new TaskCompletionSource<JsonNode>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _pluginsWaiter = tcs;
-        await SendAsync(new Dictionary<string, object> { ["cmd"] = "listPlugins" });
-        Task done = await Task.WhenAny(tcs.Task, Task.Delay(timeout));
-        _pluginsWaiter = null;
-        return done == tcs.Task ? tcs.Task.Result : null;
+        PendingQuery query;
+        bool send;
+        lock (_lifecycle)
+        {
+            if (_disposed) return null;
+            send = !_queries.TryGetValue(type, out query!);
+            if (send) _queries[type] = query = new();
+            query.Callers++;
+        }
+        try
+        {
+            if (send && !await SendAsync(new { cmd = command }, reportErrors: false))
+                query.Reply.TrySetResult(null);
+            return await query.Reply.Task.WaitAsync(timeout);
+        }
+        catch (TimeoutException) { return null; }
+        finally
+        {
+            lock (_lifecycle)
+            {
+                // One impatient caller must not remove the reply slot still
+                // used by other windows waiting for the same catalog.
+                if (--query.Callers == 0 && _queries.TryGetValue(type, out var current)
+                    && ReferenceEquals(current, query)) _queries.Remove(type);
+            }
+        }
+    }
+
+    private void CompleteQuery(string type, JsonNode? reply)
+    {
+        lock (_lifecycle)
+            if (_queries.TryGetValue(type, out var query)) query.Reply.TrySetResult(reply);
     }
 
     /// <summary>Raised when an error message arrives from the daemon.</summary>
@@ -66,7 +96,14 @@ public sealed class DaemonClient : IAsyncDisposable
     /// <summary>Raised when the connection comes up or goes down.</summary>
     public event Action<bool>? ConnectionChanged;
 
-    public void Start() => _ = RunAsync();
+    public void Start()
+    {
+        lock (_lifecycle)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _runTask ??= Task.Run(RunAsync);
+        }
+    }
 
     private async Task RunAsync()
     {
@@ -74,12 +111,17 @@ public sealed class DaemonClient : IAsyncDisposable
         {
             try
             {
-                _socket = new ClientWebSocket();
-                await _socket.ConnectAsync(_uri, _cts.Token);
+                var socket = new ClientWebSocket();
+                _socket = socket;
+                socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
+                socket.Options.KeepAliveTimeout = TimeSpan.FromSeconds(10);
+                using var connect = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+                connect.CancelAfter(TimeSpan.FromSeconds(5));
+                await socket.ConnectAsync(_uri, connect.Token);
                 ConnectionChanged?.Invoke(true);
-                await ReceiveLoop(_socket);
+                await ReceiveLoop(socket);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (_cts.IsCancellationRequested)
             {
                 return;
             }
@@ -88,9 +130,17 @@ public sealed class DaemonClient : IAsyncDisposable
                 // daemon not up yet, or the link dropped, so fall through and retry
             }
 
-            ConnectionChanged?.Invoke(false);
-            _socket?.Dispose();
-            _socket = null;
+            finally
+            {
+                _socket?.Dispose();
+                _socket = null;
+                lock (_lifecycle)
+                {
+                    foreach (var query in _queries.Values) query.Reply.TrySetResult(null);
+                    _queries.Clear();
+                }
+                ConnectionChanged?.Invoke(false);
+            }
             try { await Task.Delay(1000, _cts.Token); }
             catch (OperationCanceledException) { return; }
         }
@@ -107,6 +157,8 @@ public sealed class DaemonClient : IAsyncDisposable
             {
                 res = await socket.ReceiveAsync(buf, _cts.Token);
                 if (res.MessageType == WebSocketMessageType.Close) return;
+                if (res.MessageType != WebSocketMessageType.Text || ms.Length + res.Count > MaxMessageBytes)
+                    throw new WebSocketException("Invalid or oversized daemon message.");
                 ms.Write(buf, 0, res.Count);
             } while (!res.EndOfMessage);
 
@@ -114,13 +166,13 @@ public sealed class DaemonClient : IAsyncDisposable
             JsonNode? node;
             try { node = JsonNode.Parse(text); }
             catch (JsonException) { continue; }
-            if (node is null) continue;
+            if (node is not JsonObject) continue;
 
             string? type = node["type"]?.GetValue<string>();
             if (type == "error") ErrorReceived?.Invoke(node["message"]?.GetValue<string>() ?? "unknown error");
             else if (type == "state") { LastStateJson = text; StateReceived?.Invoke(node); }
-            else if (type == "diagnostics") _diagnosticsWaiter?.TrySetResult(node);
-            else if (type == "plugins" && node["plugins"] is JsonNode plugins) _pluginsWaiter?.TrySetResult(plugins);
+            else if (type == "diagnostics") CompleteQuery(type, node);
+            else if (type == "plugins") CompleteQuery(type, node["plugins"]);
             else if (type == "meters" && node["levels"] is JsonNode levels) MetersReceived?.Invoke(levels);
         }
     }
@@ -209,22 +261,54 @@ public sealed class DaemonClient : IAsyncDisposable
         => SendAsync(new Dictionary<string, object>
         { ["cmd"] = "assignStream", ["streamId"] = streamId, ["channel"] = channel });
 
-    private async Task SendAsync(object payload)
+    private async Task<bool> SendAsync(object payload, bool reportErrors = true)
     {
-        ClientWebSocket? s = _socket;
-        if (s is null || s.State != WebSocketState.Open) return;
+        ClientWebSocket? s;
+        CancellationToken stop;
+        lock (_lifecycle)
+        {
+            s = _disposed ? null : _socket;
+            stop = _disposed ? new CancellationToken(true) : _cts.Token;
+        }
+        if (s is null || s.State != WebSocketState.Open)
+        {
+            if (reportErrors) ErrorReceived?.Invoke("Daemon disconnected; no change was sent.");
+            return false;
+        }
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(payload, Json);
-        await _sendLock.WaitAsync();
-        try { await s.SendAsync(bytes, WebSocketMessageType.Text, true, _cts.Token); }
-        catch (Exception) { /* dropped; the reconnect loop handles it */ }
-        finally { _sendLock.Release(); }
+        bool acquired = false;
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stop);
+            timeout.CancelAfter(TimeSpan.FromSeconds(5));
+            await _sendLock.WaitAsync(timeout.Token);
+            acquired = true;
+            await s.SendAsync(bytes, WebSocketMessageType.Text, true, timeout.Token);
+            return true;
+        }
+        catch (Exception ex) when (ex is WebSocketException or OperationCanceledException or ObjectDisposedException)
+        {
+            if (reportErrors) ErrorReceived?.Invoke("Connection lost; the change could not be confirmed.");
+            return false;
+        }
+        finally { if (acquired) _sendLock.Release(); }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
+    {
+        lock (_lifecycle)
+        {
+            _disposed = true;
+            return new(_disposeTask ??= Task.Run(DisposeCoreAsync));
+        }
+    }
+
+    private async Task DisposeCoreAsync()
     {
         await _cts.CancelAsync();
-        _socket?.Dispose();
-        _sendLock.Dispose();
+        if (_runTask is not null) await _runTask;
+        // Sends may still be releasing the semaphore. It has no native handle;
+        // let it be collected instead of disposing under those continuations.
         _cts.Dispose();
     }
 }

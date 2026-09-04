@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.16
+Version:        0.1.17
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -133,6 +133,14 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Fri Sep 04 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.17-1
+- Application channels and the virtual microphones appear in desktop
+  audio applets (KDE's, for one): the properties the daemon passed to
+  PipeWire's null and combine sinks were cut at the first space, so the
+  channels ran without their session priority and suspend-on-idle
+  settings and carried the virtual flag applets hide. Every property
+  now reaches the node; hardware input channels stay hidden.
+
 * Fri Sep 04 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.16-1
 - Daemon memory: workstation GC with a 256 MB hard limit, one PipeWire
   graph dump per sweep parsed from bytes, holder processes no longer

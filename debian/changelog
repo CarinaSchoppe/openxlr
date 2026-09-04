@@ -1,3 +1,14 @@
+openxlr (0.1.17) resolute; urgency=medium
+
+  * Application channels and the virtual microphones appear in desktop
+    audio applets (KDE's, for one): the properties the daemon passed to
+    PipeWire's null and combine sinks were cut at the first space, so the
+    channels ran without their session priority and suspend-on-idle
+    settings and carried the virtual flag applets hide. Every property
+    now reaches the node; hardware input channels stay hidden.
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Fri, 04 Sep 2026 19:30:00 +0100
+
 openxlr (0.1.16) resolute; urgency=medium
 
   * Daemon memory: workstation GC with a 256 MB hard limit, one PipeWire

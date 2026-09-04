@@ -250,9 +250,12 @@ SIGKILL/SIGSTOP, 0.0500/0.1980 EQ response, daemon SIGKILL/watchdog recovery,
 deletion cleanup, and a 0.63-second connected-client shutdown.
 
 The Debian and RPM release workflows install the GitHub CLI explicitly and
-run `gh --version` before compiling their packages. Release uploads remain
-gated to an actual GitHub release event; a manual workflow dispatch therefore
-tests the CLI, build and package checks without publishing a release asset.
+run `gh --version` before compiling their packages. The regular package matrix
+does the same on Ubuntu, Fedora and Arch, so every pull request verifies the
+native distribution package and executable without requiring authentication.
+Release uploads remain gated to an actual GitHub release event; a manual
+workflow dispatch therefore tests the CLI, build and package checks without
+publishing a release asset.
 
 The listen/reorder phase brings the suite to **133 .NET tests**. In the CachyOS
 live run, the driver also reverses all editable channel and mix ids, confirms

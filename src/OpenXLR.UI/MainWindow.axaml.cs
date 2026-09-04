@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using Avalonia.Platform;
 
@@ -27,11 +28,9 @@ public partial class MainWindow : Window
 
         // Start hidden in the tray when configured (and a tray actually
         // exists; otherwise the window must show or nothing is reachable).
-        if (UiSettings.Load().StartMinimized && _tray is not null)
-        {
-            bool hidden = false;
-            Opened += (_, _) => { if (!hidden) { hidden = true; Hide(); } };
-        }
+        // App reads this and leaves the window unshown; it is never mapped
+        // and unmapped, which is what produced a hollow frame at login.
+        StartsHidden = UiSettings.Load().StartMinimized && _tray is not null;
 
         Closing += (_, e) =>
         {
@@ -51,8 +50,16 @@ public partial class MainWindow : Window
         {
             _tray?.Dispose();
             await _client.DisposeAsync();
+            // A window that started hidden is not the lifetime's MainWindow,
+            // so closing it for real must end the process explicitly.
+            if (Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+                && desktop.ShutdownMode == ShutdownMode.OnExplicitShutdown)
+                desktop.Shutdown();
         };
     }
+
+    /// <summary>True when the window should stay unshown until the tray asks for it.</summary>
+    public bool StartsHidden { get; }
 
     private void SetupTray()
     {

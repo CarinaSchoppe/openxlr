@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 
@@ -20,9 +21,23 @@ public partial class App : Application
             if (UiSettings.Load().StartDaemonAtLogin)
                 StartupIntegration.RepairDaemonUnit();
 
-            desktop.MainWindow = new MainWindow();
+            var window = new MainWindow();
+            if (window.StartsHidden)
+            {
+                // Starting in the tray means the window must never be
+                // mapped: showing it and hiding it a moment later leaves a
+                // hollow frame on some compositors (KDE on Wayland, issue
+                // #11). The lifetime shows MainWindow after this method, so
+                // the window is simply not registered as MainWindow; the
+                // tray shows it on demand and Quit shuts the app down.
+                desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            }
+            else
+            {
+                desktop.MainWindow = window;
+            }
         }
 
         base.OnFrameworkInitializationCompleted();
     }
-}
+}

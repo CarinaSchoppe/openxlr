@@ -229,8 +229,10 @@ Prior work OpenXLR builds on:
 - [OpenDeck](https://github.com/nekename/OpenDeck) by nekename: the
   Stream Deck host the plugin runs in, including the touch-tap support
   merged upstream for the Stream Deck + XL.
-- The author of goxlr-utility and PipeWeaver, for suggesting ALSA UCM
-  for the Pro's channel split.
+- [FrostyCoolSlug](https://github.com/FrostyCoolSlug), author of
+  [goxlr-utility](https://github.com/GoXLR-on-Linux/goxlr-utility) and
+  [PipeWeaver](https://github.com/FrostyCoolSlug/pipeweaver), for
+  suggesting ALSA UCM for the Pro's channel split.
 
 ## Status
 

@@ -12,6 +12,7 @@ from pathlib import Path
 import socket
 import subprocess
 import time
+from urllib.request import Request, urlopen
 import uuid
 
 import websocket
@@ -28,6 +29,16 @@ def command(connection, cmd, **fields):
             assert not message.get("error"), message
             return
     raise AssertionError(f"No response to {cmd}")
+
+
+def http_json(path, payload=None):
+    """Read one v1 resource or execute one command through installed HTTP."""
+    data = None if payload is None else json.dumps(payload).encode()
+    request = Request(f"http://127.0.0.1:37890{path}", data=data,
+                      headers={"Content-Type": "application/json"} if data else {})
+    with urlopen(request, timeout=30) as response:
+        assert response.status == 200, response.status
+        return json.load(response)
 
 
 def wait_for_ui_window(audio, desktop, seconds=30):
@@ -75,18 +86,32 @@ def main():
                 connection = websocket.create_connection("ws://127.0.0.1:37890/ws", timeout=30)
                 state = json.loads(connection.recv())
                 assert state.get("mixer"), state
+                assert state.get("apiVersion") == "1" and "httpApiV1" in state.get("features", []), state
                 break
             except (ConnectionError, websocket.WebSocketException):
                 time.sleep(0.1)
         assert connection is not None, "installed daemon API did not start"
         try:
+            health = http_json("/healthz")
+            assert health.get("status") == "ok" and health.get("apiVersion") == "1", health
+            api_index = http_json("/api/v1")
+            assert api_index.get("localOnly") is True, api_index
+            http_state = http_json("/api/v1/state")
+            assert http_state.get("type") == "state" and http_state.get("mixer"), http_state
+            specification = http_json("/api/v1/openapi.json")
+            assert specification.get("openapi") == "3.1.0", specification
             desktop = audio.logged(str(ui))
             wait_for_ui_window(audio, desktop)
             command(connection, "createChannel", name="Package QA")
             command(connection, "createMix", name="Package Output")
             command(connection, "renameChannel", channel="package-qa", name='QA "renamed"')
             command(connection, "renameMix", mix="package-output", name="QA Output")
-            command(connection, "setLevel", channel="package-qa", mix="package-output", value=0.4)
+            result = http_json("/api/v1/commands", dict(cmd="setLevel", channel="package-qa",
+                               mix="package-output", value=0.4, requestId="package-http"))
+            assert result.get("ok") is True and result.get("requestId") == "package-http", result
+            saved_level = next(channel for channel in result["state"]["mixer"]["channels"]
+                               if channel["id"] == "package-qa")["levels"]["package-output"]
+            assert saved_level == 0.4, result
             graph = parse_dump(audio.run("pw-dump"))
             names = [n.get("info", {}).get("props", {}).get("node.name") for n in graph]
             assert names.count("OpenXLR_ch_package-qa") == names.count("OpenXLR_package-output") == 1
@@ -100,7 +125,7 @@ def main():
             server.terminate()  # deliberately keep the UI/WebSocket connected
             assert server.wait(timeout=15) == 0
             assert desktop.poll() is None, "UI failed when daemon disconnected"
-            print("PASS installed daemon/API, actual UI window, editable layout, saved deletion and clean shutdown", flush=True)
+            print("PASS installed HTTP/WebSocket APIs, actual UI window, editable layout, saved deletion and clean shutdown", flush=True)
         finally:
             connection.close(timeout=0)
 

@@ -13,8 +13,9 @@ namespace OpenXLR.Daemon;
 /// </summary>
 public sealed class WebSocketHub
 {
-    private const int MaxCommandBytes = 64 * 1024;
-    private static readonly JsonSerializerOptions Json = new()
+    internal const int MaxCommandBytes = 64 * 1024;
+    internal const int MaxRequestIdLength = 128;
+    internal static readonly JsonSerializerOptions Json = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
@@ -73,18 +74,23 @@ public sealed class WebSocketHub
     // Last recalled or saved profile per device id, for the state message.
     private readonly ConcurrentDictionary<string, string> _activeProfile = new();
 
-    private StateMessage Snapshot() =>
-        _devices.Snapshot() with
+    public StateMessage Snapshot()
+    {
+        StateMessage deviceState = _devices.Snapshot();
+        string? deviceId = deviceState.Device?.UsbId;
+        return deviceState with
         {
             DaemonVersion = OpenXLR.Daemon.DaemonVersion.Current,
             Features = ["editableLayout", "commandResults", "nativePluginUi", "channelInserts",
-                "layoutOrder", "monitorMixSelection"],
-            ActiveProfile = ActiveDeviceId() is string apId && _activeProfile.TryGetValue(apId, out string? ap) ? ap : null,
+                "layoutOrder", "monitorMixSelection", "httpApiV1"],
+            ActiveProfile = deviceId is not null && _activeProfile.TryGetValue(deviceId, out string? profile)
+                ? profile : null,
             Mixer = _mixer.Snapshot(),
             Devices = _mixer.Devices(),
-            Profiles = ActiveDeviceId() is string devId ? OpenXLR.Core.ProfileStore.List(devId) : [],
+            Profiles = deviceId is not null ? OpenXLR.Core.ProfileStore.List(deviceId) : [],
             Detected = [.. _devices.Detected().Select(d => new DetectedDevice(d.UsbId, d.Name, d.Active))],
         };
+    }
 
     /// <summary>Serve one client for the life of its socket.</summary>
     public async Task HandleAsync(WebSocket socket)
@@ -161,26 +167,63 @@ public sealed class WebSocketHub
         Command? cmd;
         try { cmd = JsonSerializer.Deserialize<Command>(text, Json); }
         catch (JsonException ex) { await client.SendAsync(Serialize(new ErrorMessage($"bad json: {ex.Message}"))); return; }
-        if (cmd is null) return;
+        if (cmd is null)
+        {
+            await client.SendAsync(Serialize(new ErrorMessage("command must be a JSON object")));
+            return;
+        }
+        if (ValidateRequestId(cmd.RequestId) is string requestError)
+        {
+            await client.SendAsync(Serialize(new ErrorMessage(requestError)));
+            return;
+        }
+
+        CommandExecution execution = await ExecuteAsync(cmd);
+        if (execution.Result is not null)
+            await client.SendAsync(Serialize(execution.Result));
+
+        // Correlated callers need a deterministic state-before-ack ordering,
+        // and optimistic callers need a rollback after rejection. Successful
+        // uncorrelated dial/fader traffic already receives the coalesced
+        // broadcast and must not pay for an extra full snapshot per tick.
+        StateMessage? authoritative = execution.Mutated &&
+            (cmd.RequestId is not null || execution.Error is not null) ? Snapshot() : null;
+        if (authoritative is not null)
+            await client.SendAsync(Serialize(authoritative));
+
+        if (cmd.RequestId is not null)
+            await client.SendAsync(Serialize(new CommandResultMessage(cmd.RequestId, execution.Error)));
+
+        if (execution.Error is not null)
+            await client.SendAsync(Serialize(new ErrorMessage(execution.Error)));
+    }
+
+    /// <summary>
+    /// Execute one validated command independently of its transport. The HTTP
+    /// endpoint and WebSocket endpoint intentionally share this path so they
+    /// cannot drift into subtly different audio behaviour.
+    /// </summary>
+    internal async Task<CommandExecution> ExecuteAsync(Command cmd)
+    {
+        if (string.IsNullOrWhiteSpace(cmd.Cmd))
+            return CommandExecution.Failed("missing 'cmd'");
+        if (ValidateRequestId(cmd.RequestId) is string requestError)
+            return CommandExecution.Failed(requestError);
 
         switch (cmd.Cmd)
         {
             case "getState":
-                await client.SendAsync(Serialize(Snapshot()));
-                break;
+                return CommandExecution.Succeeded(Snapshot());
             case "getDiagnostics":
-                await client.SendAsync(Serialize(new DiagnosticsMessage(_devices.DumpBlocks())));
-                break;
+                return CommandExecution.Succeeded(new DiagnosticsMessage(_devices.DumpBlocks()));
             case "listPlugins":
                 // The first call may block on lilv's scan; keep it off the socket loop's thread.
                 IReadOnlyList<OpenXLR.Core.Mixing.PluginInfo> plugins = await Task.Run(() => OpenXLR.Core.Mixing.Lv2Catalog.Plugins);
-                await client.SendAsync(Serialize(new PluginsMessage(plugins)));
-                break;
+                return CommandExecution.Succeeded(new PluginsMessage(plugins));
             case "set":
-                if (cmd.Control is null) { await client.SendAsync(Serialize(new ErrorMessage("set: missing 'control'"))); break; }
+                if (cmd.Control is null) return CommandExecution.Failed("set: missing 'control'", mutated: true);
                 string? err = _devices.Apply(cmd.Control, cmd.Value);  // broadcasts on success
-                if (err is not null) await client.SendAsync(Serialize(new ErrorMessage(err)));
-                break;
+                return CommandExecution.Mutation(err);
             case "setLevel":
             case "setChannelMuted":
             case "setMixVolume":
@@ -209,38 +252,20 @@ public sealed class WebSocketHub
             case "setInsertBypass":
             case "setInsertParam":
                 string? mixErr = _mixer.Apply(cmd);                     // broadcasts on success
-                if (cmd.RequestId is not null)
-                {
-                    // Publish authoritative state before the acknowledgement;
-                    // the client can safely re-enable layout controls on receipt.
-                    await client.SendAsync(Serialize(Snapshot()));
-                    await client.SendAsync(Serialize(new
-                    { type = "commandResult", requestId = cmd.RequestId, error = mixErr }));
-                }
-                if (mixErr is not null)
-                {
-                    await client.SendAsync(Serialize(new ErrorMessage(mixErr)));
-                    // Controls are optimistic in both clients. Follow an error
-                    // with authoritative state so a rejected ClipGuard/plugin
-                    // change snaps back instead of looking enabled forever.
-                    await client.SendAsync(Serialize(Snapshot()));
-                }
-                break;
+                return CommandExecution.Mutation(mixErr);
             case "setActiveDevice":
-                if (cmd.Device is null) { await client.SendAsync(Serialize(new ErrorMessage("setActiveDevice: missing 'device'"))); break; }
+                if (cmd.Device is null)
+                    return CommandExecution.Failed("setActiveDevice: missing 'device'", mutated: true);
                 string? devSelErr = _devices.SetActiveDevice(cmd.Device);
-                if (devSelErr is not null) await client.SendAsync(Serialize(new ErrorMessage(devSelErr)));
-                break;
+                return CommandExecution.Mutation(devSelErr);
             case "saveProfile":
             case "loadProfile":
             case "deleteProfile":
                 string? profErr = HandleProfile(cmd);
-                if (profErr is not null) await client.SendAsync(Serialize(new ErrorMessage(profErr)));
-                else Broadcast(Snapshot());   // list (and loaded state) changed
-                break;
+                if (profErr is null) Broadcast(Snapshot());   // list (and loaded state) changed
+                return CommandExecution.Mutation(profErr);
             default:
-                await client.SendAsync(Serialize(new ErrorMessage($"unknown cmd '{cmd.Cmd}'")));
-                break;
+                return CommandExecution.Failed($"unknown cmd '{cmd.Cmd}'");
         }
     }
 
@@ -312,6 +337,22 @@ public sealed class WebSocketHub
     }
 
     private static string Serialize(object o) => JsonSerializer.Serialize(o, Json);
+
+    internal static string? ValidateRequestId(string? requestId)
+    {
+        if (requestId is not null && string.IsNullOrWhiteSpace(requestId))
+            return "requestId must not be empty";
+        return requestId is { Length: > MaxRequestIdLength }
+            ? $"requestId exceeds {MaxRequestIdLength} characters"
+            : null;
+    }
+
+    internal sealed record CommandExecution(object? Result, string? Error, bool Mutated)
+    {
+        public static CommandExecution Succeeded(object? result = null) => new(result, null, false);
+        public static CommandExecution Failed(string error, bool mutated = false) => new(null, error, mutated);
+        public static CommandExecution Mutation(string? error) => new(null, error, true);
+    }
 
     /// <summary>
     /// A connection with one bounded send pump. WebSocket forbids concurrent

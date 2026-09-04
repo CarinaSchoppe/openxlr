@@ -12,8 +12,8 @@ into a second, contradictory product manual.
 
 - `OpenXLR.Core`: device backends, capability model, PipeWire graph, profiles,
   application matching, meters, and plugin chains.
-- `OpenXLR.Daemon`: owns hardware and mixer state and exposes the localhost
-  WebSocket API.
+- `OpenXLR.Daemon`: owns hardware and mixer state and exposes the versioned
+  loopback HTTP/WebSocket API.
 - `OpenXLR.UI`: Avalonia client; it never owns hardware or audio state.
 - `OpenXLR.Probe`: diagnostics and protocol-development console tool.
 - `OpenXLR.Tests`: regression tests for routing, device capabilities, profiles,
@@ -53,5 +53,5 @@ OPENXLR_BUILD_MIXER=1 dotnet run --project src/OpenXLR.Daemon
 dotnet run --project src/OpenXLR.UI
 ```
 
-The WebSocket command table and configuration paths are maintained only in the
-root [README](../README.md#websocket-api).
+The API contract, command table and configuration paths are maintained only in
+[docs/api.md](../docs/api.md).

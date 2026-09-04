@@ -73,15 +73,18 @@ Collect diagnostics).
 - **Profiles**: named scenes holding the hardware settings and the
   whole submix (levels, mutes, outputs, insert chains), saved per device
   and recalled from the UI, the API or a Stream Deck key.
-- **OpenDeck plugin**: key and dial actions for every switch, mute,
-  level and insert, rendered with level meters and status LEDs. It is a
-  client of the daemon's API, so it reflects changes made in the UI or
-  on the hardware.
-- **Daemon and UI**: the daemon owns the device and the graph, keeps
+- **OpenDeck plugin**: live mixer keys, visual level keys, and encoder
+  actions for every switch, route, mute, mix, level, monitor destination,
+  profile, and insert. Editable channels and mixes are discovered from the
+  daemon rather than frozen into the plugin. Faders, meters, values, coloured
+  states, and mute overlays reflect changes made in the UI or on hardware.
+- **Daemon, UI and integration API**: the daemon owns the device and the graph, keeps
   running with the window closed, re-asserts the chosen default sink
-  and source once a second, and serves a WebSocket API on
-  127.0.0.1:37890. The UI has a routing graph view, a tray icon and a
-  diagnostics archive exporter.
+  and source once a second, and serves a loopback-only, versioned HTTP and
+  WebSocket API on 127.0.0.1:37890. State, live meters, effects, routing and
+  every edit command are available to third-party local software, with
+  correlated acknowledgements and a bundled OpenAPI 3.1 schema. The UI has a
+  routing graph view, a tray icon and a diagnostics archive exporter.
 
 The full feature list, area by area: [docs/features.md](docs/features.md).
 
@@ -102,23 +105,27 @@ still expose the underlying routing stages. They are not duplicate user channels
 The concrete Wave Link comparison and roadmap are listed near the end of this
 README. Planned items are not claimed as implemented.
 
-Verification includes 133 automated .NET tests, 12 offline acceptance-driver
-tests, real LSP editor/audio tests, installed-package runtime checks on
+Verification includes 147 automated .NET tests, 12 offline acceptance-driver
+tests, 7 OpenDeck plugin tests, real LSP editor/audio tests, installed-package runtime checks on
 Ubuntu/Fedora/Arch, and a CachyOS live service-recovery test. Reproduction
 commands, measured results and tested limitations are recorded in
 [docs/verification.md](docs/verification.md).
 
-### OpenDeck plugin
+### Stream Deck / OpenDeck plugin
 
-Dials get a touch panel with a knob, a level meter, the value and a
-mute overlay; one dial can hold several targets, cycled by tap or
-press.
+Dials get a touch panel with a coloured knob, live meter, value, mute overlay,
+and stack position; one dial can hold several reorderable targets, cycled by
+tap or press. Key-only decks get a Visual Level action with a real fader and
+meter; a press can toggle mute, set a percentage, or apply a positive/negative
+percentage step.
 
 ![Dial panels](docs/plugin-dials.png)
 
-Keys show an icon and a status LED (red for a mute, green for an
-engaged feature or the active monitor output). Every hardware switch,
-mute, level and insert is a target.
+Mixer keys show an icon and a status LED (red for a mute, coloured for an
+engaged feature, route, listened mix, or active monitor output). Every current
+channel/mix pair is loaded from live state, so renamed and newly created
+entries appear automatically. Separate output keys add/remove one device
+without discarding other monitor outputs.
 
 ![Keys](docs/plugin-keys.png)
 
@@ -215,8 +222,8 @@ user service, the sysctl port reservation, updating and uninstalling:
 - [Installing from source](docs/install-from-source.md): prerequisites
   by distribution, device access, the user service, updating,
   uninstall, environment variables
-- [WebSocket API](docs/api.md): the daemon's command set and the files
-  under `~/.config/openxlr`
+- [Local integration API](docs/api.md): versioned HTTP/WebSocket resources,
+  OpenAPI schema, examples, the command set, and files under `~/.config/openxlr`
 - [Architecture](docs/architecture.md): daemon, UI and plugin, the
   PipeWire graph, the device protocols, repository layout
 - [Hardware support](docs/hardware-support.md): per-control status of
@@ -265,9 +272,8 @@ Highest-value remaining work, in priority order:
    structural inputs to the active Wave interface.
 2. **Sound-check recorder** — capture a short microphone sample and loop it
    through the active insert chain while tuning EQ, dynamics and noise control.
-3. **Faster routing workflows** — foreground-application shortcuts, richer
-   multi-app grouping and generated OpenDeck layouts for frequently changed
-   routes.
+3. **Faster routing workflows** — a compositor-neutral foreground-application
+   shortcut and generated OpenDeck layouts for frequently changed routes.
 4. **Fuller plugin hosting** — LV2 worker/state/atom support, more native UI
    toolkits, file-backed plugin state and reusable insert-chain presets.
 5. **First-run and appearance polish** — guided setup, explicit light/dark
@@ -278,7 +284,10 @@ Highest-value remaining work, in priority order:
 
 These are roadmap items, not promises in the current build. Elgato-specific
 cloud effects and the Windows/macOS VST3/AU ecosystem are not presented as
-Linux features until a technically maintainable equivalent exists.
+Linux features until a technically maintainable equivalent exists. The
+complete, checkbox-based comparison—including device setup, Sound Check,
+output matrices, effects, updates, and every current Stream Deck action—is in
+[TODO.md](TODO.md).
 
 ## License
 

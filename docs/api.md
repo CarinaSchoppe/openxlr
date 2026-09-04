@@ -1,8 +1,64 @@
-# WebSocket API
+# Local integration API v1
 
-The daemon serves `ws://127.0.0.1:37890/ws`. The packages reserve that
-port from the kernel's ephemeral range; if it is busy at startup the
-daemon waits for it instead of touching PipeWire.
+The daemon exposes a versioned HTTP and WebSocket API on
+`127.0.0.1:37890`. It is intended for desktop utilities, automation,
+accessibility tools, controllers, and broadcast software that need to inspect
+or control OpenXLR. The older `ws://127.0.0.1:37890/ws` address remains a
+compatible alias for the v1 event socket.
+
+The server deliberately binds to loopback only. It does not enable CORS and it
+does not offer unauthenticated LAN access. A web page from an unrelated origin
+therefore cannot silently change the local audio setup. Native local clients
+do not need credentials. Integrations should discover `apiVersion`, check the
+`state.features` flags they use, preserve stable channel/mix IDs, and display
+errors rather than blindly retrying mutations.
+
+The default port is reserved by the Linux packages from the kernel's ephemeral
+range. For an isolated development or test instance only,
+`OPENXLR_API_PORT=<1024..65535>` selects another loopback port.
+
+## HTTP resources
+
+| Method and path | Result |
+|---|---|
+| `GET /healthz` | cheap daemon liveness response; does not mean audio hardware is connected |
+| `GET /api/v1` | discovery document with version and resource URLs |
+| `GET /api/v1/state` | authoritative hardware, mixer, routing, app, profile, and capability state |
+| `GET /api/v1/plugins` | installed LV2 catalog; the first scan can take longer |
+| `POST /api/v1/commands` | execute one command from the command table below |
+| `GET /api/v1/openapi.json` | machine-readable OpenAPI 3.1 contract, including schemas and examples |
+| `WS /api/v1/events` | state, live meter and command event stream |
+
+Quick read-only checks:
+
+```sh
+curl --fail http://127.0.0.1:37890/healthz
+curl --fail http://127.0.0.1:37890/api/v1/state | jq .
+```
+
+Every HTTP command response is a `commandResult` with `apiVersion`, a caller
+supplied or server-generated `requestId`, `ok`, and an optional `error`. A
+mutation also contains the authoritative post-command `state`, which is the
+safe basis for the next edit. Successful commands return HTTP 200, malformed
+JSON or an invalid correlation ID returns 400, requests over 64 KiB return 413, and a well-formed command
+rejected by validation/hardware/audio returns 422.
+
+```sh
+curl --fail-with-body http://127.0.0.1:37890/api/v1/commands \
+  -H 'Content-Type: application/json' \
+  -d '{"cmd":"setLevel","channel":"music","mix":"stream","value":0.72,"requestId":"obs-panel-42"}'
+```
+
+Layout mutations (`create…`, `rename…`, `delete…`, `reorder…`) use stable IDs.
+Read current state again after a lost response before retrying a create, because
+the command might already have succeeded.
+
+## WebSocket events
+
+Connect to `ws://127.0.0.1:37890/api/v1/events` (or the legacy `/ws`).
+The first frame is always `state`, before meter frames. Commands use the same
+JSON objects as HTTP. When `requestId` is present every command gets a
+correlated `commandResult`; mutations receive authoritative `state` first.
 
 Messages from the daemon, each a JSON object with a `type` field:
 
@@ -12,12 +68,12 @@ Messages from the daemon, each a JSON object with a `type` field:
 | `meters` | 15 Hz while the mixer is built | live stereo levels per channel and mix |
 | `plugins` | in answer to `listPlugins` | the installed LV2 plugins |
 | `error` | when a command is rejected | `message` |
-| `commandResult` | after a mixer command containing `requestId` | the same `requestId`, optional `error` (absent/null means success) |
+| `commandResult` | after any command containing `requestId` | `apiVersion`, the same `requestId`, `ok`, and optional `error`/query `result` |
 
-The first message on a connection is always `state`, before meter frames.
 The `state.features` array advertises `editableLayout`, `commandResults`,
 `channelInserts`, `nativePluginUi`, `layoutOrder` and `monitorMixSelection`;
-clients must check features rather than comparing release version strings.
+`httpApiV1` advertises the HTTP surface. Clients must check features rather
+than comparing release version strings.
 For example, send `{"cmd":"createMix","name":"Podcast","requestId":"unique-id"}`.
 An authoritative `state` precedes the matching `commandResult`. Layout
 changes are persisted before success is reported. A lost connection or
@@ -65,6 +121,55 @@ Commands are single JSON objects with a `cmd` field:
 The OpenDeck plugin in `plugin/` is a client of this API; the command
 handler is `WebSocketHub.cs` and the message shapes are in
 `Protocol.cs`, both under `src/OpenXLR.Daemon/`.
+
+## Client examples
+
+Python 3, using only its standard library:
+
+```python
+import json
+from urllib.request import Request, urlopen
+
+base = "http://127.0.0.1:37890"
+with urlopen(f"{base}/api/v1/state", timeout=2) as response:
+    state = json.load(response)
+
+music = next(channel for channel in state["mixer"]["channels"]
+             if channel["name"] == "Music")
+stream = next(mix for mix in state["mixer"]["mixes"]
+              if mix["name"] == "Stream")
+body = json.dumps({"cmd": "setLevel", "channel": music["id"],
+                   "mix": stream["id"], "value": 0.72,
+                   "requestId": "example-1"}).encode()
+request = Request(f"{base}/api/v1/commands", data=body,
+                  headers={"Content-Type": "application/json"})
+with urlopen(request, timeout=3) as response:
+    result = json.load(response)
+assert result["ok"], result.get("error")
+```
+
+Browser-like WebSocket clients should be shipped as part of a trusted local
+application, not hosted on an arbitrary site:
+
+```js
+const socket = new WebSocket("ws://127.0.0.1:37890/api/v1/events");
+socket.addEventListener("message", ({ data }) => {
+  const event = JSON.parse(data);
+  if (event.type === "state") renderMixer(event.mixer);
+  if (event.type === "meters") renderMeters(event.levels);
+  if (event.type === "commandResult" && !event.ok) showError(event.error);
+});
+socket.addEventListener("open", () => socket.send(JSON.stringify({
+  cmd: "getState", requestId: crypto.randomUUID(),
+})));
+```
+
+Do not derive IDs by lower-casing display names. Names can change while IDs and
+references remain stable. On reconnect, replace cached state with the initial
+`state` frame. Meter events are transient and may be dropped for a slow client;
+state is level-triggered and authoritative. The server limits each WebSocket
+client to a bounded send queue so an abandoned integration cannot grow daemon
+memory without limit.
 
 ## Configuration files
 

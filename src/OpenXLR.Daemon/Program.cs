@@ -3,7 +3,7 @@ using System.Net.Sockets;
 using Microsoft.AspNetCore.Connections;
 using OpenXLR.Daemon;
 
-const int ApiPort = 37890;
+int apiPort = ApiEndpoints.ResolvePort(Environment.GetEnvironmentVariable("OPENXLR_API_PORT"));
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,21 +21,14 @@ builder.Services.AddSingleton<WebSocketHub>();
 builder.Services.AddHostedService<ServiceWatchdog>();
 
 // Local-only control API. 127.0.0.1 keeps the device off the network.
-builder.WebHost.UseUrls($"http://127.0.0.1:{ApiPort}");
+builder.WebHost.UseUrls($"http://127.0.0.1:{apiPort}");
 
 var app = builder.Build();
 app.Services.GetRequiredService<WebSocketHub>();   // construct so it subscribes to StateChanged
 
 app.UseWebSockets();
-
-app.Map("/ws", async (HttpContext ctx, WebSocketHub hub) =>
-{
-    if (!ctx.WebSockets.IsWebSocketRequest) { ctx.Response.StatusCode = 400; return; }
-    using var socket = await ctx.WebSockets.AcceptWebSocketAsync();
-    await hub.HandleAsync(socket);
-});
-
-app.MapGet("/", () => Results.Text($"OpenXLR daemon. Control API: ws://127.0.0.1:{ApiPort}/ws"));
+app.MapOpenXlrApi(apiPort);
+app.MapGet("/", () => Results.Redirect("/api/v1"));
 
 // The hosted services (device connect, PipeWire graph build) start before
 // Kestrel binds, so a busy port used to mean: build the whole submix graph,
@@ -49,7 +42,7 @@ for (int attempt = 0; ; attempt++)
 {
     try
     {
-        var probe = new TcpListener(IPAddress.Loopback, ApiPort);
+        var probe = new TcpListener(IPAddress.Loopback, apiPort);
         probe.Start();
         probe.Stop();
         break;
@@ -57,12 +50,12 @@ for (int attempt = 0; ; attempt++)
     catch (SocketException) when (DateTime.UtcNow < deadline)
     {
         if (attempt % 10 == 0)
-            app.Logger.LogWarning("port {Port} is in use by another local socket; waiting for it", ApiPort);
+            app.Logger.LogWarning("port {Port} is in use by another local socket; waiting for it", apiPort);
         await Task.Delay(1000);
     }
     catch (SocketException ex)
     {
-        app.Logger.LogError("port {Port} still busy after 60 s ({Error}); exiting for systemd to retry", ApiPort, ex.Message);
+        app.Logger.LogError("port {Port} still busy after 60 s ({Error}); exiting for systemd to retry", apiPort, ex.Message);
         return 75;   // EX_TEMPFAIL: a clean exit, no core dump; systemd tries again
     }
 }
@@ -74,7 +67,7 @@ try
 catch (IOException ex) when (ex.InnerException is AddressInUseException)
 {
     // Lost the race between the probe and Kestrel's own bind.
-    app.Logger.LogError("port {Port} was taken between probe and bind; exiting for systemd to retry", ApiPort);
+    app.Logger.LogError("port {Port} was taken between probe and bind; exiting for systemd to retry", apiPort);
     return 75;
 }
 catch (Exception ex)

@@ -1,0 +1,243 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenXLR Local Control API",
+    "version": "1.0.0",
+    "description": "Version 1 of the loopback-only OpenXLR daemon API. The daemon is intentionally bound to 127.0.0.1 and has no browser CORS policy or remote-network authentication."
+  },
+  "servers": [
+    { "url": "http://127.0.0.1:37890", "description": "Default local daemon" }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Liveness check",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "The daemon HTTP loop is responsive.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Health" } } }
+          }
+        }
+      }
+    },
+    "/api/v1": {
+      "get": {
+        "summary": "Discover API v1 resources",
+        "operationId": "getApiIndex",
+        "responses": {
+          "200": {
+            "description": "Stable resource URLs and daemon version.",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/state": {
+      "get": {
+        "summary": "Read the authoritative device and mixer state",
+        "operationId": "getState",
+        "responses": {
+          "200": {
+            "description": "The same state shape sent by the event WebSocket.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StateEvent" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/plugins": {
+      "get": {
+        "summary": "List installed LV2 plug-ins",
+        "description": "The first request may take longer while lilv scans the local LV2 catalog.",
+        "operationId": "listPlugins",
+        "responses": {
+          "200": {
+            "description": "Installed effects and their control ports.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PluginsEvent" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/commands": {
+      "post": {
+        "summary": "Execute one hardware, mixer, routing, effect, or profile command",
+        "description": "The response always has a requestId. Mutations also return the authoritative resulting state. A 422 response is a valid command that OpenXLR rejected; no retry should occur until its error is handled.",
+        "operationId": "executeCommand",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Command" },
+              "examples": {
+                "setSendLevel": { "value": { "cmd": "setLevel", "channel": "music", "mix": "stream", "value": 0.72, "requestId": "my-app-42" } },
+                "routeApplication": { "value": { "cmd": "assignApp", "identity": "org.mozilla.firefox", "channel": "browser" } },
+                "addOutputMix": { "value": { "cmd": "createMix", "name": "Podcast" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Command succeeded.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CommandResult" } } }
+          },
+          "400": {
+            "description": "Malformed JSON, a non-object request, or an invalid requestId.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEvent" } } }
+          },
+          "413": {
+            "description": "The command exceeded 65536 bytes.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEvent" } } }
+          },
+          "422": {
+            "description": "The command was parsed but rejected by validation, hardware, or the audio graph.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CommandResult" } } }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Health": {
+        "type": "object",
+        "required": ["status", "apiVersion", "daemonVersion"],
+        "properties": {
+          "status": { "const": "ok" },
+          "apiVersion": { "const": "1" },
+          "daemonVersion": { "type": "string" }
+        }
+      },
+      "Command": {
+        "type": "object",
+        "required": ["cmd"],
+        "additionalProperties": true,
+        "properties": {
+          "cmd": {
+            "type": "string",
+            "description": "Command discriminator. Required and case-sensitive.",
+            "enum": [
+              "getState", "getDiagnostics", "listPlugins", "set", "setLevel",
+              "setChannelMuted", "setMixVolume", "setMixMuted", "createChannel",
+              "renameChannel", "deleteChannel", "reorderChannels", "createMix",
+              "renameMix", "deleteMix", "reorderMixes", "assignStream", "assignApp",
+              "forgetApp", "setMonitorOutput", "setMonitorOutputs", "setMonitoredMix",
+              "setOutputVolume", "setEnforcedDefaults", "setAuxPortEnabled", "setLowCutHz",
+              "setSoftClipGuard", "setInserts", "showInsertUi", "setInsertBypass",
+              "setInsertParam", "setActiveDevice", "saveProfile", "loadProfile", "deleteProfile"
+            ]
+          },
+          "requestId": { "type": "string", "maxLength": 128, "description": "Caller-generated correlation ID. HTTP generates one when omitted; WebSocket echoes it in commandResult." },
+          "control": { "type": "string", "description": "Hardware control name for set. See docs/api.md for the supported names." },
+          "value": { "description": "Boolean or numeric command value. Levels are linear 0..1 unless a command explicitly uses dB or Hz.", "oneOf": [{ "type": "boolean" }, { "type": "number" }, { "type": "null" }] },
+          "channel": { "type": "string", "description": "Stable channel ID, or mix:<id> for an output insert chain." },
+          "mix": { "type": "string", "description": "Stable output mix ID." },
+          "streamId": { "type": "integer", "minimum": 0, "description": "Live PipeWire stream ID for assignStream." },
+          "device": { "type": ["string", "null"], "description": "PipeWire node.name for a monitor output, or USB vvvv:pppp ID for setActiveDevice." },
+          "devices": { "type": "array", "uniqueItems": true, "items": { "type": "string" }, "description": "Complete selected monitor-output node list." },
+          "order": { "type": "array", "uniqueItems": true, "items": { "type": "string" }, "description": "Complete ordered set of editable channel or mix IDs." },
+          "identity": { "type": "string", "description": "Stable application identity for assignApp or forgetApp." },
+          "label": { "type": "string", "description": "Optional application or insert display label." },
+          "sink": { "type": ["string", "null"], "description": "System default sink node to enforce; null disables sink enforcement." },
+          "source": { "type": ["string", "null"], "description": "System default source node to enforce; null disables source enforcement." },
+          "name": { "type": "string", "description": "Display name for create/rename or profile name for save/load/delete." },
+          "inserts": { "type": "array", "items": { "$ref": "#/components/schemas/Insert" }, "description": "The complete ordered insert chain." },
+          "insertId": { "type": "string", "description": "Stable ID of an insert in the selected chain." },
+          "symbol": { "type": "string", "description": "LV2 control-port symbol for setInsertParam." }
+        }
+      },
+      "Insert": {
+        "type": "object",
+        "required": ["id", "kind", "plugin"],
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "const": "lv2" },
+          "plugin": { "type": "string", "format": "uri" },
+          "label": { "type": "string" },
+          "bypass": { "type": "boolean", "default": false },
+          "params": { "type": "object", "additionalProperties": { "type": "number" } }
+        }
+      },
+      "CommandResult": {
+        "type": "object",
+        "required": ["type", "apiVersion", "requestId", "ok"],
+        "properties": {
+          "type": { "const": "commandResult" },
+          "apiVersion": { "const": "1" },
+          "requestId": { "type": "string" },
+          "ok": { "type": "boolean" },
+          "error": { "type": "string" },
+          "result": { "description": "Typed query result for getState, getDiagnostics, or listPlugins." },
+          "state": { "$ref": "#/components/schemas/StateEvent", "description": "Authoritative post-command state, present for HTTP mutations." }
+        }
+      },
+      "StateEvent": {
+        "type": "object",
+        "required": ["type", "apiVersion", "daemonVersion", "features", "connected"],
+        "properties": {
+          "type": { "const": "state" },
+          "apiVersion": { "const": "1" },
+          "daemonVersion": { "type": "string" },
+          "features": { "type": "array", "items": { "type": "string" } },
+          "connected": { "type": "boolean" },
+          "device": { "type": ["object", "null"] },
+          "capabilities": { "type": ["object", "null"] },
+          "state": { "type": ["object", "null"], "description": "Hardware controls for the active interface." },
+          "mixer": { "type": ["object", "null"], "description": "Channels, mixes, sends, mutes, applications, routing, monitor selection, and inserts." },
+          "devices": { "type": ["array", "null"], "items": { "type": "object" } },
+          "profiles": { "type": ["array", "null"], "items": { "type": "string" } },
+          "activeProfile": { "type": ["string", "null"] },
+          "detected": { "type": ["array", "null"], "items": { "type": "object" } }
+        },
+        "additionalProperties": true
+      },
+      "MetersEvent": {
+        "type": "object",
+        "required": ["type", "apiVersion", "levels"],
+        "properties": {
+          "type": { "const": "meters" },
+          "apiVersion": { "const": "1" },
+          "levels": {
+            "type": "object",
+            "description": "Keys are ch:<channelId> or mix:<mixId>; values are stereo peaks in 0..1.",
+            "additionalProperties": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1 } }
+          }
+        }
+      },
+      "PluginsEvent": {
+        "type": "object",
+        "required": ["type", "apiVersion", "plugins"],
+        "properties": {
+          "type": { "const": "plugins" },
+          "apiVersion": { "const": "1" },
+          "plugins": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "ErrorEvent": {
+        "type": "object",
+        "required": ["type", "apiVersion", "message"],
+        "properties": {
+          "type": { "const": "error" },
+          "apiVersion": { "const": "1" },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  },
+  "x-websocket": {
+    "url": "ws://127.0.0.1:37890/api/v1/events",
+    "legacyAlias": "ws://127.0.0.1:37890/ws",
+    "description": "The first server frame is StateEvent. Later frames are StateEvent, MetersEvent, PluginsEvent, CommandResult, or ErrorEvent. Clients send Command objects. A correlated mutation receives authoritative state before commandResult.",
+    "serverMessages": {
+      "oneOf": [
+        { "$ref": "#/components/schemas/StateEvent" },
+        { "$ref": "#/components/schemas/MetersEvent" },
+        { "$ref": "#/components/schemas/PluginsEvent" },
+        { "$ref": "#/components/schemas/CommandResult" },
+        { "$ref": "#/components/schemas/ErrorEvent" }
+      ]
+    },
+    "clientMessages": { "$ref": "#/components/schemas/Command" }
+  }
+}

@@ -154,23 +154,32 @@ not part of a profile, so recalling one does not rewire the desktop.
 ## OpenDeck plugin
 
 `plugin/com.emaspa.openxlr.sdPlugin` is an
-[OpenDeck](https://github.com/nekename/OpenDeck) plugin with two
-actions, Dial and Toggle (key). Both are clients of the daemon's
-WebSocket API, so they reflect changes made in the UI or on the
-hardware.
+[OpenDeck](https://github.com/nekename/OpenDeck) plugin with three
+actions: Mixer Key, Visual Level (key), and Mixer Dial. All are clients of the
+daemon's WebSocket API, so they reflect changes made in the UI or on hardware.
+Property inspectors load channels, mixes, output devices, profiles, and
+inserts from live state. They therefore follow editable layouts instead of
+offering only the original default ids.
 
-Dials render a touch panel: a knob with a needle, a level meter, the
-value readout, and a mute overlay. Every send, mix master, gain,
-headphone volume, and the crossfade is a dial target, and one dial can
-hold several targets cycled by tap or press.
+Dials render a touch panel: a colour-coded knob with a needle, live level
+meter, value readout, mute overlay, and stack position. Every send, mix master,
+gain, headphone volume, and the crossfade is a dial target. One dial can hold
+several targets, reorder them in the inspector, and cycle by tap or press.
+
+Visual Level gives key-only decks the same live information as a dial: a
+fader, input/mix meter, exact value, and mute state. A press can toggle mute,
+set a fixed percentage, or adjust by a signed percentage. Percentages are
+mapped to the target's real scale (including gain and headphone dB ranges).
 
 ![Dial panels](plugin-dials.png)
 
-Keys render a button with an icon and a status LED: red for a mute,
-green for an engaged feature or the active monitor output. Every
-hardware switch and mute is a key target, plus the software low cut
+Mixer Keys render a button with an icon and a status LED: red for a mute,
+and a stable per-target colour for an engaged feature, included route,
+listened mix, or active monitor output. Every hardware switch and mute is a
+key target, plus the software low cut
 (its frequency shown on the LED, cycling Off, 80, 120), ClipGuard, gain
-lock, and switching the monitor output to a specific device. Each key
+lock, selecting the listened mix, and independently adding/removing a monitor
+output. Each key
 can pick its icon, and a typed title replaces the built-in label.
 
 ![Keys](plugin-keys.png)
@@ -198,6 +207,10 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 
 ## Other
 
+- Versioned, loopback-only integration API: HTTP discovery, health, state,
+  LV2 catalog and correlated commands; a WebSocket event stream for state and
+  15 Hz meters; an OpenAPI 3.1 schema and client examples. The legacy `/ws`
+  socket remains compatible.
 - Audio Flow window: an interactive graph of the current routing, sources through
   outputs, with the filter chains (built-in low cut and ClipGuard, LV2
   inserts) drawn where they sit in the path and each stage marked active,

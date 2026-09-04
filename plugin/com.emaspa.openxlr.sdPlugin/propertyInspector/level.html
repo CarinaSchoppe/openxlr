@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="pi.css"></head>
+<body data-kind="level">
+  <header><span class="mark">OX</span><div><strong>Visual level key</strong><small>Fader, meter, value, and mute state</small></div><span id="status" class="status waiting">Connecting</span></header>
+  <section class="card">
+    <label for="target">Level</label>
+    <select id="target">
+      <option value="">Choose a level…</option>
+      <optgroup label="Wave hardware">
+        <option value="outputVolume">Monitored output volume</option>
+        <option value="gain">XLR 1 gain</option><option value="gain2">XLR 2 gain</option>
+        <option value="hp">Headphones 1 volume</option><option value="hp2">Headphones 2 volume</option>
+        <option value="auxLevel">Aux input level</option><option value="crossfade">Mic / PC monitor balance</option>
+      </optgroup>
+    </select>
+  </section>
+  <section class="card">
+    <label for="behaviour">On key press</label>
+    <select id="behaviour"><option value="mute">Toggle mute</option><option value="adjust">Adjust by a percentage</option><option value="set">Set to a percentage</option></select>
+    <div id="amount-row" class="field-row hidden"><input id="amount" type="number" step="1"><span>%</span></div>
+    <p id="behaviour-hint" class="hint">The key follows the live value and toggles mute without changing the saved level.</p>
+  </section>
+  <script src="pi.js"></script>
+</body></html>

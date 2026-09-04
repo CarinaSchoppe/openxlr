@@ -4,6 +4,16 @@
 // and dials stay in sync with the UI (and with the hardware) for free.
 
 import process from "node:process";
+import {
+  channelName,
+  mixName,
+  mixerChoices,
+  monitorOutputChoices,
+  normalisedLevelCommand,
+  shortName,
+  targetAccent,
+  toggledMonitorOutputs,
+} from "./plugin-core.mjs";
 
 // ---------- launch arguments ----------
 const arg = (name) => {
@@ -13,15 +23,6 @@ const arg = (name) => {
 const port = arg("-port");
 const pluginUUID = arg("-pluginUUID");
 const registerEvent = arg("-registerEvent");
-
-// ---------- static naming ----------
-const CHANNELS = {
-  xlr1: "XLR 1", xlr2: "XLR 2", aux: "Aux In", game: "Game",
-  music: "Music", browser: "Browser", system: "System",
-  voicechat: "Voice Chat", sfx: "SFX",
-};
-const MIXES = { monitor: "Monitor", stream: "Stream", chat: "Chat", auxout: "Aux" };
-const MIX_SHORT = { monitor: "Mon", stream: "Str", chat: "Cht", auxout: "Aux", all: "All" };
 
 // Toggle targets on the device state block, with short key labels.
 const DEVICE_TOGGLES = {
@@ -60,7 +61,10 @@ function scheduleDaemonReconnect(generation) {
 }
 
 function connectDaemon() {
-  const socket = new WebSocket("ws://127.0.0.1:37890/ws");
+  // The environment override is intentionally test-only; production hosts use
+  // the daemon's fixed loopback endpoint and never expose it on the network.
+  const url = process.env.OPENXLR_DAEMON_URL ?? "ws://127.0.0.1:37890/ws";
+  const socket = new WebSocket(url);
   const generation = ++connectionGeneration;
   daemon = socket;
   socket.onopen = () => {
@@ -74,17 +78,22 @@ function connectDaemon() {
     if (daemon !== socket) return;
     let m;
     try { m = JSON.parse(e.data); } catch { return; }
-    if (m.type === "state") { daemonState = m; refreshAll(); }
+    if (m.type === "state") {
+      daemonState = m;
+      refreshAll();
+      refreshPropertyInspectors();
+    }
     else if (m.type === "meters") { meterLevels = m.levels; refreshMeters(); }
     else if (m.type === "plugins") {
       catalog = new Map((m.plugins ?? []).map((p) => [p.plugin, p]));
       refreshAll();
+      refreshPropertyInspectors();
     }
     else if (m.type === "error") console.error("OpenXLR daemon:", m.message);
   };
   socket.onclose = () => {
     if (daemon !== socket) return;
-    daemonUp = false; daemonState = null; refreshAll();
+    daemonUp = false; daemonState = null; refreshAll(); refreshPropertyInspectors();
     scheduleDaemonReconnect(generation);
   };
   socket.onerror = () => { /* onclose follows */ };
@@ -107,8 +116,12 @@ const send = (o) => host.send(JSON.stringify(o));
 host.onopen = () => send({ event: registerEvent, uuid: pluginUUID });
 host.onclose = () => process.exit(0);
 
-// Visible action instances: context -> {action, settings, controller}
+// Visible action instances: context -> {action, settings}
 const instances = new Map();
+// Only an inspector that is actually open needs the relatively large dynamic
+// channel/mix/insert catalog. Tracking it prevents every fader state update
+// from sending that catalog once per configured deck action.
+const propertyInspectors = new Set();
 
 // OpenDeck keeps one persisted title field per key, shared by the plugin's
 // setTitle and the user's own edits. So the plugin fills in a default title
@@ -137,9 +150,10 @@ const isInsertTarget = (t) =>
 
 // Chains the daemon exposes, in the order the UI shows them.
 const chainName = (ch) =>
-  ch.startsWith("mix:") ? `${MIXES[ch.slice(4)] ?? ch.slice(4)} mix` : CHANNELS[ch] ?? ch;
+  ch.startsWith("mix:") ? `${mixName(mixer(), ch.slice(4))} mix` : channelName(mixer(), ch);
 const chainShort = (ch) =>
-  ch.startsWith("mix:") ? `${MIX_SHORT[ch.slice(4)] ?? ch.slice(4)} mix` : CHANNELS[ch] ?? ch;
+  ch.startsWith("mix:") ? `${shortName(mixName(mixer(), ch.slice(4)), 8)} mix`
+    : shortName(channelName(mixer(), ch));
 const insertsOf = (ch) => (mixer()?.inserts?.[ch] ?? []).map((s) => s.insert ?? s);
 
 // A short plugin name for a key face: drop the vendor prefix and the
@@ -259,19 +273,27 @@ host.onmessage = (e) => {
       instances.set(m.context, {
         action: m.action,
         settings: m.payload?.settings ?? {},
-        controller: m.payload?.controller ?? "Keypad",
       });
       refresh(m.context);
       break;
     case "willDisappear":
       instances.delete(m.context);
+      propertyInspectors.delete(m.context);
       emptyTitle.delete(m.context);
+      break;
+    case "propertyInspectorDidAppear":
+      propertyInspectors.add(m.context);
+      sendConfiguration(m.context);
+      break;
+    case "propertyInspectorDidDisappear":
+      propertyInspectors.delete(m.context);
       break;
     case "didReceiveSettings":
       if (inst) { inst.settings = m.payload?.settings ?? {}; refresh(m.context); }
       break;
     case "keyDown":
-      if (inst) onKeyDown(m.context, inst);
+      if (inst?.action === "com.emaspa.openxlr.level") onLevelKeyDown(m.context, inst);
+      else if (inst) onKeyDown(m.context, inst);
       break;
     case "dialRotate":
       if (inst) onDialRotate(m.context, inst, m.payload?.ticks ?? 0);
@@ -279,12 +301,12 @@ host.onmessage = (e) => {
     case "dialDown":
       if (!inst) break;
       if (cyclesOn(inst, "push")) cycleStack(m.context, inst);
-      else onDialPress(m.context, inst);
+      else onDialPress(inst);
       break;
     case "touchTap":
       if (!inst) break;
       if (cyclesOn(inst, "tap")) cycleStack(m.context, inst);
-      else onDialPress(m.context, inst);
+      else onDialPress(inst);
       break;
     case "titleParametersDidChange": {
       const title = m.payload?.title ?? "";
@@ -295,15 +317,10 @@ host.onmessage = (e) => {
       break;
     }
     case "sendToPlugin":
-      if (m.payload?.request === "outputs")
-        send({ event: "sendToPropertyInspector", context: m.context,
-               payload: { outputs: outputDevices() } });
-      else if (m.payload?.request === "inserts")
-        send({ event: "sendToPropertyInspector", context: m.context,
-               payload: insertChoices() });
-      else if (m.payload?.request === "profiles")
-        send({ event: "sendToPropertyInspector", context: m.context,
-               payload: { profiles: profileChoices() } });
+      if (m.payload?.request === "configuration") {
+        propertyInspectors.add(m.context);
+        sendConfiguration(m.context);
+      }
       break;
   }
 };
@@ -317,11 +334,24 @@ function profileChoices() {
 }
 const isProfileTarget = (t) => !!t && t.startsWith("profile|");
 
-// Physical output sinks the monitor mix can feed, for the PI's picker.
-function outputDevices() {
-  return (daemonState?.devices ?? [])
-    .filter((d) => d.kind === 0 && !d.isOwn)
-    .map((d) => ({ name: d.name, description: d.description }));
+function configurationChoices() {
+  const inserts = insertChoices();
+  return {
+    online: daemonUp && !!daemonState,
+    daemonVersion: daemonState?.daemonVersion ?? null,
+    ...mixerChoices(mixer()),
+    monitorOutputs: monitorOutputChoices(daemonState),
+    profiles: profileChoices(),
+    ...inserts,
+  };
+}
+
+function sendConfiguration(context) {
+  send({ event: "sendToPropertyInspector", context, payload: configurationChoices() });
+}
+
+function refreshPropertyInspectors() {
+  for (const context of propertyInspectors) sendConfiguration(context);
 }
 
 // ---------- state readers ----------
@@ -387,7 +417,14 @@ function toggleValue(target, inst) {
     const outs = mixer()?.monitorOutputs;
     return outs ? outs.includes(target.slice(8)) : null;
   }
+  if (target.startsWith("listen:"))
+    return mixer()?.mixes ? mixer().monitoredMixId === target.slice(7) : null;
   if (target.startsWith("mixmute:")) return mixOf(target.slice(8))?.muted ?? null;
+  if (target.startsWith("route:")) {
+    const [, ch, mix] = target.split(":");
+    const channel = chOf(ch);
+    return channel ? !channel.mutedIn?.includes(mix) : null;
+  }
   if (target.startsWith("sendmute:")) {
     const [, ch, mix] = target.split(":");
     return chOf(ch)?.mutedIn?.includes(mix) ?? null;
@@ -417,10 +454,15 @@ function toggleLabel(target, inst) {
     const name = d?.description ?? sink.split(".").pop();
     return "Monitor\n" + name;
   }
-  if (target.startsWith("mixmute:")) return `${MIXES[target.slice(8)] ?? target.slice(8)}\nMute`;
+  if (target.startsWith("listen:")) return `Listen\n${shortName(mixName(mixer(), target.slice(7)))}`;
+  if (target.startsWith("mixmute:")) return `${shortName(mixName(mixer(), target.slice(8)))}\nMute`;
+  if (target.startsWith("route:")) {
+    const [, ch, mix] = target.split(":");
+    return `${shortName(channelName(mixer(), ch))}\n→ ${shortName(mixName(mixer(), mix), 7)}`;
+  }
   if (target.startsWith("sendmute:")) {
     const [, ch, mix] = target.split(":");
-    return `${CHANNELS[ch] ?? ch}\n· ${MIX_SHORT[mix] ?? mix}`;
+    return `${shortName(channelName(mixer(), ch))}\n· ${shortName(mixName(mixer(), mix), 7)}`;
   }
   return DEVICE_TOGGLES[target] ?? target;
 }
@@ -449,8 +491,8 @@ function dialValue(target, inst) {
     const muted = mix === "all"
       ? Object.keys(ch.levels ?? {}).every((m) => ch.mutedIn?.includes(m))
       : ch.mutedIn?.includes(mix) ?? false;
-    return { pin: CHANNELS[chId] ?? chId,
-             scroll: mix === "all" ? "All mixes" : MIXES[mix] ?? mix,
+    return { pin: channelName(mixer(), chId),
+             scroll: mix === "all" ? "All mixes" : mixName(mixer(), mix),
              pct: pct(v), text: muted ? "MUTED" : `${pct(v)}%`, muted };
   }
   if (target.startsWith("mixvol:")) {
@@ -462,8 +504,9 @@ function dialValue(target, inst) {
   const s = dev(), x = mixer();
   switch (target) {
     case "outputVolume": {
-      const v = x?.outputVolume ?? 0;
-      const muted = mixOf("monitor")?.muted ?? false;
+      const v = x?.outputVolume;
+      if (v == null) return null;
+      const muted = mixOf(x.monitoredMixId)?.muted ?? false;
       return { label: "Monitor", pct: pct(v), text: muted ? "MUTED" : `${pct(v)}%`, muted };
     }
     case "gain": case "gain2": {
@@ -524,9 +567,16 @@ function onKeyDown(context, inst) {
   }
   else if (t === "softClipGuard") cmd({ cmd: "setSoftClipGuard", value: !cur });
   else if (t === "gainLocked") cmd({ cmd: "set", control: "gainLock", value: !cur });
-  else if (t.startsWith("monitor:")) cmd({ cmd: "setMonitorOutputs", devices: [t.slice(8)] });
+  else if (t.startsWith("monitor:"))
+    cmd({ cmd: "setMonitorOutputs",
+      devices: toggledMonitorOutputs(mixer()?.monitorOutputs, t.slice(8)) });
+  else if (t.startsWith("listen:")) cmd({ cmd: "setMonitoredMix", mix: t.slice(7) });
   else if (t.startsWith("mixmute:"))
     cmd({ cmd: "setMixMuted", mix: t.slice(8), value: !cur });
+  else if (t.startsWith("route:")) {
+    const [, ch, mix] = t.split(":");
+    cmd({ cmd: "setChannelMuted", channel: ch, mix, value: cur });
+  }
   else if (t.startsWith("sendmute:")) {
     const [, ch, mix] = t.split(":");
     cmd({ cmd: "setChannelMuted", channel: ch, mix, value: !cur });
@@ -586,7 +636,7 @@ function onDialRotate(context, inst, ticks) {
   }
 }
 
-function onDialPress(context, inst) {
+function onDialPress(inst) {
   const t = activeTarget(inst);
   if (!t) return;
   if (t.startsWith("insparam|")) {
@@ -614,8 +664,9 @@ function onDialPress(context, inst) {
     const muted = dev()?.[control];
     if (muted != null) cmd({ cmd: "set", control, value: !muted });
   } else if (t === "outputVolume") {
-    const muted = mixOf("monitor")?.muted;
-    if (muted != null) cmd({ cmd: "setMixMuted", mix: "monitor", value: !muted });
+    const mix = mixer()?.monitoredMixId;
+    const muted = mix ? mixOf(mix)?.muted : null;
+    if (muted != null) cmd({ cmd: "setMixMuted", mix, value: !muted });
   } else if (t === "hp" || t === "hp2") {
     // no per-jack mute register exists; the output selector is the mute
     const control = t === "hp" ? "outHp1" : "outHp2";
@@ -624,6 +675,30 @@ function onDialPress(context, inst) {
   } else if (t === "crossfade") {
     cmd({ cmd: "set", control: "crossfade", value: 100 });   // back to centre
   }
+}
+
+function onLevelKeyDown(context, inst) {
+  const target = inst.settings.target;
+  if (!target || !dialValue(target, inst)) {
+    send({ event: "showAlert", context });
+    return;
+  }
+  const behaviour = inst.settings.behaviour ?? "mute";
+  if (behaviour === "mute") {
+    onDialPress(inst);
+    return;
+  }
+  const configured = Number(inst.settings.amount);
+  const amount = Number.isFinite(configured) ? configured : (behaviour === "set" ? 50 : 10);
+  if (behaviour === "adjust") {
+    onDialRotate(context, inst, Math.min(100, Math.max(-100, amount)));
+    return;
+  }
+  if (behaviour === "set") {
+    for (const command of normalisedLevelCommand(target, amount, mixer())) cmd(command);
+    return;
+  }
+  send({ event: "showAlert", context });
 }
 
 // ---------- rendering ----------
@@ -669,8 +744,8 @@ function glyphFor(t) {
   if (t === "mute" || t === "mute2") return "mic";
   if (t === "outHp1" || t === "outHp2" || t === "lowImpedance") return "headphones";
   if (t === "outLineOut") return "jack";
-  if (t.startsWith("monitor:") || t.startsWith("mixmute:")) return "speaker";
-  if (t.startsWith("sendmute:")) return "fader";
+  if (t.startsWith("monitor:") || t.startsWith("mixmute:") || t.startsWith("listen:")) return "speaker";
+  if (t.startsWith("sendmute:") || t.startsWith("route:")) return "fader";
   if (isProfileTarget(t)) return "scene";
   return null;
 }
@@ -713,13 +788,13 @@ function sevenSegText(text, x, y, h, color) {
   return out;
 }
 
-function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null) {
+function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null, activeColor = "#39D98A") {
   // The keys speak the touch strips' hardware language: the same faceplate
   // material (the strip tiles' #383838 with the side-lit gradient and #505050
   // border), a machined round button cap like the dial knob, a status LED,
   // and for the low cut an inset LED display window. offColor lights the
   // OFF state too (an insert's bypass shows red, like the UI's LED).
-  const accent = !known ? null : on ? (muteLike ? "#FF3C4E" : "#3ecf7a") : offColor;
+  const accent = !known ? null : on ? (muteLike ? "#FF3C4E" : activeColor) : offColor;
   const ink = !known ? "#6a7080" : accent ?? "#d2d6de";
   const lines = label ? label.split("\n").slice(0, 2) : [];
 
@@ -752,7 +827,6 @@ function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null) {
     : "";
 
   // Status LED lamp in the top-right corner, like a channel strip indicator.
-  const led = glyphName || !badge ? "" : "";
   const lampDot = glyphName
     ? `<circle cx="120" cy="24" r="8" fill="${!known ? "#4a4f5c" : accent ?? "#2c2f36"}" stroke="#15161a" stroke-width="3"/>` +
       (accent ? `<circle cx="120" cy="24" r="11" fill="${accent}" opacity="0.5" filter="url(#soft)"/>` : "")
@@ -788,7 +862,41 @@ function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null) {
       <rect x="6" y="6" width="132" height="132" rx="14" fill="#383838"/>
       <rect x="6" y="6" width="132" height="132" rx="14" fill="url(#side)"/>
       <rect x="9" y="9" width="126" height="126" rx="12" fill="none" stroke="#50555e" stroke-width="4"/>
-      ${face}${slash}${led}${lampDot}${labelSvg}
+      ${face}${slash}${lampDot}${labelSvg}
+    </svg>`).toString("base64");
+}
+
+function levelKeySvg(value, label, meterLevel, accent) {
+  if (!value) {
+    return "data:image/svg+xml;base64," + Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="288" height="288" viewBox="0 0 144 144">
+        <rect x="6" y="6" width="132" height="132" rx="15" fill="#15181f" stroke="#343946" stroke-width="3"/>
+        <text x="72" y="68" text-anchor="middle" fill="#737b8e" font-family="sans-serif" font-size="18" font-weight="700">${daemonUp ? "SET UP" : "OFFLINE"}</text>
+      </svg>`).toString("base64");
+  }
+  const pct = Math.max(0, Math.min(100, value.pct));
+  const meter = Math.max(0, Math.min(1, meterLevel ?? 0));
+  const faderY = 105 - pct * 0.68;
+  const meterH = meter * 82;
+  const display = value.muted ? "MUTED" : value.text;
+  const title = shortName(label, 16);
+  return "data:image/svg+xml;base64," + Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="288" height="288" viewBox="0 0 144 144">
+      <defs>
+        <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#222733"/><stop offset="1" stop-color="#101319"/></linearGradient>
+        <linearGradient id="meter" x1="0" y1="1" x2="0" y2="0"><stop stop-color="${accent}"/><stop offset="0.8" stop-color="#F5C84C"/><stop offset="1" stop-color="#FF5264"/></linearGradient>
+      </defs>
+      <rect x="5" y="5" width="134" height="134" rx="16" fill="url(#panel)" stroke="#39404E" stroke-width="3"/>
+      <rect x="9" y="9" width="126" height="4" rx="2" fill="${value.muted ? "#FF5264" : accent}"/>
+      <text x="72" y="31" text-anchor="middle" fill="#F2F5FA" font-family="sans-serif" font-size="14" font-weight="700">${escXml(title)}</text>
+      <rect x="22" y="38" width="9" height="82" rx="4.5" fill="#090B0F"/>
+      <rect x="23.5" y="${(119 - meterH).toFixed(1)}" width="6" height="${meterH.toFixed(1)}" rx="3" fill="url(#meter)"/>
+      <rect x="46" y="40" width="11" height="68" rx="5.5" fill="#090B0F"/>
+      <rect x="48" y="${faderY.toFixed(1)}" width="7" height="${(106 - faderY).toFixed(1)}" rx="3.5" fill="${value.muted ? "#565D6B" : accent}" opacity="0.8"/>
+      <rect x="40" y="${(faderY - 5).toFixed(1)}" width="23" height="10" rx="4" fill="#F5F7FA" stroke="#11141A" stroke-width="2"/>
+      <text x="126" y="80" text-anchor="end" fill="${value.muted ? "#FF6B7A" : "#F2F5FA"}" font-family="sans-serif" font-size="20" font-weight="800">${escXml(display)}</text>
+      <text x="126" y="101" text-anchor="end" fill="#8B94A8" font-family="sans-serif" font-size="10" font-weight="700">${value.muted ? "PRESS TO UNMUTE" : "LIVE LEVEL"}</text>
+      ${value.muted ? '<line x1="39" y1="110" x2="126" y2="43" stroke="#FF5264" stroke-width="5" stroke-linecap="round" opacity="0.85"/>' : ""}
     </svg>`).toString("base64");
 }
 
@@ -810,14 +918,20 @@ function dialIcon(t) {
 
 // The rotating needle over the half-knob, Wave Link style: a tick rotated
 // around a center below the visible strip. 0..100% sweeps -50°..+50°.
-function needleSvg(pct) {
+function needleSvg(pct, color = "#ffffff") {
   const angle = (Math.max(0, Math.min(100, pct)) / 100) * 100 - 50;
   return "data:image/svg+xml;base64," + Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="130" height="52" viewBox="0 0 130 52">
       <g transform="rotate(${angle}, 65, 61)">
-        <rect x="63.5" y="30" width="3" height="16" rx="1.5" fill="#fff"/>
+        <rect x="63" y="29" width="4" height="18" rx="2" fill="${color}"/>
       </g>
     </svg>`).toString("base64");
+}
+
+function accentSvg(color) {
+  return "data:image/svg+xml;base64," + Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="184" height="4" viewBox="0 0 184 4"><rect width="184" height="4" rx="2" fill="${color}"/></svg>`
+  ).toString("base64");
 }
 
 // The meter key feeding a dial target's level bar.
@@ -835,31 +949,43 @@ function meterKeyFor(t) {
   return "mix:monitor";   // outputVolume, hp, hp2, crossfade
 }
 
-function meterSvg(level) {
+function meterSvg(level, accent = "#39D98A") {
   const w = Math.round(Math.max(0, Math.min(1, level)) * 130);
   const hot = level > 0.92;
   return "data:image/svg+xml;base64," + Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="130" height="6" viewBox="0 0 130 6">
       <rect width="130" height="6" rx="3" fill="#252525"/>
-      ${w > 0 ? `<rect width="${w}" height="6" rx="3" fill="${hot ? "#FF3C4E" : "#3ecf7a"}"/>` : ""}
+      ${w > 0 ? `<rect width="${w}" height="6" rx="3" fill="${hot ? "#FF5264" : accent}"/>` : ""}
     </svg>`).toString("base64");
 }
 
-// Meters tick at 15 Hz; only redraw a dial's bar when its value moved
-// visibly, so the strip is not re-rendered for noise.
+function currentMeterLevel(target) {
+  const key = meterKeyFor(target);
+  const lr = key ? meterLevels?.[key] : null;
+  return lr ? Math.max(lr[0] ?? 0, lr[1] ?? 0) : 0;
+}
+
+// Meters tick at 15 Hz; only redraw a control when its level moved visibly.
+// Key faces use fewer buckets because replacing a 288px SVG is costlier than
+// updating the dial layout's narrow meter pixmap.
 const lastMeter = new Map();   // context -> rounded width last drawn
 function refreshMeters() {
   if (!meterLevels) return;
   for (const [context, inst] of instances) {
-    if (inst.action !== "com.emaspa.openxlr.dial") continue;
     const key = meterKeyFor(activeTarget(inst));
     if (!key || !(key in meterLevels)) continue;
     const lr = meterLevels[key];
     const level = Math.max(lr[0] ?? 0, lr[1] ?? 0);
-    const bucket = Math.round(level * 65);
+    const isDial = inst.action === "com.emaspa.openxlr.dial";
+    const isLevelKey = inst.action === "com.emaspa.openxlr.level";
+    if (!isDial && !isLevelKey) continue;
+    const bucket = Math.round(level * (isDial ? 65 : 16));
     if (lastMeter.get(context) === bucket) continue;
     lastMeter.set(context, bucket);
-    send({ event: "setFeedback", context, payload: { meter: meterSvg(level) } });
+    if (isDial)
+      send({ event: "setFeedback", context,
+        payload: { meter: meterSvg(level, targetAccent(activeTarget(inst))) } });
+    else refresh(context);
   }
 }
 
@@ -869,7 +995,7 @@ function refreshMeters() {
 // per-character average, then enforced by the renderer). A send dial
 // pins the channel name and scrolls the mix name in the space that
 // remains; other long titles scroll whole.
-const TITLE_W = 158, TITLE_H = 24, CHAR_W = 8.1, GAP_PX = 20, STEP_PX = 7;
+const TITLE_W = 114, TITLE_H = 24, CHAR_W = 8.1, GAP_PX = 20, STEP_PX = 7;
 const escXml = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 const textW = (t) => Math.round(t.length * CHAR_W);
 
@@ -933,7 +1059,14 @@ function refresh(context) {
     const glyphName = iconChoice && GLYPHS[iconChoice] ? iconChoice : glyphFor(t);
     const offColor = isInsertTarget(t) ? "#FF3C4E" : null;   // bypassed = red, as in the UI
     send({ event: "setImage", context,
-           payload: { image: keySvg(v === true, isMuteLike(t), v !== null && daemonUp, glyphName, badge, label, offColor) } });
+           payload: { image: keySvg(v === true, isMuteLike(t), v !== null && daemonUp,
+             glyphName, badge, label, offColor, targetAccent(t)) } });
+  } else if (inst.action === "com.emaspa.openxlr.level") {
+    const d = dialValue(t, inst);
+    const label = d ? [d.pin, d.scroll ?? d.label].filter(Boolean).join(" · ") : "OpenXLR";
+    send({ event: "setImage", context, payload: {
+      image: levelKeySvg(d, label, currentMeterLevel(t), targetAccent(t)),
+    } });
   } else if (inst.action === "com.emaspa.openxlr.dial") {
     const d = dialValue(t, inst);
     const isDb = t === "gain" || t === "gain2";
@@ -942,11 +1075,16 @@ function refresh(context) {
           value: isDb && !d.muted ? d.text.replace(" dB", "") : d.text,
           unit: { enabled: isDb && !d.muted },
           icon: dialIcon(t),
-          needle: needleSvg(d.pct),
+          accent: accentSvg(d.muted ? "#FF5264" : targetAccent(t)),
+          meter: meterSvg(currentMeterLevel(t), targetAccent(t)),
+          needle: needleSvg(d.pct, d.muted ? "#FF5264" : targetAccent(t)),
+          stack: targetsOf(inst).length > 1
+            ? `${(inst.settings.activeIndex ?? 0) % targetsOf(inst).length + 1}/${targetsOf(inst).length}` : "",
           muteOverlay: { enabled: d.muted } }
       : { title: "OpenXLR", value: daemonUp ? "set up" : "offline",
           unit: { enabled: false }, icon: dialIcon(null),
-          needle: needleSvg(0), muteOverlay: { enabled: false } } });
+          accent: accentSvg("#596174"), meter: meterSvg(0),
+          needle: needleSvg(0), stack: "", muteOverlay: { enabled: false } } });
   }
 }
 

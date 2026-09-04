@@ -19,8 +19,16 @@ sha256sums=("${OPENXLR_SOURCE_SHA256:?Use tools/build-arch-package.sh with a tru
 
 build() {
     cd "$srcdir/openxlr-$pkgver"
-    dotnet publish src/OpenXLR.Daemon -c Release -r linux-x64 --self-contained false -o out/daemon
-    dotnet publish src/OpenXLR.UI -c Release -r linux-x64 --self-contained false -o out/ui
+    # Keep build metadata reproducible and prevent makepkg from finding its
+    # disposable $srcdir in managed/native debug information.
+    local source_map="$srcdir/openxlr-$pkgver=/usr/src/debug/openxlr"
+    export CFLAGS="$CFLAGS -ffile-prefix-map=$source_map -fdebug-prefix-map=$source_map"
+    dotnet publish src/OpenXLR.Daemon -c Release -r linux-x64 --self-contained false \
+        -p:PathMap="$source_map" -p:ContinuousIntegrationBuild=true \
+        -p:DebugType=embedded -p:DebugSymbols=true -o out/daemon
+    dotnet publish src/OpenXLR.UI -c Release -r linux-x64 --self-contained false \
+        -p:PathMap="$source_map" -p:ContinuousIntegrationBuild=true \
+        -p:DebugType=embedded -p:DebugSymbols=true -o out/ui
 }
 
 package() {

@@ -305,27 +305,40 @@ outputs…** so deletion also removes sends, effects and application references.
 
 ## 4. Stream Deck (OpenDeck)
 
-The plugin has two actions. Both are clients of the daemon and show
+The plugin has three actions. All are clients of the daemon and show
 its live state, so what a key displays is what the mixer window shows.
 
-**Toggle** (a key) switches one thing: a hardware control (mute,
+**Mixer Key** switches one thing: a hardware control (mute,
 phantom, low cut, expander, voice tune, ClipGuard, compressor, low
 impedance, the Pro's output selectors, the aux level lock, the gain
 lock), the software low cut (cycling Off, 80, 120), a mix or send mute,
-the monitor output (switching the currently listened mix to one specific device),
+the listened mix, one monitor output (added/removed without clearing other
+selected devices),
 the bypass of one insert or of a whole chain, or a profile to recall.
-The key's LED is green for an engaged feature, red for a mute, and grey
+The key's LED is coloured for an engaged feature or included route, red for a
+mute, and grey
 when the daemon is offline or the target does not exist on the
 connected interface. A key's icon can be chosen in its settings, and a
 title typed there replaces the built-in label.
 
-**Dial** (an encoder) changes a level: the monitor output volume, a
+**Visual Level** gives a key-only deck a live fader, signal meter, value, and
+mute state for any channel send, mix master, gain, headphone output, aux
+input, or crossfade. Its press behaviour is selectable: toggle mute, set an
+absolute percentage, or adjust by a signed percentage (for separate volume-up
+and volume-down keys).
+
+**Mixer Dial** (an encoder) changes a level: the monitor output volume, a
 gain, a headphone volume, the aux level, the crossfade, a mix master, a
 channel's send into one mix or into all mixes, or one control of an
-insert. The touch strip shows a knob, a level meter, the value and a
+insert. The touch strip shows a coloured knob, a live level meter, the value and a
 mute overlay; pressing the dial mutes (or, for a gain, mutes the input;
-for the crossfade, recentres). A dial can hold several targets, cycled
-by tap or press as chosen in its settings.
+for the crossfade, recentres). A dial can hold several reorderable targets,
+cycled by tap or press as chosen in its settings.
+
+The inspectors receive the channel and mix registry from the daemon. Additions
+and renames therefore appear without editing the plugin. Existing keys keep
+stable ids; after deletion they visibly become unavailable instead of being
+retargeted by name.
 
 Installing: the plugin zip from the release through OpenDeck's
 install-from-file, or the folder the package ships in
@@ -426,7 +439,8 @@ before sharing it. Collection commands time out rather than hanging the UI.
 | `~/.config/openxlr/gainlock.json` | which devices have the gain lock set |
 | `~/.config/openxlr/ui.json` | window preferences |
 | `openxlr-daemon.service` (systemd user unit) | the daemon; `journalctl --user -u openxlr-daemon` for its log |
-| `ws://127.0.0.1:37890/ws` | the daemon's API, documented in [api.md](api.md) |
+| `http://127.0.0.1:37890/api/v1` | versioned local HTTP API discovery, documented in [api.md](api.md) |
+| `ws://127.0.0.1:37890/api/v1/events` | live state/meter event API (`/ws` remains a legacy alias) |
 
 Uninstalling a package leaves `~/.config/openxlr` in place; remove it
 by hand if you want a clean slate.

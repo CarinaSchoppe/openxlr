@@ -5,22 +5,26 @@ using OpenXLR.Core.Mixing;
 
 namespace OpenXLR.Daemon;
 
-// The OpenXLR daemon control protocol: JSON messages over a WebSocket at
-// ws://127.0.0.1:37890/ws. Clients (Avalonia UI, OpenDeck plugin, CLI) connect,
-// receive a "state" message immediately and on every change, and send commands.
-// One connection carries both the hardware controls and the submixer, so a
-// fader move by one client is broadcast to all. camelCase on the wire.
+// The OpenXLR daemon control protocol: JSON messages over the versioned HTTP
+// and WebSocket API. /ws remains as a compatibility alias. One connection
+// carries both the hardware controls and the submixer, so a fader move by one
+// client is broadcast to all. camelCase on the wire.
+
+/// <summary>Stable identifiers shared by every public API transport.</summary>
+public static class ApiVersion
+{
+    public const string Current = "1";
+}
 
 /// <summary>Command from a client to the daemon.</summary>
 public sealed record Command
 {
     /// <summary>
-    /// Command name. <see cref="WebSocketHub"/> owns dispatch; the root README's
-    /// WebSocket table is the canonical public list so this DTO cannot drift
-    /// into a second protocol specification.
+    /// Command name. <see cref="WebSocketHub"/> owns dispatch; docs/api.md and
+    /// its bundled OpenAPI document are the canonical public specification.
     /// </summary>
     [JsonPropertyName("cmd")] public string Cmd { get; init; } = "";
-    /// <summary>Optional correlation ID for an acknowledged mixer command.</summary>
+    /// <summary>Optional correlation ID acknowledged by every command transport.</summary>
     [JsonPropertyName("requestId")] public string? RequestId { get; init; }
 
     /// <summary>For "set": the control name (see <see cref="ControlNames"/>).</summary>
@@ -79,6 +83,7 @@ public sealed record PluginsMessage
     public PluginsMessage(IReadOnlyList<PluginInfo> plugins) => Plugins = plugins;
 
     [JsonPropertyName("type")] public string Type => "plugins";
+    [JsonPropertyName("apiVersion")] public string ApiVersion => Daemon.ApiVersion.Current;
     [JsonPropertyName("plugins")] public IReadOnlyList<PluginInfo> Plugins { get; }
 }
 
@@ -86,6 +91,7 @@ public sealed record PluginsMessage
 public sealed record StateMessage
 {
     [JsonPropertyName("type")] public string Type => "state";
+    [JsonPropertyName("apiVersion")] public string ApiVersion => Daemon.ApiVersion.Current;
     /// <summary>
     /// The daemon's own version, so a client can tell when it is talking to
     /// a daemon left running across a package upgrade (the UI shows a
@@ -136,6 +142,7 @@ public sealed record MetersMessage
     public MetersMessage(IReadOnlyDictionary<string, double[]> levels) => Levels = levels;
 
     [JsonPropertyName("type")] public string Type => "meters";
+    [JsonPropertyName("apiVersion")] public string ApiVersion => Daemon.ApiVersion.Current;
     [JsonPropertyName("levels")] public IReadOnlyDictionary<string, double[]> Levels { get; }
 }
 
@@ -144,7 +151,29 @@ public sealed record ErrorMessage
     public ErrorMessage(string message) => Message = message;
 
     [JsonPropertyName("type")] public string Type => "error";
+    [JsonPropertyName("apiVersion")] public string ApiVersion => Daemon.ApiVersion.Current;
     [JsonPropertyName("message")] public string Message { get; }
+}
+
+/// <summary>Transport-independent acknowledgement for a correlated command.</summary>
+public sealed record CommandResultMessage
+{
+    public CommandResultMessage(string requestId, string? error = null, object? result = null,
+        StateMessage? state = null)
+    {
+        RequestId = requestId;
+        Error = error;
+        Result = result;
+        State = state;
+    }
+
+    [JsonPropertyName("type")] public string Type => "commandResult";
+    [JsonPropertyName("apiVersion")] public string ApiVersion => Daemon.ApiVersion.Current;
+    [JsonPropertyName("requestId")] public string RequestId { get; }
+    [JsonPropertyName("ok")] public bool Ok => Error is null;
+    [JsonPropertyName("error")] public string? Error { get; }
+    [JsonPropertyName("result")] public object? Result { get; }
+    [JsonPropertyName("state")] public StateMessage? State { get; }
 }
 
 /// <summary>Canonical control names accepted by "set".</summary>
@@ -174,6 +203,7 @@ public static class ControlNames
 public sealed record DiagnosticsMessage(IReadOnlyDictionary<string, string> Blocks)
 {
     [System.Text.Json.Serialization.JsonPropertyName("type")] public string Type => "diagnostics";
+    [System.Text.Json.Serialization.JsonPropertyName("apiVersion")] public string ApiVersion => Daemon.ApiVersion.Current;
 }
 
 /// <summary>The daemon's version as stamped by the build (Directory.Build.props).</summary>

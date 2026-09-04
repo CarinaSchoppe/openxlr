@@ -3,8 +3,9 @@
   "items": [
     { "key": "backgroundDial", "type": "pixmap", "rect": [4, 4, 192, 92], "zOrder": 1,
       "value": "./imgs/dialBackground.svg" },
+    { "key": "accent", "type": "pixmap", "rect": [8, 5, 184, 4], "zOrder": 5 },
     { "key": "icon", "type": "pixmap", "rect": [16, 12, 24, 24], "zOrder": 10 },
-    { "key": "title", "type": "pixmap", "rect": [38, 12, 158, 24], "zOrder": 10 },
+    { "key": "title", "type": "pixmap", "rect": [44, 12, 114, 24], "zOrder": 10 },
     { "key": "dial", "type": "pixmap", "rect": [16, 44, 130, 52], "zOrder": 20,
       "value": "./imgs/dial.svg" },
     { "key": "needle", "type": "pixmap", "rect": [16, 44, 130, 52], "zOrder": 21 },
@@ -13,6 +14,9 @@
     { "key": "unit", "type": "text", "rect": [140, 70, 44, 16],
       "font": { "size": 13, "weight": 700 }, "alignment": "right", "zOrder": 30,
       "enabled": false, "value": "dB" },
+    { "key": "stack", "type": "text", "rect": [163, 12, 25, 16],
+      "font": { "size": 10, "weight": 700 }, "alignment": "right", "zOrder": 40,
+      "value": "" },
     { "key": "meter", "type": "pixmap", "rect": [16, 37, 130, 6], "zOrder": 25 },
     { "key": "muteOverlay", "type": "pixmap", "rect": [4, 4, 192, 92], "zOrder": 100,
       "value": "./imgs/dialMuted.svg", "enabled": false }

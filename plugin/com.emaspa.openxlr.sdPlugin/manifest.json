@@ -1,6 +1,6 @@
 {
 	"Name": "OpenXLR",
-	"Description": "Control the OpenXLR daemon: hardware DSP toggles, mix and channel faders on dials, mutes with live state on the keys.",
+	"Description": "Wave Link-style control for OpenXLR: visual level keys, mixer dials, routing, effects, monitoring, and live meters.",
 	"Author": "Emanuele Sparvoli",
 	"Version": "0.1.13",
 	"CodePath": "plugin.mjs",
@@ -14,10 +14,10 @@
 	],
 	"Actions": [
 		{
-			"Name": "Toggle",
+			"Name": "Mixer Key",
 			"UUID": "com.emaspa.openxlr.toggle",
 			"Icon": "icons/toggle",
-			"Tooltip": "Toggle a hardware switch, a mix mute, a channel send mute, or an insert plugin's bypass",
+			"Tooltip": "Toggle routing, monitoring, mute, hardware controls, profiles, or audio effects with live state",
 			"Controllers": [
 				"Keypad"
 			],
@@ -30,10 +30,26 @@
 			]
 		},
 		{
-			"Name": "Dial",
+			"Name": "Visual Level",
+			"UUID": "com.emaspa.openxlr.level",
+			"Icon": "icons/dial",
+			"Tooltip": "Show a live fader and meter; mute, set, or adjust a channel, mix, or device level",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"PropertyInspectorPath": "propertyInspector/level.html",
+			"States": [
+				{
+					"Image": "icons/dial"
+				}
+			]
+		},
+		{
+			"Name": "Mixer Dial",
 			"UUID": "com.emaspa.openxlr.dial",
 			"Icon": "icons/dial",
-			"Tooltip": "Adjust a level on a dial: channel sends, mix masters, gain, headphones, crossfade, insert plugin controls",
+			"Tooltip": "Adjust live channel, mix, device, and audio-effect levels; stack and reorder several controls",
 			"Controllers": [
 				"Encoder"
 			],

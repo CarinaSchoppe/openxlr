@@ -273,3 +273,38 @@ fail immediately if the UI exits and includes the last X11 tree when readiness
 times out. Three offline success, early-exit and timeout tests bring the Python
 suite to **12 tests**. The real UI assertion is not skipped or replaced by a
 process-only check.
+
+## Integration API and OpenDeck follow-up (2026-09-04)
+
+The versioned API and dynamic OpenDeck work bring the local suite to **147 .NET
+tests**, **12 Python acceptance tests**, and **7 Node plugin tests**. Release
+builds pass with warnings treated as errors, the complete .NET format/analyzer
+check changes zero files, and an ESLint dead-code pass reports no unused
+variables/parameters or unreachable JavaScript in the runtime, property
+inspectors, helpers, or tests.
+
+The new daemon was run against the attached XLR Dock and the existing real
+PipeWire settings. It restored 4 mixes and 9 channels. Runtime assertions
+covered HTTP health/discovery/state/OpenAPI, a correlated state query, an
+idempotent real mixer mutation, a rejected unknown command (422), the 64 KiB
+request boundary (413), the absence of permissive browser CORS, the v1
+WebSocket's initial state, and state-before-ack ordering. Legacy `/ws` clients
+stayed connected. The OpenAPI document is also bundled into build and publish
+output.
+
+The repository plugin was installed into the live OpenDeck profile and
+OpenDeck restarted. It registered successfully, its Node process remained
+alive, and the journal no longer contained the previous dial title/icon
+overlap warning or OpenDeck panic for that run. The runtime smoke test drives
+the actual plugin process through fake OpenDeck and daemon WebSockets and
+asserts dynamic configuration, SVG feedback, a route toggle, additive monitor
+output, listened-mix selection, fixed level key, and dial rotation.
+
+Finally, the full CachyOS live audio test passed again: persisted layout edits,
+parallel transactions, reorder without PipeWire recreation, real app routing,
+selected-mix listening (0.2000 versus muted 0.0000), compressor and bypass
+(0.2000/0.0500/0.2000), independent channel processing (0.1000/0.2000), native
+compressor and EQ editor gestures, plugin-host SIGKILL/SIGSTOP recovery, EQ
+response (440 Hz 0.0500; 6 kHz 0.1980), daemon SIGKILL and 60-second watchdog
+recovery, deletion cleanup, and connected-client shutdown in 0.74 seconds.
+The original service and audio state were restored afterward.

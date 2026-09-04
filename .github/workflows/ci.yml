@@ -18,6 +18,10 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
       - name: Restore
         # Native hosting is built with the same strict flags locally and in CI.
         run: |
@@ -49,7 +53,13 @@ jobs:
       - name: Validate Stream Deck/OpenDeck plugin
         run: |
           node --check plugin/com.emaspa.openxlr.sdPlugin/plugin.mjs
+          node --check plugin/com.emaspa.openxlr.sdPlugin/plugin-core.mjs
+          node --check plugin/com.emaspa.openxlr.sdPlugin/propertyInspector/pi.js
+          node --check plugin/com.emaspa.openxlr.sdPlugin/propertyInspector/dial.js
+          node --test plugin/tests/*.test.mjs
           python3 -m json.tool plugin/com.emaspa.openxlr.sdPlugin/manifest.json >/dev/null
+          python3 -m json.tool plugin/com.emaspa.openxlr.sdPlugin/layouts/dial.json >/dev/null
+          python3 -m json.tool docs/openapi-v1.json >/dev/null
 
       - name: Validate packaged service inputs
         run: |

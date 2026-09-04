@@ -2,7 +2,7 @@
 
 ```
   OpenXLR.UI (Avalonia)   ──┐
-  OpenDeck plugin (Node)  ──┼── WebSocket, JSON, 127.0.0.1:37890 ──►  OpenXLR.Daemon (ASP.NET Core)
+  OpenDeck plugin (Node)  ──┼── HTTP/WebSocket JSON, 127.0.0.1:37890 ──►  OpenXLR.Daemon (ASP.NET Core)
   scripts, tools          ──┘                                          hosts OpenXLR.Core
                                                                           │
               ┌───────────────────────────────────────────────────────────┼──────────────────┐
@@ -21,7 +21,7 @@
 
 - `OpenXLR.Daemon` owns the device and the graph: it opens the
   interface, polls its state every 100 ms, builds and maintains the
-  PipeWire graph, routes application streams, and serves the WebSocket
+  PipeWire graph, routes application streams, and serves the versioned local
   API. Every state change is broadcast to all clients, whichever client
   (or the hardware) caused it. It is a systemd user service.
 - `OpenXLR.UI` is a view over that API with no dependency on

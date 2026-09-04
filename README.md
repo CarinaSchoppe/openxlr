@@ -96,6 +96,14 @@ Installing the upstream AUR package or an older upstream release does not
 automatically include those changes. CI package artifacts belong to their
 displayed commit; check the build identity in About.
 
+These fork features were developed and validated by
+[Carina Schoppe (`@CarinaSchoppe`)](https://github.com/CarinaSchoppe): the
+editable channel/output-mix lifecycle and Flow routing, native LSP processing
+and visual editors, daemon/plugin-host recovery and diagnostics, release-aware
+updates, the versioned integration API, and the dynamic OpenDeck controls. The
+work is proposed upstream in [pull request #10](https://github.com/emaspa/openxlr/pull/10)
+and remains clearly identified as fork development until it is accepted there.
+
 The workflow aims at Wave Link-style routing, not complete Elgato Wave 3/Wave
 Link feature parity. Hardware inputs, Monitor/Aux and the last application
 channel are protected. Application fan-outs no longer advertise duplicate

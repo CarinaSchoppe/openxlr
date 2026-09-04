@@ -229,8 +229,6 @@ Prior work OpenXLR builds on:
 - [OpenDeck](https://github.com/nekename/OpenDeck) by nekename: the
   Stream Deck host the plugin runs in, including the touch-tap support
   merged upstream for the Stream Deck + XL.
-- [openwave-streamdeck](https://github.com/NyleGarcia/openwave-streamdeck)
-  by NyleGarcia: the touch-and-drag dial idea.
 - The author of goxlr-utility and PipeWeaver, for suggesting ALSA UCM
   for the Pro's channel split.
 

@@ -198,8 +198,16 @@ Code:
 - [Carina Schoppe](https://github.com/CarinaSchoppe): routing and device
   control hardening, transactional graph changes, the bounded WebSocket
   send queue, diagnostics redaction, systemd sandboxing, the xUnit test
-  project and the CI workflow ([#4](https://github.com/emaspa/openxlr/pull/4)),
-  and the editable mixer layout and plugin editor work in progress
+  project and the CI workflow ([#4](https://github.com/emaspa/openxlr/pull/4));
+  verified stream moves ([#12](https://github.com/emaspa/openxlr/pull/12)),
+  multi-batch `pw-dump` parsing ([#13](https://github.com/emaspa/openxlr/pull/13)),
+  the hardened window daemon client ([#14](https://github.com/emaspa/openxlr/pull/14)),
+  coalesced state broadcasts ([#15](https://github.com/emaspa/openxlr/pull/15)),
+  the Restart daemon button ([#16](https://github.com/emaspa/openxlr/pull/16))
+  and the API document fix ([#17](https://github.com/emaspa/openxlr/pull/17));
+  the daemon watchdog ([#18](https://github.com/emaspa/openxlr/pull/18)) and
+  the native LV2 plugin editors ([#19](https://github.com/emaspa/openxlr/pull/19))
+  in review, split out of her larger proposal
   ([#10](https://github.com/emaspa/openxlr/pull/10)).
 - [Michael Brooks](https://github.com/Michael-Brooks): the stream-sweep
   starvation fix ([#7](https://github.com/emaspa/openxlr/pull/7)) and the

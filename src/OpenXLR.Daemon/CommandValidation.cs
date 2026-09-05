@@ -52,6 +52,8 @@ public static class CommandValidation
                 if (cmd.Devices is { Count: > MaxDevices }) return $"setMonitorOutputs: at most {MaxDevices} devices";
                 if (cmd.Devices?.Any(d => TooLong(d, MaxText)) == true) return "setMonitorOutputs: device name too long";
                 return null;
+            case "setRecallOnConnect":
+                return TooLong(cmd.Name, MaxText) ? "setRecallOnConnect: name too long" : null;
             case "setEnforcedDefaults":
                 if (TooLong(cmd.Sink, MaxText) || TooLong(cmd.Source, MaxText)) return "setEnforcedDefaults: device name too long";
                 return null;

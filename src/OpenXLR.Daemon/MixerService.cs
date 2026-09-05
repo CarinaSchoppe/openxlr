@@ -104,11 +104,18 @@ public sealed class MixerService : IHostedService, IDisposable
     /// <summary>Raised at the meter refresh rate so the hub can push levels.</summary>
     public event Action? MetersUpdated;
 
+    /// <summary>Whether this run builds the submixer at all.</summary>
+    public bool SubmixerEnabled { get; private set; }
+
+    /// <summary>Whether the submix graph is up (built a few seconds after start).</summary>
+    public bool Built => _mixer.Built;
+
     public Task StartAsync(CancellationToken ct)
     {
         bool launchDefault = _config.GetValue("mixer", false) ||
                              Environment.GetEnvironmentVariable("OPENXLR_BUILD_MIXER") == "1";
         bool wanted = OpenXLR.Core.DaemonSettings.SubmixerEnabled(launchDefault);
+        SubmixerEnabled = wanted;
         if (!wanted)
         {
             _log.LogInformation("submixer off (daemon.json, --mixer, or OPENXLR_BUILD_MIXER=1 turn it on); hardware control only");

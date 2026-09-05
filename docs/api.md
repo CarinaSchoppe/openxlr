@@ -20,7 +20,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 
 | Type | When | Content |
 |---|---|---|
-| `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes) |
+| `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes), `recallOnConnect` (the profile recalled when the device connects, or null) |
 | `meters` | 15 Hz while the mixer is built | live stereo levels per channel and mix |
 | `plugins` | in answer to `listPlugins` | the installed LV2 plugins with their controls; `supported` is false, with `unsupportedFeatures` listed, for a plugin that needs a host feature the PipeWire chain lacks |
 | `error` | when a command is rejected | `message` |
@@ -50,6 +50,7 @@ Commands are single JSON objects with a `cmd` field:
 | `setEnforcedDefaults` | `sink`, `source` | system defaults to hold |
 | `setActiveDevice` | `device` | switch to another attached interface (`vvvv:pppp`) |
 | `saveProfile` / `loadProfile` / `deleteProfile` | `name` | named scenes, scoped to the active device |
+| `setRecallOnConnect` | `name` | the profile recalled whenever the active device connects fresh (daemon start, replug, switch to it); empty clears it |
 | `getDiagnostics` | none | vendor block dump for bug reports |
 
 The OpenDeck plugin in `plugin/` is a client of this API; the command
@@ -64,6 +65,8 @@ All under `~/.config/openxlr/` (or `$XDG_CONFIG_HOME/openxlr/`):
   app registry, enforced defaults, the software low cut, the insert
   chains. Written by the daemon.
 - `profiles/<vid-pid>/<name>.json`: the named scenes, one file each
+- `profiles/<vid-pid>/recall-on-connect`: the name of the profile
+  recalled when that device connects, when one is chosen
 - `gainlock.json`: which devices have the gain lock set
 - `daemon.json`: the daemon's own preferences, read once at start.
   `submixer` (true/false/absent) turns the submixer on or off; absent

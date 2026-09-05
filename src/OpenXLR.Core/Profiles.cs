@@ -147,6 +147,41 @@ public static class ProfileStore
         string path = Path.Combine(Dir(deviceId), name + ".json");
         if (!File.Exists(path)) return false;
         File.Delete(path);
+        if (RecallOnConnect(deviceId) == name) SetRecallOnConnect(deviceId, null);
         return true;
+    }
+
+    // The profile the daemon recalls when this device connects (daemon
+    // start, a replug or a power cycle, or a switch to it), kept as a
+    // marker file in the device's folder. No .json extension, so List()
+    // never shows it and a profile named "recall-on-connect" cannot
+    // collide with it.
+    private static string RecallPath(string deviceId) => Path.Combine(Dir(deviceId), "recall-on-connect");
+
+    /// <summary>The profile to recall when the device connects, or null.</summary>
+    public static string? RecallOnConnect(string deviceId)
+    {
+        try
+        {
+            string name = File.ReadAllText(RecallPath(deviceId)).Trim();
+            return name.Length == 0 ? null : name;
+        }
+        catch (FileNotFoundException) { return null; }
+        catch (DirectoryNotFoundException) { return null; }
+    }
+
+    /// <summary>Set (or with null clear) the profile recalled on connect.</summary>
+    public static void SetRecallOnConnect(string deviceId, string? name)
+    {
+        string path = RecallPath(deviceId);
+        if (name is null)
+        {
+            if (File.Exists(path)) File.Delete(path);
+            return;
+        }
+        Directory.CreateDirectory(Dir(deviceId));
+        string tmp = path + ".tmp";
+        File.WriteAllText(tmp, name);
+        File.Move(tmp, path, overwrite: true);
     }
 }

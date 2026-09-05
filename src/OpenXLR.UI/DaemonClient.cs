@@ -190,6 +190,10 @@ public sealed class DaemonClient : IAsyncDisposable
     public Task DeleteProfileAsync(string name)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "deleteProfile", ["name"] = name });
 
+    /// <summary>The profile recalled when the device connects; null clears it.</summary>
+    public Task SetRecallOnConnectAsync(string? name)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "setRecallOnConnect", ["name"] = name ?? "" });
+
     public Task SetControlAsync(string control, object value)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "set", ["control"] = control, ["value"] = value });
 

@@ -55,7 +55,8 @@ public sealed record Command
     [JsonPropertyName("sink")] public string? Sink { get; init; }
     [JsonPropertyName("source")] public string? Source { get; init; }
 
-    /// <summary>"saveProfile" / "loadProfile" / "deleteProfile": the profile name.</summary>
+    /// <summary>"saveProfile" / "loadProfile" / "deleteProfile": the profile name;
+    /// "setRecallOnConnect": the profile to recall on connect, empty to clear.</summary>
     [JsonPropertyName("name")] public string? Name { get; init; }
 
     /// <summary>"setInserts": the channel's whole insert chain, in order.</summary>
@@ -108,6 +109,11 @@ public sealed record StateMessage
     /// client shows it as "last recalled", not "state matches".
     /// </summary>
     [JsonPropertyName("activeProfile")] public string? ActiveProfile { get; init; }
+    /// <summary>
+    /// The profile recalled whenever the active device connects fresh
+    /// (daemon start, replug, switch to it), or null when none is set.
+    /// </summary>
+    [JsonPropertyName("recallOnConnect")] public string? RecallOnConnect { get; init; }
 
     /// <summary>Every attached supported interface, so clients can offer a picker.</summary>
     [JsonPropertyName("detected")] public IReadOnlyList<DetectedDevice>? Detected { get; init; }

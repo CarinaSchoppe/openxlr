@@ -45,6 +45,7 @@ public sealed class WebSocketHub
             if (!_clients.IsEmpty) Broadcast(Snapshot());
         }, _log);
         _devices.StateChanged += ignored => _stateBroadcasts.Signal();
+        _devices.DeviceArrived += devId => _ = RecallOnArrivalAsync(devId);
         _mixer.Changed += _stateBroadcasts.Signal;
         _ = _stateBroadcasts.RunAsync(_stopping);
         _mixer.MetersUpdated += () =>
@@ -67,6 +68,7 @@ public sealed class WebSocketHub
             Mixer = _mixer.Snapshot(),
             Devices = _mixer.Devices(),
             Profiles = ActiveDeviceId() is string devId ? OpenXLR.Core.ProfileStore.List(devId) : [],
+            RecallOnConnect = ActiveDeviceId() is string rcId ? OpenXLR.Core.ProfileStore.RecallOnConnect(rcId) : null,
             Detected = [.. _devices.Detected().Select(d => new DetectedDevice(d.UsbId, d.Name, d.Active))],
         };
 
@@ -208,10 +210,76 @@ public sealed class WebSocketHub
                 if (profErr is not null) await client.SendAsync(Serialize(new ErrorMessage(profErr)));
                 else Broadcast(Snapshot());   // list (and loaded state) changed
                 break;
+            case "setRecallOnConnect":
+                string? recallErr = HandleRecallOnConnect(cmd);
+                if (recallErr is not null) await client.SendAsync(Serialize(new ErrorMessage(recallErr)));
+                else Broadcast(Snapshot());
+                break;
             default:
                 await client.SendAsync(Serialize(new ErrorMessage($"unknown cmd '{cmd.Cmd}'")));
                 break;
         }
+    }
+
+    /// <summary>
+    /// Recall a saved profile onto the device and the mixer. Both halves are
+    /// tried and the first failure reported, so a missing device does not
+    /// block the mixer scene (and the other way round). The mixer half is
+    /// skipped when this run has no submixer. Null on success.
+    /// </summary>
+    private string? ApplyNamedProfile(string devId, string name)
+    {
+        OpenXLR.Core.Profile? p = OpenXLR.Core.ProfileStore.Load(devId, name);
+        if (p is null) return $"no profile named '{name}'";
+        string? devErr = p.Device is null ? null : _devices.ApplyProfile(p.Device);
+        string? mixErr = p.Mixer is null || !_mixer.SubmixerEnabled ? null : _mixer.ApplyScene(p.Mixer);
+        if (devErr is null && mixErr is null) _activeProfile[devId] = name;
+        return devErr ?? mixErr;
+    }
+
+    /// <summary>Choose (or with an empty name clear) the profile recalled on connect.</summary>
+    private string? HandleRecallOnConnect(Command cmd)
+    {
+        if (ActiveDeviceId() is not string devId) return "setRecallOnConnect: no device connected";
+        try
+        {
+            if (string.IsNullOrWhiteSpace(cmd.Name))
+            {
+                OpenXLR.Core.ProfileStore.SetRecallOnConnect(devId, null);
+                return null;
+            }
+            string? name = OpenXLR.Core.ProfileStore.SanitizeName(cmd.Name);
+            if (name is null) return "setRecallOnConnect: invalid 'name'";
+            if (OpenXLR.Core.ProfileStore.Load(devId, name) is null) return $"no profile named '{name}'";
+            OpenXLR.Core.ProfileStore.SetRecallOnConnect(devId, name);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
+        }
+    }
+
+    /// <summary>
+    /// A device connected fresh (see <see cref="DeviceManager.DeviceArrived"/>):
+    /// recall its chosen profile, once the submix graph is up so the mixer
+    /// half lands too (at daemon start the graph follows the device by a few
+    /// seconds).
+    /// </summary>
+    private async Task RecallOnArrivalAsync(string devId)
+    {
+        string? name;
+        try { name = OpenXLR.Core.ProfileStore.RecallOnConnect(devId); }
+        catch (Exception ex) { _log.LogWarning("recall on connect: {msg}", ex.Message); return; }
+        if (name is null) return;
+        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(60);
+        while (_mixer.SubmixerEnabled && !_mixer.Built && DateTime.UtcNow < deadline && !_stopping.IsCancellationRequested)
+            await Task.Delay(250, _stopping).ContinueWith(_ => { }, TaskScheduler.Default);
+        if (_stopping.IsCancellationRequested || ActiveDeviceId() != devId) return;
+        string? err = ApplyNamedProfile(devId, name);
+        if (err is null) _log.LogInformation("recalled profile '{name}' on connect of {dev}", name, devId);
+        else _log.LogWarning("recall of profile '{name}' on connect of {dev}: {err}", name, devId, err);
+        Broadcast(Snapshot());
     }
 
     /// <summary>The active device's usb id, or null while disconnected.</summary>
@@ -236,15 +304,7 @@ public sealed class WebSocketHub
                     _activeProfile[devId] = name;
                     return null;
                 case "loadProfile":
-                    OpenXLR.Core.Profile? p = OpenXLR.Core.ProfileStore.Load(devId, name);
-                    if (p is null) return $"no profile named '{name}'";
-                    // Apply both halves; report the first failure but still
-                    // try the other half, so a missing device does not block
-                    // the mixer scene (and the other way round).
-                    string? devErr = p.Device is null ? null : _devices.ApplyProfile(p.Device);
-                    string? mixErr = p.Mixer is null ? null : _mixer.ApplyScene(p.Mixer);
-                    if (devErr is null && mixErr is null) _activeProfile[devId] = name;
-                    return devErr ?? mixErr;
+                    return ApplyNamedProfile(devId, name);
                 case "deleteProfile":
                     if (_activeProfile.TryGetValue(devId, out string? current) && current == name)
                         _activeProfile.TryRemove(devId, out _);

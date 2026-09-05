@@ -598,6 +598,7 @@ public sealed class MainViewModel : ViewModelBase
 
             ApplyDetected(node["detected"]);
             ApplyProfiles(node["profiles"]);
+            ApplyRecallOnConnect(node["recallOnConnect"]);
             ApplyDevices(node["devices"], node["mixer"]);
             ApplyMixer(node["mixer"]);
             ApplyStreams(node["mixer"]);
@@ -653,6 +654,42 @@ public sealed class MainViewModel : ViewModelBase
         if (names.SequenceEqual(Profiles)) return;
         Profiles.Clear();
         foreach (string n in names) Profiles.Add(n);
+    }
+
+    /// <summary>The "none" entry of the recall picker; parentheses cannot occur in a profile name.</summary>
+    public const string NoRecall = "(none)";
+
+    /// <summary>Recall picker entries: "(none)" then every saved profile.</summary>
+    public ObservableCollection<string> RecallChoices { get; } = [NoRecall];
+
+    private string _recallChoice = NoRecall;
+
+    /// <summary>
+    /// The profile the daemon recalls when this device connects. Set by the
+    /// picker (which sends the command) and by state pushes (silently).
+    /// </summary>
+    public string RecallOnConnectChoice
+    {
+        get => _recallChoice;
+        set
+        {
+            if (value is null || !Set(ref _recallChoice, value) || _applying) return;
+            _ = _client.SetRecallOnConnectAsync(value == NoRecall ? null : value);
+        }
+    }
+
+    private void ApplyRecallOnConnect(JsonNode? recall)
+    {
+        var choices = new List<string> { NoRecall };
+        choices.AddRange(Profiles);
+        if (!choices.SequenceEqual(RecallChoices))
+        {
+            RecallChoices.Clear();
+            foreach (string c in choices) RecallChoices.Add(c);
+            _recallChoice = "";   // the combo lost its selection with the items; force the re-set below
+        }
+        string want = recall?.GetValue<string>() is string r && Profiles.Contains(r) ? r : NoRecall;
+        RecallOnConnectChoice = want;
     }
 
     public void SaveProfile(string name) => _ = _client.SaveProfileAsync(name);

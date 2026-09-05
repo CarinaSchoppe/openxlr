@@ -159,6 +159,19 @@ public sealed class DeviceManager : BackgroundService
     /// <summary>Raised (off the poll loop) whenever the pushed state should change.</summary>
     public event Action<StateMessage>? StateChanged;
 
+    /// <summary>
+    /// Raised (with the vvvv:pppp id) when a device connects fresh: at daemon
+    /// start, after it was off the bus (a replug or a power cycle, when its
+    /// firmware may have reset), or after a switch to a different model.
+    /// Not raised for the reconnect that follows a transient USB error,
+    /// so a recall-on-connect profile does not undo later manual changes.
+    /// Handlers run under the manager's lock and must only hand off work.
+    /// </summary>
+    public event Action<string>? DeviceArrived;
+    private bool _everConnected;
+    private bool _sawAbsent;
+    private ushort _lastPid;
+
     public StateMessage Snapshot()
     {
         lock (_gate)
@@ -239,6 +252,7 @@ public sealed class DeviceManager : BackgroundService
         {
             IReadOnlyList<IAudioDevice> all = DeviceRegistry.DetectAll();
             _detected = [.. all.Select(d => d.Info)];
+            if (_everConnected && !all.Any(d => d.Info.ProductId == _lastPid)) _sawAbsent = true;
             if (_device is { Connected: true }) return;
             if (DateTime.UtcNow < _reconnectNotBefore) return;
             IAudioDevice? dev = _preferredPid is ushort pid
@@ -255,6 +269,11 @@ public sealed class DeviceManager : BackgroundService
             // never exists.
             if (dev.Capabilities.OutputRouting) EnsureCardProfile(dev.Info);
             RaiseFromLocked();                          // push the initial state
+            bool fresh = !_everConnected || _sawAbsent || _lastPid != dev.Info.ProductId;
+            _everConnected = true;
+            _sawAbsent = false;
+            _lastPid = dev.Info.ProductId;
+            if (fresh) DeviceArrived?.Invoke($"{dev.Info.VendorId:x4}:{dev.Info.ProductId:x4}");
         }
     }
 

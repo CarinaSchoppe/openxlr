@@ -144,7 +144,9 @@ restores the split profile when it stops.
 Named scenes: every hardware setting plus the whole submix (send
 levels, mutes, masters, monitor outputs, aux state, insert chains with
 their parameters). Saved per device and recalled from the header, over
-the API, or from a Stream Deck key. App routing and the enforced system defaults are global and
+the API, or from a Stream Deck key. One profile per device can be
+marked to recall on connect: at daemon start, after a replug or power
+cycle, or when switching to that device. App routing and the enforced system defaults are global and
 not part of a profile, so recalling one does not rewire the desktop.
 
 ## OpenDeck plugin

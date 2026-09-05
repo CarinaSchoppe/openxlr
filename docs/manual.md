@@ -180,6 +180,15 @@ Profiles belong to the interface they were saved with; another device
 shows its own list. With the OpenDeck plugin a key can recall a
 profile (section 4).
 
+**Recall on connect.** The "On connect" picker under the list names a
+profile the daemon recalls by itself whenever the interface connects
+fresh: at daemon start (so at login), after a replug or a power cycle,
+and when you switch to it in the device picker. Use it for an
+interface that comes up with its own defaults after a reboot, or to
+land on a known scene at every login. The reconnect after a passing
+USB error does not count, so the recall never undoes changes you made
+since. Pick "(none)" to stop.
+
 ### 3.7 Hold the system default devices
 
 Session managers like to switch the system default output to a newly

@@ -12,13 +12,14 @@ behaviour verified on hardware before it ships. The project is small on
 purpose. It prefers one small, idiomatic change over a framework, and a
 feature that is measured over one that is described.
 
-## Where it stands (0.1.18)
+## Where it stands (0.1.20)
 
 - [x] Wave XLR Pro, XLR Dock (MK.1 and MK.2 modules), Wave XLR, Wave XLR
   MK.2: hardware controls, verified by owners of each device.
 - [x] Submixer: hardware and application channels, four mixes (Monitor,
   Stream, Chat, Aux), virtual microphones, multi-output monitoring, the
-  USB Aux port as a second computer's feed, live meters, profiles.
+  USB Aux port as a second computer's feed, live meters, profiles,
+  one profile per device recalled on connect.
 - [x] Software low cut and ClipGuard for devices without the hardware
   versions.
 - [x] Plugin inserts: LV2 chains on each XLR input and on every mix, hosted

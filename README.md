@@ -59,7 +59,9 @@ Collect diagnostics).
   process binary rather than the "Chromium" name they report.
 - **Profiles**: named scenes holding the hardware settings and the
   whole submix (levels, mutes, outputs, insert chains), saved per device
-  and recalled from the UI, the API or a Stream Deck key.
+  and recalled from the UI, the API or a Stream Deck key. One profile
+  per device can be recalled on connect, so an interface comes up in a
+  known scene at login or after a power cycle.
 - **OpenDeck plugin**: key and dial actions for every switch, mute,
   level and insert, rendered with level meters and status LEDs. It is a
   client of the daemon's API, so it reflects changes made in the UI or
@@ -215,7 +217,8 @@ Hardware testing, on devices the maintainer does not own:
   headphone-mix report and the two diagnostics archives that let the
   hardware mix membership be decoded
   ([#8](https://github.com/emaspa/openxlr/issues/8)).
-- [Astros52](https://github.com/Astros52): the XLR Dock MK.2 report
+- [Astros52](https://github.com/Astros52): the XLR Dock MK.2 descriptor
+  dump that got the device registered before one was on hand
   ([#1](https://github.com/emaspa/openxlr/issues/1)).
 - The CachyOS tester whose first-run failure found the missing ASP.NET
   runtime dependency in the AUR package.

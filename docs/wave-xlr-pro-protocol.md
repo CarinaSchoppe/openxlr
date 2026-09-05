@@ -33,7 +33,8 @@ Everything below was validated live against the plugged-in Pro with a ctypes-lib
   succeed on all blocks. Block 0x0003 STALLs on read = write-only (matches capture).
 - **The Pro is essentially a Wave XLR MK.2 variant.** The fork's existing `WaveXLRMk2` backend
   (device.py) uses the SAME `bRequest=1`, block numbers, and offsets, only `wIndex` differs
-  (Pro **0x0103** vs MK.2 0x0203). MK.2's constants therefore label most Pro fields directly.
+  (Pro **0x0103** vs MK.2 0x0203; the XLR Dock MK.2 has the MK.2 layout but answers at the
+  Pro's 0x0103). MK.2's constants therefore label most Pro fields directly.
 - **Mic gain = block 0x0004 offset 0, value = dB.** Proven bidirectionally: ALSA `numid=3` and
   vendor off0 track 1:1 (40↔0x28, 65↔0x41, 52↔0x34), reading AND writing either side.
 - **Mic mute = block 0x0004 offset 1, bit 0.** Proven: vendor bit0=1 ⇒ ALSA capture switch off

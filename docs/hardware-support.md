@@ -119,7 +119,8 @@ Blocks 0x0002 and 0x0006 exist and are not decoded.
 - Capability-driven UI: controls, channels, and mixes the device does
   not have are not shown
 - Per-device profiles: named scenes of hardware state plus the whole
-  submix, recalled from the UI, the API or a Stream Deck key
+  submix, recalled from the UI, the API or a Stream Deck key, and one
+  of them on connect if chosen
 - Multi-device switching: a header picker chooses which interface
   OpenXLR drives; the mixer's input channels follow it
 - On switch, the hardware channels' monitor sends come up muted, so the

@@ -10,7 +10,7 @@ help.
 | XLR Dock | `0fd9:00a6` | every control the hardware has, verified on hardware |
 | Wave XLR | `0fd9:007d` | core controls verified on hardware by community testers on two units (0.1.13) |
 | Wave XLR MK.2 | `0fd9:00b6` | every control verified on hardware by a community tester |
-| XLR Dock MK.2 | `0fd9:00c7` | MK.2 backend at the Pro's block bank; gain, mute and headphone volume verified on hardware |
+| XLR Dock MK.2 | `0fd9:00c7` | MK.2 backend at the Pro's block bank; gain, mute, headphone volume and phantom power verified on hardware |
 
 ## Wave XLR Pro (0fd9:00b4)
 
@@ -108,9 +108,9 @@ every write showed up there and read back from the block. Blocks
 |---|---|---|
 | Gain, mute, low cut, expander, voice tune + strength | verified | Wave XLR MK.2: community tester, reads and writes. Dock: gain and mute on the author's unit |
 | Headphone volume, low impedance, crossfade | verified | Wave XLR MK.2: community tester. Dock: headphone volume on the author's unit |
-| Phantom 48V, ClipGuard, compressor | verified | at the Pro's bit positions; community tester, 0.1.12 |
+| Phantom 48V, ClipGuard, compressor | verified | at the Pro's bit positions; community tester, 0.1.12. Dock: phantom confirmed with a condenser mic going silent when switched off |
 
-On the dock the remaining flags (low cut, expander, voice tune, phantom,
+On the dock the remaining flags (low cut, expander, voice tune,
 ClipGuard, compressor, low impedance, crossfade) sit in the same bytes
 the Wave XLR MK.2 tester confirmed and are exposed, but have not yet
 been checked by ear or against an LED.

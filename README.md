@@ -26,7 +26,7 @@ the author's own hardware.
 | XLR Dock (Stream Deck+ module) | 0fd9:00a6 | gain, mute, headphone volume, 48V phantom power, low impedance; verified on hardware |
 | Wave XLR | 0fd9:007d | gain, mute, headphone volume, low impedance, 48V phantom power; verified on hardware by community testers |
 | Wave XLR MK.2 | 0fd9:00b6 | gain, mute, phantom power, DSP, ClipGuard, compressor, headphone volume, crossfade; verified on hardware by a community tester |
-| XLR Dock MK.2 (Stream Deck+ module) | 0fd9:00c7 | same controls as the Wave XLR MK.2; gain, mute and headphone volume verified on hardware |
+| XLR Dock MK.2 (Stream Deck+ module) | 0fd9:00c7 | same controls as the Wave XLR MK.2; gain, mute, headphone volume and phantom power verified on hardware |
 
 The UI shows only the controls the connected device has, and a picker
 in the header switches between several attached interfaces. The

@@ -106,12 +106,12 @@ every write showed up there and read back from the block. Blocks
 
 | Control | State | Notes |
 |---|---|---|
-| Gain, mute, low cut, expander, voice tune + strength | verified | Wave XLR MK.2: community tester, reads and writes. Dock: gain and mute on the author's unit |
+| Gain, mute, low cut, expander, voice tune + strength | verified | Wave XLR MK.2: community tester, reads and writes. Dock: gain, mute and voice tune with strength on the author's unit |
 | Headphone volume, low impedance, crossfade | verified | Wave XLR MK.2: community tester. Dock: headphone volume on the author's unit |
 | Phantom 48V, ClipGuard, compressor | verified | at the Pro's bit positions; community tester, 0.1.12. Dock: phantom confirmed with a condenser mic going silent when switched off |
 
-On the dock the remaining flags (low cut, expander, voice tune,
-ClipGuard, compressor, low impedance, crossfade) sit in the same bytes
+On the dock the remaining flags (low cut, expander, ClipGuard,
+compressor, low impedance, crossfade) sit in the same bytes
 the Wave XLR MK.2 tester confirmed and are exposed, but have not yet
 been checked by ear or against an LED.
 

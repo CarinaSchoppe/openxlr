@@ -125,8 +125,8 @@ plugin world, and it has to keep the audio path inside PipeWire.
 
 ## Devices
 
-- [ ] XLR Dock MK.2: the DSP flags, low impedance and crossfade still
-  unchecked by ear (see docs/hardware-support.md), and
+- [ ] XLR Dock MK.2: low cut, expander, ClipGuard, compressor, low
+  impedance and crossfade still unchecked by ear (see docs/hardware-support.md), and
   blocks 0x0002 and 0x0006, which are not decoded.
 - [ ] Pro: the remaining hardware mix matrix (which return feeds which
   jack, per-return levels), now that the headphone mix bytes are known

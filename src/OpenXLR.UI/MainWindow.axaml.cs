@@ -230,6 +230,8 @@ public partial class MainWindow : Window
     }
 
     private FlowWindow? _flow;
+    private RoutingMatrixWindow? _routing;
+    private PluginManagerWindow? _plugins;
 
     private void OnFlow(object? sender, RoutedEventArgs e)
     {
@@ -237,6 +239,20 @@ public partial class MainWindow : Window
         if (_flow is { IsVisible: true }) { _flow.Activate(); return; }
         _flow = new FlowWindow(_vm);
         _flow.Show(this);
+    }
+
+    private void OnRouting(object? sender, RoutedEventArgs e)
+    {
+        if (_routing is { IsVisible: true }) { _routing.Activate(); return; }
+        _routing = new RoutingMatrixWindow(_vm);
+        _routing.Show(this);
+    }
+
+    private void OnPlugins(object? sender, RoutedEventArgs e)
+    {
+        if (_plugins is { IsVisible: true }) { _plugins.Activate(); return; }
+        _plugins = new PluginManagerWindow(_client, _vm);
+        _plugins.Show(this);
     }
 
     private async void OnRestartDaemon(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

@@ -13,6 +13,11 @@ namespace OpenXLR.Core.Mixing;
 /// </summary>
 public sealed record MixerSettings
 {
+    /// <summary>Schema written by this release; nullable matrix fields identify legacy content.</summary>
+    public int SchemaVersion { get; init; } = CurrentSchemaVersion;
+
+    public const int CurrentSchemaVersion = 2;
+
     /// <summary>
     /// User-managed application channels. Null means an older file and keeps
     /// the default channel set; an explicit list is the desired live layout.
@@ -49,6 +54,12 @@ public sealed record MixerSettings
     /// therefore interpreted as the structural Monitor mix.
     /// </summary>
     public string? MonitoredMixId { get; init; }
+
+    /// <summary>
+    /// Complete many-to-many routing matrix. Null identifies a legacy file;
+    /// an explicit empty list means no mix is routed to an external output.
+    /// </summary>
+    public List<OutputRouteDefinition>? OutputRoutes { get; init; }
 
     /// <summary>Application identity to channel id, from manual assignments.</summary>
     public Dictionary<string, string> AppOverrides { get; init; } = [];

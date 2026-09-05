@@ -23,7 +23,7 @@ jobs:
       - name: Build prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential debhelper gh dotnet-sdk-10.0 pkg-config \
+          sudo apt-get install -y build-essential cmake debhelper gh dotnet-sdk-10.0 pkg-config \
             libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev python3-websocket \
             xvfb x11-utils dbus pipewire pipewire-pulse wireplumber lsp-plugins-lv2
       - name: Verify GitHub CLI
@@ -43,6 +43,7 @@ jobs:
           python3 tools/with-xvfb.py python3 tools/verify-installed.py
           python3 tools/with-xvfb.py python3 tools/verify-native-host.py --native-ui --disposable-ci-profile \
             --host /usr/lib/openxlr/daemon/openxlr-lv2-host
+          python3 tools/verify-delay-host.py --host /usr/lib/openxlr/daemon/openxlr-delay-host
       - uses: actions/upload-artifact@v7
         with:
           name: ubuntu-package
@@ -56,7 +57,7 @@ jobs:
       - name: Build prerequisites
         run: |
           dnf install -y --setopt=install_weak_deps=False rpm-build git-core gh dotnet-sdk-10.0 \
-            systemd-rpm-macros gcc make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel \
+            systemd-rpm-macros gcc gcc-c++ make cmake pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel \
             python3-websocket-client xorg-x11-server-Xvfb xwininfo dbus-daemon pipewire pipewire-pulseaudio \
             wireplumber pipewire-utils lsp-plugins-lv2 ImageMagick shadow-utils
       - uses: actions/checkout@v7
@@ -79,6 +80,7 @@ jobs:
           runuser -u tester -- python3 tools/with-xvfb.py python3 tools/verify-installed.py
           runuser -u tester -- python3 tools/with-xvfb.py python3 tools/verify-native-host.py \
             --native-ui --disposable-ci-profile --host /usr/lib/openxlr/daemon/openxlr-lv2-host
+          runuser -u tester -- python3 tools/verify-delay-host.py --host /usr/lib/openxlr/daemon/openxlr-delay-host
       - uses: actions/upload-artifact@v7
         with:
           name: fedora-package
@@ -92,7 +94,7 @@ jobs:
       - name: Build prerequisites
         run: |
           pacman -Syu --noconfirm --needed git github-cli dotnet-sdk aspnet-runtime pipewire pipewire-audio pipewire-pulse \
-            wireplumber libpulse libusb lilv lv2 libx11 libice libsm fontconfig \
+            wireplumber libpulse libusb lilv lv2 libx11 libice libsm fontconfig cmake \
             python python-websocket-client xorg-server-xvfb xorg-xwininfo dbus lsp-plugins-lv2 imagemagick ttf-dejavu
       - uses: actions/checkout@v7
       - name: Verify GitHub CLI
@@ -110,6 +112,7 @@ jobs:
           runuser -u tester -- python3 tools/with-xvfb.py python3 tools/verify-installed.py
           runuser -u tester -- python3 tools/with-xvfb.py python3 tools/verify-native-host.py \
             --native-ui --disposable-ci-profile --host /usr/lib/openxlr/daemon/openxlr-lv2-host
+          runuser -u tester -- python3 tools/verify-delay-host.py --host /usr/lib/openxlr/daemon/openxlr-delay-host
       - uses: actions/upload-artifact@v7
         with:
           name: arch-package

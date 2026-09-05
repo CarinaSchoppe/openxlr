@@ -58,11 +58,40 @@
         <ToggleButton Content="Bypass" IsChecked="{Binding Bypass, Mode=TwoWay}" Padding="12,4"/>
       </StackPanel>
     </Grid>
+    <Border DockPanel.Dock="Top" Background="#20232b" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+      <Grid ColumnDefinitions="*,Auto,8,*,Auto" RowDefinitions="Auto,Auto">
+        <ComboBox ItemsSource="{Binding PluginPresetNames}" SelectedItem="{Binding SelectedPluginPreset}"
+                  PlaceholderText="Plugin preset" MinWidth="170"/>
+        <Button Grid.Column="1" Content="Load" Padding="10,3" IsEnabled="{Binding CanLoadPluginPreset}"
+                Click="OnLoadPreset"/>
+        <TextBox Grid.Column="3" Text="{Binding NewPluginPresetName}" PlaceholderText="New preset name"
+                 MaxLength="80" MinWidth="160"/>
+        <Button Grid.Column="4" Content="Save as" Padding="10,3" Margin="6,0,0,0" Click="OnSavePreset"/>
+        <TextBlock Grid.Row="1" Grid.ColumnSpan="5" Text="{Binding PresetNote}" Foreground="#e0a05a"
+                   FontSize="11" Margin="0,6,0,0"/>
+      </Grid>
+    </Border>
     <Button DockPanel.Dock="Bottom" Content="Close" HorizontalAlignment="Right" Padding="18,6" Margin="0,10,0,0" Click="OnClose"/>
     <!-- AllowAutoHide off: the scrollbar reserves its own column instead
          of floating over the value readouts -->
     <ScrollViewer VerticalScrollBarVisibility="Auto" AllowAutoHide="False">
       <StackPanel Margin="0,0,10,0" Spacing="12">
+        <Border IsVisible="{Binding HasSidechains}" Background="#20232b" CornerRadius="6" Padding="10">
+          <StackPanel Spacing="6">
+            <TextBlock Text="SIDECHAIN / AUX INPUTS" Classes="h"/>
+            <ItemsControl ItemsSource="{Binding Sidechains}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:InsertSidechainViewModel">
+                  <Grid ColumnDefinitions="*,12,220" Margin="0,3">
+                    <TextBlock Text="{Binding Name}" Foreground="#e6e9f0" VerticalAlignment="Center"/>
+                    <ComboBox Grid.Column="2" ItemsSource="{Binding Sources}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+                              HorizontalAlignment="Stretch"/>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
         <StackPanel IsVisible="{Binding HasVisualization}" Spacing="5">
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Text="BAND / THRESHOLD SETTINGS" Classes="h"/>

@@ -498,6 +498,7 @@ public sealed class MainViewModel : ViewModelBase
     private bool _supportsLayout;
     private bool _supportsLayoutOrder;
     private bool _supportsMonitorMixSelection;
+    private bool _supportsRoutingMatrix;
     private bool _nativePluginUi;
     public bool SupportsChannelInserts { get; private set; }
     public bool SupportsLayout
@@ -628,6 +629,7 @@ public sealed class MainViewModel : ViewModelBase
             SupportsLayout = features?.Contains("commandResults") == true && features.Contains("editableLayout");
             _supportsLayoutOrder = features?.Contains("layoutOrder") == true;
             _supportsMonitorMixSelection = features?.Contains("monitorMixSelection") == true;
+            _supportsRoutingMatrix = features?.Contains("routingMatrix") == true;
             _nativePluginUi = features?.Contains("nativePluginUi") == true;
             SupportsChannelInserts = features?.Contains("channelInserts") == true;
             DeviceConnected = node["connected"]?.GetValue<bool>() ?? false;
@@ -693,6 +695,7 @@ public sealed class MainViewModel : ViewModelBase
             ApplyProfiles(node["profiles"]);
             ApplyDevices(node["devices"], node["mixer"]);
             ApplyMixer(node["mixer"]);
+            ApplyRouting(node["mixer"]);
             ApplyStreams(node["mixer"]);
             ShowSoftLowCut = DeviceConnected && !CapLowCut && HasMixer;
             ShowSoftClipGuard = DeviceConnected && !CapClipGuard && HasMixer;
@@ -893,6 +896,17 @@ public sealed class MainViewModel : ViewModelBase
     public InsertsViewModel Inserts { get; }
     public InsertsViewModel Inserts2 { get; }
 
+    internal void RefreshPluginCatalog()
+    {
+        var chains = new[] { Inserts, Inserts2 }
+            .Concat(Mixes.Select(mix => mix.Inserts))
+            .Concat(Channels.Select(channel => channel.Inserts))
+            .Distinct()
+            .ToList();
+        foreach (InsertsViewModel chain in chains) chain.InvalidateCatalog();
+        foreach (InsertsViewModel chain in chains) chain.EnsurePluginsLoaded();
+    }
+
     private void ApplyMixer(JsonNode? mixer)
     {
         if (mixer is null)
@@ -971,7 +985,64 @@ public sealed class MainViewModel : ViewModelBase
                 .Select(c => new ChannelOption(c.Id, c.Name))];
             foreach (AppStreamViewModel app in Apps) app.SyncChannels(appChannels);
         }
-        InsertWindows.RetainChains(new[] { Inserts, Inserts2 }.Concat(Mixes.Select(m => m.Inserts)).Concat(Channels.Select(c => c.Inserts)));
+        var insertChains = new[] { Inserts, Inserts2 }
+            .Concat(Mixes.Select(m => m.Inserts)).Concat(Channels.Select(c => c.Inserts)).ToList();
+        foreach (InsertsViewModel chain in insertChains)
+            chain.SetSidechainSources(mixer["sidechainSources"]);
+        InsertWindows.RetainChains(insertChains);
+    }
+
+    /// <summary>Routing-matrix columns and active cells from authoritative daemon state.</summary>
+    public ObservableCollection<RoutingDestinationViewModel> RoutingDestinations { get; } = [];
+    private readonly Dictionary<string, string> _outputRouteStages = new(StringComparer.Ordinal);
+
+    public bool HasOutputRoute(string mixId, string destinationId)
+        => _outputRouteStages.ContainsKey($"{mixId}|{destinationId}");
+
+    public string OutputRouteStage(string mixId, string destinationId)
+        => _outputRouteStages.GetValueOrDefault($"{mixId}|{destinationId}", "MixProcessed");
+
+    public Task<bool> SetOutputRoute(string mixId, string destinationId, bool enabled, string stage)
+    {
+        if (!_supportsRoutingMatrix) return Task.FromResult(false);
+        return EditLayout(() => _client.SetOutputRouteAsync(mixId, destinationId, enabled, stage),
+            "Applying output route…", "Output route saved.");
+    }
+
+    private void ApplyRouting(JsonNode? mixer)
+    {
+        _outputRouteStages.Clear();
+        if (mixer?["outputRoutes"] is JsonArray routes)
+            foreach (JsonNode? route in routes)
+            {
+                string? mix = route?["mixId"]?.GetValue<string>();
+                string? destination = route?["destinationId"]?.GetValue<string>();
+                if (mix is null || destination is null) continue;
+                _outputRouteStages[$"{mix}|{destination}"] =
+                    route?["stage"]?.ToString().Trim('"') ?? "MixProcessed";
+            }
+
+        var fresh = new List<RoutingDestinationViewModel>();
+        if (mixer?["routingDestinations"] is JsonArray destinations)
+            foreach (JsonNode? destination in destinations)
+            {
+                string? id = destination?["id"]?.GetValue<string>();
+                if (id is null) continue;
+                fresh.Add(new RoutingDestinationViewModel(
+                    id,
+                    destination?["name"]?.GetValue<string>() ?? id,
+                    destination?["available"]?.GetValue<bool>() ?? false,
+                    destination?["compatible"]?.GetValue<bool>() ?? false,
+                    (destination?["stages"] as JsonArray)?.Select(stage => stage?.ToString().Trim('"'))
+                        .Where(stage => stage is not null).Cast<string>().ToArray() ?? [],
+                    destination?["compatibilityError"]?.GetValue<string>()));
+            }
+        if (!fresh.SequenceEqual(RoutingDestinations))
+        {
+            RoutingDestinations.Clear();
+            foreach (RoutingDestinationViewModel destination in fresh)
+                RoutingDestinations.Add(destination);
+        }
     }
 
     /// <summary>Update in place by id so bindings survive; add/remove as needed.</summary>
@@ -1007,6 +1078,14 @@ public sealed record ChannelOption(string Id, string Name)
 {
     public override string ToString() => Name;
 }
+
+public sealed record RoutingDestinationViewModel(
+    string Id,
+    string Name,
+    bool Available,
+    bool Compatible,
+    IReadOnlyList<string> Stages,
+    string? Error);
 
 /// <summary>An application that is playing, and the channel it is routed to.</summary>
 public sealed class AppStreamViewModel : ViewModelBase

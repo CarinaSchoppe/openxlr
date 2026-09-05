@@ -19,7 +19,7 @@ jobs:
       - name: Install build dependencies
         run: |
           dnf install -y --setopt=install_weak_deps=False \
-            rpm-build rpmlint git-core gh dotnet-sdk-10.0 systemd-rpm-macros gcc make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel
+            rpm-build rpmlint git-core gh dotnet-sdk-10.0 systemd-rpm-macros gcc gcc-c++ make cmake pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel
 
       - uses: actions/checkout@v7
 
@@ -46,6 +46,8 @@ jobs:
           test -x /usr/bin/openxlr && test -x /usr/bin/openxlr-daemon
           test -x /usr/lib/openxlr/daemon/OpenXLR.Daemon
           test -x /usr/lib/openxlr/daemon/openxlr-lv2-host
+          test -x /usr/lib/openxlr/daemon/openxlr-vst3-host
+          test -x /usr/lib/openxlr/daemon/openxlr-delay-host
           test -f /usr/lib/udev/rules.d/70-openxlr.rules
           test -f /usr/share/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf
           test -f /usr/lib/systemd/user/openxlr-daemon.service

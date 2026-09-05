@@ -13,6 +13,10 @@ namespace OpenXLR.Core;
 /// </summary>
 public sealed record MixerScene
 {
+    /// <summary>Schema written by this release; nullable fields preserve legacy semantics.</summary>
+    public int SchemaVersion { get; init; } = CurrentSchemaVersion;
+    public const int CurrentSchemaVersion = 2;
+
     public Dictionary<string, double> MixVolumes { get; init; } = [];
     public List<string> MixMuted { get; init; } = [];
     /// <summary>"channel|mix" to level.</summary>
@@ -28,6 +32,11 @@ public sealed record MixerScene
     /// currently selected mix when the profile is recalled.
     /// </summary>
     public string? MonitoredMixId { get; init; }
+    /// <summary>
+    /// Full routing matrix. Null preserves the current routing when recalling
+    /// an old profile; an explicit empty list disconnects all output routes.
+    /// </summary>
+    public List<OutputRouteDefinition>? OutputRoutes { get; init; }
     public bool AuxPortEnabled { get; init; }
     public double? OutputVolume { get; init; }
     /// <summary>Software low cut (0, 80, or 120 Hz); absent in older profiles.</summary>

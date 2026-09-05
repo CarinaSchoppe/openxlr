@@ -9,6 +9,10 @@ public partial class MixInsertsWindow : Window
     public MixInsertsWindow()
     {
         InitializeComponent();
+        Opened += async (_, _) =>
+        {
+            if (Chain is not null) await Chain.RefreshPresetsAsync();
+        };
     }
 
     private InsertsViewModel? Chain => DataContext as InsertsViewModel;
@@ -39,6 +43,33 @@ public partial class MixInsertsWindow : Window
     private void OnInsertRemove(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is InsertViewModel ins) ins.Owner.Remove(ins);
+    }
+
+    private async void OnInsertRetry(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is InsertViewModel insert)
+            _ = await insert.RetryAsync(clearQuarantine: false);
+    }
+
+    private async void OnInsertUnquarantine(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is InsertViewModel insert)
+            _ = await insert.RetryAsync(clearQuarantine: true);
+    }
+
+    private async void OnSavePreset(object? sender, RoutedEventArgs e)
+    {
+        if (Chain is not null) await Chain.SaveChainPresetAsync();
+    }
+
+    private async void OnLoadPreset(object? sender, RoutedEventArgs e)
+    {
+        if (Chain is not null) await Chain.LoadChainPresetAsync();
+    }
+
+    private async void OnDeletePreset(object? sender, RoutedEventArgs e)
+    {
+        if (Chain is not null) await Chain.DeleteChainPresetAsync();
     }
 
     private void OnClose(object? sender, RoutedEventArgs e) => Close();

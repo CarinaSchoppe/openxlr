@@ -10,9 +10,11 @@
     <Compile Include="../Shared/PipeWireSnapshot.cs" Link="Mixing/PipeWireSnapshot.cs" />
     <InternalsVisibleTo Include="OpenXLR.Tests" />
     <None Include="../../native/openxlr-lv2-host" Link="openxlr-lv2-host" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="../../native/openxlr-vst3-host" Link="openxlr-vst3-host" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="../../native/openxlr-delay-host" Link="openxlr-delay-host" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>
 
-  <Target Name="BuildNativeLv2Host" BeforeTargets="BeforeBuild" Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+  <Target Name="BuildNativeHosts" BeforeTargets="BeforeBuild" Condition="$([MSBuild]::IsOSPlatform('Linux'))">
     <Exec Command="make -C &quot;$(MSBuildProjectDirectory)/../../native&quot;" />
   </Target>
 

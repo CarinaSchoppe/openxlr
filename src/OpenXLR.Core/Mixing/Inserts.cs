@@ -12,7 +12,7 @@ public sealed record InsertDefinition
     /// <summary>Stable id for this slot (survives reorders and restarts).</summary>
     public required string Id { get; init; }
 
-    /// <summary>Currently "lv2"; unknown formats are rejected.</summary>
+    /// <summary>Plugin format: "lv2" or "vst3".</summary>
     public required string Kind { get; init; }
 
     /// <summary>The installed LV2 plugin URI.</summary>
@@ -25,11 +25,23 @@ public sealed record InsertDefinition
 
     /// <summary>Control values by port symbol; ports not listed keep defaults.</summary>
     public Dictionary<string, double> Params { get; init; } = [];
+
+    /// <summary>
+    /// Opaque format-native state, base64 encoded. Parameters remain separate
+    /// for transparent editing and migration; hosts may restore both.
+    /// </summary>
+    public string? State { get; init; }
+
+    /// <summary>Auxiliary input bus ID to stable OpenXLR signal-source ID.</summary>
+    public Dictionary<string, string> Sidechains { get; init; } = [];
 }
 
 /// <summary>An insert as pushed to clients: its definition plus live status.</summary>
 public sealed record InsertStatus(InsertDefinition Insert, string? Error,
-    IReadOnlyDictionary<string, double>? Meters = null);
+    IReadOnlyDictionary<string, double>? Meters = null,
+    int LatencySamples = 0,
+    string Status = "ready",
+    PluginRecoveryStatus? Recovery = null);
 
 /// <summary>A control port of a plugin, enough to build a sensible slider.</summary>
 public sealed record PluginParam(
@@ -53,4 +65,14 @@ public sealed record PluginInfo(
     /// <summary>All audio input and output port symbols, in port order (stereo chains link both).</summary>
     IReadOnlyList<string> InputSymbols,
     IReadOnlyList<string> OutputSymbols,
-    bool HasNativeUi = false);
+    bool HasNativeUi = false,
+    bool SupportsState = false,
+    int LatencySamples = 0,
+    IReadOnlyList<PluginBusInfo>? AuxiliaryInputs = null,
+    string ScanStatus = "ready",
+    string? ScanError = null,
+    /// <summary>Scanner-resolved module path; never accepted from an API insert request.</summary>
+    string? ModulePath = null);
+
+/// <summary>One non-main plugin input bus exposed for sidechain routing.</summary>
+public sealed record PluginBusInfo(string Id, string Name, int Channels, bool DefaultActive);

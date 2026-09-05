@@ -252,6 +252,15 @@ public sealed record MixerState
 
     /// <summary>Application streams currently placed in channels.</summary>
     public IReadOnlyList<StreamAssignment> Streams { get; init; } = [];
+
+    /// <summary>Every current or intentionally remembered matrix column.</summary>
+    public IReadOnlyList<RoutingDestination> RoutingDestinations { get; init; } = [];
+
+    /// <summary>Desired mix-to-output routes and their verified live status.</summary>
+    public IReadOnlyList<OutputRouteStatus> OutputRoutes { get; init; } = [];
+
+    /// <summary>Stable channel/mix taps eligible for plug-in auxiliary buses.</summary>
+    public IReadOnlyList<PluginSidechainSource> SidechainSources { get; init; } = [];
 }
 
 public sealed record MixStatus(string Id, string Name, double Volume, bool Muted,

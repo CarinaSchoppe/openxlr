@@ -23,6 +23,7 @@ public sealed class WebSocketHub
 
     private readonly DeviceManager _devices;
     private readonly MixerService _mixer;
+    private readonly PluginCatalogService _plugins;
     private readonly ILogger<WebSocketHub> _log;
     private readonly ConcurrentDictionary<Guid, Client> _clients = new();
     // Receive loops must observe shutdown: an open socket otherwise keeps
@@ -36,17 +37,20 @@ public sealed class WebSocketHub
     private readonly Channel<bool> _stateChanges = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)
     { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true, AllowSynchronousContinuations = false });
 
-    public WebSocketHub(DeviceManager devices, MixerService mixer, ILogger<WebSocketHub> log,
+    public WebSocketHub(DeviceManager devices, MixerService mixer, PluginCatalogService plugins,
+        ILogger<WebSocketHub> log,
         IHostApplicationLifetime lifetime)
     {
         _devices = devices;
         _mixer = mixer;
+        _plugins = plugins;
         _log = log;
         _stopping = lifetime.ApplicationStopping;
         // Either half changing pushes the combined state, so clients always see
         // device and mixer consistently in one message.
         _devices.StateChanged += ignored => _stateChanges.Writer.TryWrite(true);
         _mixer.Changed += () => _stateChanges.Writer.TryWrite(true);
+        _plugins.Changed += () => _stateChanges.Writer.TryWrite(true);
         _ = BroadcastStatesAsync();
         _mixer.MetersUpdated += () =>
         {
@@ -82,7 +86,9 @@ public sealed class WebSocketHub
         {
             DaemonVersion = OpenXLR.Daemon.DaemonVersion.Current,
             Features = ["editableLayout", "commandResults", "nativePluginUi", "channelInserts",
-                "layoutOrder", "monitorMixSelection", "httpApiV1"],
+                "layoutOrder", "monitorMixSelection", "routingMatrix", "processingStages", "pluginPresets",
+                "pluginRecovery", "pluginManager", "sidechains", "latencyCompensation", "vst3",
+                "waveFxVstInsertCapability", "httpApiV1"],
             ActiveProfile = deviceId is not null && _activeProfile.TryGetValue(deviceId, out string? profile)
                 ? profile : null,
             Mixer = _mixer.Snapshot(),
@@ -217,9 +223,20 @@ public sealed class WebSocketHub
             case "getDiagnostics":
                 return CommandExecution.Succeeded(new DiagnosticsMessage(_devices.DumpBlocks()));
             case "listPlugins":
-                // The first call may block on lilv's scan; keep it off the socket loop's thread.
-                IReadOnlyList<OpenXLR.Core.Mixing.PluginInfo> plugins = await Task.Run(() => OpenXLR.Core.Mixing.Lv2Catalog.Plugins);
-                return CommandExecution.Succeeded(new PluginsMessage(plugins));
+                return CommandExecution.Succeeded(new PluginsMessage(_plugins.Plugins));
+            case "listPresets":
+                return CommandExecution.Succeeded(new PresetsMessage());
+            case "rescanPlugins":
+                await _plugins.RescanAsync(force: true, _stopping);
+                return CommandExecution.Succeeded(new PluginsMessage(_plugins.Plugins));
+            case "retryPlugin":
+            case "unquarantinePlugin":
+                if (cmd.Plugin is null) return CommandExecution.Failed($"{cmd.Cmd}: missing 'plugin'");
+                string? scanError = await _plugins.RetryAsync(cmd.Plugin,
+                    clearQuarantine: cmd.Cmd == "unquarantinePlugin", _stopping);
+                return scanError is null
+                    ? CommandExecution.Succeeded(new PluginsMessage(_plugins.Plugins))
+                    : CommandExecution.Failed(scanError);
             case "set":
                 if (cmd.Control is null) return CommandExecution.Failed("set: missing 'control'", mutated: true);
                 string? err = _devices.Apply(cmd.Control, cmd.Value);  // broadcasts on success
@@ -241,6 +258,7 @@ public sealed class WebSocketHub
             case "forgetApp":
             case "setMonitorOutput":
             case "setMonitorOutputs":
+            case "setOutputRoute":
             case "setMonitoredMix":
             case "setOutputVolume":
             case "setEnforcedDefaults":
@@ -251,6 +269,15 @@ public sealed class WebSocketHub
             case "showInsertUi":
             case "setInsertBypass":
             case "setInsertParam":
+            case "retryInsertHost":
+            case "unquarantineInsert":
+            case "saveChainPreset":
+            case "loadChainPreset":
+            case "savePluginPreset":
+            case "loadPluginPreset":
+            case "renamePreset":
+            case "duplicatePreset":
+            case "deletePreset":
                 string? mixErr = _mixer.Apply(cmd);                     // broadcasts on success
                 return CommandExecution.Mutation(mixErr);
             case "setActiveDevice":

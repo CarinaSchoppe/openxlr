@@ -21,16 +21,19 @@ OpenXLR-specific integration work already completed beyond that comparison:
 
 ## Mixer and routing
 
+The [checkpoint status](docs/parity-status.md) tracks the newer high-priority
+implementation. Routing matrix, VST3, presets, scanner/manager, sidechain and
+latency code is now present. Related boxes below remain open until the complete
+audio, installed-package and CI acceptance criteria have passed.
+
 - [ ] Add arbitrary PipeWire microphones, headsets, audio interfaces, capture
   cards, and other capture sources as managed input channels. OpenXLR currently
   builds hardware channels only for the active supported Wave interface.
 - [ ] Mix inputs from several attached Wave interfaces simultaneously. The
   current device picker controls several devices but one interface supplies the
   active hardware-input layout.
-- [ ] Replace the single listened-mix selector with a persistent many-to-many
-  mix-to-output matrix. OpenXLR can listen to any one mix through several
-  outputs and publishes all virtual mixes, but cannot concurrently send
-  different mixes to different physical devices as Wave Link 3 can.
+- [ ] Finish acceptance of the implemented persistent many-to-many mix-to-output
+  matrix, including shared hardware buses, hotplug, rollback and convergence.
 - [ ] Add user-selectable icons for output mixes. Names, ordering, creation,
   deletion, and stable references are already implemented.
 - [ ] Add a compact mix-matrix mode that keeps one selected channel visible.
@@ -63,13 +66,24 @@ OpenXLR-specific integration work already completed beyond that comparison:
 - [ ] Complete the LV2 host contract: worker, state, atom/event ports, file
   properties, more native UI toolkits, and safe plugin-requested resize.
 - [ ] Add reusable effect-chain presets, per-plugin presets, copy/paste between
-  channels, and A/B comparison.
+  channels, and A/B comparison. Preset storage/UI/API and VST3 state are present;
+  complete LV2 asset state and A/B remain open.
 - [ ] Add configurable LV2 search paths, rescan, quarantine, and a plugin
   manager that reports newly found or rejected plugins.
 - [ ] Add a Linux effect browser/installer with a trustworthy package source.
   Elgato Marketplace and its VST3/AU downloads are proprietary ecosystem
   services and are not presented as an implemented Linux feature.
 - [ ] Add optional auto-scaling for native plugin editor windows.
+- [ ] Complete native Linux VST3 editor, state, sidechain and crash acceptance
+  across multiple vendors; validate yabridge with actual Windows effects.
+- [ ] Verify Wave FX USB send/return endpoints on compatible hardware before
+  enabling the hardware insert capability. The XLR Dock has no verified pair.
+- [ ] Implement explicit raw/hardware/plugin/full processing taps and per-send
+  FX selection with persistence, profiles and measured isolation.
+- [ ] Complete latency compensation at every convergence, including sidechains,
+  channel paths, quantum/rate changes, and unsupported latency reporting.
+- [ ] Replace remaining gapful effect-chain rebuilds with measured click-free
+  transitions, preserving plugin state and graph cleanup.
 
 ## Stream Deck and OpenDeck
 

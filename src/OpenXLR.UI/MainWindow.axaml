@@ -195,6 +195,10 @@
           </DropDownButton>
           <Button Content="Flow" Padding="10,3" FontSize="12" Background="Transparent"
                   Click="OnFlow" ToolTip.Tip="Show the live audio routing graph"/>
+          <Button Content="Routing" Padding="10,3" FontSize="12" Background="Transparent"
+                  Click="OnRouting" ToolTip.Tip="Route every mix independently to one or more outputs"/>
+          <Button Content="Plugins" Padding="10,3" FontSize="12" Background="Transparent"
+                  Click="OnPlugins" ToolTip.Tip="Inspect, rescan, retry, and unquarantine LV2/VST3 plugins"/>
           <Button Name="RestartDaemonButton" Content="Restart daemon" Padding="10,3" FontSize="12"
                   IsEnabled="{Binding !Service.Busy}" Click="OnRestartDaemon"
                   ToolTip.Tip="Restart the systemd user service. Audio briefly stops; the UI reconnects automatically."/>

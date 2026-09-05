@@ -7,6 +7,10 @@ public sealed class MixerCommandValidationTests
     [RequiresLspFact]
     public void InsertValidationCannotReplaceAGoodChainWithInvalidControls()
     {
+        // Production publishes the isolated scanner's result. This unit test
+        // exercises validation directly and therefore supplies the same
+        // installed catalogue explicitly.
+        PluginRegistry.Replace(Lv2Catalog.Plugins);
         using var mixer = new Mixer();
         var insert = new InsertDefinition
         {

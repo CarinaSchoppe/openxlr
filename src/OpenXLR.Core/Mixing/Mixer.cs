@@ -28,12 +28,17 @@ public sealed class Mixer : IDisposable
     private readonly HashSet<string> _mixMuted = [];
     private readonly object _gate = new();
 
-    // The listened mix's routes to its output devices (direct port links; one
-    // mix can feed several at once) and the hardware interface's per-pair
-    // feeds into the input channels (XLR 1, XLR 2, Line In). Routes are keyed
-    // by physical link target, so several pseudo-outputs sharing one underlying
-    // route (the Wave XLR Pro's jacks all ride its monitor bus) make one link.
-    private readonly Dictionary<string, PortLink> _monitorRoutes = [];
+    // Desired many-to-many output routes are separate from their live links:
+    // an unplugged destination retains intent by stable ID without leaving a
+    // ghost PipeWire node. Links are keyed by mix and destination.
+    private readonly List<OutputRouteDefinition> _outputRoutes = [];
+    private readonly Dictionary<string, PortLink> _outputRouteLinks = [];
+    private readonly Dictionary<string, FilterHandle> _outputRouteDelays = [];
+    private readonly Dictionary<string, PortLink> _outputRouteDelayInputs = [];
+    private readonly Dictionary<string, int> _routeCompensationSamples = [];
+    private int _graphQuantumSamples = 1024;
+    // Compatibility projection for older clients that select one listened mix
+    // and a list of runtime node names.
     private readonly List<string> _monitorOutputs = [];
     private string _monitoredMixId = "monitor";
     private readonly Dictionary<string, PortLink> _inputFeeds = [];
@@ -118,6 +123,7 @@ public sealed class Mixer : IDisposable
     }
 
     private static string Cell(string channel, string mix) => $"{channel}|{mix}";
+    private static string OutputRouteKey(string mix, string destination) => $"{mix}|{destination}";
 
     // channel id -> its combine module; "channel|mix" -> that leg's sink-input index
     private readonly Dictionary<string, uint> _combineModules = [];
@@ -148,6 +154,7 @@ public sealed class Mixer : IDisposable
             if (_built) TearDownLocked();
             _config = config;
             _monitoredMixId = ResolveMonitoredMixId(_monitoredMixId);
+            _graphQuantumSamples = _pw.GetGraphQuantumSamples();
 
             // A crashed or killed daemon never runs its teardown, and loading
             // over its leftover nodes fails the whole build with a name
@@ -261,6 +268,7 @@ public sealed class Mixer : IDisposable
         var nextFeeds = new Dictionary<string, PortLink>();
         var nextChains = new Dictionary<string, FilterHandle>();
         var nextChainOuts = new Dictionary<string, PortLink>();
+        var nextSidechains = new Dictionary<string, PortLink>();
         long generation = ++_inputChainGeneration;
         try
         {
@@ -270,8 +278,8 @@ public sealed class Mixer : IDisposable
                 // channel only; inserts can sit on either mono XLR channel.
                 bool lc = ch.InputPair == 0 && _lowCutHz > 0 && _lowCutApplicable;
                 bool cg = ch.InputPair == 0 && _softClipGuard && _clipGuardApplicable;
-                List<InsertDefinition> inserts = IsInsertChannel(ch.Id) ? InsertsFor(ch.Id) : [];
-                bool anyInsert = inserts.Any(i => !i.Bypass && Lv2Catalog.Find(i.Plugin) is not null);
+                List<InsertDefinition> inserts = IsInsertChannel(ch.Id) ? RunnableInsertsFor(ch.Id) : [];
+                bool anyInsert = inserts.Any(i => !i.Bypass && PluginRegistry.Find(i) is not null);
                 if (lc || cg || anyInsert)
                 {
                     _insertErrors.Remove(ch.Id);
@@ -281,9 +289,12 @@ public sealed class Mixer : IDisposable
                     {
                         chain = ch.Id == "aux" ? _pw.CreateMixChain(chainId, "OpenXLR Aux In Inserts", inserts)
                             : _pw.CreateMicFilter(chainId, lc ? _lowCutHz : 0, cg, inserts);
+                        foreach ((string key, PortLink link) in CreateSidechainLinksLocked(ch.Id, chain))
+                            nextSidechains[key] = link;
                     }
                     catch (Exception ex) when (anyInsert)
                     {
+                        RecordChainFailureLocked(ch.Id, inserts, ex);
                         // Insert failures fall back to the built-in DSP, or to
                         // a plain feed when this chain contained inserts only.
                         _insertErrors[ch.Id] = ex.Message;
@@ -312,10 +323,18 @@ public sealed class Mixer : IDisposable
                         // stereo interface has no XLR 2 or Aux In pair): the
                         // channel stays silent, and the chain built for it is
                         // not needed.
+                        string sidechainPrefix = ch.Id + '\0';
+                        foreach (string key in nextSidechains.Keys.Where(key =>
+                                     key.StartsWith(sidechainPrefix, StringComparison.Ordinal)).ToList())
+                        {
+                            _pw.Unlink(nextSidechains[key]);
+                            nextSidechains.Remove(key);
+                        }
                         _pw.StopFilter(chain);
                         continue;
                     }
                     nextChains[ch.Id] = chain;
+                    MarkRunningPluginsHealthyLocked(ch.Id, chain);
                     PortLink onward = _pw.LinkNodes(chain.SourceName, "capture", ch.SinkName, "playback");
                     if (onward.Pairs.Count == 0)
                     {
@@ -353,6 +372,7 @@ public sealed class Mixer : IDisposable
             // Roll back only objects created for this candidate graph. Entries
             // reused from the old direct graph must stay connected.
             foreach (PortLink link in nextChainOuts.Values) _pw.Unlink(link);
+            foreach (PortLink link in nextSidechains.Values) _pw.Unlink(link);
             foreach ((string key, PortLink link) in nextFeeds)
                 if (!_inputFeeds.TryGetValue(key, out PortLink? old) || !ReferenceEquals(old, link))
                     _pw.Unlink(link);
@@ -368,6 +388,13 @@ public sealed class Mixer : IDisposable
         {
             _pw.StopFilter(_chains[key]);
             _chains.Remove(key);
+        }
+
+        foreach (ChannelDefinition channel in _config.Channels.Where(channel => channel.InputPair is not null))
+        {
+            string prefix = channel.Id + '\0';
+            ReplaceSidechainLinksLocked(channel.Id, nextSidechains.Where(pair =>
+                pair.Key.StartsWith(prefix, StringComparison.Ordinal)).ToDictionary());
         }
 
         _inputFeeds.Clear();
@@ -394,11 +421,15 @@ public sealed class Mixer : IDisposable
         // Input chains only; mix chains are owned by WireMixChainLocked.
         foreach (PortLink link in _chainOuts.Values) _pw.Unlink(link);
         _chainOuts.Clear();
-        foreach (string key in _chains.Keys.Where(k => !k.StartsWith("mix:", StringComparison.Ordinal)).ToList())
+        var inputIds = _config.Channels.Where(channel => channel.InputPair is not null)
+            .Select(channel => channel.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (string key in _chains.Keys.Where(inputIds.Contains).ToList())
         {
             _pw.StopFilter(_chains[key]);
             _chains.Remove(key);
         }
+        foreach (ChannelDefinition channel in _config.Channels.Where(channel => channel.InputPair is not null))
+            ReplaceSidechainLinksLocked(channel.Id, new Dictionary<string, PortLink>());
     }
 
     private void RemoveMixChainsLocked()
@@ -412,6 +443,8 @@ public sealed class Mixer : IDisposable
             _pw.StopFilter(_chains[key]);
             _chains.Remove(key);
         }
+        foreach (MixDefinition mix in _config.Mixes)
+            ReplaceSidechainLinksLocked(MixKey(mix), new Dictionary<string, PortLink>());
     }
 
     /// <summary>
@@ -429,22 +462,42 @@ public sealed class Mixer : IDisposable
             foreach (MixDefinition mix in _config.Mixes)
             {
                 string key = MixKey(mix);
+                bool retryDue = _pluginRecovery.IsRetryDue(key);
                 if (_chains.TryGetValue(key, out FilterHandle? c) && !c.IsAlive)
+                {
+                    foreach ((string insertId, _) in c.NativeStages.Where(stage => !stage.Host.IsHealthy))
+                        _pluginRecovery.RecordFailure(key, insertId, "isolated plug-in host exited or stopped responding");
+                    WireMixChainLocked(mix);
+                    changed = true;
+                }
+                else if (retryDue)
                 {
                     WireMixChainLocked(mix);
                     changed = true;
                 }
             }
             foreach (ChannelDefinition channel in _config.Channels.Where(c => c.InputPair is null))
-                if ((_chains.TryGetValue(channel.Id, out FilterHandle? chain) && !chain.IsAlive)
+            {
+                bool dead = _chains.TryGetValue(channel.Id, out FilterHandle? chain) && !chain.IsAlive;
+                if (dead)
+                    foreach ((string insertId, _) in chain!.NativeStages.Where(stage => !stage.Host.IsHealthy))
+                        _pluginRecovery.RecordFailure(channel.Id, insertId, "isolated plug-in host exited or stopped responding");
+                if (dead || _pluginRecovery.IsRetryDue(channel.Id)
                     || !_appFeeds.TryGetValue(channel.Id, out PortLink? feed) || _pw.EnsureLinks(feed) == LinkHealth.Broken
                     || _appOutputs.TryGetValue(channel.Id, out PortLink? output) && _pw.EnsureLinks(output) == LinkHealth.Broken)
                 {
                     WireAppChainLocked(channel);
                     changed = true;
                 }
-            bool inputBroken = _chains.Where(e => _config.Channels.Any(c => c.Id == e.Key && c.InputPair is not null)).Any(e => !e.Value.IsAlive)
+            }
+            var inputTargets = _config.Channels.Where(channel => channel.InputPair is not null)
+                .Select(channel => channel.Id).ToHashSet(StringComparer.Ordinal);
+            foreach ((string target, FilterHandle chain) in _chains.Where(entry => inputTargets.Contains(entry.Key) && !entry.Value.IsAlive))
+                foreach ((string insertId, _) in chain.NativeStages.Where(stage => !stage.Host.IsHealthy))
+                    _pluginRecovery.RecordFailure(target, insertId, "isolated plug-in host exited or stopped responding");
+            bool inputBroken = _chains.Where(e => inputTargets.Contains(e.Key)).Any(e => !e.Value.IsAlive)
                 || _chainOuts.Values.Any(l => _pw.EnsureLinks(l) == LinkHealth.Broken);
+            inputBroken |= inputTargets.Any(_pluginRecovery.IsRetryDue);
             if (inputBroken) { WireInputFeedsLocked(); changed = true; }
             return changed;
         }
@@ -486,20 +539,20 @@ public sealed class Mixer : IDisposable
     public void BounceAuxTarget()
     {
         string? sink;
-        IReadOnlyList<string> monitorSelection;
         lock (_gate)
         {
             sink = _auxTargetSink;
             if (sink is null || !_built) return;
-            monitorSelection = [.. _monitorOutputs];
-            foreach (PortLink route in _monitorRoutes.Values) _pw.Unlink(route);
-            _monitorRoutes.Clear();
+            foreach (string key in _outputRouteLinks.Keys.Concat(_outputRouteDelays.Keys)
+                         .Concat(_outputRouteDelayInputs.Keys).Distinct(StringComparer.Ordinal).ToList())
+                TearDownRouteGraphLocked(key);
             if (_auxRoute is not null) { _pw.Unlink(_auxRoute); _auxRoute = null; }
         }
         _pw.BounceSink(sink);
         lock (_gate)
         {
-            SetMonitorOutputsLocked(monitorSelection);
+            EnsureMonitorRoutes();
+            RefreshLegacyMonitorOutputsLocked();
             WireAuxRouteLocked();
         }
     }
@@ -540,11 +593,13 @@ public sealed class Mixer : IDisposable
     private readonly Dictionary<string, PortLink> _mixPostLinks = new(); // mix key: chain source into the post sink
     private readonly Dictionary<string, PortLink> _appFeeds = new();
     private readonly Dictionary<string, PortLink> _appOutputs = new();
+    private readonly Dictionary<string, PortLink> _sidechainLinks = new();
 
     // Plugin insert chains by key, and why a key's last build fell back to
     // running without its inserts.
     private readonly Dictionary<string, List<InsertDefinition>> _inserts = new();
     private readonly Dictionary<string, string> _insertErrors = new();
+    private readonly PluginRecoveryTracker _pluginRecovery = new();
 
     /// <summary>Insert keys: every channel ID and "mix:&lt;id&gt;" for each output mix.</summary>
     private bool IsInsertChannel(string key) => _config.Channels.Any(c => c.Id == key) || MixForKey(key) is not null;
@@ -553,6 +608,101 @@ public sealed class Mixer : IDisposable
         => key.StartsWith("mix:", StringComparison.Ordinal) ? _config.Mixes.FirstOrDefault(m => m.Id == key[4..]) : null;
 
     private static string MixKey(MixDefinition mix) => $"mix:{mix.Id}";
+
+    private List<InsertDefinition> RunnableInsertsFor(string target)
+        => [.. InsertsFor(target).Select(insert => insert.Bypass ||
+                _pluginRecovery.CanAttempt(target, insert.Id)
+            ? insert
+            : insert with { Bypass = true })];
+
+    private void RecordChainFailureLocked(string target,
+        IEnumerable<InsertDefinition> attempted, Exception error)
+    {
+        foreach (InsertDefinition insert in attempted.Where(insert => !insert.Bypass))
+            _pluginRecovery.RecordFailure(target, insert.Id, error.Message);
+    }
+
+    private void MarkRunningPluginsHealthyLocked(string target, FilterHandle chain)
+    {
+        foreach ((string insertId, _) in chain.NativeStages)
+            _pluginRecovery.MarkHealthy(target, insertId);
+    }
+
+    private IReadOnlyList<PluginSidechainSource> SidechainSourcesLocked()
+        => [.. _config.Channels.Select(channel => new PluginSidechainSource(
+                $"channel:{channel.Id}", channel.Name, channel.InputPair is null ? 2 : 1))
+            .Concat(_config.Mixes.Select(mix => new PluginSidechainSource(
+                $"mix:{mix.Id}", mix.Name + " mix", 2)))];
+
+    private (string Node, string Prefix, int Channels)? ResolveSidechainSourceLocked(string sourceId)
+    {
+        if (sourceId.StartsWith("channel:", StringComparison.Ordinal))
+        {
+            ChannelDefinition? channel = _config.Channels.FirstOrDefault(item =>
+                item.Id == sourceId[8..]);
+            return channel is null ? null
+                : (channel.SinkName, "monitor", channel.InputPair is null ? 2 : 1);
+        }
+        if (sourceId.StartsWith("mix:", StringComparison.Ordinal))
+        {
+            MixDefinition? mix = _config.Mixes.FirstOrDefault(item => item.Id == sourceId[4..]);
+            if (mix is null) return null;
+            (string node, string prefix) = MixTapLocked(mix);
+            return (node, prefix, 2);
+        }
+        return null;
+    }
+
+    private Dictionary<string, PortLink> CreateSidechainLinksLocked(string target,
+        FilterHandle chain)
+    {
+        var links = new Dictionary<string, PortLink>(StringComparer.Ordinal);
+        try
+        {
+            foreach ((string insertId, NativePluginHost host) in chain.NativeStages)
+            {
+                InsertDefinition? insert = InsertsFor(target).FirstOrDefault(item => item.Id == insertId);
+                PluginInfo? plugin = insert is null ? null : PluginRegistry.Find(insert);
+                if (insert is null || plugin is null) continue;
+                foreach ((string busId, string sourceId) in insert.Sidechains)
+                {
+                    PluginBusInfo bus = plugin.AuxiliaryInputs?.FirstOrDefault(item => item.Id == busId)
+                        ?? throw new InvalidOperationException($"plug-in '{plugin.Name}' has no auxiliary bus '{busId}'");
+                    (string Node, string Prefix, int Channels)? source = ResolveSidechainSourceLocked(sourceId);
+                    if (source is null) throw new InvalidOperationException($"unknown sidechain source '{sourceId}'");
+                    string? error = SidechainRouting.Validate(target, sourceId, source.Value.Channels, bus.Channels);
+                    if (error is not null) throw new InvalidOperationException(error);
+                    if (!busId.StartsWith("aux-", StringComparison.Ordinal)
+                        || !int.TryParse(busId.AsSpan(4), out int busIndex) || busIndex < 1)
+                        throw new InvalidOperationException($"unsupported auxiliary bus identity '{busId}'");
+                    PortLink link = _pw.LinkNodes(source.Value.Node, source.Value.Prefix,
+                        host.NodeName, $"sidechain_{busIndex}");
+                    if (link.Pairs.Count < bus.Channels)
+                        throw new InvalidOperationException($"could not connect sidechain bus '{bus.Name}'");
+                    links[$"{target}\0{insertId}\0{busId}"] = link;
+                }
+            }
+            return links;
+        }
+        catch
+        {
+            foreach (PortLink link in links.Values) _pw.Unlink(link);
+            throw;
+        }
+    }
+
+    private void ReplaceSidechainLinksLocked(string target,
+        IReadOnlyDictionary<string, PortLink> replacement)
+    {
+        string prefix = target + '\0';
+        foreach (string key in _sidechainLinks.Keys.Where(key =>
+                     key.StartsWith(prefix, StringComparison.Ordinal)).ToList())
+        {
+            _pw.Unlink(_sidechainLinks[key]);
+            _sidechainLinks.Remove(key);
+        }
+        foreach ((string key, PortLink link) in replacement) _sidechainLinks[key] = link;
+    }
 
     /// <summary>
     /// Keep the public application sink stable, process its monitor once, then
@@ -566,26 +716,34 @@ public sealed class Mixer : IDisposable
         if (_appOutputs.Remove(key, out PortLink? output)) _pw.Unlink(output);
         if (_chains.Remove(key, out FilterHandle? old)) _pw.StopFilter(old);
         _insertErrors.Remove(key);
-        if (InsertsFor(key).Any(i => !i.Bypass))
+        List<InsertDefinition> inserts = RunnableInsertsFor(key);
+        if (inserts.Any(i => !i.Bypass))
         {
+            Dictionary<string, PortLink> candidateSidechains = [];
             try
             {
-                FilterHandle chain = _pw.CreateMixChain($"ch_{key}", $"OpenXLR {channel.Name} Inserts", InsertsFor(key));
+                FilterHandle chain = _pw.CreateMixChain($"ch_{key}", $"OpenXLR {channel.Name} Inserts", inserts);
                 _chains[key] = chain;
+                MarkRunningPluginsHealthyLocked(key, chain);
+                candidateSidechains = CreateSidechainLinksLocked(key, chain);
                 _appFeeds[key] = _pw.LinkNodes(channel.SinkName, "monitor", chain.SinkName, "playback");
                 _appOutputs[key] = _pw.LinkNodes(chain.SourceName, "capture", channel.FanOutSinkName, "input");
                 if (_appFeeds[key].Pairs.Count < 2 || _appOutputs[key].Pairs.Count < 2)
                     throw new InvalidOperationException("Could not connect the application channel's stereo insert chain.");
+                ReplaceSidechainLinksLocked(key, candidateSidechains);
                 return;
             }
             catch (Exception ex)
             {
+                foreach (PortLink link in candidateSidechains.Values) _pw.Unlink(link);
+                RecordChainFailureLocked(key, inserts, ex);
                 if (_appFeeds.Remove(key, out PortLink? failedFeed)) _pw.Unlink(failedFeed);
                 if (_appOutputs.Remove(key, out PortLink? failedOutput)) _pw.Unlink(failedOutput);
                 if (_chains.Remove(key, out FilterHandle? failed)) _pw.StopFilter(failed);
                 _insertErrors[key] = ex.Message;
             }
         }
+        ReplaceSidechainLinksLocked(key, new Dictionary<string, PortLink>());
         _appFeeds[key] = _pw.LinkNodes(channel.SinkName, "monitor", channel.FanOutSinkName, "input");
         if (_appFeeds[key].Pairs.Count < 2) throw new InvalidOperationException($"Could not connect channel '{key}' to its sends.");
     }
@@ -607,23 +765,33 @@ public sealed class Mixer : IDisposable
         if (_chains.Remove(key, out FilterHandle? old)) _pw.StopFilter(old);
         _insertErrors.Remove(key);
 
-        List<InsertDefinition> inserts = InsertsFor(key);
-        bool anyInsert = inserts.Any(i => !i.Bypass && Lv2Catalog.Find(i.Plugin) is { } p && p.AudioIns >= 2 && p.AudioOuts >= 2);
+        List<InsertDefinition> inserts = RunnableInsertsFor(key);
+        bool anyInsert = inserts.Any(i => !i.Bypass && PluginRegistry.Find(i) is { } p && p.AudioIns >= 2 && p.AudioOuts >= 2);
         if (anyInsert)
         {
+            Dictionary<string, PortLink> candidateSidechains = [];
             try
             {
                 FilterHandle chain = _pw.CreateMixChain(mix.Id, $"OpenXLR {mix.Name} Inserts", inserts);
                 _chains[key] = chain;
+                MarkRunningPluginsHealthyLocked(key, chain);
+                candidateSidechains = CreateSidechainLinksLocked(key, chain);
                 _mixTaps[key] = _pw.LinkNodes(mix.SinkName, "monitor", chain.SinkName, "playback");
+                if (_mixTaps[key].Pairs.Count < 2)
+                    throw new InvalidOperationException("Could not connect the output mix's stereo insert chain.");
+                ReplaceSidechainLinksLocked(key, candidateSidechains);
             }
             catch (Exception ex)
             {
+                foreach (PortLink link in candidateSidechains.Values) _pw.Unlink(link);
+                RecordChainFailureLocked(key, inserts, ex);
                 if (_mixTaps.Remove(key, out PortLink? failedTap)) _pw.Unlink(failedTap);
                 if (_chains.Remove(key, out FilterHandle? failed)) _pw.StopFilter(failed);
                 _insertErrors[key] = ex.Message;   // the mix keeps flowing without its inserts
+                ReplaceSidechainLinksLocked(key, new Dictionary<string, PortLink>());
             }
         }
+        else ReplaceSidechainLinksLocked(key, new Dictionary<string, PortLink>());
         (string node, string prefix) = MixTapLocked(mix);
         switch (mix.Kind)
         {
@@ -636,12 +804,37 @@ public sealed class Mixer : IDisposable
                 WireAuxRouteLocked();
                 break;
         }
-        if (mix.Id == _monitoredMixId)
-            SetMonitorOutputsLocked([.. _monitorOutputs]);
+        RewireOutputRoutesForMixLocked(mix.Id);
     }
 
     private List<InsertDefinition> InsertsFor(string channelId)
         => _inserts.TryGetValue(channelId, out List<InsertDefinition>? l) ? l : [];
+
+    private void RestoreInsertsLocked(IReadOnlyDictionary<string, List<InsertDefinition>> saved)
+    {
+        _inserts.Clear();
+        IReadOnlyDictionary<string, PluginSidechainSource> sources = SidechainSourcesLocked()
+            .ToDictionary(source => source.Id, StringComparer.Ordinal);
+        foreach ((string target, List<InsertDefinition> list) in saved)
+        {
+            if (!IsInsertChannel(target)) continue;
+            _inserts[target] = [.. list.Select(insert => insert with
+            {
+                Params = new Dictionary<string, double>(insert.Params),
+                Sidechains = insert.Sidechains.Where(route =>
+                {
+                    if (!sources.TryGetValue(route.Value, out PluginSidechainSource? source)) return false;
+                    PluginInfo? plugin = PluginRegistry.Find(insert);
+                    PluginBusInfo? bus = plugin?.AuxiliaryInputs?
+                        .FirstOrDefault(candidate => candidate.Id == route.Key);
+                    return plugin is null
+                        ? SidechainRouting.Validate(target, source.Id, source.Channels, source.Channels) is null
+                        : bus is not null && SidechainRouting.Validate(target, source.Id,
+                            source.Channels, bus.Channels) is null;
+                }).ToDictionary(route => route.Key, route => route.Value),
+            })];
+        }
+    }
 
     /// <summary>Software low cut frequency (0, 80, or 120 Hz; 0 = off).</summary>
     public int LowCutHz { get { lock (_gate) return _lowCutHz; } }
@@ -742,10 +935,12 @@ public sealed class Mixer : IDisposable
             int width = channel is "xlr1" or "xlr2" ? 1 : 2;
             foreach (InsertDefinition insert in inserts)
             {
-                if (string.IsNullOrWhiteSpace(insert.Id) || insert.Kind != "lv2")
-                    throw new InvalidOperationException("every insert needs a nonempty ID and kind 'lv2'");
-                PluginInfo plugin = Lv2Catalog.Find(insert.Plugin)
+                if (string.IsNullOrWhiteSpace(insert.Id) || insert.Kind is not ("lv2" or "vst3"))
+                    throw new InvalidOperationException("every insert needs a nonempty ID and kind 'lv2' or 'vst3'");
+                PluginInfo plugin = PluginRegistry.Find(insert)
                     ?? throw new InvalidOperationException($"plugin not installed: {insert.Plugin}");
+                if (plugin.ScanStatus != "ready")
+                    throw new InvalidOperationException($"plugin is not ready: {plugin.ScanError ?? plugin.ScanStatus}");
                 if (plugin.AudioIns < width || plugin.AudioOuts < width)
                     throw new InvalidOperationException($"plugin '{plugin.Name}' does not fit a {width}-channel path");
                 foreach ((string symbol, double value) in insert.Params)
@@ -754,8 +949,78 @@ public sealed class Mixer : IDisposable
                     if (parameter is null || !double.IsFinite(value) || value < parameter.Min || value > parameter.Max)
                         throw new InvalidOperationException($"invalid plugin control '{symbol}'");
                 }
+                foreach ((string busId, string sourceId) in insert.Sidechains)
+                {
+                    PluginBusInfo bus = plugin.AuxiliaryInputs?.FirstOrDefault(item => item.Id == busId)
+                        ?? throw new InvalidOperationException($"plugin '{plugin.Name}' has no auxiliary bus '{busId}'");
+                    PluginSidechainSource source = SidechainSourcesLocked().FirstOrDefault(item => item.Id == sourceId)
+                        ?? throw new InvalidOperationException($"unknown sidechain source '{sourceId}'");
+                    string? sidechainError = SidechainRouting.Validate(channel, source.Id,
+                        source.Channels, bus.Channels);
+                    if (sidechainError is not null) throw new InvalidOperationException(sidechainError);
+                }
             }
-            _inserts[channel] = [.. inserts.Select(i => i with { Params = new Dictionary<string, double>(i.Params) })];
+            _inserts[channel] = [.. inserts.Select(i => i with
+            {
+                Params = new Dictionary<string, double>(i.Params),
+                Sidechains = new Dictionary<string, string>(i.Sidechains),
+            })];
+            _pluginRecovery.Retain(channel, inserts.Select(insert => insert.Id));
+            if (_built) RewireInsertKeyLocked(channel);
+        }
+    }
+
+    /// <summary>
+    /// Retry one failed isolated host. Quarantined crash loops require the
+    /// caller to explicitly clear quarantine; ordinary backoff can be retried
+    /// early without clearing its failure history.
+    /// </summary>
+    public void RetryInsertHost(string channel, string insertId, bool clearQuarantine)
+    {
+        lock (_gate)
+        {
+            if (!_inserts.TryGetValue(channel, out List<InsertDefinition>? list)
+                || list.All(insert => insert.Id != insertId))
+                throw new InvalidOperationException($"unknown insert '{insertId}'");
+            if (!_pluginRecovery.Retry(channel, insertId, clearQuarantine))
+                throw new InvalidOperationException("insert has no retryable failure, or is quarantined");
+            if (_built) RewireInsertKeyLocked(channel);
+        }
+    }
+
+    /// <summary>Copy a chain for preset persistence without exposing mutable mixer dictionaries.</summary>
+    public IReadOnlyList<InsertDefinition> GetInserts(string channel)
+    {
+        lock (_gate)
+        {
+            if (!IsInsertChannel(channel)) throw new InvalidOperationException($"unknown insert target '{channel}'");
+            return [.. InsertsFor(channel).Select(insert => insert with
+            {
+                Params = new Dictionary<string, double>(insert.Params),
+                Sidechains = new Dictionary<string, string>(insert.Sidechains),
+            })];
+        }
+    }
+
+    /// <summary>Apply a reusable plug-in preset to an existing compatible slot.</summary>
+    public void ApplyPluginPreset(string channel, string insertId, InsertDefinition preset)
+    {
+        lock (_gate)
+        {
+            if (!_inserts.TryGetValue(channel, out List<InsertDefinition>? list))
+                throw new InvalidOperationException($"unknown insert target '{channel}'");
+            int index = list.FindIndex(insert => insert.Id == insertId);
+            if (index < 0) throw new InvalidOperationException($"unknown insert '{insertId}'");
+            InsertDefinition current = list[index];
+            if (current.Kind != preset.Kind || current.Plugin != preset.Plugin)
+                throw new InvalidOperationException("plugin preset belongs to a different plug-in");
+            list[index] = preset with
+            {
+                Id = current.Id,
+                Label = current.Label,
+                Params = new Dictionary<string, double>(preset.Params),
+                Sidechains = new Dictionary<string, string>(preset.Sidechains),
+            };
             if (_built) RewireInsertKeyLocked(channel);
         }
     }
@@ -801,14 +1066,27 @@ public sealed class Mixer : IDisposable
             bool changed = false;
             foreach ((string channel, FilterHandle chain) in _chains)
                 foreach ((string id, NativePluginHost host) in chain.NativeStages)
+                {
+                    bool instanceChanged = false;
                     foreach ((string symbol, double value) in host.DrainChanges())
                     {
                         InsertDefinition? insert = InsertsFor(channel).FirstOrDefault(i => i.Id == id);
-                        PluginParam? parameter = insert is null ? null : Lv2Catalog.Find(insert.Plugin)?.Params.FirstOrDefault(p => p.Symbol == symbol);
+                        PluginParam? parameter = insert is null ? null : PluginRegistry.Find(insert)?.Params.FirstOrDefault(p => p.Symbol == symbol);
                         if (parameter is null || !double.IsFinite(value)) continue;
                         insert!.Params[symbol] = Math.Clamp(value, parameter.Min, parameter.Max);
+                        instanceChanged = true;
                         changed = true;
                     }
+                    if (instanceChanged && _inserts.TryGetValue(channel, out List<InsertDefinition>? inserts))
+                    {
+                        int index = inserts.FindIndex(insert => insert.Id == id);
+                        if (index >= 0 && PluginRegistry.Find(inserts[index])?.SupportsState == true)
+                        {
+                            try { inserts[index] = inserts[index] with { State = host.CaptureState() }; }
+                            catch (InvalidOperationException) { /* transparent parameters still persist */ }
+                        }
+                    }
+                }
             return changed;
         }
     }
@@ -826,7 +1104,7 @@ public sealed class Mixer : IDisposable
             int idx = list.FindIndex(i => i.Id == insertId);
             if (idx < 0) throw new InvalidOperationException($"unknown insert '{insertId}'");
             if (!double.IsFinite(value)) throw new InvalidOperationException("plugin control must be finite");
-            PluginParam? parameter = Lv2Catalog.Find(list[idx].Plugin)?.Params.FirstOrDefault(p => p.Symbol == symbol);
+            PluginParam? parameter = PluginRegistry.Find(list[idx])?.Params.FirstOrDefault(p => p.Symbol == symbol);
             if (parameter is null) throw new InvalidOperationException($"unknown plugin control '{symbol}'");
             value = Math.Clamp(parameter.Integer ? Math.Round(value) : value, parameter.Min, parameter.Max);
             list[idx].Params[symbol] = value;
@@ -836,7 +1114,7 @@ public sealed class Mixer : IDisposable
             // non-bypassed, loadable inserts, so find this insert's stage index.
             int k = 0;
             for (int j = 0; j < idx; j++)
-                if (!list[j].Bypass && list[j].Kind == "lv2" && Lv2Catalog.Find(list[j].Plugin) is not null) k++;
+                if (!list[j].Bypass && PluginRegistry.Find(list[j]) is not null) k++;
             try { _pw.SetFilterControl(chain, $"i{k}:{symbol}", value); }
             catch (InvalidOperationException) { RewireInsertKeyLocked(channel); }
         }
@@ -848,12 +1126,43 @@ public sealed class Mixer : IDisposable
         var result = new Dictionary<string, IReadOnlyList<InsertStatus>>();
         foreach ((string channel, List<InsertDefinition> list) in _inserts)
         {
-            result[channel] = [.. list.Select(i => new InsertStatus(i,
-                Lv2Catalog.Find(i.Plugin) is null ? "plugin not installed"
-                : !i.Bypass && _insertErrors.TryGetValue(channel, out string? err) ? err
-                : null, _chains.GetValueOrDefault(channel)?.NativeStages.FirstOrDefault(s => s.Id == i.Id).Host?.Meters))];
+            result[channel] = [.. list.Select(insert =>
+            {
+                PluginInfo? plugin = PluginRegistry.Find(insert);
+                string? error = plugin is not { ScanStatus: "ready" }
+                    ? plugin?.ScanError ?? "plugin not installed"
+                    : !insert.Bypass && _insertErrors.TryGetValue(channel, out string? chainError)
+                        ? chainError : null;
+                NativePluginHost? host = _chains.GetValueOrDefault(channel)?.NativeStages
+                    .FirstOrDefault(stage => stage.Id == insert.Id).Host;
+                PluginRecoveryStatus? recovery = _pluginRecovery.Get(channel, insert.Id);
+                string status = insert.Bypass ? "bypassed"
+                    : recovery?.Quarantined == true ? "quarantined"
+                    : recovery?.RetryAt is not null ? "recovering"
+                    : plugin?.ScanStatus ?? "missing";
+                error ??= recovery is { RetryAt: not null } or { Quarantined: true }
+                    ? recovery.LastError : null;
+                return new InsertStatus(insert, error, host?.Meters,
+                    host?.LatencySamples ?? plugin?.LatencySamples ?? 0,
+                    status, recovery);
+            })];
         }
         return result;
+    }
+
+    /// <summary>
+    /// Re-evaluate saved chains after an isolated catalogue scan. This is a
+    /// control-thread operation; affected paths retain their normal fail-open
+    /// rollback if a newly discovered plug-in cannot instantiate.
+    /// </summary>
+    public void RefreshPluginCatalog()
+    {
+        lock (_gate)
+        {
+            if (!_built) return;
+            foreach (string key in _inserts.Keys.Where(key => _inserts[key].Any(insert => !insert.Bypass)).ToList())
+                RewireInsertKeyLocked(key);
+        }
     }
 
     /// <summary>
@@ -921,6 +1230,7 @@ public sealed class Mixer : IDisposable
                 ChannelMuted = [.. _muted],
                 MonitorOutputs = [.. _monitorOutputs],
                 MonitoredMixId = _monitoredMixId,
+                OutputRoutes = [.. _outputRoutes],
                 AppOverrides = new Dictionary<string, string>(Matcher.Overrides),
                 KnownApps = [.. _apps.Values.Select(a => new SavedApp(a.Identity, a.Label, a.ChannelId))],
                 EnforcedDefaultSink = _enforcedSink,
@@ -990,10 +1300,19 @@ public sealed class Mixer : IDisposable
             foreach (MixDefinition mix in _config.Mixes) ReapplyMixLocked(mix.Id);
 
             _monitoredMixId = ResolveMonitoredMixId(s.MonitoredMixId);
-            IReadOnlyList<string> savedOutputs = s.MonitorOutputs is { Count: > 0 }
-                ? s.MonitorOutputs
-                : s.MonitorOutput is not null ? [s.MonitorOutput] : [];
-            SetMonitorOutputsLocked(savedOutputs);
+            if (s.OutputRoutes is not null)
+                RestoreOutputRoutesLocked(s.OutputRoutes);
+            else
+            {
+                // Schema-1 migration: the selected mix and runtime output
+                // names become stable-ID matrix routes on the first save.
+                IReadOnlyList<string> savedOutputs = s.MonitorOutputs is { Count: > 0 }
+                    ? s.MonitorOutputs
+                    : s.MonitorOutput is not null ? [s.MonitorOutput] : [];
+                var liveNames = RoutingDestinationsLocked().Where(d => d.NodeName is not null)
+                    .Select(d => d.NodeName!).ToHashSet(StringComparer.Ordinal);
+                SetMonitorOutputsLocked([.. savedOutputs.Where(liveNames.Contains)]);
+            }
             _enforcedSink = s.EnforcedDefaultSink;
             _enforcedSource = s.EnforcedDefaultSource;
 
@@ -1023,9 +1342,7 @@ public sealed class Mixer : IDisposable
                     rewireInputs = true;
                 }
             }
-            _inserts.Clear();
-            foreach ((string channel, List<InsertDefinition> list) in s.Inserts)
-                if (IsInsertChannel(channel)) _inserts[channel] = [.. list];
+            RestoreInsertsLocked(s.Inserts);
             rewireInputs = true;
             rewireMixes = true;
             if (rewireInputs) WireInputFeedsLocked();
@@ -1047,6 +1364,7 @@ public sealed class Mixer : IDisposable
                 ChannelMuted = [.. _muted],
                 MonitorOutputs = [.. _monitorOutputs],
                 MonitoredMixId = _monitoredMixId,
+                OutputRoutes = [.. _outputRoutes],
                 AuxPortEnabled = _auxPortEnabled,
                 OutputVolume = _outputVolume,
                 LowCutHz = _lowCutHz,
@@ -1089,10 +1407,11 @@ public sealed class Mixer : IDisposable
                 _monitoredMixId = selected;
             }
 
-            // An empty list is a real scene choice: disconnect every monitor
-            // route. Null belongs to an older profile that did not store this
-            // field, so preserve the current route for backwards compatibility.
-            if (s.MonitorOutputs is not null)
+            // An explicit matrix replaces all routes. Older profiles preserve
+            // the current matrix, except for their legacy monitor fields.
+            if (s.OutputRoutes is not null)
+                RestoreOutputRoutesLocked(s.OutputRoutes);
+            else if (s.MonitorOutputs is not null)
                 SetMonitorOutputsLocked(s.MonitorOutputs);
             else if (monitoredMixChanged)
                 SetMonitorOutputsLocked([.. _monitorOutputs]);
@@ -1116,9 +1435,7 @@ public sealed class Mixer : IDisposable
             }
             if (s.Inserts is not null)
             {
-                _inserts.Clear();
-                foreach ((string channel, List<InsertDefinition> list) in s.Inserts)
-                    if (IsInsertChannel(channel)) _inserts[channel] = [.. list];
+                RestoreInsertsLocked(s.Inserts);
                 rewireInputs = true;
                 rewireMixes = true;
             }
@@ -1222,6 +1539,21 @@ public sealed class Mixer : IDisposable
     /// <summary>All selected monitor outputs, in selection order.</summary>
     public IReadOnlyList<string> MonitorOutputs { get { lock (_gate) return [.. _monitorOutputs]; } }
 
+    /// <summary>Runtime node names of all available matrix destinations.</summary>
+    public IReadOnlyList<string> RoutedOutputNames
+    {
+        get
+        {
+            lock (_gate)
+            {
+                IReadOnlyDictionary<string, RoutingDestination> destinations = RoutingDestinationsLocked()
+                    .Where(d => d.NodeName is not null).ToDictionary(d => d.Id);
+                return [.. _outputRoutes.Select(r => destinations.GetValueOrDefault(r.DestinationId)?.NodeName)
+                    .Where(n => n is not null).Cast<string>().Distinct(StringComparer.Ordinal)];
+            }
+        }
+    }
+
     /// <summary>The mix whose post-insert signal is heard on the monitor outputs.</summary>
     public string MonitoredMixId { get { lock (_gate) return _monitoredMixId; } }
 
@@ -1237,7 +1569,7 @@ public sealed class Mixer : IDisposable
                 throw new InvalidOperationException($"unknown monitored mix '{mixId}'");
             if (_monitoredMixId == mixId) return;
             _monitoredMixId = mixId;
-            if (_built) SetMonitorOutputsLocked([.. _monitorOutputs]);
+            RefreshLegacyMonitorOutputsLocked();
         }
     }
 
@@ -1267,37 +1599,278 @@ public sealed class Mixer : IDisposable
 
     private void SetMonitorOutputsLocked(IReadOnlyList<string> sinkNames)
     {
-        foreach (PortLink route in _monitorRoutes.Values) _pw.Unlink(route);
-        _monitorRoutes.Clear();
-        _monitorOutputs.Clear();
-        foreach (string name in sinkNames.Where(n => !string.IsNullOrEmpty(n)).Distinct())
+        IReadOnlyList<RoutingDestination> destinations = RoutingDestinationsLocked();
+        var desired = new List<OutputRouteDefinition>();
+        foreach (string name in sinkNames.Where(n => !string.IsNullOrWhiteSpace(n))
+                     .Distinct(StringComparer.Ordinal))
         {
-            // The aux port is owned by the Aux mix now; old saved selections
-            // that still carry it as a monitor destination are dropped.
+            // USB Aux has a structural compatibility command of its own.
             if (name.EndsWith("#usbaux", StringComparison.Ordinal)) continue;
-            _monitorOutputs.Add(name);
+            RoutingDestination? destination = destinations.FirstOrDefault(d => d.NodeName == name);
+            if (destination is null)
+                throw new InvalidOperationException($"unknown output device '{name}'");
+            desired.Add(new OutputRouteDefinition(_monitoredMixId, destination.Id,
+                ProcessingStage.MixProcessed, destination.Name));
         }
-        MixDefinition? listenedMix = _config.Mixes.FirstOrDefault(m => m.Id == _monitoredMixId);
-        if (listenedMix is null) return;
-        (string tapNode, string tapPrefix) = MixTapLocked(listenedMix);
-        foreach ((string key, string target) in MonitorRouteTargetsLocked())
-            _monitorRoutes[key] = _pw.RouteTapToOutput(tapNode, tapPrefix, target);
+        ReplaceRoutesForMixLocked(_monitoredMixId, desired);
+        RefreshLegacyMonitorOutputsLocked();
+    }
+
+    /// <summary>Every compatible live sink plus remembered disconnected columns.</summary>
+    private IReadOnlyList<RoutingDestination> RoutingDestinationsLocked()
+    {
+        var result = _pw.ListDevices(_hardwareOutputRouting, _inputHint)
+            .Where(node => node.Kind == AudioNodeKind.Sink && !node.IsOwn)
+            .Select(node => new RoutingDestination(
+                node.Id, node.Description, node.Name, Available: true,
+                node.IsPhysical, Compatible: true,
+                [ProcessingStage.MixProcessed]))
+            .ToList();
+        foreach (OutputRouteDefinition route in _outputRoutes)
+        {
+            if (result.Any(d => d.Id == route.DestinationId)) continue;
+            result.Add(new RoutingDestination(route.DestinationId,
+                route.DestinationLabel ?? "Disconnected output", null,
+                Available: false, IsPhysical: false, Compatible: false, [],
+                "The output is currently disconnected."));
+        }
+        return result.OrderByDescending(d => d.Available)
+            .ThenByDescending(d => d.IsPhysical)
+            .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     /// <summary>
-    /// One route per selected monitor destination, keyed so pseudo-outputs of
-    /// one device share a route when they ride the same USB return pair: the
-    /// analog outputs (hp1/hp2/lineout) all use the monitor-bus pair.
+    /// Add, change, or remove one routing-matrix cell. All routes converging on
+    /// the destination are rebuilt as one group so their latency compensation
+    /// remains coherent. Desired state changes only after the new group works;
+    /// on failure the previous group is restored.
     /// </summary>
-    private IEnumerable<(string Key, string Target)> MonitorRouteTargetsLocked()
+    public void SetOutputRoute(string mixId, string destinationId, bool enabled,
+        ProcessingStage stage = ProcessingStage.MixProcessed)
     {
-        var seen = new HashSet<string>();
-        foreach (string name in _monitorOutputs)
+        lock (_gate)
         {
-            int marker = name.IndexOf('#');
-            string key = marker < 0 ? name : name[..marker] + "#bus";
-            if (seen.Add(key)) yield return (key, name);
+            if (!_built) throw new InvalidOperationException("mixer not built");
+            OutputRouteDefinition? previous = _outputRoutes.FirstOrDefault(r =>
+                r.MixId == mixId && r.DestinationId == destinationId);
+            if (!enabled)
+            {
+                if (previous is null) return;
+                ApplyDestinationRoutesLocked(destinationId, [.. _outputRoutes.Where(route =>
+                    route.DestinationId == destinationId && route.MixId != mixId)]);
+                RefreshLegacyMonitorOutputsLocked();
+                return;
+            }
+
+            RoutingDestination? destination = RoutingDestinationsLocked()
+                .FirstOrDefault(d => d.Id == destinationId);
+            var candidate = new OutputRouteDefinition(mixId, destinationId, stage, destination?.Name);
+            string? error = SignalRouting.Validate(candidate,
+                _config.Mixes.Select(m => m.Id).ToArray(), RoutingDestinationsLocked(), _outputRoutes);
+            if (error is not null) throw new InvalidOperationException(error);
+            OutputRouteDefinition[] desired =
+            [
+                .. _outputRoutes.Where(route => route.DestinationId == destinationId
+                    && route.MixId != mixId),
+                candidate,
+            ];
+            if (previous == candidate && DestinationGraphHealthyLocked(desired)) return;
+            ApplyDestinationRoutesLocked(destinationId, desired);
+            RefreshLegacyMonitorOutputsLocked();
         }
+    }
+
+    private int MixLatencySamplesLocked(string mixId)
+    {
+        long total = 0;
+        FilterHandle? chain = _chains.GetValueOrDefault($"mix:{mixId}");
+        if (chain is not null)
+        {
+            total += (long)chain.Stages.Count * _graphQuantumSamples;
+            foreach ((_, NativePluginHost host) in chain.NativeStages)
+                total += Math.Clamp(host.LatencySamples, 0, CompensationDelayHost.MaximumSamples);
+        }
+        return (int)Math.Min(total, CompensationDelayHost.MaximumSamples);
+    }
+
+    private IReadOnlyDictionary<string, int> CompensationPlanLocked(
+        IEnumerable<OutputRouteDefinition> routes)
+        => LatencyCompensation.Calculate(routes.Select(route =>
+            (OutputRouteKey(route.MixId, route.DestinationId),
+             MixLatencySamplesLocked(route.MixId))));
+
+    private bool DestinationGraphHealthyLocked(IReadOnlyList<OutputRouteDefinition> routes)
+    {
+        IReadOnlyDictionary<string, int> plan = CompensationPlanLocked(routes);
+        bool usesCompensationStage = plan.Values.Any(samples => samples > 0);
+        foreach (OutputRouteDefinition route in routes)
+        {
+            string key = OutputRouteKey(route.MixId, route.DestinationId);
+            if (!_outputRouteLinks.TryGetValue(key, out PortLink? output)
+                || output.Pairs.Count == 0 || _pw.EnsureLinks(output) == LinkHealth.Broken
+                || !_routeCompensationSamples.TryGetValue(key, out int actual)
+                || actual != plan[key]) return false;
+            if (!usesCompensationStage)
+            {
+                if (_outputRouteDelays.ContainsKey(key) || _outputRouteDelayInputs.ContainsKey(key))
+                    return false;
+                continue;
+            }
+            if (!_outputRouteDelays.TryGetValue(key, out FilterHandle? delay) || !delay.IsAlive
+                || !_outputRouteDelayInputs.TryGetValue(key, out PortLink? input)
+                || input.Pairs.Count == 0 || _pw.EnsureLinks(input) == LinkHealth.Broken)
+                return false;
+        }
+        return true;
+    }
+
+    private void TearDownRouteGraphLocked(string key)
+    {
+        if (_outputRouteLinks.Remove(key, out PortLink? output)) _pw.Unlink(output);
+        if (_outputRouteDelayInputs.Remove(key, out PortLink? input)) _pw.Unlink(input);
+        if (_outputRouteDelays.Remove(key, out FilterHandle? delay)) _pw.StopFilter(delay);
+        _routeCompensationSamples.Remove(key);
+    }
+
+    private void TearDownDestinationGraphLocked(string destinationId)
+    {
+        string suffix = "|" + destinationId;
+        foreach (string key in _outputRouteLinks.Keys
+                     .Concat(_outputRouteDelays.Keys)
+                     .Concat(_outputRouteDelayInputs.Keys)
+                     .Where(key => key.EndsWith(suffix, StringComparison.Ordinal))
+                     .Distinct(StringComparer.Ordinal).ToList())
+            TearDownRouteGraphLocked(key);
+    }
+
+    private void BuildDestinationGraphLocked(string destinationId,
+        IReadOnlyList<OutputRouteDefinition> routes)
+    {
+        RoutingDestination? destination = RoutingDestinationsLocked().FirstOrDefault(item =>
+            item.Id == destinationId && item.Available);
+        if (destination?.NodeName is null) return;
+        IReadOnlyDictionary<string, int> plan = CompensationPlanLocked(routes);
+        // Every branch gets the same helper stage whenever alignment is
+        // required. A PipeWire process node itself costs one graph cycle; a
+        // zero-delay helper on the slowest branch keeps that fixed cost equal.
+        bool usesCompensationStage = plan.Values.Any(samples => samples > 0);
+        var built = new List<string>();
+        try
+        {
+            foreach (OutputRouteDefinition route in routes)
+            {
+                string key = OutputRouteKey(route.MixId, route.DestinationId);
+                MixDefinition mix = _config.Mixes.Single(item => item.Id == route.MixId);
+                (string tapNode, string tapPrefix) = MixTapForStageLocked(mix, route.Stage);
+                int compensation = plan[key];
+                if (usesCompensationStage)
+                {
+                    string delayId = SignalRouting.StableDestinationId(key)[7..23];
+                    FilterHandle delay = _pw.CreateCompensationDelay(delayId, 2, compensation);
+                    _outputRouteDelays[key] = delay;
+                    PortLink into = _pw.LinkNodes(tapNode, tapPrefix, delay.SinkName, "playback");
+                    if (into.Pairs.Count < 2) throw new InvalidOperationException("could not feed latency compensation");
+                    _outputRouteDelayInputs[key] = into;
+                    tapNode = delay.SourceName;
+                    tapPrefix = "capture";
+                }
+                PortLink output = _pw.RouteTapToOutput(tapNode, tapPrefix, destination.NodeName);
+                if (output.Pairs.Count == 0 || _pw.EnsureLinks(output) == LinkHealth.Broken)
+                    throw new InvalidOperationException($"could not activate route to '{destination.Name}'");
+                _outputRouteLinks[key] = output;
+                _routeCompensationSamples[key] = compensation;
+                built.Add(key);
+            }
+        }
+        catch
+        {
+            foreach (string key in built) TearDownRouteGraphLocked(key);
+            // A failure can happen after the delay was recorded but before its
+            // final output link was added.
+            foreach (OutputRouteDefinition route in routes)
+                TearDownRouteGraphLocked(OutputRouteKey(route.MixId, route.DestinationId));
+            throw;
+        }
+    }
+
+    private void ApplyDestinationRoutesLocked(string destinationId,
+        IReadOnlyList<OutputRouteDefinition> desired)
+    {
+        List<OutputRouteDefinition> previous = [.. _outputRoutes.Where(route =>
+            route.DestinationId == destinationId)];
+        TearDownDestinationGraphLocked(destinationId);
+        try
+        {
+            BuildDestinationGraphLocked(destinationId, desired);
+            _outputRoutes.RemoveAll(route => route.DestinationId == destinationId);
+            _outputRoutes.AddRange(desired);
+        }
+        catch
+        {
+            try { BuildDestinationGraphLocked(destinationId, previous); }
+            catch { /* original error remains authoritative; sweep can heal the old intent */ }
+            throw;
+        }
+    }
+
+    private (string Node, string Prefix) MixTapForStageLocked(MixDefinition mix, ProcessingStage stage)
+        => stage switch
+        {
+            ProcessingStage.MixProcessed => MixTapLocked(mix),
+            _ => throw new InvalidOperationException($"processing stage '{stage}' is not available for mix routes"),
+        };
+
+    private void ReplaceRoutesForMixLocked(string mixId, IReadOnlyList<OutputRouteDefinition> routes)
+    {
+        var previous = _outputRoutes.Where(r => r.MixId == mixId).ToList();
+        var added = new List<OutputRouteDefinition>();
+        try
+        {
+            foreach (OutputRouteDefinition route in routes)
+            {
+                SetOutputRoute(route.MixId, route.DestinationId, true, route.Stage);
+                added.Add(route);
+            }
+            foreach (OutputRouteDefinition route in previous.Where(old => !routes.Any(next =>
+                         next.DestinationId == old.DestinationId)))
+                SetOutputRoute(route.MixId, route.DestinationId, false, route.Stage);
+        }
+        catch
+        {
+            foreach (OutputRouteDefinition route in added.Where(a => !previous.Any(p =>
+                         p.DestinationId == a.DestinationId)))
+                SetOutputRoute(route.MixId, route.DestinationId, false, route.Stage);
+            throw;
+        }
+    }
+
+    private void RefreshLegacyMonitorOutputsLocked()
+    {
+        IReadOnlyDictionary<string, RoutingDestination> destinations = RoutingDestinationsLocked()
+            .Where(d => d.NodeName is not null).ToDictionary(d => d.Id);
+        _monitorOutputs.Clear();
+        foreach (OutputRouteDefinition route in _outputRoutes.Where(r => r.MixId == _monitoredMixId))
+            if (destinations.TryGetValue(route.DestinationId, out RoutingDestination? destination))
+                _monitorOutputs.Add(destination.NodeName!);
+    }
+
+    /// <summary>
+    /// Repoint only one mix after its insert tap changes. Other mixes and
+    /// destinations are untouched, and desired routes remain intact when a
+    /// destination is temporarily absent.
+    /// </summary>
+    private void RewireOutputRoutesForMixLocked(string mixId)
+    {
+        foreach (string destinationId in _outputRoutes.Where(route => route.MixId == mixId)
+                     .Select(route => route.DestinationId).Distinct(StringComparer.Ordinal).ToList())
+        {
+            OutputRouteDefinition[] desired = [.. _outputRoutes.Where(route =>
+                route.DestinationId == destinationId)];
+            try { ApplyDestinationRoutesLocked(destinationId, desired); }
+            catch (InvalidOperationException) { /* desired state remains; the health sweep retries */ }
+        }
+        RefreshLegacyMonitorOutputsLocked();
     }
 
     /// <summary>
@@ -1310,24 +1883,27 @@ public sealed class Mixer : IDisposable
     {
         lock (_gate)
         {
-            if (!_built || _monitorOutputs.Count == 0) return false;
-            MixDefinition? listenedMix = _config.Mixes.FirstOrDefault(m => m.Id == _monitoredMixId);
-            if (listenedMix is null) return false;
+            if (!_built || _outputRoutes.Count == 0) return false;
             bool changed = false;
-            foreach ((string key, string target) in MonitorRouteTargetsLocked())
+            IReadOnlyDictionary<string, RoutingDestination> destinations = RoutingDestinationsLocked()
+                .Where(d => d.Available).ToDictionary(d => d.Id);
+            foreach (IGrouping<string, OutputRouteDefinition> group in _outputRoutes
+                         .GroupBy(route => route.DestinationId, StringComparer.Ordinal).ToList())
             {
-                PortLink? route = _monitorRoutes.GetValueOrDefault(key);
-                if (route is { Pairs.Count: > 0 })
+                OutputRouteDefinition[] routes = [.. group];
+                if (!destinations.ContainsKey(group.Key))
                 {
-                    LinkHealth health = _pw.EnsureLinks(route);
-                    if (health == LinkHealth.Healthy) continue;
-                    if (health == LinkHealth.Relinked) { changed = true; continue; }
-                    _pw.Unlink(route);   // Broken: the port names themselves are stale
+                    bool hadGraph = routes.Any(route => _outputRouteLinks.ContainsKey(
+                        OutputRouteKey(route.MixId, route.DestinationId)));
+                    TearDownDestinationGraphLocked(group.Key);
+                    changed |= hadGraph;
+                    continue;
                 }
-                (string tapNode, string tapPrefix) = MixTapLocked(listenedMix);
-                _monitorRoutes[key] = _pw.RouteTapToOutput(tapNode, tapPrefix, target);
-                changed |= _monitorRoutes[key].Pairs.Count > 0;
+                if (DestinationGraphHealthyLocked(routes)) continue;
+                try { ApplyDestinationRoutesLocked(group.Key, routes); changed = true; }
+                catch (InvalidOperationException) { /* retain desired state and try on a later sweep */ }
             }
+            if (changed) RefreshLegacyMonitorOutputsLocked();
             return changed;
         }
     }
@@ -1602,10 +2178,63 @@ public sealed class Mixer : IDisposable
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
                 AuxPortEnabled = _auxPortEnabled,
+                RoutingDestinations = RoutingDestinationsLocked(),
+                OutputRoutes = OutputRouteStatusLocked(),
+                SidechainSources = SidechainSourcesLocked(),
                 Streams = [.. _apps.Values
                     .OrderByDescending(a => a.Active).ThenBy(a => a.Label, StringComparer.OrdinalIgnoreCase)],
             };
         }
+    }
+
+    private void RestoreOutputRoutesLocked(IEnumerable<OutputRouteDefinition> routes)
+    {
+        foreach (string key in _outputRouteLinks.Keys.Concat(_outputRouteDelays.Keys)
+                     .Concat(_outputRouteDelayInputs.Keys).Distinct(StringComparer.Ordinal).ToList())
+            TearDownRouteGraphLocked(key);
+        _outputRoutes.Clear();
+        IReadOnlyDictionary<string, RoutingDestination> live = RoutingDestinationsLocked()
+            .Where(d => d.Available).ToDictionary(d => d.Id);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (OutputRouteDefinition route in routes)
+        {
+            if (!_config.Mixes.Any(m => m.Id == route.MixId)) continue;
+            if (route.Stage != ProcessingStage.MixProcessed) continue;
+            string key = OutputRouteKey(route.MixId, route.DestinationId);
+            if (!seen.Add(key)) continue;
+            if (live.ContainsKey(route.DestinationId))
+            {
+                SetOutputRoute(route.MixId, route.DestinationId, true, route.Stage);
+                continue;
+            }
+            // Retain unplugged intent by its stable ID. It is not linked until
+            // a device with that exact identity returns.
+            _outputRoutes.Add(route with
+            {
+                DestinationLabel = string.IsNullOrWhiteSpace(route.DestinationLabel)
+                    ? "Disconnected output" : route.DestinationLabel.Trim(),
+            });
+        }
+        RefreshLegacyMonitorOutputsLocked();
+    }
+
+    private IReadOnlyList<OutputRouteStatus> OutputRouteStatusLocked()
+    {
+        IReadOnlyDictionary<string, RoutingDestination> destinations = RoutingDestinationsLocked()
+            .ToDictionary(d => d.Id);
+        return [.. _outputRoutes.Select(route =>
+        {
+            bool available = destinations.TryGetValue(route.DestinationId, out RoutingDestination? destination)
+                && destination.Available;
+            bool active = _outputRouteLinks.TryGetValue(
+                OutputRouteKey(route.MixId, route.DestinationId), out PortLink? link) && link.Pairs.Count > 0;
+            string key = OutputRouteKey(route.MixId, route.DestinationId);
+            int sourceLatency = MixLatencySamplesLocked(route.MixId);
+            int compensation = _routeCompensationSamples.GetValueOrDefault(key);
+            return new OutputRouteStatus(route.MixId, route.DestinationId, route.Stage,
+                active, available, available && !active ? "Route is not connected." :
+                available ? null : "Output is disconnected.", sourceLatency, compensation);
+        })];
     }
 
     /// <summary>Cell level x mix master, applied to the combine leg's stream.</summary>
@@ -1643,9 +2272,13 @@ public sealed class Mixer : IDisposable
     {
         _meters.Dispose();
         _meters = new MeterReader();   // Dispose is terminal; a rebuild needs a fresh reader
-        foreach (PortLink route in _monitorRoutes.Values) _pw.Unlink(route);
-        _monitorRoutes.Clear();
+        foreach (string key in _outputRouteLinks.Keys.Concat(_outputRouteDelays.Keys)
+                     .Concat(_outputRouteDelayInputs.Keys).Distinct(StringComparer.Ordinal).ToList())
+            TearDownRouteGraphLocked(key);
+        _outputRoutes.Clear();
         _monitorOutputs.Clear();
+        foreach (PortLink sidechain in _sidechainLinks.Values) _pw.Unlink(sidechain);
+        _sidechainLinks.Clear();
         if (_auxRoute is not null) { _pw.Unlink(_auxRoute); _auxRoute = null; }
         foreach (PortLink feed in _inputFeeds.Values) _pw.Unlink(feed);
         _inputFeeds.Clear();

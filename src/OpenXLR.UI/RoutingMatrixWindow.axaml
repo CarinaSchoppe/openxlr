@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="OpenXLR.UI.RoutingMatrixWindow"
+        Title="OpenXLR Output Routing" Width="960" Height="620"
+        MinWidth="700" MinHeight="420" WindowStartupLocation="CenterOwner"
+        Background="#16181d">
+  <DockPanel Margin="16">
+    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14" Spacing="3">
+      <TextBlock Text="Output routing" FontSize="18" FontWeight="Bold" Foreground="#e6e9f0"/>
+      <TextBlock Text="Each mix can feed any number of compatible outputs. Unplugged outputs retain their identity and reconnect only to the same device."
+                 FontSize="11" Foreground="#8b93a7" TextWrapping="Wrap"/>
+      <TextBlock Text="Changes are validated, verified in PipeWire, and persisted only after success."
+                 FontSize="11" Foreground="#8b93a7"/>
+    </StackPanel>
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+      <Grid Name="MatrixGrid"/>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

@@ -186,8 +186,8 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
         await using var client = new DaemonClient();
         var first = new InsertsViewModel(client, "game", 2);
         var second = new InsertsViewModel(client, "music", 2);
-        var a = new InsertViewModel(first, "same-id", "test:plugin", "First");
-        var b = new InsertViewModel(second, "same-id", "test:plugin", "Second");
+        var a = new InsertViewModel(first, "same-id", "lv2", "test:plugin", "First");
+        var b = new InsertViewModel(second, "same-id", "lv2", "test:plugin", "Second");
         Assert.NotEqual(first.ParamSyncKey(a.Id, "gain"), second.ParamSyncKey(b.Id, "gain"));
         using var owner = new WindowScope(new Window());
         InsertWindows.OpenControls(owner.Items[0], a);
@@ -222,7 +222,7 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
              {"symbol":"rt","name":"Release time","min":0,"max":5000,"default":100,"unit":"ms"}]
             """)!;
         chain.PluginChoices.Add(new PluginChoice("test:compressor", "Compressor", "Dynamics", metadata));
-        var insert = new InsertViewModel(chain, "visual", "test:compressor", "Compressor");
+        var insert = new InsertViewModel(chain, "visual", "lv2", "test:compressor", "Compressor");
         insert.EnsureParams();
         using var windows = new WindowScope(new InsertControlsWindow { DataContext = insert });
         Assert.Equal("dB", insert.Params[0].Unit);
@@ -233,10 +233,28 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
     });
 
     [Fact]
+    public Task Vst3StateAndSidechainsSurviveUiChainEdits() => _ui.Run(async () =>
+    {
+        await using var client = new DaemonClient();
+        var chain = new InsertsViewModel(client, "xlr1");
+        chain.Apply(JsonNode.Parse("""
+            [{"insert":{"id":"gain","kind":"vst3","plugin":"001122","label":"Gain",
+              "bypass":false,"params":{"1":0.25},"state":"AQID","sidechains":{"aux-1":"channel:chat"}},
+              "status":"ready"}]
+            """));
+
+        var payload = Assert.IsType<Dictionary<string, object?>>(chain.Items.Single().ToPayload());
+        Assert.Equal("vst3", payload["kind"]);
+        Assert.Equal("AQID", payload["state"]);
+        Assert.Equal("channel:chat",
+            Assert.IsType<Dictionary<string, string>>(payload["sidechains"])["aux-1"]);
+    });
+
+    [Fact]
     public Task KnobKeyboardKeepsTwoWayBindingAndParameterBounds() => _ui.Run(async () =>
     {
         await using var client = new DaemonClient();
-        var insert = new InsertViewModel(new InsertsViewModel(client, "xlr1"), "test", "test:eq", "EQ");
+        var insert = new InsertViewModel(new InsertsViewModel(client, "xlr1"), "test", "lv2", "test:eq", "EQ");
         var parameter = new InsertParamViewModel(insert, "gain", "Gain", 0, 10, 5, false, false, false, false, [], "gain");
         var knob = new ArcKnob { Minimum = 0, Maximum = 10, Width = 80, Height = 80 };
         knob.Bind(ArcKnob.ValueProperty, new Binding(nameof(InsertParamViewModel.Value))
@@ -383,6 +401,12 @@ public sealed class MixerUiTests : IClassFixture<MixerUiSession>
                          "audioIns":2,"audioOuts":2,"hasNativeUi":true,
                          "params":[{"symbol":"gain","name":"Output","min":0,"max":1,"default":1}]}]}
                         """)!, stop);
+                    continue;
+                }
+                if (request["cmd"]!.GetValue<string>() == "listPresets")
+                {
+                    await SocketTestServer.Send(socket, JsonNode.Parse(
+                        """{"type":"presets","chains":[],"plugins":[]}""")!, stop);
                     continue;
                 }
                 requests.Enqueue(request);

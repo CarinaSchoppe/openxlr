@@ -90,7 +90,7 @@ reordering changes presentation only and does not interrupt audio. Details in
 
 ## Inserts
 
-LV2 plugins in the signal path. Each XLR input carries a mono chain;
+LV2 and native Linux VST3 plugins in the signal path. Each XLR input carries a mono chain;
 Aux In, every application channel and each mix carry a stereo chain. An Inserts row
 under the channel or mix lists what is loaded: a green or red LED for
 active or bypassed, a bypass button, and a gear that opens the plugin's
@@ -116,8 +116,12 @@ Closing the editor leaves DSP running; a crashed host is rebuilt by the
 daemon's sweep. Native UI hosting needs X11 or XWayland and a session display
 available to the user service. Unsupported required LV2 features are reported;
 other UI toolkits and non-control-port plugin state are not hosted yet.
-VST and CLAP plugins are not supported; loading them would need a plugin
-host.
+The fork additionally hosts Linux VST3 effects in `openxlr-vst3-host`, with
+normalized controls, component/controller state, native X11 editors, reported
+latency and compatible auxiliary input buses. CLAP remains unsupported.
+The header's Plugin Manager shows scan errors and offers rescan, retry and
+unquarantine. Chain and plugin presets are reusable across compatible slots.
+See [parity-status.md](parity-status.md) for the remaining acceptance gaps.
 
 The submixer can be switched off in Options. The daemon then controls
 the hardware only, restarts itself, and leaves the sound card in its

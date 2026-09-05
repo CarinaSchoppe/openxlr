@@ -22,5 +22,8 @@ debian/*.debhelper
 debian/*.debhelper.log
 debian/*.substvars
 native/openxlr-lv2-host
+native/openxlr-vst3-host
+native/openxlr-delay-host
+native/vst3/build/
 dist/
 rpmbuild/

@@ -17,6 +17,7 @@ internal sealed class NativePluginHost : IDisposable
     private readonly CancellationTokenSource _stop = new();
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private TaskCompletionSource<string?>? _uiReply;
+    private TaskCompletionSource<string>? _stateReply;
     private readonly Task _outputReader;
     private readonly Task _errorReader;
     private string _error = "";
@@ -24,32 +25,47 @@ internal sealed class NativePluginHost : IDisposable
     private long _lastHeartbeat = Stopwatch.GetTimestamp();
 
     public Process Process { get; }
+    public string NodeName { get; }
     public bool IsHealthy => !Process.HasExited
         && Stopwatch.GetElapsedTime(Interlocked.Read(ref _lastHeartbeat)) < TimeSpan.FromSeconds(10);
     public IReadOnlyDictionary<string, double> Meters => new Dictionary<string, double>(_meters);
-    public static string Executable => Path.Combine(AppContext.BaseDirectory, "openxlr-lv2-host");
+    public int LatencySamples { get; private set; }
+    public string? State { get; private set; } = null;
+    internal static string ExecutableFor(string kind) => Path.Combine(AppContext.BaseDirectory,
+        kind == "vst3" ? "openxlr-vst3-host" : "openxlr-lv2-host");
 
-    public NativePluginHost(InsertDefinition insert, string node, int channels, int sampleRate)
+    public NativePluginHost(InsertDefinition insert, PluginInfo plugin, string node, int channels, int sampleRate)
     {
-        if (!File.Exists(Executable)) throw new InvalidOperationException("Native LV2 host is missing; rebuild/install the complete OpenXLR package.");
-        var start = new ProcessStartInfo(Executable)
+        NodeName = node;
+        LatencySamples = plugin.LatencySamples;
+        string executable = ExecutableFor(insert.Kind);
+        if (!File.Exists(executable)) throw new InvalidOperationException($"Native {insert.Kind.ToUpperInvariant()} host is missing; rebuild/install the complete OpenXLR package.");
+        var start = new ProcessStartInfo(executable)
         {
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        foreach (string argument in new[] { insert.Plugin, node, channels.ToString(CultureInfo.InvariantCulture), sampleRate.ToString(CultureInfo.InvariantCulture) })
+        string[] identity = insert.Kind == "vst3"
+            ? [plugin.ModulePath ?? throw new InvalidOperationException("VST3 module path is unavailable."), insert.Plugin]
+            : [insert.Plugin];
+        foreach (string argument in identity.Concat([node, channels.ToString(CultureInfo.InvariantCulture), sampleRate.ToString(CultureInfo.InvariantCulture)]))
             start.ArgumentList.Add(argument);
         foreach ((string symbol, double value) in insert.Params)
             start.ArgumentList.Add($"{symbol}={value.ToString("R", CultureInfo.InvariantCulture)}");
-        Process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the native LV2 host.");
+        Process = Process.Start(start) ?? throw new InvalidOperationException($"Could not start the native {insert.Kind.ToUpperInvariant()} host.");
         _outputReader = ReadOutputAsync();
         _errorReader = ReadErrorsAsync();
-        try { _ready.Task.WaitAsync(TimeSpan.FromSeconds(8)).GetAwaiter().GetResult(); }
+        try
+        {
+            _ready.Task.WaitAsync(TimeSpan.FromSeconds(8)).GetAwaiter().GetResult();
+            if (insert.State is not null && plugin.SupportsState)
+                RestoreState(insert.State);
+        }
         catch (Exception ex)
         {
             Dispose();
-            throw new InvalidOperationException($"Native LV2 startup failed: {_error}", ex);
+            throw new InvalidOperationException($"Native {insert.Kind.ToUpperInvariant()} startup failed: {_error}", ex);
         }
     }
 
@@ -61,8 +77,18 @@ internal sealed class NativePluginHost : IDisposable
             {
                 if (line == "ready") _ready.TrySetResult();
                 else if (line == "heartbeat") Interlocked.Exchange(ref _lastHeartbeat, Stopwatch.GetTimestamp());
+                else if (line.StartsWith("latency ", StringComparison.Ordinal) &&
+                         int.TryParse(line.AsSpan(8), NumberStyles.Integer, CultureInfo.InvariantCulture, out int latency) &&
+                         latency is >= 0 and <= 2_000_000)
+                    LatencySamples = latency;
                 else if (line.StartsWith("ui ", StringComparison.Ordinal))
                     Volatile.Read(ref _uiReply)?.TrySetResult(line == "ui opened" ? null : line[3..]);
+                else if (line.StartsWith("state ", StringComparison.Ordinal))
+                    Volatile.Read(ref _stateReply)?.TrySetResult(line[6..]);
+                else if (line == "state-loaded")
+                    Volatile.Read(ref _stateReply)?.TrySetResult("");
+                else if (line.StartsWith("state-error ", StringComparison.Ordinal))
+                    Volatile.Read(ref _stateReply)?.TrySetException(new InvalidOperationException(line[12..]));
                 else
                 {
                     string[] parts = line.Split(' ', 3);
@@ -79,6 +105,7 @@ internal sealed class NativePluginHost : IDisposable
         {
             _ready.TrySetException(new InvalidOperationException("Native host exited before readiness."));
             Volatile.Read(ref _uiReply)?.TrySetResult("Native plugin host disconnected.");
+            Volatile.Read(ref _stateReply)?.TrySetException(new InvalidOperationException("Native plugin host disconnected."));
         }
     }
 
@@ -122,6 +149,34 @@ internal sealed class NativePluginHost : IDisposable
         finally { Interlocked.Exchange(ref _uiReply, null); }
     }
 
+    public string CaptureState()
+    {
+        string state = RequestState("getstate");
+        if (state.Length == 0) throw new InvalidOperationException("Native host returned empty plug-in state.");
+        State = state;
+        return state;
+    }
+
+    private void RestoreState(string state)
+    {
+        if (state.Length > 700_000) throw new InvalidOperationException("Plug-in state exceeds the host limit.");
+        _ = RequestState($"loadstate {state}");
+        State = state;
+    }
+
+    private string RequestState(string command)
+    {
+        var reply = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (Interlocked.CompareExchange(ref _stateReply, reply, null) is not null)
+            throw new InvalidOperationException("Another plug-in state operation is in progress.");
+        try
+        {
+            SendAsync(command).GetAwaiter().GetResult();
+            return reply.Task.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+        }
+        finally { Interlocked.Exchange(ref _stateReply, null); }
+    }
+
     public IEnumerable<KeyValuePair<string, double>> DrainChanges()
     {
         foreach (string symbol in _changes.Keys)
@@ -131,6 +186,15 @@ internal sealed class NativePluginHost : IDisposable
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        try
+        {
+            if (!Process.HasExited)
+            {
+                SendAsync("quit").GetAwaiter().GetResult();
+                Process.WaitForExit(2000);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or OperationCanceledException) { }
         _stop.Cancel();
         try { if (!Process.HasExited) { Process.Kill(entireProcessTree: true); Process.WaitForExit(2000); } }
         catch (InvalidOperationException) { }

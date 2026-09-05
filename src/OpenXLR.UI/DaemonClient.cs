@@ -45,6 +45,10 @@ public sealed class DaemonClient : IAsyncDisposable
     public Task<JsonNode?> RequestPluginsAsync(TimeSpan timeout)
         => QueryAsync("plugins", "listPlugins", timeout);
 
+    /// <summary>Request reusable preset names from the daemon.</summary>
+    public Task<JsonNode?> RequestPresetsAsync(TimeSpan timeout)
+        => QueryAsync("presets", "listPresets", timeout);
+
     private async Task<JsonNode?> QueryAsync(string type, string command, TimeSpan timeout)
     {
         var proposed = new TaskCompletionSource<JsonNode?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -143,6 +147,7 @@ public sealed class DaemonClient : IAsyncDisposable
             else if (type == "state") { LastStateJson = text; StateReceived?.Invoke(node); }
             else if (type == "diagnostics" && _queries.TryGetValue(type, out var diagnostics)) diagnostics.TrySetResult(node);
             else if (type == "plugins" && _queries.TryGetValue(type, out var plugins)) plugins.TrySetResult(node["plugins"]);
+            else if (type == "presets" && _queries.TryGetValue(type, out var presets)) presets.TrySetResult(node);
             else if (type == "commandResult" && node["requestId"]?.GetValue<string>() is string id
                      && _commands.TryGetValue(id, out var command))
                 command.TrySetResult(node["error"]?.GetValue<string>());
@@ -207,7 +212,8 @@ public sealed class DaemonClient : IAsyncDisposable
     public Task<string?> SetMonitoredMixAsync(string mix)
         => SendConfirmedAsync(new() { ["cmd"] = "setMonitoredMix", ["mix"] = mix });
 
-    private async Task<string?> SendConfirmedAsync(Dictionary<string, object> payload)
+    private async Task<string?> SendConfirmedAsync(Dictionary<string, object> payload,
+        TimeSpan? timeout = null)
     {
         string id = Guid.NewGuid().ToString("N");
         var waiter = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -216,7 +222,7 @@ public sealed class DaemonClient : IAsyncDisposable
         try
         {
             if (!await SendAsync(payload)) return "Daemon disconnected; no change was sent.";
-            return await waiter.Task.WaitAsync(TimeSpan.FromSeconds(45));
+            return await waiter.Task.WaitAsync(timeout ?? TimeSpan.FromSeconds(45));
         }
         catch (TimeoutException) { return "No confirmation from daemon. Check its state before retrying."; }
         finally { _commands.TryRemove(id, out _); }
@@ -229,6 +235,18 @@ public sealed class DaemonClient : IAsyncDisposable
     /// <summary>Every output the listened mix should feed (empty = disconnect).</summary>
     public Task SetMonitorOutputsAsync(IReadOnlyList<string> devices)
         => SendAsync(new Dictionary<string, object?> { ["cmd"] = "setMonitorOutputs", ["devices"] = devices });
+
+    /// <summary>Atomically mutate one cell of the many-to-many routing matrix.</summary>
+    public Task<string?> SetOutputRouteAsync(string mix, string destinationId, bool enabled,
+        string stage = "MixProcessed")
+        => SendConfirmedAsync(new()
+        {
+            ["cmd"] = "setOutputRoute",
+            ["mix"] = mix,
+            ["destinationId"] = destinationId,
+            ["enabled"] = enabled,
+            ["stage"] = stage,
+        });
 
     /// <summary>Volume of the selected output device (0..1).</summary>
     public Task SetOutputVolumeAsync(double value)
@@ -269,6 +287,60 @@ public sealed class DaemonClient : IAsyncDisposable
     public Task SetInsertParamAsync(string channel, string insertId, string symbol, double value)
         => SendAsync(new Dictionary<string, object>
         { ["cmd"] = "setInsertParam", ["channel"] = channel, ["insertId"] = insertId, ["symbol"] = symbol, ["value"] = value });
+
+    public Task<string?> RetryInsertHostAsync(string channel, string insertId, bool clearQuarantine)
+        => SendConfirmedAsync(new()
+        {
+            ["cmd"] = clearQuarantine ? "unquarantineInsert" : "retryInsertHost",
+            ["channel"] = channel,
+            ["insertId"] = insertId,
+        });
+
+    public Task<string?> RescanPluginsAsync()
+        => SendConfirmedAsync(new() { ["cmd"] = "rescanPlugins" }, TimeSpan.FromMinutes(5));
+
+    public Task<string?> RetryPluginAsync(string pluginId, bool clearQuarantine)
+        => SendConfirmedAsync(new()
+        {
+            ["cmd"] = clearQuarantine ? "unquarantinePlugin" : "retryPlugin",
+            ["plugin"] = pluginId,
+        }, TimeSpan.FromSeconds(30));
+
+    public Task<string?> SaveChainPresetAsync(string channel, string name)
+        => SendConfirmedAsync(new() { ["cmd"] = "saveChainPreset", ["channel"] = channel, ["name"] = name });
+
+    public Task<string?> LoadChainPresetAsync(string channel, string name)
+        => SendConfirmedAsync(new() { ["cmd"] = "loadChainPreset", ["channel"] = channel, ["name"] = name });
+
+    public Task<string?> DeletePresetAsync(string kind, string name)
+        => SendConfirmedAsync(new() { ["cmd"] = "deletePreset", ["presetKind"] = kind, ["name"] = name });
+
+    public Task<string?> DuplicatePresetAsync(string kind, string name, string newName)
+        => SendConfirmedAsync(new()
+        {
+            ["cmd"] = "duplicatePreset",
+            ["presetKind"] = kind,
+            ["name"] = name,
+            ["newName"] = newName,
+        });
+
+    public Task<string?> SavePluginPresetAsync(string channel, string insertId, string name)
+        => SendConfirmedAsync(new()
+        {
+            ["cmd"] = "savePluginPreset",
+            ["channel"] = channel,
+            ["insertId"] = insertId,
+            ["name"] = name,
+        });
+
+    public Task<string?> LoadPluginPresetAsync(string channel, string insertId, string name)
+        => SendConfirmedAsync(new()
+        {
+            ["cmd"] = "loadPluginPreset",
+            ["channel"] = channel,
+            ["insertId"] = insertId,
+            ["name"] = name,
+        });
 
     /// <summary>Remove an app from the registry and forget its override.</summary>
     public Task ForgetAppAsync(string identity)

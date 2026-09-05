@@ -29,6 +29,21 @@ public sealed class ProfileCompatibilityTests
     }
 
     [Fact]
+    public void OldSceneWithoutRoutingMatrixPreservesCurrentRoutes()
+    {
+        MixerScene scene = JsonSerializer.Deserialize<MixerScene>("{}")!;
+        Assert.Null(scene.OutputRoutes);
+    }
+
+    [Fact]
+    public void ExplicitEmptyRoutingMatrixDisconnectsAllRoutes()
+    {
+        MixerScene scene = JsonSerializer.Deserialize<MixerScene>("""{"OutputRoutes":[]}""")!;
+        Assert.NotNull(scene.OutputRoutes);
+        Assert.Empty(scene.OutputRoutes);
+    }
+
+    [Fact]
     public void NewSceneRoundTripsMonitoredMix()
     {
         var original = new MixerScene { MonitoredMixId = "broadcast" };

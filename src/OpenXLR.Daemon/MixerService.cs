@@ -16,6 +16,7 @@ public sealed class MixerService : IHostedService, IDisposable
     private readonly ILogger<MixerService> _log;
     private readonly IConfiguration _config;
     private readonly DeviceManager _devices;
+    private readonly PluginCatalogService _plugins;
     private readonly Mixer _mixer = new();
     // Layout edits are transactions across several Mixer calls. Serialize them
     // with saves and sweeps so two clients cannot overwrite each other's edits
@@ -41,11 +42,32 @@ public sealed class MixerService : IHostedService, IDisposable
     private int _sweepRunning;
     private string? _lastSweepError;
 
-    public MixerService(ILogger<MixerService> log, IConfiguration config, DeviceManager devices)
+    public MixerService(ILogger<MixerService> log, IConfiguration config, DeviceManager devices,
+        PluginCatalogService plugins)
     {
         _log = log;
         _config = config;
         _devices = devices;
+        _plugins = plugins;
+        _plugins.Changed += PluginCatalogChanged;
+    }
+
+    private void PluginCatalogChanged()
+    {
+        lock (_operations)
+        {
+            if (_stopping || !_mixer.Built) return;
+            try
+            {
+                _mixer.RefreshPluginCatalog();
+                ScheduleSave();
+                Changed?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning("plug-in chains could not be refreshed after scan: {Message}", ex.Message);
+            }
+        }
     }
 
     /// <summary>
@@ -61,7 +83,7 @@ public sealed class MixerService : IHostedService, IDisposable
     private void SyncOutputSelectors()
     {
         var suffixes = new HashSet<string>();
-        foreach (string output in _mixer.MonitorOutputs)
+        foreach (string output in _mixer.RoutedOutputNames)
         {
             int marker = output.IndexOf('#');
             if (marker < 0) continue;
@@ -111,8 +133,6 @@ public sealed class MixerService : IHostedService, IDisposable
             _log.LogInformation("submixer off (daemon.json, --mixer, or OPENXLR_BUILD_MIXER=1 turn it on); hardware control only");
             return Task.CompletedTask;
         }
-        OpenXLR.Core.Mixing.Lv2Catalog.Warm();   // plugin inserts: scan LV2 bundles off the startup path
-
         // Optional: the physical sink the initially selected mix feeds. Without
         // it the mixes exist but none is routed anywhere audible.
         string? output = _config.GetValue<string>("monitorOutput")
@@ -374,6 +394,16 @@ public sealed class MixerService : IHostedService, IDisposable
                     _mixer.SetMonitorOutputs(cmd.Devices ?? []);
                     SyncOutputSelectors();
                     break;
+                case "setOutputRoute":
+                    if (cmd.Mix is null || cmd.DestinationId is null || cmd.Enabled is null)
+                        return "setOutputRoute: need 'mix', 'destinationId', and 'enabled'";
+                    _mixer.SetOutputRoute(cmd.Mix, cmd.DestinationId, cmd.Enabled.Value,
+                        cmd.Stage ?? ProcessingStage.MixProcessed);
+                    SyncOutputSelectors();
+                    // Routing is durable before acknowledgement. Unlike rapid
+                    // fader traffic this is a discrete structural decision.
+                    _mixer.ExportSettings().Save();
+                    break;
                 case "setMonitoredMix":
                     if (cmd.Mix is null) return "setMonitoredMix: need 'mix'";
                     _mixer.SetMonitoredMix(cmd.Mix);
@@ -399,8 +429,8 @@ public sealed class MixerService : IHostedService, IDisposable
                 case "setInserts":
                     if (cmd.Channel is null || cmd.Inserts is null) return "setInserts: need 'channel' and 'inserts'";
                     foreach (InsertDefinition i in cmd.Inserts)
-                        if (string.IsNullOrWhiteSpace(i.Id) || i.Kind != "lv2" || string.IsNullOrWhiteSpace(i.Plugin))
-                            return "setInserts: every insert needs an id, kind 'lv2', and a plugin URI";
+                        if (string.IsNullOrWhiteSpace(i.Id) || i.Kind is not ("lv2" or "vst3") || string.IsNullOrWhiteSpace(i.Plugin))
+                            return "setInserts: every insert needs an id, kind 'lv2' or 'vst3', and a plug-in ID";
                     _mixer.SetInserts(cmd.Channel, cmd.Inserts);
                     break;
                 case "showInsertUi":
@@ -416,6 +446,53 @@ public sealed class MixerService : IHostedService, IDisposable
                         return "setInsertParam: need 'channel', 'insertId', and 'symbol'";
                     _mixer.SetInsertParam(cmd.Channel, cmd.InsertId, cmd.Symbol, cmd.Value.GetDouble());
                     break;
+                case "retryInsertHost":
+                case "unquarantineInsert":
+                    if (cmd.Channel is null || cmd.InsertId is null)
+                        return $"{cmd.Cmd}: need 'channel' and 'insertId'";
+                    _mixer.RetryInsertHost(cmd.Channel, cmd.InsertId,
+                        clearQuarantine: cmd.Cmd == "unquarantineInsert");
+                    break;
+                case "saveChainPreset":
+                    if (cmd.Channel is null || cmd.Name is null)
+                        return "saveChainPreset: need 'channel' and 'name'";
+                    EffectPresetStore.SaveChain(new EffectChainPreset
+                    {
+                        Name = cmd.Name,
+                        Inserts = [.. _mixer.GetInserts(cmd.Channel)],
+                    });
+                    break;
+                case "loadChainPreset":
+                    if (cmd.Channel is null || cmd.Name is null)
+                        return "loadChainPreset: need 'channel' and 'name'";
+                    EffectChainPreset chainPreset = EffectPresetStore.LoadChain(cmd.Name)
+                        ?? throw new InvalidOperationException($"no chain preset named '{cmd.Name}'");
+                    _mixer.SetInserts(cmd.Channel, chainPreset.Inserts);
+                    break;
+                case "savePluginPreset":
+                    if (cmd.Channel is null || cmd.InsertId is null || cmd.Name is null)
+                        return "savePluginPreset: need 'channel', 'insertId', and 'name'";
+                    InsertDefinition insert = _mixer.GetInserts(cmd.Channel)
+                        .FirstOrDefault(item => item.Id == cmd.InsertId)
+                        ?? throw new InvalidOperationException($"unknown insert '{cmd.InsertId}'");
+                    EffectPresetStore.SavePlugin(new PluginPreset { Name = cmd.Name, Insert = insert });
+                    break;
+                case "loadPluginPreset":
+                    if (cmd.Channel is null || cmd.InsertId is null || cmd.Name is null)
+                        return "loadPluginPreset: need 'channel', 'insertId', and 'name'";
+                    PluginPreset pluginPreset = EffectPresetStore.LoadPlugin(cmd.Name)
+                        ?? throw new InvalidOperationException($"no plugin preset named '{cmd.Name}'");
+                    _mixer.ApplyPluginPreset(cmd.Channel, cmd.InsertId, pluginPreset.Insert);
+                    break;
+                case "renamePreset":
+                    MutatePreset(cmd, EffectPresetStore.RenameChain, EffectPresetStore.RenamePlugin);
+                    break;
+                case "duplicatePreset":
+                    MutatePreset(cmd, EffectPresetStore.DuplicateChain, EffectPresetStore.DuplicatePlugin);
+                    break;
+                case "deletePreset":
+                    DeletePreset(cmd);
+                    break;
                 default:
                     return $"unknown mixer command '{cmd.Cmd}'";
             }
@@ -427,6 +504,29 @@ public sealed class MixerService : IHostedService, IDisposable
         Changed?.Invoke();
         ScheduleSave();
         return null;
+    }
+
+    private static void MutatePreset(Command cmd,
+        Action<string, string, string?> chainAction,
+        Action<string, string, string?> pluginAction)
+    {
+        if (cmd.Name is null || cmd.NewName is null)
+            throw new InvalidOperationException($"{cmd.Cmd}: need 'name' and 'newName'");
+        if (cmd.PresetKind == "chain") chainAction(cmd.Name, cmd.NewName, null);
+        else if (cmd.PresetKind == "plugin") pluginAction(cmd.Name, cmd.NewName, null);
+        else throw new InvalidOperationException($"{cmd.Cmd}: presetKind must be 'chain' or 'plugin'");
+    }
+
+    private static void DeletePreset(Command cmd)
+    {
+        if (cmd.Name is null) throw new InvalidOperationException("deletePreset: need 'name'");
+        bool deleted = cmd.PresetKind switch
+        {
+            "chain" => EffectPresetStore.DeleteChain(cmd.Name),
+            "plugin" => EffectPresetStore.DeletePlugin(cmd.Name),
+            _ => throw new InvalidOperationException("deletePreset: presetKind must be 'chain' or 'plugin'"),
+        };
+        if (!deleted) throw new InvalidOperationException($"no {cmd.PresetKind} preset named '{cmd.Name}'");
     }
 
     private static string LayoutName(string? name, string command)
@@ -485,7 +585,7 @@ public sealed class MixerService : IHostedService, IDisposable
             Levels = current.Levels.Where(e => !e.Key.StartsWith(id + "|", StringComparison.Ordinal))
                 .ToDictionary(),
             ChannelMuted = [.. current.ChannelMuted.Where(c => !c.StartsWith(id + "|", StringComparison.Ordinal))],
-            Inserts = current.Inserts.Where(e => e.Key != id).ToDictionary(e => e.Key, e => e.Value),
+            Inserts = RemoveSidechainSource(current.Inserts, $"channel:{id}", id),
         });
     }
 
@@ -533,7 +633,9 @@ public sealed class MixerService : IHostedService, IDisposable
             MixMuted = [.. current.MixMuted.Where(m => m != id)],
             Levels = current.Levels.Where(e => !e.Key.EndsWith("|" + id, StringComparison.Ordinal)).ToDictionary(),
             ChannelMuted = [.. current.ChannelMuted.Where(c => !c.EndsWith("|" + id, StringComparison.Ordinal))],
-            Inserts = current.Inserts.Where(e => e.Key != $"mix:{id}").ToDictionary(e => e.Key, e => e.Value),
+            Inserts = RemoveSidechainSource(current.Inserts, $"mix:{id}", $"mix:{id}"),
+            OutputRoutes = current.OutputRoutes is null ? null :
+                [.. current.OutputRoutes.Where(route => route.MixId != id)],
         });
     }
 
@@ -581,6 +683,16 @@ public sealed class MixerService : IHostedService, IDisposable
         }
     }
 
+    private static Dictionary<string, List<InsertDefinition>> RemoveSidechainSource(
+        IReadOnlyDictionary<string, List<InsertDefinition>> chains,
+        string sourceId, string removedTarget)
+        => chains.Where(pair => pair.Key != removedTarget).ToDictionary(pair => pair.Key,
+            pair => pair.Value.Select(insert => insert with
+            {
+                Sidechains = insert.Sidechains.Where(route => route.Value != sourceId)
+                    .ToDictionary(route => route.Key, route => route.Value),
+            }).ToList(), StringComparer.Ordinal);
+
     /// <summary>The current mixer scene for saving into a profile, or null.</summary>
     public OpenXLR.Core.MixerScene? ExportScene()
     { lock (_operations) return _mixer.Built ? _mixer.ExportScene() : null; }
@@ -623,6 +735,7 @@ public sealed class MixerService : IHostedService, IDisposable
     {
         // The same singleton is registered as an IHostedService as well.
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _plugins.Changed -= PluginCatalogChanged;
         _streamSweep?.Dispose();
         _saveDebounce?.Dispose();
         _meterPush?.Dispose();

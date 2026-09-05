@@ -1,0 +1,55 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:OpenXLR.UI"
+        x:Class="OpenXLR.UI.PluginManagerWindow"
+        Title="Plugin Manager" Width="820" Height="640" MinWidth="600" MinHeight="420"
+        WindowStartupLocation="CenterOwner" Background="#16181d">
+  <Window.Styles>
+    <Style Selector="TextBlock.h">
+      <Setter Property="Foreground" Value="#8b93a7"/>
+      <Setter Property="FontSize" Value="11"/>
+    </Style>
+    <Style Selector="Border.plugin">
+      <Setter Property="Background" Value="#1d2027"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="12,9"/>
+      <Setter Property="Margin" Value="0,0,0,6"/>
+    </Style>
+  </Window.Styles>
+  <DockPanel Margin="16">
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+      <StackPanel>
+        <TextBlock Text="PLUGIN MANAGER" FontWeight="SemiBold" Foreground="#e6e9f0"/>
+        <TextBlock Name="StatusText" Text="Loading isolated catalogue…" Classes="h" Margin="0,3,0,0"/>
+      </StackPanel>
+      <Button Grid.Column="1" Name="RescanButton" Content="Rescan all" Padding="14,5"
+              Click="OnRescan" ToolTip.Tip="Scan every LV2 and VST3 bundle in isolated, time-limited processes"/>
+    </Grid>
+    <TextBox DockPanel.Dock="Top" Name="FilterBox" PlaceholderText="Search name, format, category, or status"
+             Margin="0,0,0,10"/>
+    <ListBox Name="PluginList" Background="Transparent">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:PluginCatalogItem">
+          <Border Classes="plugin">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#e6e9f0"/>
+                <TextBlock Text="{Binding KindLabel}" Classes="h" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding StatusLabel}" Classes="h" VerticalAlignment="Center"/>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                <Button Content="Retry" Padding="9,2" IsVisible="{Binding CanRetry}"
+                        Tag="{Binding}" Click="OnRetry"/>
+                <Button Content="Unquarantine" Padding="9,2" IsVisible="{Binding CanUnquarantine}"
+                        Tag="{Binding}" Click="OnUnquarantine"/>
+              </StackPanel>
+              <TextBlock Grid.Row="1" Text="{Binding CapabilityText}" Classes="h" Margin="0,3,0,0"/>
+              <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding Error}" Foreground="#e0a84a"
+                         TextWrapping="Wrap" Margin="0,5,0,0" IsVisible="{Binding HasError}"/>
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </DockPanel>
+</Window>

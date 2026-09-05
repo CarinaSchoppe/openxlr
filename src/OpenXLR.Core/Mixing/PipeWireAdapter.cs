@@ -463,6 +463,22 @@ public sealed class PipeWireAdapter
         return handle;
     }
 
+    /// <summary>Create one preallocated fixed delay for converging route compensation.</summary>
+    public FilterHandle CreateCompensationDelay(string id, int channels, int delaySamples)
+    {
+        int rate = ParseGraphSampleRate(Run("pw-metadata", "-n", "settings"));
+        string node = $"OpenXLR_delay_{id}";
+        var host = new CompensationDelayHost(node, channels, delaySamples, rate);
+        var handle = new FilterHandle(node, node, node, host.Process) { CompensationHost = host };
+        if (WaitForPorts(node, "playback", false, TimeSpan.FromSeconds(3), host.Process)
+            && WaitForPorts(node, "capture", true, TimeSpan.FromSeconds(3), host.Process))
+            return handle;
+        string error = host.Error;
+        host.Dispose();
+        throw new InvalidOperationException("Latency-compensation ports did not appear" +
+            (error.Length == 0 ? "." : $": {error}"));
+    }
+
     /// <summary>Build isolated LV2 stages after any PipeWire-owned safety DSP.</summary>
     private FilterHandle CreateHostedChain(string sinkName, string sourceName, string description, int channels,
         int lowCutHz, bool clipGuard, IReadOnlyList<InsertDefinition> inserts)
@@ -476,15 +492,17 @@ public sealed class PipeWireAdapter
             int rate = ParseGraphSampleRate(Run("pw-metadata", "-n", "settings"));
             foreach (InsertDefinition insert in inserts.Where(i => !i.Bypass))
             {
-                string node = $"{sinkName}_lv2_{plugins.Count}";
-                var host = new NativePluginHost(insert, node, channels, rate);
+                string node = $"{sinkName}_{insert.Kind}_{plugins.Count}";
+                PluginInfo plugin = PluginRegistry.Find(insert)
+                    ?? throw new InvalidOperationException($"Plug-in metadata is unavailable for {insert.Label ?? insert.Plugin}.");
+                var host = new NativePluginHost(insert, plugin, node, channels, rate);
                 _nativeHosts.Add(host);
                 var stage = new FilterHandle(node, node, node, host.Process) { NativeHost = host };
                 stages.Add(stage);
                 plugins.Add((insert.Id, host));
                 if (!WaitForPorts(node, "playback", false, TimeSpan.FromSeconds(3), host.Process)
                     || !WaitForPorts(node, "capture", true, TimeSpan.FromSeconds(3), host.Process))
-                    throw new InvalidOperationException($"Native LV2 ports did not appear for {insert.Label ?? insert.Plugin}.");
+                    throw new InvalidOperationException($"Native {insert.Kind.ToUpperInvariant()} ports did not appear for {insert.Label ?? insert.Plugin}.");
             }
             for (int i = 1; i < stages.Count; i++)
                 if (LinkNodes(stages[i - 1].SourceName, "capture", stages[i].SinkName, "playback").Pairs.Count < channels)
@@ -509,6 +527,22 @@ public sealed class PipeWireAdapter
             if (match.Success && int.TryParse(match.Groups[1].Value, out int rate) && rate is >= 8000 and <= 384000) return rate;
         }
         throw new InvalidOperationException("PipeWire did not report a supported graph sample rate.");
+    }
+
+    /// <summary>Current graph block size; each out-of-process DSP stage adds one block.</summary>
+    internal int GetGraphQuantumSamples()
+        => ParseGraphQuantum(Run("pw-metadata", "-n", "settings"));
+
+    internal static int ParseGraphQuantum(string metadata)
+    {
+        foreach (string key in new[] { "clock.force-quantum", "clock.quantum" })
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(metadata,
+                $"key:'{System.Text.RegularExpressions.Regex.Escape(key)}' value:'(\\d+)'");
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int quantum)
+                && quantum is >= 1 and <= 8192) return quantum;
+        }
+        throw new InvalidOperationException("PipeWire did not report a supported graph quantum.");
     }
 
     /// <summary>
@@ -543,6 +577,11 @@ public sealed class PipeWireAdapter
         {
             _nativeHosts.Remove(host);
             host.Dispose();
+            return;
+        }
+        if (f.CompensationHost is { } compensation)
+        {
+            compensation.Dispose();
             return;
         }
         try { if (!f.Process.HasExited) { f.Process.Kill(entireProcessTree: true); f.Process.WaitForExit(2000); } }
@@ -879,7 +918,9 @@ public sealed class PipeWireAdapter
                 // software-created source or sink does not.
                 bool physical = props.TryGetProperty("device.api", out JsonElement api) &&
                                 !string.IsNullOrEmpty(api.GetString());
-                found.Add(new AudioNode(name, desc, isSink ? AudioNodeKind.Sink : AudioNodeKind.Source,
+                string stableId = StableAudioNodeId(props, name, isSink ? "sink" : "source");
+                found.Add(new AudioNode(stableId, name, desc,
+                    isSink ? AudioNodeKind.Sink : AudioNodeKind.Source,
                     name.StartsWith("OpenXLR", StringComparison.Ordinal), physical));
             }
         }
@@ -898,14 +939,10 @@ public sealed class PipeWireAdapter
             : null;
         if (pro is not null)
         {
-            found.Add(new AudioNode($"{pro.Name}#hp1", "Headphones 1 (front)",
-                AudioNodeKind.Sink, IsOwn: false, IsPhysical: true));
-            found.Add(new AudioNode($"{pro.Name}#hp2", "Headphones 2 (rear)",
-                AudioNodeKind.Sink, IsOwn: false, IsPhysical: true));
-            // No "#usbaux" entry: the USB Aux port is owned by the Aux mix
-            // (its own submixer column), not the monitor selection.
-            found.Add(new AudioNode($"{pro.Name}#lineout", "Line Out",
-                AudioNodeKind.Sink, IsOwn: false, IsPhysical: true));
+            found.Add(HardwareOutput(pro, "hp1", "Headphones 1 (front)"));
+            found.Add(HardwareOutput(pro, "hp2", "Headphones 2 (rear)"));
+            found.Add(HardwareOutput(pro, "lineout", "Line Out"));
+            found.Add(HardwareOutput(pro, "usbaux", "USB Aux (second computer)"));
             // Hide the raw multichannel sink from device pickers: its first
             // pair reaches no physical output (audio vanishes), and choosing
             // it clears the hardware output selectors. The pseudo-outputs
@@ -914,6 +951,36 @@ public sealed class PipeWireAdapter
             found.Remove(pro);
         }
         return found;
+
+        static AudioNode HardwareOutput(AudioNode device, string port, string description)
+            => new($"{device.Id}:{port}", $"{device.Name}#{port}", description,
+                AudioNodeKind.Sink, IsOwn: false, IsPhysical: true);
+    }
+
+    /// <summary>
+    /// Build a durable device identity from PipeWire properties. Object IDs
+    /// and serials are deliberately excluded because PipeWire reallocates them
+    /// after every reconnect. A cryptographic digest keeps private hardware
+    /// serials out of the public API and settings file.
+    /// </summary>
+    internal static string StableAudioNodeId(JsonElement properties, string nodeName, string direction)
+    {
+        static string? Property(JsonElement p, string key)
+            => p.TryGetProperty(key, out JsonElement value) ? value.ToString() : null;
+
+        string device = Property(properties, "device.serial")
+            ?? Property(properties, "device.name")
+            ?? Property(properties, "device.address")
+            ?? Property(properties, "api.alsa.path")
+            ?? nodeName;
+        string endpoint = Property(properties, "api.alsa.path")
+            ?? Join(Property(properties, "alsa.card"), Property(properties, "alsa.pcm.device"))
+            ?? Property(properties, "node.nick")
+            ?? nodeName;
+        return SignalRouting.StableDestinationId($"{direction}|{device}|{endpoint}");
+
+        static string? Join(string? first, string? second)
+            => first is null && second is null ? null : $"{first ?? "-"}:{second ?? "-"}";
     }
 
     /// <summary>
@@ -1144,9 +1211,11 @@ public sealed record LoopbackHandle(string Id, string CaptureNodeName, string Pl
 public sealed record FilterHandle(string Id, string SinkName, string SourceName, Process Process)
 {
     internal NativePluginHost? NativeHost { get; init; }
+    internal CompensationDelayHost? CompensationHost { get; init; }
     internal IReadOnlyList<FilterHandle> Stages { get; init; } = [];
     internal IReadOnlyList<(string Id, NativePluginHost Host)> NativeStages { get; init; } = [];
-    public bool IsAlive => Stages.Count > 0 ? Stages.All(s => s.IsAlive) : NativeHost?.IsHealthy ?? !Process.HasExited;
+    public bool IsAlive => Stages.Count > 0 ? Stages.All(s => s.IsAlive)
+        : NativeHost?.IsHealthy ?? CompensationHost?.IsHealthy ?? !Process.HasExited;
 }
 
 /// <summary>Whether an optional host-side DSP feature can be loaded safely.</summary>
@@ -1166,5 +1235,5 @@ public enum AudioNodeKind { Sink, Source }
 /// OpenXLR itself created, and <paramref name="IsPhysical"/> marks real
 /// hardware (device.api present), letting pickers filter to actual devices.
 /// </summary>
-public sealed record AudioNode(string Name, string Description, AudioNodeKind Kind, bool IsOwn,
+public sealed record AudioNode(string Id, string Name, string Description, AudioNodeKind Kind, bool IsOwn,
     bool IsPhysical = false);

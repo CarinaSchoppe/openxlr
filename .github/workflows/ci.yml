@@ -26,7 +26,7 @@ jobs:
         # Native hosting is built with the same strict flags locally and in CI.
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev lsp-plugins-lv2
+          sudo apt-get install -y build-essential cmake pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev lsp-plugins-lv2
           dotnet restore src/OpenXLR.slnx
 
       - name: Build
@@ -42,6 +42,7 @@ jobs:
           # hosted runner's fresh profile; do not weaken AppArmor/sysctls.
           python3 tools/with-xvfb.py python3 tools/verify-native-host.py \
             --native-ui --disposable-ci-profile --screenshot native-compressor.png
+          python3 tools/verify-delay-host.py
 
       - name: Retain native UI diagnostics
         if: failure()

@@ -187,7 +187,21 @@ active insert, an X11 UI in the plugin metadata and a matching daemon.
 XWayland is supported; GTK/Qt-only vendor UIs are not. If the user service
 has no display, the opening error is shown without stopping the audio.
 File-based plugin state (for example loaded impulse responses) is not
-persisted by this control-port host. VST and CLAP plugins cannot be loaded.
+persisted by the LV2 control-port host. Linux VST3 effects use a separate
+native host with component/controller state support; CLAP cannot be loaded.
+
+Use **Plugins** in the header to inspect the installed LV2/VST3 catalog.
+**Rescan all** refreshes it in isolated processes; quarantined bundles require
+an explicit **Unquarantine**. Failed bundles show their error and a **Retry**
+button. Native VST3 bundles are searched in `~/.vst3`, standard `/usr/lib`
+and `/usr/local/lib` VST3 directories, and `VST3_PATH`. Only compatible ready
+effects appear in the insert picker. The controls and chain windows offer
+separate plugin/chain preset save and load controls.
+
+**Routing** opens a mix-by-output matrix. Tick a cell to send that mix to
+that output, including simultaneous routes to different devices. The current
+stage is the processed mix. Raw/hardware-only/per-send stage selection and
+Sound Check remain under development; see [parity-status.md](parity-status.md).
 
 ### 3.6 Save and recall a scene
 

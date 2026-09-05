@@ -24,7 +24,10 @@ range. For an isolated development or test instance only,
 | `GET /healthz` | cheap daemon liveness response; does not mean audio hardware is connected |
 | `GET /api/v1` | discovery document with version and resource URLs |
 | `GET /api/v1/state` | authoritative hardware, mixer, routing, app, profile, and capability state |
-| `GET /api/v1/plugins` | installed LV2 catalog; the first scan can take longer |
+| `GET /api/v1/plugins` | isolated LV2/Linux VST3 catalog, including failure and quarantine status |
+| `GET /api/v1/presets` | reusable chain/plugin preset names |
+| `GET /api/v1/presets/{kind}/{name}` | export preset JSON; kind is `chains` or `plugins` |
+| `POST /api/v1/presets/{kind}/import` | validate and import bounded preset JSON |
 | `POST /api/v1/commands` | execute one command from the command table below |
 | `GET /api/v1/openapi.json` | machine-readable OpenAPI 3.1 contract, including schemas and examples |
 | `WS /api/v1/events` | state, live meter and command event stream |
@@ -66,12 +69,14 @@ Messages from the daemon, each a JSON object with a `type` field:
 |---|---|---|
 | `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes) |
 | `meters` | 15 Hz while the mixer is built | live stereo levels per channel and mix |
-| `plugins` | in answer to `listPlugins` | the installed LV2 plugins |
+| `plugins` | in answer to catalog commands | LV2/VST3 metadata and scan errors |
+| `presets` | in answer to `listPresets` | `chains` and `plugins` name arrays |
 | `error` | when a command is rejected | `message` |
 | `commandResult` | after any command containing `requestId` | `apiVersion`, the same `requestId`, `ok`, and optional `error`/query `result` |
 
 The `state.features` array advertises `editableLayout`, `commandResults`,
-`channelInserts`, `nativePluginUi`, `layoutOrder` and `monitorMixSelection`;
+`channelInserts`, `nativePluginUi`, `layoutOrder`, `monitorMixSelection`,
+`routingMatrix` and `processingStages`;
 `httpApiV1` advertises the HTTP surface. Clients must check features rather
 than comparing release version strings.
 For example, send `{"cmd":"createMix","name":"Podcast","requestId":"unique-id"}`.
@@ -103,10 +108,19 @@ Commands are single JSON objects with a `cmd` field:
 | `setMonitoredMix` | `mix` | listen to this mix's post-insert signal on the selected monitor devices |
 | `setMonitorOutputs` | `devices[]` | every sink the currently listened mix feeds |
 | `setMonitorOutput` | `device` | a single sink for the listened mix; `null` disconnects the route |
+| `setOutputRoute` | `mix`, `destinationId`, `enabled`, `stage?` | add/remove one many-to-many routing cell using a stable destination ID; succeeds only after PipeWire link verification |
 | `setAuxPortEnabled` | `value` | send the Aux mix to the USB Aux port |
 | `setOutputVolume` | `value` | volume of the selected monitor devices |
-| `listPlugins` | none | the installed LV2 plugins, answered with a `plugins` message |
-| `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is any channel ID or `mix:<id>`, each insert is `{id, kind:"lv2", plugin:<uri>, label?, bypass?, params?}` |
+| `listPlugins` | none | isolated LV2/VST3 catalog |
+| `rescanPlugins` | none | refresh catalog; retains quarantine until explicitly cleared |
+| `retryPlugin` / `unquarantinePlugin` | `plugin` | retry one failed bundle / clear quarantine and retry |
+| `setInserts` | `channel`, `inserts[]` | replace chain; kind `lv2` or `vst3`, format-native `plugin` ID, optional `params`, base64 `state`, `sidechains` map |
+| `retryInsertHost` / `unquarantineInsert` | `channel`, `insertId` | recover one runtime slot |
+| `listPresets` | none | reusable names grouped by kind |
+| `saveChainPreset` / `loadChainPreset` | `channel`, `name` | capture/apply ordered chain |
+| `savePluginPreset` / `loadPluginPreset` | `channel`, `insertId`, `name` | capture/apply one compatible plugin |
+| `renamePreset` / `duplicatePreset` | `presetKind`, `name`, `newName` | manage reusable preset; kind `chain` or `plugin` |
+| `deletePreset` | `presetKind`, `name` | delete one preset |
 | `setInsertBypass` | `channel`, `insertId`, `value` | bypass one insert |
 | `setInsertParam` | `channel`, `insertId`, `symbol`, `value` | one plugin control, by its LV2 port symbol |
 | `showInsertUi` | `channel`, `insertId`, `requestId` | open/raise the active instance's X11 vendor UI; reports missing display, unavailable UI or inactive host as an error |
@@ -170,6 +184,33 @@ references remain stable. On reconnect, replace cached state with the initial
 state is level-triggered and authoritative. The server limits each WebSocket
 client to a bounded send queue so an abandoned integration cannot grow daemon
 memory without limit.
+
+### Routing matrix
+
+`mixer.routingDestinations` contains the available output columns. Persist and
+send its `id`, not `nodeName` or `name`: PipeWire object/node data may change on
+reconnect. `mixer.outputRoutes` contains desired cells with `active`,
+`available`, `stage`, `sourceLatencySamples`, `compensationSamples`, and an
+actionable `error`. A disconnected device can
+therefore retain user intent without becoming a ghost node or being silently
+redirected to a different device. When the same stable hardware identity
+returns, the daemon verifies and restores its route during the regular sweep.
+
+Only `MixProcessed` is currently advertised. `mixer.sidechainSources` lists
+stable eligible sources; `plugins[].auxiliaryInputs` supplies actual bus IDs.
+Route those through an insert's `sidechains` map, preserving every other
+insert field when replacing a chain. The `capabilities.waveFxVstInsert` flag
+is false until an actual hardware send/return topology is verified. Normal
+software VST3 hosting does not imply support for Elgato's hardware insert.
+
+```sh
+destination=$(curl -fsS http://127.0.0.1:37890/api/v1/state |
+  jq -r '.mixer.routingDestinations[] | select(.available and .compatible) | .id' |
+  head -n1)
+curl --fail-with-body http://127.0.0.1:37890/api/v1/commands \
+  -H 'Content-Type: application/json' \
+  -d "{\"cmd\":\"setOutputRoute\",\"mix\":\"stream\",\"destinationId\":\"$destination\",\"enabled\":true,\"stage\":\"MixProcessed\"}"
+```
 
 ## Configuration files
 

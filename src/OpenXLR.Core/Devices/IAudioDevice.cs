@@ -105,4 +105,11 @@ public sealed record DeviceCapabilities
 
     /// <summary>Number of headphone outputs (the Pro has two).</summary>
     public int HpOutputs { get; init; } = 1;
+
+    /// <summary>
+    /// A verified USB audio send/return pair for Elgato's hardware Wave FX
+    /// insert topology. False on all currently verified OpenXLR devices: this
+    /// must only become true after descriptor and audio-loopback evidence.
+    /// </summary>
+    public bool WaveFxVstInsert { get; init; }
 }

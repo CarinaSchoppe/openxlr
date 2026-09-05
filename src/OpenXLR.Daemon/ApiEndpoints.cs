@@ -1,4 +1,5 @@
 using System.Text.Json;
+using OpenXLR.Core.Mixing;
 
 namespace OpenXLR.Daemon;
 
@@ -29,6 +30,7 @@ internal static class ApiEndpoints
             {
                 state = $"http://127.0.0.1:{port}/api/v1/state",
                 plugins = $"http://127.0.0.1:{port}/api/v1/plugins",
+                presets = $"http://127.0.0.1:{port}/api/v1/presets",
                 commands = $"http://127.0.0.1:{port}/api/v1/commands",
                 events = $"ws://127.0.0.1:{port}/api/v1/events",
                 openapi = $"http://127.0.0.1:{port}/api/v1/openapi.json",
@@ -38,12 +40,12 @@ internal static class ApiEndpoints
         app.MapGet("/api/v1/state", (WebSocketHub hub) =>
             Results.Json(hub.Snapshot(), WebSocketHub.Json));
 
-        app.MapGet("/api/v1/plugins", async () =>
-        {
-            IReadOnlyList<OpenXLR.Core.Mixing.PluginInfo> plugins =
-                await Task.Run(() => OpenXLR.Core.Mixing.Lv2Catalog.Plugins);
-            return Results.Json(new PluginsMessage(plugins), WebSocketHub.Json);
-        });
+        app.MapGet("/api/v1/plugins", (PluginCatalogService catalog) =>
+            Results.Json(new PluginsMessage(catalog.Plugins), WebSocketHub.Json));
+
+        app.MapGet("/api/v1/presets", () => Results.Json(new PresetsMessage(), WebSocketHub.Json));
+        app.MapGet("/api/v1/presets/{kind}/{name}", ExportPreset);
+        app.MapPost("/api/v1/presets/{kind}/import", ImportPresetAsync);
 
         app.MapPost("/api/v1/commands", ExecuteCommandAsync);
         MapWebSocket(app, "/api/v1/events");
@@ -106,6 +108,63 @@ internal static class ApiEndpoints
             statusCode: execution.Error is null
                 ? StatusCodes.Status200OK
                 : StatusCodes.Status422UnprocessableEntity);
+    }
+
+    private static IResult ExportPreset(string kind, string name)
+    {
+        try
+        {
+            byte[] data = kind switch
+            {
+                "chains" => EffectPresetStore.ExportChain(name),
+                "plugins" => EffectPresetStore.ExportPlugin(name),
+                _ => throw new InvalidOperationException("preset kind must be 'chains' or 'plugins'"),
+            };
+            return Results.File(data, "application/json; charset=utf-8",
+                EffectPresetStore.NormalizeName(name) + ".json");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Json(new ErrorMessage(ex.Message), WebSocketHub.Json,
+                statusCode: StatusCodes.Status404NotFound);
+        }
+    }
+
+    private static async Task<IResult> ImportPresetAsync(string kind, HttpRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            byte[] document = await ReadBoundedAsync(request.Body,
+                EffectPresetStore.MaxDocumentBytes, cancellationToken);
+            object preset = kind switch
+            {
+                "chains" => EffectPresetStore.ImportChain(document),
+                "plugins" => EffectPresetStore.ImportPlugin(document),
+                _ => throw new InvalidOperationException("preset kind must be 'chains' or 'plugins'"),
+            };
+            return Results.Json(preset, WebSocketHub.Json, statusCode: StatusCodes.Status201Created);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Json(new ErrorMessage(ex.Message), WebSocketHub.Json,
+                statusCode: StatusCodes.Status422UnprocessableEntity);
+        }
+    }
+
+    private static async Task<byte[]> ReadBoundedAsync(Stream body, int maximum,
+        CancellationToken cancellationToken)
+    {
+        using var document = new MemoryStream();
+        var buffer = new byte[8192];
+        while (true)
+        {
+            int read = await body.ReadAsync(buffer, cancellationToken);
+            if (read == 0) return document.ToArray();
+            if (document.Length + read > maximum)
+                throw new InvalidOperationException($"preset document exceeds {maximum} bytes");
+            document.Write(buffer, 0, read);
+        }
     }
 
     internal static async Task<Command?> ReadCommandAsync(Stream body, CancellationToken cancellationToken = default)

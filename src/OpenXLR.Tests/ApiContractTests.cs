@@ -76,12 +76,15 @@ public sealed class ApiContractTests
             .ToHashSet(StringComparer.Ordinal);
         string[] required =
         [
-            "getState", "getDiagnostics", "listPlugins", "set", "setLevel", "setChannelMuted",
+            "getState", "getDiagnostics", "listPlugins", "listPresets", "rescanPlugins",
+            "retryPlugin", "unquarantinePlugin", "set", "setLevel", "setChannelMuted",
             "setMixVolume", "setMixMuted", "createChannel", "renameChannel", "deleteChannel",
             "reorderChannels", "createMix", "renameMix", "deleteMix", "reorderMixes", "assignStream",
-            "assignApp", "forgetApp", "setMonitorOutput", "setMonitorOutputs", "setMonitoredMix",
+            "assignApp", "forgetApp", "setMonitorOutput", "setMonitorOutputs", "setOutputRoute", "setMonitoredMix",
             "setOutputVolume", "setEnforcedDefaults", "setAuxPortEnabled", "setLowCutHz",
             "setSoftClipGuard", "setInserts", "showInsertUi", "setInsertBypass", "setInsertParam",
+            "retryInsertHost", "unquarantineInsert", "saveChainPreset", "loadChainPreset",
+            "savePluginPreset", "loadPluginPreset", "renamePreset", "duplicatePreset", "deletePreset",
             "setActiveDevice", "saveProfile", "loadProfile", "deleteProfile",
         ];
         Assert.Empty(required.Except(commands));

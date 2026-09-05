@@ -51,6 +51,15 @@ public sealed record Command
     /// <summary>For "setMonitorOutputs": every output the listened mix should feed.</summary>
     [JsonPropertyName("devices")] public List<string>? Devices { get; init; }
 
+    /// <summary>"setOutputRoute": stable routing-matrix destination ID.</summary>
+    [JsonPropertyName("destinationId")] public string? DestinationId { get; init; }
+
+    /// <summary>"setOutputRoute": whether the matrix cell should exist.</summary>
+    [JsonPropertyName("enabled")] public bool? Enabled { get; init; }
+
+    /// <summary>"setOutputRoute": signal tap used by the route.</summary>
+    [JsonPropertyName("stage")] public ProcessingStage? Stage { get; init; }
+
     /// <summary>For layout reorder commands: every editable id in its desired order.</summary>
     [JsonPropertyName("order")] public List<string>? Order { get; init; }
 
@@ -67,14 +76,23 @@ public sealed record Command
     /// <summary>Profile and create/rename layout commands: the display name.</summary>
     [JsonPropertyName("name")] public string? Name { get; init; }
 
+    /// <summary>Preset rename/duplicate commands: the destination name.</summary>
+    [JsonPropertyName("newName")] public string? NewName { get; init; }
+
+    /// <summary>Preset commands: "chain" or "plugin".</summary>
+    [JsonPropertyName("presetKind")] public string? PresetKind { get; init; }
+
     /// <summary>"setInserts": the channel's whole insert chain, in order.</summary>
     [JsonPropertyName("inserts")] public List<InsertDefinition>? Inserts { get; init; }
 
-    /// <summary>"setInsertParam" / "setInsertBypass": which insert.</summary>
+    /// <summary>Insert mutation/recovery commands: which stable insert instance.</summary>
     [JsonPropertyName("insertId")] public string? InsertId { get; init; }
 
     /// <summary>"setInsertParam": the control port symbol.</summary>
     [JsonPropertyName("symbol")] public string? Symbol { get; init; }
+
+    /// <summary>Scanner commands: stable catalogue plug-in or rejected-bundle ID.</summary>
+    [JsonPropertyName("plugin")] public string? Plugin { get; init; }
 }
 
 /// <summary>Reply to "listPlugins": everything the insert picker can offer.</summary>
@@ -85,6 +103,19 @@ public sealed record PluginsMessage
     [JsonPropertyName("type")] public string Type => "plugins";
     [JsonPropertyName("apiVersion")] public string ApiVersion => Daemon.ApiVersion.Current;
     [JsonPropertyName("plugins")] public IReadOnlyList<PluginInfo> Plugins { get; }
+}
+
+/// <summary>Names of reusable local presets, never arbitrary filesystem paths.</summary>
+public sealed record PresetsMessage
+{
+    [JsonPropertyName("type")] public string Type => "presets";
+    [JsonPropertyName("apiVersion")] public string ApiVersion => Daemon.ApiVersion.Current;
+    [JsonPropertyName("chains")]
+    public IReadOnlyList<string> Chains { get; }
+        = EffectPresetStore.ListChains();
+    [JsonPropertyName("plugins")]
+    public IReadOnlyList<string> Plugins { get; }
+        = EffectPresetStore.ListPlugins();
 }
 
 /// <summary>Full-state push from the daemon to all clients.</summary>

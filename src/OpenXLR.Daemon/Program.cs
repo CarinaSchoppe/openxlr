@@ -1,7 +1,18 @@
 using System.Net;
 using System.Net.Sockets;
 using Microsoft.AspNetCore.Connections;
+using System.Text.Json;
+using OpenXLR.Core.Mixing;
 using OpenXLR.Daemon;
+
+if (args.Length == 1 && args[0].StartsWith("--plugin-scan=", StringComparison.Ordinal))
+{
+    string scanFormat = args[0]["--plugin-scan=".Length..];
+    if (scanFormat != "lv2") return 64;
+    Console.WriteLine(JsonSerializer.Serialize(Lv2Catalog.Plugins,
+        new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+    return 0;
+}
 
 int apiPort = ApiEndpoints.ResolvePort(Environment.GetEnvironmentVariable("OPENXLR_API_PORT"));
 
@@ -11,6 +22,12 @@ var builder = WebApplication.CreateBuilder(args);
 // background service that runs the poll/reconnect loop.
 builder.Services.AddSingleton<DeviceManager>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceManager>());
+
+// Plug-in metadata is loaded in bounded helper processes before it is ever
+// offered to the mixer. The first scan runs asynchronously and cached results
+// are available immediately.
+builder.Services.AddSingleton<PluginCatalogService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PluginCatalogService>());
 
 // The submixer is likewise a singleton the hub queries and a hosted service that
 // builds the graph on start and tears it down on shutdown.

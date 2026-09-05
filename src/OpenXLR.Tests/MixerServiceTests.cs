@@ -11,7 +11,8 @@ public sealed class MixerServiceTests
     {
         var config = new ConfigurationBuilder().Build();
         using var devices = new DeviceManager(NullLogger<DeviceManager>.Instance, config);
-        var service = new MixerService(NullLogger<MixerService>.Instance, config, devices);
+        using var plugins = new PluginCatalogService(NullLogger<PluginCatalogService>.Instance);
+        var service = new MixerService(NullLogger<MixerService>.Instance, config, devices, plugins);
         service.Dispose();
         service.Dispose();
     }

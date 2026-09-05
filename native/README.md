@@ -1,4 +1,30 @@
-# Isolated LV2 host
+# Isolated audio hosts
+
+The native build produces LV2, VST3 and latency-delay helpers. It requires a
+C11/C++20 compiler, CMake 3.20+, pkg-config, PipeWire development files, lilv,
+LV2 headers and Xlib. The VST3 host uses the pinned MIT-licensed SDK subset in
+`third_party/vst3sdk`; its provenance and license are included there.
+
+## VST3 and sample delay
+
+`openxlr-vst3-host --scan BUNDLE` discovers Linux VST3 effect classes in an
+isolated process. Runtime invocation is
+`openxlr-vst3-host BUNDLE CLASS_ID NODE CHANNELS RATE [PARAM_ID=VALUE ...]`.
+The host connects real main/auxiliary audio buses, processes normalized
+parameters, opens compatible X11 plugin editors and exchanges bounded opaque
+component/controller state. `getstate` returns a base64 state container;
+`loadstate BASE64` restores it. `latency SAMPLES` reports plugin latency.
+The daemon resolves bundle paths from the catalog; clients supply class IDs.
+Native Linux bundles are required. Direct Windows DLL, AU and CLAP loading
+is not implemented. A yabridge wrapper needs separate compatibility testing.
+
+`openxlr-delay-host NODE CHANNELS DELAY_SAMPLES RATE` is a fixed preallocated
+mono/stereo delay with a maximum of 2,000,000 samples. It exits on `quit`, EOF,
+parent death or PipeWire failure. `tools/verify-delay-host.py` tests actual
+impulses through a private graph. Current PDC scope and unverified cases are
+listed in [parity-status.md](../docs/parity-status.md).
+
+## LV2
 
 `openxlr-lv2-host URI NODE CHANNELS RATE [SYMBOL=VALUE ...]` owns exactly
 one plugin. Build with `make -C native`; the Core build copies the executable

@@ -14,6 +14,7 @@
 , pulseaudio
 , xdg-utils
 , pkg-config
+, cmake
 , lv2
 , stdenv
 }:
@@ -34,7 +35,8 @@ buildDotnetModule {
   dotnet-runtime = dotnetCorePackages.aspnetcore_10_0;
 
   executables = [ "OpenXLR.Daemon" "OpenXLR.UI" ];
-  nativeBuildInputs = [ pkg-config stdenv.cc ];
+  nativeBuildInputs = [ pkg-config cmake stdenv.cc ];
+  dontUseCmakeConfigure = true;
   buildInputs = [ pipewire lilv lv2 libx11 ];
 
   runtimeDeps = [

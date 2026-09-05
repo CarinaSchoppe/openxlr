@@ -18,7 +18,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential debhelper gh dotnet-sdk-10.0 pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev
+            build-essential cmake debhelper gh dotnet-sdk-10.0 pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev
 
       - name: Verify GitHub CLI
         run: gh --version
@@ -33,6 +33,8 @@ jobs:
         run: |
           dpkg-deb -x dist/openxlr_*.deb package-check
           test -x package-check/usr/lib/openxlr/daemon/openxlr-lv2-host
+          test -x package-check/usr/lib/openxlr/daemon/openxlr-vst3-host
+          test -x package-check/usr/lib/openxlr/daemon/openxlr-delay-host
 
       - name: Lint package
         run: |

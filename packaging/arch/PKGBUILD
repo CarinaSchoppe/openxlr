@@ -9,7 +9,7 @@ url='https://github.com/emaspa/openxlr'
 license=('GPL-3.0-only')
 depends=('aspnet-runtime>=10' 'pipewire' 'pipewire-audio' 'pipewire-pulse'
          'wireplumber' 'libpulse' 'libusb' 'lilv' 'fontconfig' 'libx11' 'libice' 'libsm')
-makedepends=('dotnet-sdk>=10' 'git' 'pkgconf' 'lv2')
+makedepends=('dotnet-sdk>=10' 'git' 'cmake' 'pkgconf' 'lv2')
 optdepends=('lsp-plugins-lv2: native plugin editors and DSP'
             'swh-plugins: software ClipGuard' 'xdg-utils: open release notes'
             'alsa-utils: hardware diagnostics')
@@ -37,7 +37,10 @@ package() {
     cp -r out/daemon out/ui "$pkgdir/usr/lib/openxlr/"
     find "$pkgdir/usr/lib/openxlr" -type f -exec chmod 644 {} +
     chmod 755 "$pkgdir/usr/lib/openxlr/daemon/OpenXLR.Daemon" \
-        "$pkgdir/usr/lib/openxlr/daemon/openxlr-lv2-host" "$pkgdir/usr/lib/openxlr/ui/OpenXLR.UI"
+        "$pkgdir/usr/lib/openxlr/daemon/openxlr-lv2-host" \
+        "$pkgdir/usr/lib/openxlr/daemon/openxlr-vst3-host" \
+        "$pkgdir/usr/lib/openxlr/daemon/openxlr-delay-host" \
+        "$pkgdir/usr/lib/openxlr/ui/OpenXLR.UI"
     install -dm755 "$pkgdir/usr/bin"
     printf '#!/bin/sh\nexec /usr/lib/openxlr/daemon/OpenXLR.Daemon "$@"\n' > "$pkgdir/usr/bin/openxlr-daemon"
     printf '#!/bin/sh\nexec /usr/lib/openxlr/ui/OpenXLR.UI "$@"\n' > "$pkgdir/usr/bin/openxlr"

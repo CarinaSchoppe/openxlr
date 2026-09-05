@@ -8,10 +8,13 @@ using Avalonia.Threading;
 
 namespace OpenXLR.UI;
 
-/// <summary>A plugin the picker offers (mono in / mono out only for the mic path).</summary>
-public sealed record PluginChoice(string Uri, string Name, string Category, JsonNode Params, bool HasNativeUi = false)
+/// <summary>An LV2 or VST3 plug-in the picker offers for this path width.</summary>
+public sealed record PluginChoice(string Uri, string Name, string Category, JsonNode Params,
+    bool HasNativeUi = false, string Kind = "lv2", JsonNode? AuxiliaryInputs = null)
 {
-    public override string ToString() => Category.Length > 0 ? $"{Name}  ({Category})" : Name;
+    public override string ToString()
+        => Category.Length > 0 ? $"{Name}  [{Kind.ToUpperInvariant()} · {Category}]"
+            : $"{Name}  [{Kind.ToUpperInvariant()}]";
 }
 
 /// <summary>
@@ -47,11 +50,14 @@ public sealed class InsertsViewModel : ViewModelBase
 
     /// <summary>Picker header: which plugins fit this chain.</summary>
     public string PickerHint => _channels == 1
-        ? "LV2 plugins that fit the mono mic path (one input, one output)"
-        : "LV2 plugins that fit a stereo mix (two inputs, two outputs)";
+        ? "LV2 and VST3 plugins that fit the mono mic path (one input, one output)"
+        : "LV2 and VST3 plugins that fit a stereo path (two inputs, two outputs)";
 
     public ObservableCollection<InsertViewModel> Items { get; } = [];
     public ObservableCollection<PluginChoice> PluginChoices { get; } = [];
+    public ObservableCollection<string> ChainPresetNames { get; } = [];
+    public ObservableCollection<string> PluginPresetNames { get; } = [];
+    public ObservableCollection<SidechainSourceChoice> SidechainSources { get; } = [];
 
     public bool HasItems => Items.Count > 0;
 
@@ -75,6 +81,21 @@ public sealed class InsertsViewModel : ViewModelBase
 
     public bool CanAdd => _selectedPlugin is not null;
 
+    private string? _selectedChainPreset;
+    public string? SelectedChainPreset
+    {
+        get => _selectedChainPreset;
+        set { if (Set(ref _selectedChainPreset, value)) Raise(nameof(CanUseChainPreset)); }
+    }
+    public bool CanUseChainPreset => SelectedChainPreset is not null;
+
+    private string? _newPresetName;
+    public string? NewPresetName { get => _newPresetName; set => Set(ref _newPresetName, value); }
+
+    private string? _presetNote;
+    public string? PresetNote { get => _presetNote; private set => Set(ref _presetNote, value); }
+    private bool _presetRequestRunning;
+
     private string? _note;
     /// <summary>Picker status: scanning, count, or why nothing is offered.</summary>
     public string? Note { get => _note; private set => Set(ref _note, value); }
@@ -92,7 +113,7 @@ public sealed class InsertsViewModel : ViewModelBase
     {
         if (_pluginsRequested) return;
         _pluginsRequested = true;
-        Note = "Scanning LV2 plugins…";
+        Note = "Loading isolated LV2 / VST3 catalogue…";
         JsonNode? plugins = await CatalogAsync(_client);
         Dispatcher.UIThread.Post(() =>
         {
@@ -101,6 +122,7 @@ public sealed class InsertsViewModel : ViewModelBase
             foreach (JsonNode? p in arr)
             {
                 if (p is null) continue;
+                if (p["scanStatus"]?.GetValue<string>() is string status && status != "ready") continue;
                 // Mono chains take mono in / mono out plugins; stereo chains take
                 // plugins with at least two ins and two outs (extra ports stay unlinked).
                 int ins = p["audioIns"]?.GetValue<int>() ?? 0, outs = p["audioOuts"]?.GetValue<int>() ?? 0;
@@ -110,18 +132,74 @@ public sealed class InsertsViewModel : ViewModelBase
                     p["plugin"]!.GetValue<string>(),
                     p["name"]?.GetValue<string>() ?? p["plugin"]!.GetValue<string>(),
                     p["category"]?.GetValue<string>() ?? "",
-                    p["params"] ?? new JsonArray(), p["hasNativeUi"]?.GetValue<bool>() ?? false));
+                    p["params"] ?? new JsonArray(), p["hasNativeUi"]?.GetValue<bool>() ?? false,
+                    p["kind"]?.GetValue<string>() ?? "lv2", p["auxiliaryInputs"]));
             }
             _catalogLoaded = true;
             foreach (InsertViewModel insert in Items) insert.RefreshCatalog();
             string width = _channels == 1 ? "mono" : "stereo";
             Note = PluginChoices.Count == 0
-                ? $"No {width} LV2 plugins found (install e.g. lsp-plugins-lv2 or x42-plugins)"
-                : $"{PluginChoices.Count} {width} LV2 plugins available";
+                ? $"No ready {width} LV2/VST3 plugins found"
+                : $"{PluginChoices.Count} {width} LV2/VST3 plugins available";
         });
     }
 
-    public void ResetForNewConnection() { _pluginsRequested = false; _catalogLoaded = false; _catalogTask = null; NativeUiSupported = false; }
+    public void ResetForNewConnection()
+    {
+        InvalidateCatalog();
+        _presetRequestRunning = false;
+        NativeUiSupported = false;
+        ChainPresetNames.Clear();
+        PluginPresetNames.Clear();
+    }
+
+    internal void InvalidateCatalog()
+    {
+        _pluginsRequested = false;
+        _catalogLoaded = false;
+        _catalogTask = null;
+    }
+
+    public async Task RefreshPresetsAsync()
+    {
+        if (_presetRequestRunning) return;
+        _presetRequestRunning = true;
+        JsonNode? response = await _client.RequestPresetsAsync(TimeSpan.FromSeconds(10));
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            ChainPresetNames.Clear();
+            PluginPresetNames.Clear();
+            if (response?["chains"] is JsonArray chains)
+                foreach (JsonNode? name in chains)
+                    if (name is not null) ChainPresetNames.Add(name.GetValue<string>());
+            if (response?["plugins"] is JsonArray plugins)
+                foreach (JsonNode? name in plugins)
+                    if (name is not null) PluginPresetNames.Add(name.GetValue<string>());
+            PresetNote = response is null ? "Preset list unavailable" : null;
+            _presetRequestRunning = false;
+        });
+    }
+
+    public async Task SaveChainPresetAsync()
+    {
+        string name = NewPresetName?.Trim() ?? "";
+        if (name.Length == 0) { PresetNote = "Enter a preset name first."; return; }
+        PresetNote = await _client.SaveChainPresetAsync(_channel, name);
+        if (PresetNote is null) { NewPresetName = ""; await RefreshPresetsAsync(); }
+    }
+
+    public async Task LoadChainPresetAsync()
+    {
+        if (SelectedChainPreset is null) return;
+        PresetNote = await _client.LoadChainPresetAsync(_channel, SelectedChainPreset);
+    }
+
+    public async Task DeleteChainPresetAsync()
+    {
+        if (SelectedChainPreset is not string name) return;
+        PresetNote = await _client.DeletePresetAsync("chain", name);
+        if (PresetNote is null) { SelectedChainPreset = null; await RefreshPresetsAsync(); }
+    }
 
     /// <summary>Whether the catalog has arrived for this chain.</summary>
     public bool CatalogReady => _catalogLoaded || PluginChoices.Count > 0 && !_pluginsRequested;
@@ -143,8 +221,10 @@ public sealed class InsertsViewModel : ViewModelBase
                 if (ins is null) continue;
                 string id = ins["id"]!.GetValue<string>();
                 if (!byId.TryGetValue(id, out InsertViewModel? vm))
-                    vm = new InsertViewModel(this, id, ins["plugin"]!.GetValue<string>(), ins["label"]?.GetValue<string>() ?? id);
-                vm.ApplyFromDaemon(ins, entry?["error"]?.GetValue<string>());
+                    vm = new InsertViewModel(this, id, ins["kind"]?.GetValue<string>() ?? "lv2",
+                        ins["plugin"]!.GetValue<string>(), ins["label"]?.GetValue<string>() ?? id);
+                vm.ApplyFromDaemon(ins, entry?["error"]?.GetValue<string>(),
+                    entry?["status"]?.GetValue<string>() ?? "ready");
                 vm.RefreshCatalog();
                 next.Add(vm);
             }
@@ -170,7 +250,7 @@ public sealed class InsertsViewModel : ViewModelBase
         chain.Add(new Dictionary<string, object?>
         {
             ["id"] = Guid.NewGuid().ToString("N")[..8],
-            ["kind"] = "lv2",
+            ["kind"] = plugin.Kind,
             ["plugin"] = plugin.Uri,
             ["label"] = plugin.Name,
             ["bypass"] = false,
@@ -215,22 +295,62 @@ public sealed class InsertsViewModel : ViewModelBase
         => [.. (order ?? Items).Where(i => i.Id != skip).Select(i => (object)i.ToPayload())];
 
     /// <summary>Parameter metadata for a plugin uri, from the catalog.</summary>
-    internal JsonNode? ParamsFor(string uri) => PluginChoices.FirstOrDefault(p => p.Uri == uri)?.Params;
+    internal JsonNode? ParamsFor(string kind, string uri)
+        => PluginChoices.FirstOrDefault(p => p.Kind == kind && p.Uri == uri)?.Params;
+
+    internal JsonNode? AuxiliaryInputsFor(string kind, string uri)
+        => PluginChoices.FirstOrDefault(p => p.Kind == kind && p.Uri == uri)?.AuxiliaryInputs;
+
+    public void SetSidechainSources(JsonNode? sources)
+    {
+        SidechainSources.Clear();
+        SidechainSources.Add(new SidechainSourceChoice(null, "Off", 0));
+        if (sources is JsonArray array)
+            foreach (JsonNode? source in array)
+                if (source is not null && (source["available"]?.GetValue<bool>() ?? true))
+                    SidechainSources.Add(new SidechainSourceChoice(
+                        source["id"]!.GetValue<string>(),
+                        source["name"]?.GetValue<string>() ?? source["id"]!.GetValue<string>(),
+                        source["channels"]?.GetValue<int>() ?? 0));
+        foreach (InsertViewModel insert in Items) insert.RefreshSidechains();
+    }
+
+    internal IReadOnlyList<SidechainSourceChoice> CompatibleSidechainSources(int busChannels)
+        => [.. SidechainSources.Where(source => source.Id is null ||
+            source.Channels <= busChannels &&
+            source.Id != (_channel.StartsWith("mix:", StringComparison.Ordinal) ? _channel : $"channel:{_channel}") &&
+            (_channel.StartsWith("mix:", StringComparison.Ordinal) || !source.Id.StartsWith("mix:", StringComparison.Ordinal)))];
+
+    internal void SendSidechain()
+    {
+        if (!_applying) _ = _client.SetInsertsAsync(_channel, Snapshot());
+    }
+
+    internal Task<string?> RetryAsync(string insertId, bool clearQuarantine)
+        => _client.RetryInsertHostAsync(_channel, insertId, clearQuarantine);
+
+    internal Task<string?> SavePluginPresetAsync(string insertId, string name)
+        => _client.SavePluginPresetAsync(_channel, insertId, name);
+
+    internal Task<string?> LoadPluginPresetAsync(string insertId, string name)
+        => _client.LoadPluginPresetAsync(_channel, insertId, name);
 }
 
 public sealed class InsertViewModel : ViewModelBase
 {
     private readonly InsertsViewModel _owner;
 
-    public InsertViewModel(InsertsViewModel owner, string id, string plugin, string label)
+    public InsertViewModel(InsertsViewModel owner, string id, string kind, string plugin, string label)
     {
         _owner = owner;
         Id = id;
+        Kind = kind;
         Plugin = plugin;
         Label = label;
     }
 
     public string Id { get; }
+    public string Kind { get; }
     public string Plugin { get; }
     public string Label { get; }
 
@@ -244,6 +364,9 @@ public sealed class InsertViewModel : ViewModelBase
     public InsertsViewModel Owner => _owner;
 
     private readonly Dictionary<string, double> _params = [];
+    private readonly Dictionary<string, string> _sidechains = [];
+    private string? _state;
+    private string _status = "ready";
 
     private bool _bypass;
     public bool Bypass
@@ -260,14 +383,42 @@ public sealed class InsertViewModel : ViewModelBase
     }
     public bool HasError => _error is not null;
 
-    public string StateText => HasError ? "problem" : Bypass ? "bypassed" : "active";
+    public string StateText => Bypass ? "bypassed" : _status switch
+    {
+        "quarantined" => "quarantined",
+        "recovering" => "retry pending",
+        _ => HasError ? "problem" : "active",
+    };
 
     /// <summary>Green LED: in the chain and processing. Red otherwise (bypassed or failed).</summary>
     public bool IsActive => !Bypass && !HasError;
+    public bool CanRetry => !Bypass && _status == "recovering";
+    public bool CanUnquarantine => !Bypass && _status == "quarantined";
     public bool CanOpenNativeUi => !OpeningNativeUi && IsActive && _owner.NativeUiSupported
         && _owner.PluginChoices.Any(p => p.Uri == Plugin && p.HasNativeUi);
 
     public ObservableCollection<InsertParamViewModel> Params { get; } = [];
+    public ObservableCollection<InsertSidechainViewModel> Sidechains { get; } = [];
+    public bool HasSidechains => Sidechains.Count > 0;
+    public ObservableCollection<string> PluginPresetNames => _owner.PluginPresetNames;
+
+    private string? _selectedPluginPreset;
+    public string? SelectedPluginPreset
+    {
+        get => _selectedPluginPreset;
+        set { if (Set(ref _selectedPluginPreset, value)) Raise(nameof(CanLoadPluginPreset)); }
+    }
+    public bool CanLoadPluginPreset => SelectedPluginPreset is not null;
+
+    private string? _newPluginPresetName;
+    public string? NewPluginPresetName
+    {
+        get => _newPluginPresetName;
+        set => Set(ref _newPluginPresetName, value);
+    }
+
+    private string? _presetNote;
+    public string? PresetNote { get => _presetNote; private set => Set(ref _presetNote, value); }
 
     private bool _openingNativeUi;
     public bool OpeningNativeUi { get => _openingNativeUi; private set { Set(ref _openingNativeUi, value); Raise(nameof(CanOpenNativeUi)); } }
@@ -281,6 +432,27 @@ public sealed class InsertViewModel : ViewModelBase
         NativeUiNote = "Opening the audio-processing plugin's editor…";
         try { NativeUiNote = await _owner.ShowNativeUiAsync(Id); }
         finally { OpeningNativeUi = false; }
+    }
+
+    public Task<string?> RetryAsync(bool clearQuarantine)
+        => _owner.RetryAsync(Id, clearQuarantine);
+
+    public async Task SavePluginPresetAsync()
+    {
+        string name = NewPluginPresetName?.Trim() ?? "";
+        if (name.Length == 0) { PresetNote = "Enter a preset name first."; return; }
+        PresetNote = await _owner.SavePluginPresetAsync(Id, name);
+        if (PresetNote is null)
+        {
+            NewPluginPresetName = "";
+            await _owner.RefreshPresetsAsync();
+        }
+    }
+
+    public async Task LoadPluginPresetAsync()
+    {
+        if (SelectedPluginPreset is null) return;
+        PresetNote = await _owner.LoadPluginPresetAsync(Id, SelectedPluginPreset);
     }
 
     /// <summary>
@@ -305,7 +477,37 @@ public sealed class InsertViewModel : ViewModelBase
     internal void RefreshCatalog()
     {
         if (_owner.CatalogReady && Params.Count == 0) BuildParams();
+        RefreshSidechains();
         Raise(nameof(CanOpenNativeUi));
+    }
+
+    internal void RefreshSidechains()
+    {
+        if (_owner.AuxiliaryInputsFor(Kind, Plugin) is not JsonArray buses)
+        {
+            if (Sidechains.Count > 0) { Sidechains.Clear(); Raise(nameof(HasSidechains)); }
+            return;
+        }
+        var existing = Sidechains.ToDictionary(sidechain => sidechain.BusId, StringComparer.Ordinal);
+        var next = new List<InsertSidechainViewModel>();
+        foreach (JsonNode? bus in buses)
+        {
+            if (bus is null) continue;
+            string id = bus["id"]!.GetValue<string>();
+            int channels = bus["channels"]?.GetValue<int>() ?? 0;
+            if (!existing.TryGetValue(id, out InsertSidechainViewModel? viewModel))
+                viewModel = new InsertSidechainViewModel(this, id,
+                    bus["name"]?.GetValue<string>() ?? id, channels);
+            viewModel.UpdateChoices(_owner.CompatibleSidechainSources(channels),
+                _sidechains.GetValueOrDefault(id));
+            next.Add(viewModel);
+        }
+        if (!next.SequenceEqual(Sidechains))
+        {
+            Sidechains.Clear();
+            foreach (InsertSidechainViewModel sidechain in next) Sidechains.Add(sidechain);
+            Raise(nameof(HasSidechains));
+        }
     }
 
     private static readonly (string Group, string[] Keys)[] GroupRules =
@@ -348,13 +550,22 @@ public sealed class InsertViewModel : ViewModelBase
                 Groups.Add(new InsertParamGroup(g, true, l));
     }
 
-    public void ApplyFromDaemon(JsonNode ins, string? error)
+    public void ApplyFromDaemon(JsonNode ins, string? error, string status)
     {
         _bypass = ins["bypass"]?.GetValue<bool>() ?? false;
+        _status = status;
         Raise(nameof(Bypass));
         Raise(nameof(StateText));
         Raise(nameof(IsActive));
+        Raise(nameof(CanRetry));
+        Raise(nameof(CanUnquarantine));
         Error = error;
+        _state = ins["state"]?.GetValue<string>();
+        _sidechains.Clear();
+        if (ins["sidechains"] is JsonObject sidechains)
+            foreach ((string bus, JsonNode? source) in sidechains)
+                if (source is not null) _sidechains[bus] = source.GetValue<string>();
+        RefreshSidechains();
         _params.Clear();
         if (ins["params"] is JsonObject po)
             foreach ((string k, JsonNode? v) in po)
@@ -378,7 +589,7 @@ public sealed class InsertViewModel : ViewModelBase
 
     private void BuildParams()
     {
-        if (_owner.ParamsFor(Plugin) is not JsonArray arr) return;
+        if (_owner.ParamsFor(Kind, Plugin) is not JsonArray arr) return;
         foreach (JsonNode? p in arr)
         {
             if (p is null) continue;
@@ -408,15 +619,72 @@ public sealed class InsertViewModel : ViewModelBase
         _owner.SendParam(this, symbol, value);
     }
 
+    internal void SetSidechain(string busId, string? sourceId)
+    {
+        if (sourceId is null) _sidechains.Remove(busId);
+        else _sidechains[busId] = sourceId;
+        _owner.SendSidechain();
+    }
+
     internal object ToPayload() => new Dictionary<string, object?>
     {
         ["id"] = Id,
-        ["kind"] = "lv2",
+        ["kind"] = Kind,
         ["plugin"] = Plugin,
         ["label"] = Label,
         ["bypass"] = _bypass,
         ["params"] = new Dictionary<string, double>(_params),
+        ["state"] = _state,
+        ["sidechains"] = new Dictionary<string, string>(_sidechains),
     };
+}
+
+public sealed record SidechainSourceChoice(string? Id, string Name, int Channels)
+{
+    public override string ToString() => Id is null ? Name : $"{Name} ({Channels} ch)";
+}
+
+/// <summary>One real auxiliary input bus and its selected stable signal source.</summary>
+public sealed class InsertSidechainViewModel : ViewModelBase
+{
+    private readonly InsertViewModel _insert;
+    private bool _applying;
+
+    public InsertSidechainViewModel(InsertViewModel insert, string busId, string name, int channels)
+    {
+        _insert = insert;
+        BusId = busId;
+        Name = name;
+        Channels = channels;
+    }
+
+    public string BusId { get; }
+    public string Name { get; }
+    public int Channels { get; }
+    public ObservableCollection<SidechainSourceChoice> Sources { get; } = [];
+
+    private SidechainSourceChoice? _selected;
+    public SidechainSourceChoice? Selected
+    {
+        get => _selected;
+        set
+        {
+            if (Set(ref _selected, value) && !_applying)
+                _insert.SetSidechain(BusId, value?.Id);
+        }
+    }
+
+    internal void UpdateChoices(IReadOnlyList<SidechainSourceChoice> sources, string? selectedId)
+    {
+        _applying = true;
+        try
+        {
+            Sources.Clear();
+            foreach (SidechainSourceChoice source in sources) Sources.Add(source);
+            Selected = Sources.FirstOrDefault(source => source.Id == selectedId) ?? Sources.FirstOrDefault();
+        }
+        finally { _applying = false; }
+    }
 }
 
 /// <summary>A titled run of controls in the controls window.</summary>

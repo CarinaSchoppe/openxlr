@@ -7,7 +7,7 @@
                                                                           │
               ┌───────────────────────────────────────────────────────────┼──────────────────┐
               │                                                           │                  │
-   libusb control transfers                                   amixer (ALSA controls)     lilv (in-process)
+   libusb control transfers                                   amixer (ALSA controls)     isolated scanner
    Wave XLR Pro, Wave XLR MK.2,                               XLR Dock: gain, mute,     LV2 plugin catalog
    XLR Dock MK.2, Wave XLR (MK.1),                            headphone volume
    XLR Dock: phantom, low impedance
@@ -36,6 +36,11 @@
   probe tool.
 
 ## The PipeWire graph
+
+The fork's newer scanner, VST3, preset, sidechain, routing-matrix and delay
+components are described in [parity-status.md](parity-status.md) and the
+[native host contract](../native/README.md). The LV2 catalog is now read in a
+child daemon process; third-party scan code is not loaded in the serving daemon.
 
 Everything is built with standard PipeWire modules and tools, no kernel
 modules or custom drivers:

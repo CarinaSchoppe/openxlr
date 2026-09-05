@@ -3,7 +3,7 @@
 Native Linux control suite for Elgato XLR interfaces: full hardware
 control over reverse-engineered USB protocols, a Wave Link style
 PipeWire submixer with per-application channels, virtual microphones,
-LV2 plugin inserts, multi-output monitoring, a dedicated mix for a
+LV2 and native Linux VST3 plugin inserts, multi-output monitoring, a dedicated mix for a
 second computer on the USB Aux port, and an OpenDeck plugin for Stream
 Deck control.
 
@@ -88,6 +88,15 @@ Collect diagnostics).
 
 The full feature list, area by area: [docs/features.md](docs/features.md).
 
+The current fork checkpoint adds a mix-to-output routing matrix, an isolated
+Linux VST3 host, a Plugin Manager with rescans and quarantine, reusable chain
+and plugin presets, VST3 state restoration, auxiliary-bus routing, and initial
+latency compensation. These additions are under active acceptance testing;
+see [the implementation status](docs/parity-status.md) for measured checks and
+remaining work. Sound Check, independent per-send FX stages, and click-free
+chain switching are still open. The Wave FX hardware USB insert remains
+unavailable until a device's actual send/return endpoints are verified.
+
 ### Development snapshots and remaining work
 
 The editable layouts, native LSP integration and recovery/update additions on
@@ -113,9 +122,10 @@ still expose the underlying routing stages. They are not duplicate user channels
 The concrete Wave Link comparison and roadmap are listed near the end of this
 README. Planned items are not claimed as implemented.
 
-Verification includes 147 automated .NET tests, 12 offline acceptance-driver
-tests, 7 OpenDeck plugin tests, real LSP editor/audio tests, installed-package runtime checks on
-Ubuntu/Fedora/Arch, and a CachyOS live service-recovery test. Reproduction
+Verification includes .NET, Python, and OpenDeck tests, private PipeWire DSP
+tests, and installed-package runtime checks. Counts and distribution results
+are tied to their recorded commit; previous successful runs do not certify
+new changes automatically. Reproduction
 commands, measured results and tested limitations are recorded in
 [docs/verification.md](docs/verification.md).
 
@@ -271,7 +281,7 @@ multiple apps per channel and unlimited monitor destinations. OpenXLR already
 covers the Linux equivalents with editable application channels, any number of
 virtual output mixes, per-send submixes, multi-output monitoring, LV2 inserts,
 profiles, Flow routing, OpenDeck control, and listening to any mix. Linux uses
-LV2 rather than Wave Link's VST3/AU plugin formats.
+LV2 and native Linux VST3; AU and Windows DLLs are not loaded directly.
 
 Highest-value remaining work, in priority order:
 
@@ -283,7 +293,8 @@ Highest-value remaining work, in priority order:
 3. **Faster routing workflows** — a compositor-neutral foreground-application
    shortcut and generated OpenDeck layouts for frequently changed routes.
 4. **Fuller plugin hosting** — LV2 worker/state/atom support, more native UI
-   toolkits, file-backed plugin state and reusable insert-chain presets.
+   toolkits, file-backed plugin assets, and broader VST3/yabridge acceptance.
+   Reusable plugin and chain presets are present in the fork checkpoint.
 5. **First-run and appearance polish** — guided setup, explicit light/dark
    themes, localization and per-channel hide/show without deleting a channel.
 6. **Smaller native PipeWire graph** — replace the remaining Pulse-compatible

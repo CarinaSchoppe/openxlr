@@ -10,7 +10,7 @@ help.
 | XLR Dock | `0fd9:00a6` | every control the hardware has, verified on hardware |
 | Wave XLR | `0fd9:007d` | core controls verified on hardware by community testers on two units (0.1.13) |
 | Wave XLR MK.2 | `0fd9:00b6` | every control verified on hardware by a community tester |
-| XLR Dock MK.2 | `0fd9:00c7` | MK.2 backend at the Pro's block bank; gain, mute, headphone volume and phantom power verified on hardware |
+| XLR Dock MK.2 | `0fd9:00c7` | MK.2 backend at the Pro's block bank; every control verified on hardware |
 
 ## Wave XLR Pro (0fd9:00b4)
 
@@ -107,11 +107,12 @@ every write showed up there and read back from the block. Blocks
 | Control | State | Notes |
 |---|---|---|
 | Gain, mute, low cut, expander, voice tune + strength | verified | Wave XLR MK.2: community tester, reads and writes. Dock: all of them on the author's unit |
-| Headphone volume, low impedance, crossfade | verified | Wave XLR MK.2: community tester. Dock: headphone volume and crossfade on the author's unit (the mic leaves the direct monitor at the PC end) |
+| Headphone volume, low impedance, crossfade | verified | Wave XLR MK.2: community tester. Dock: all three on the author's unit (the mic leaves the direct monitor at the PC end of the crossfade) |
 | Phantom 48V, ClipGuard, compressor | verified | at the Pro's bit positions; community tester, 0.1.12. Dock: phantom confirmed with a condenser mic going silent when switched off, ClipGuard and compressor by ear |
 
-On the dock only low impedance remains unchecked by ear; it sits in
-the byte the Wave XLR MK.2 tester confirmed and the write lands.
+Every control was confirmed on the dock on 2026-09-05, the DSP ones by
+ear through the monitor mix and phantom with a condenser microphone.
+Blocks 0x0002 and 0x0006 exist and are not decoded.
 
 ## Every device gets
 

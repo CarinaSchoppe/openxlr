@@ -125,9 +125,8 @@ plugin world, and it has to keep the audio path inside PipeWire.
 
 ## Devices
 
-- [ ] XLR Dock MK.2: low impedance still unchecked by ear (see
-  docs/hardware-support.md), and blocks 0x0002 and 0x0006, which are
-  not decoded.
+- [ ] XLR Dock MK.2: blocks 0x0002 and 0x0006, which exist and are not
+  decoded.
 - [ ] Pro: the remaining hardware mix matrix (which return feeds which
   jack, per-return levels), now that the headphone mix bytes are known
   (see the protocol notes, block 0x0001 bytes 12 and 13). Direct control

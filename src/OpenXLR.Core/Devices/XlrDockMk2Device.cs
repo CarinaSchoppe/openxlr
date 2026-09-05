@@ -9,9 +9,9 @@ namespace OpenXLR.Core.Devices;
 /// Pro's bank, and stalls the MK.2's 0x0203. No commit block: block 0x0003
 /// does not exist and writes take effect at once. Like the first XLR Dock it
 /// has no physical controls of its own; the Stream Deck+ dials drive it
-/// through software. Verified on hardware: gain, mute and headphone volume
-/// cross-checked against the kernel's ALSA mirror of the feature units,
-/// phantom power with a condenser microphone.
+/// through software. Every control verified on hardware: gain, mute and
+/// headphone volume cross-checked against the kernel's ALSA mirror of the
+/// feature units, phantom power with a condenser microphone, the rest by ear.
 /// </summary>
 public sealed class XlrDockMk2Device : WaveXlrMk2Device
 {

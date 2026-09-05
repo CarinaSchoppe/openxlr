@@ -206,7 +206,7 @@
     </Border>
 
     <TextBlock Text="{Binding DaemonRestart.Status}" Classes="h" TextWrapping="Wrap"
-               Margin="0,0,0,8"/>
+               Margin="0,0,0,8" IsVisible="{Binding DaemonRestart.Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
 
     <!-- a daemon left running across an upgrade offers the old version's controls -->
     <Border Classes="card" Margin="0,0,0,8" IsVisible="{Binding DaemonVersionMismatch}">

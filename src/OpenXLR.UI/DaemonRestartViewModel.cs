@@ -19,6 +19,15 @@ public sealed class DaemonRestartViewModel : ViewModelBase
     public string? Status { get => _status; private set => Set(ref _status, value); }
 
     /// <summary>
+    /// The daemon connection came back after a restart: the "waiting for
+    /// the daemon connection" line has served its purpose and goes away.
+    /// </summary>
+    public void ConnectionRestored()
+    {
+        if (!_busy) Status = null;
+    }
+
+    /// <summary>
     /// Run systemctl off the UI thread. Only one restart runs at a time, and a
     /// failed request leaves the buttons usable for another attempt.
     /// </summary>

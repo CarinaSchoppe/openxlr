@@ -26,6 +26,16 @@ public sealed class DaemonRestartTests
         Assert.Equal(2, changes.Count(name => name == nameof(model.CanRestart)));
     }
 
+    [Fact]
+    public async Task ReconnectClearsTheWaitingLine()
+    {
+        var model = new DaemonRestartViewModel(() => Task.FromResult(true));
+        await model.RestartAsync();
+        Assert.Contains("Waiting for the daemon connection", model.Status);
+        model.ConnectionRestored();
+        Assert.Null(model.Status);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

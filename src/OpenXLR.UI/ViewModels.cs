@@ -46,6 +46,7 @@ public sealed class MainViewModel : ViewModelBase
         _client.ConnectionChanged += up => Dispatcher.UIThread.Post(() =>
         {
             DaemonConnected = up;
+            if (up) DaemonRestart.ConnectionRestored();
             if (!up)
             {
                 DeviceConnected = false; Status = "daemon not running";

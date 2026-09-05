@@ -18,14 +18,24 @@ public sealed class UpdateChecker
 {
     private const string ReleasesEndpoint = "https://api.github.com/repos/emaspa/openxlr/releases/latest";
     private readonly HttpClient _http;
+    private readonly TimeSpan _timeout;
     private static readonly HttpClient SharedHttp = new(new HttpClientHandler { AllowAutoRedirect = false })
     { Timeout = TimeSpan.FromSeconds(8) };
 
     public UpdateChecker() : this(SharedHttp) { }
-    internal UpdateChecker(HttpClient http) => _http = http;
+    internal UpdateChecker(HttpClient http, TimeSpan? timeout = null)
+    {
+        _http = http;
+        _timeout = timeout ?? TimeSpan.FromSeconds(8);
+    }
 
     public async Task<UpdateResult> CheckAsync(string installedVersion, CancellationToken cancellation = default)
     {
+        // ResponseHeadersRead ends HttpClient's timeout at the headers. Keep
+        // one deadline over the body too, including a server that stops sending.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        deadline.CancelAfter(_timeout);
+        cancellation = deadline.Token;
         using var request = new HttpRequestMessage(HttpMethod.Get, ReleasesEndpoint);
         request.Headers.UserAgent.ParseAdd("OpenXLR-UpdateCheck/1.0");
         request.Headers.Accept.ParseAdd("application/vnd.github+json");

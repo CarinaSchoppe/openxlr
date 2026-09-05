@@ -63,6 +63,41 @@ public sealed class UpdateCheckerTests
     }
 
     [Fact]
+    public async Task DeadlineCancelsAStalledBodyAfterHeadersArrive()
+    {
+        using var stream = new StalledStream();
+        using var handler = new StreamHandler(stream);
+        using var http = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+        var checker = new UpdateChecker(http, TimeSpan.FromMilliseconds(100));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => checker.CheckAsync("0.1.20").WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.True(stream.ReadStarted);
+    }
+
+    private sealed class StreamHandler(Stream stream) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(stream),
+            });
+    }
+
+    private sealed class StalledStream : MemoryStream
+    {
+        public bool ReadStarted { get; private set; }
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            ReadStarted = true;
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+    }
+
+    [Fact]
     public void AutomaticChecksAreOptInAndDaily()
     {
         var now = new DateTimeOffset(2026, 9, 5, 8, 0, 0, TimeSpan.Zero);

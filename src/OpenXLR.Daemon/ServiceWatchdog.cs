@@ -39,18 +39,27 @@ internal sealed class ServiceWatchdog(
         TimeSpan period = interval / 3 ?? TimeSpan.FromSeconds(20);
         TimeSpan freshness = interval / 2 ?? TimeSpan.FromSeconds(30);
         using var timer = new PeriodicTimer(period);
+        // Hosted services start before the host fires ApplicationStarted. Keep
+        // readiness on that event path instead of waiting for the next watchdog
+        // tick (20 seconds with the packaged 60-second watchdog).
+        Task<bool> readyNotification = NotifyWhenStartedAsync(
+            lifetime.ApplicationStarted, address, stop);
         bool ready = false, stalled = false;
         try
         {
             do
             {
                 bool healthy = devices.Progress.IsRecent(freshness) && mixer.IsResponsive(freshness);
-                if (lifetime.ApplicationStarted.IsCancellationRequested)
+                if (readyNotification.IsCompleted)
                 {
                     if (!ready)
                     {
-                        ready = await NotifyAsync(address, "READY=1", stop);
-                        if (!ready) log.LogWarning("Could not report readiness to systemd");
+                        ready = await readyNotification;
+                        if (!ready)
+                        {
+                            log.LogWarning("Could not report readiness to systemd");
+                            readyNotification = NotifyAsync(address, "READY=1", stop);
+                        }
                     }
                     if (interval is null && ready) return;
                     if (healthy && interval is not null
@@ -72,6 +81,16 @@ internal sealed class ServiceWatchdog(
             } while (await timer.WaitForNextTickAsync(stop));
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+    }
+
+    internal static async Task<bool> NotifyWhenStartedAsync(
+        CancellationToken applicationStarted, string address, CancellationToken stop)
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = applicationStarted.Register(
+            static state => ((TaskCompletionSource)state!).TrySetResult(), started);
+        await started.Task.WaitAsync(stop);
+        return await NotifyAsync(address, "READY=1", stop);
     }
 
     internal static async Task<bool> NotifyAsync(string address, string message, CancellationToken stop)

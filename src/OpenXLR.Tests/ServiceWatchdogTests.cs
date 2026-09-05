@@ -79,6 +79,31 @@ public sealed class ServiceWatchdogTests
     }
 
     [Fact]
+    public async Task ReadinessIsSentWhenApplicationStartedFires()
+    {
+        string directory = Directory.CreateTempSubdirectory("ow-").FullName;
+        string address = Path.Combine(directory, "notify");
+        try
+        {
+            using var listener = new Socket(AddressFamily.Unix, SocketType.Dgram, ProtocolType.Unspecified);
+            listener.Bind(new UnixDomainSocketEndPoint(address));
+            using var applicationStarted = new CancellationTokenSource();
+            using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+            Task<bool> notification = ServiceWatchdog.NotifyWhenStartedAsync(
+                applicationStarted.Token, address, stop.Token);
+            Assert.False(notification.IsCompleted);
+
+            applicationStarted.Cancel();
+            Assert.True(await notification);
+            byte[] buffer = new byte[128];
+            int received = await listener.ReceiveAsync(buffer, SocketFlags.None, stop.Token);
+            Assert.Equal("READY=1", Encoding.UTF8.GetString(buffer, 0, received));
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    [Fact]
     public async Task MissingNotifySocketDoesNotThrowOrHang()
     {
         string address = Path.Combine(Path.GetTempPath(), "ow-missing-" + Guid.NewGuid().ToString("N"));

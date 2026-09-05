@@ -16,9 +16,9 @@ Wave XLR Pro:
 - Physical output routing: Headphones 1, Headphones 2, Line Out and USB
   Aux are each switched in the device's hardware mixer
 
-Wave XLR MK.2 (from captures, not run on hardware): gain, mute, low cut,
-expander, voice tune with strength, headphone volume, low impedance,
-crossfade.
+Wave XLR MK.2 and XLR Dock MK.2: gain, mute, phantom power, low cut,
+expander, voice tune with strength, ClipGuard, compressor, headphone
+volume, low impedance, crossfade.
 
 Wave XLR: gain, mute, headphone volume, low impedance, phantom power.
 

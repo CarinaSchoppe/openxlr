@@ -33,7 +33,6 @@ public class WaveXlrMk2Device : IAudioDevice
     private const byte RtRead = 0xC1;
     private const byte RtWrite = 0x41;
     private const byte VReq = 0x01;
-    private const ushort VIndex = 0x0203;
 
     private const ushort BlockCrossfade = 0x0001;
     private const ushort BlockSettings = 0x0004;
@@ -57,16 +56,26 @@ public class WaveXlrMk2Device : IAudioDevice
     private IntPtr _handle = IntPtr.Zero;
     private readonly object _lock = new();
 
+    /// <summary>
+    /// wIndex of every vendor transfer: the low byte is the vendor interface
+    /// (3 on both), the high byte selects the block bank the firmware exposes
+    /// there, 0x02 on the Wave XLR MK.2 and 0x01 on the XLR Dock MK.2 (which
+    /// stalls 0x0203 and answers 0x0103 like the Pro).
+    /// </summary>
+    private readonly ushort _vIndex;
+
     public DeviceInfo Info { get; }
 
     public DeviceCapabilities Capabilities { get; }
 
-    public WaveXlrMk2Device() : this(ProductId, "Wave XLR MK.2", physicalControls: true) { }
+    public WaveXlrMk2Device() : this(ProductId, "Wave XLR MK.2", physicalControls: true, vIndex: 0x0203) { }
 
     /// <param name="model">Must match the device's iProduct string minus the
     /// vendor, since the daemon derives the PipeWire node-name hint from it.</param>
-    protected WaveXlrMk2Device(ushort productId, string model, bool physicalControls)
+    /// <param name="vIndex">wIndex of the vendor transfers, see <see cref="_vIndex"/>.</param>
+    protected WaveXlrMk2Device(ushort productId, string model, bool physicalControls, ushort vIndex)
     {
+        _vIndex = vIndex;
         Info = new DeviceInfo("Elgato", model, VendorId, productId);
         Capabilities = new DeviceCapabilities
         {
@@ -115,8 +124,22 @@ public class WaveXlrMk2Device : IAudioDevice
     /// </summary>
     private int Transfer(byte requestType, byte request, ushort value, byte[] data, int length)
     {
-        try { return LibUsb.ControlTransfer(_handle, requestType, request, value, VIndex, data, (ushort)length, 1000); }
+        try { return LibUsb.ControlTransfer(_handle, requestType, request, value, _vIndex, data, (ushort)length, 1000); }
         catch (UsbHungException) { _handle = IntPtr.Zero; throw; }
+    }
+
+    // libusb's LIBUSB_ERROR_IO. The XLR Dock MK.2 returns it on roughly one
+    // block read in several hundred while its audio interface is streaming
+    // (measured on hardware, never when idle); the next transfer succeeds,
+    // so one immediate retry keeps the daemon from dropping and reopening
+    // the device every half minute.
+    private const int ErrorIo = -1;
+
+    private int TransferWithRetry(byte requestType, byte request, ushort value, byte[] data, int length)
+    {
+        int n = Transfer(requestType, request, value, data, length);
+        if (n == ErrorIo) n = Transfer(requestType, request, value, data, length);
+        return n;
     }
 
     private byte[] Read(ushort block, int length)
@@ -124,12 +147,12 @@ public class WaveXlrMk2Device : IAudioDevice
         var buf = new byte[length];
         lock (_lock)
         {
-            int n = Transfer(RtRead, VReq, block, buf, length);
+            int n = TransferWithRetry(RtRead, VReq, block, buf, length);
             if (n < 0) throw new InvalidOperationException($"read block {block:x4}: {LibUsb.StrError(n)}");
-            // The block lengths come from a Wave Link capture and this family
-            // (Wave XLR MK.2, XLR Dock MK.2) has not been run on hardware, so a
-            // short read is tolerated: ReadState only indexes the low offsets,
-            // and DumpBlocks shows the real length in diagnostics.
+            // The block lengths come from a Wave Link capture; a short read is
+            // tolerated so a firmware that answers less still gets decoded
+            // (ReadState only indexes the low offsets) and DumpBlocks shows
+            // the real length in diagnostics.
             if (n != length) Array.Resize(ref buf, n);
         }
         return buf;
@@ -139,7 +162,7 @@ public class WaveXlrMk2Device : IAudioDevice
     {
         lock (_lock)
         {
-            int n = Transfer(RtWrite, VReq, block, data, data.Length);
+            int n = TransferWithRetry(RtWrite, VReq, block, data, data.Length);
             if (n < 0) throw new InvalidOperationException($"write block {block:x4}: {LibUsb.StrError(n)}");
             if (n != data.Length)
                 throw new InvalidOperationException($"write block {block:x4}: accepted {n} bytes, expected {data.Length}");

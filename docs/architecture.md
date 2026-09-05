@@ -85,7 +85,8 @@ the kernel's audio driver:
 
 - Wave XLR Pro, Wave XLR MK.2 and XLR Dock MK.2: a vendor block bank
   on the unclaimed interface (`bmRequestType 0x41/0xC1`, `bRequest 1`,
-  `wIndex 0x0103` on the Pro, `0x0203` on the MK.2 family). Fixed-size
+  `wIndex 0x0103` on the Pro and the XLR Dock MK.2, `0x0203` on the
+  Wave XLR MK.2). Fixed-size
   blocks hold gain, packed flag bits, and on the Pro the hardware mix
   matrix; a write reads the block, modifies it, writes it back, and on
   the Pro follows with a commit block. Offsets and how they were found:

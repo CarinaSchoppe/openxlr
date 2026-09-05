@@ -26,7 +26,7 @@ the author's own hardware.
 | XLR Dock (Stream Deck+ module) | 0fd9:00a6 | gain, mute, headphone volume, 48V phantom power, low impedance; verified on hardware |
 | Wave XLR | 0fd9:007d | gain, mute, headphone volume, low impedance, 48V phantom power; verified on hardware by community testers |
 | Wave XLR MK.2 | 0fd9:00b6 | gain, mute, phantom power, DSP, ClipGuard, compressor, headphone volume, crossfade; verified on hardware by a community tester |
-| XLR Dock MK.2 (Stream Deck+ module) | 0fd9:00c7 | registered on the MK.2 backend (its USB descriptor matches the MK.2's); needs a tester |
+| XLR Dock MK.2 (Stream Deck+ module) | 0fd9:00c7 | same controls as the Wave XLR MK.2; gain, mute and headphone volume verified on hardware |
 
 The UI shows only the controls the connected device has, and a picker
 in the header switches between several attached interfaces. The
@@ -237,9 +237,9 @@ Prior work OpenXLR builds on:
 ## Status
 
 Developed and used daily by the author with a Wave XLR Pro, an XLR
-Dock and a Stream Deck + XL. The Wave XLR and Wave XLR MK.2 backends
-were verified on hardware by community testers; the XLR Dock MK.2 still
-needs one. See the device table for how to help.
+Dock, an XLR Dock MK.2 and a Stream Deck + XL. The Wave XLR and Wave
+XLR MK.2 backends were verified on hardware by community testers. See
+the device table and docs/hardware-support.md for what is still open.
 
 The majority of the code was produced by the author, with AI tooling
 (Anthropic's Claude) assisting with protocol capture analysis, UI design

@@ -10,7 +10,7 @@ help.
 | XLR Dock | `0fd9:00a6` | every control the hardware has, verified on hardware |
 | Wave XLR | `0fd9:007d` | core controls verified on hardware by community testers on two units (0.1.13) |
 | Wave XLR MK.2 | `0fd9:00b6` | every control verified on hardware by a community tester |
-| XLR Dock MK.2 | `0fd9:00c7` | registered on the MK.2 backend, not run on hardware |
+| XLR Dock MK.2 | `0fd9:00c7` | MK.2 backend at the Pro's block bank; gain, mute and headphone volume verified on hardware |
 
 ## Wave XLR Pro (0fd9:00b4)
 
@@ -74,7 +74,7 @@ but the daemon's stream sweep starving its own clients; fixed in
 | Phantom 48V | coded | config byte 6, found by [openwave PR #8](https://github.com/rikkichy/openwave/pull/8) against the MK.1's own 48V LED; the same byte is verified on the XLR Dock. Added after the tester's run, so an LED check on a MK.1 is still open |
 | Low cut, voice DSP, crossfade | unmapped | the hardware has them; their offsets are unknown. A [USB capture](usb-capture.md) from an owner would map them |
 
-## Wave XLR MK.2 (0fd9:00b6), verified; XLR Dock MK.2 (0fd9:00c7), needs a tester
+## Wave XLR MK.2 (0fd9:00b6) and XLR Dock MK.2 (0fd9:00c7), verified
 
 Decoded from USB captures of Wave Link, using the Pro's protocol family
 at its own address. On 2026-09-02 a community tester
@@ -93,15 +93,27 @@ platform (80 dB gain, phantom, ClipGuard 2.0, onboard expander, voice
 tune, compressor, EQ). Its `lsusb -v` dump
 ([issue #1](https://github.com/emaspa/openxlr/issues/1)) shows the same
 five interfaces as the Wave XLR MK.2, including the vendor-specific
-interface 3 without endpoints that carries the control protocol, so it
-is registered on the MK.2 backend at its own id. Both devices are
-awaiting a first run on hardware.
+interface 3 that carries the control protocol. Run against one on
+2026-09-05: the blocks have the MK.2 layout (0x0004 input settings,
+38 bytes; 0x0005 headphones, 2 bytes; 0x0001 crossfade, 6 bytes) but
+the firmware serves them at `wIndex 0x0103`, the Pro's bank, and stalls
+the MK.2's `0x0203`; the backend uses 0x0103 for the dock since 0.1.20.
+There is no commit block (0x0003 stalls) and writes take effect at
+once. Gain, mute and headphone volume were cross-checked against the
+kernel's ALSA controls for the card, which mirror the feature units:
+every write showed up there and read back from the block. Blocks
+0x0002 and 0x0006 exist too and are not decoded yet.
 
 | Control | State | Notes |
 |---|---|---|
-| Gain, mute, low cut, expander, voice tune + strength | verified | community tester, reads and writes |
-| Headphone volume, low impedance, crossfade | verified | community tester |
+| Gain, mute, low cut, expander, voice tune + strength | verified | Wave XLR MK.2: community tester, reads and writes. Dock: gain and mute on the author's unit |
+| Headphone volume, low impedance, crossfade | verified | Wave XLR MK.2: community tester. Dock: headphone volume on the author's unit |
 | Phantom 48V, ClipGuard, compressor | verified | at the Pro's bit positions; community tester, 0.1.12 |
+
+On the dock the remaining flags (low cut, expander, voice tune, phantom,
+ClipGuard, compressor, low impedance, crossfade) sit in the same bytes
+the Wave XLR MK.2 tester confirmed and are exposed, but have not yet
+been checked by ear or against an LED.
 
 ## Every device gets
 
@@ -116,16 +128,15 @@ awaiting a first run on hardware.
 - OpenDeck plugin: every switch, mute, and level on a Stream Deck, with
   live state
 
-## Own an MK.2? Help confirm it
+## Help confirm a control
 
-The Wave XLR MK.2 (0fd9:00b6) and XLR Dock MK.2 (0fd9:00c7) backends
-are complete and waiting for a first run on real hardware. Testing
-takes a few minutes:
+Anything marked "coded" above, or the dock's DSP flags, can be
+confirmed in a few minutes:
 
 1. Install OpenXLR per the [README](../README.md), including the udev
    rule.
-2. Try gain, mute, and headphone volume against what the device itself
-   shows.
+2. Toggle the control and check the effect on the device itself: an
+   LED, the sound in the headphones, a condenser mic on the XLR.
 3. In the app: Options, then SUPPORT, then Collect diagnostics.
 4. Open an [issue](https://github.com/emaspa/openxlr/issues) with the
    archive and what you observed.

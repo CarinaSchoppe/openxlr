@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.19
+Version:        0.1.20
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -133,6 +133,21 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Sat Sep 05 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.20-1
+- XLR Dock MK.2 verified on hardware: its vendor blocks live at the Pro's
+  wIndex 0x0103 (the backend now takes the wIndex per model), every
+  control confirmed, and one retry on the transient USB I/O error the dock
+  returns while its audio interface streams, so the daemon no longer drops
+  and reopens it.
+- Profiles: an On connect picker marks one profile per device that the
+  daemon recalls whenever the device connects fresh (daemon start, a
+  replug or power cycle, a switch to it); the reconnect after a passing
+  USB error does not count. New setRecallOnConnect command and
+  recallOnConnect state field. With the submixer off a profile load
+  applies the hardware half instead of failing.
+- Docs: hardware support, README, roadmap, manual, features and API
+  updated for both.
+
 * Sat Sep 05 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.19-1
 - Contributed fixes (Carina Schoppe, PRs #12 to #17): a stream's move is
   verified on the published sink before it is cached; consecutive

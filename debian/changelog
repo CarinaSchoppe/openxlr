@@ -1,3 +1,21 @@
+openxlr (0.1.20) resolute; urgency=medium
+
+  * XLR Dock MK.2 verified on hardware: its vendor blocks live at the Pro's
+    wIndex 0x0103 (the backend now takes the wIndex per model), every
+    control confirmed, and one retry on the transient USB I/O error the dock
+    returns while its audio interface streams, so the daemon no longer drops
+    and reopens it.
+  * Profiles: an On connect picker marks one profile per device that the
+    daemon recalls whenever the device connects fresh (daemon start, a
+    replug or power cycle, a switch to it); the reconnect after a passing
+    USB error does not count. New setRecallOnConnect command and
+    recallOnConnect state field. With the submixer off a profile load
+    applies the hardware half instead of failing.
+  * Docs: hardware support, README, roadmap, manual, features and API
+    updated for both.
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Sat, 05 Sep 2026 06:03:14 +0100
+
 openxlr (0.1.19) resolute; urgency=medium
 
   * Contributed fixes (Carina Schoppe, PRs #12 to #17): a stream's move is

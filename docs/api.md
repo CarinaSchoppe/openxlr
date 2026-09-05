@@ -44,6 +44,7 @@ Commands are single JSON objects with a `cmd` field:
 | `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is `xlr1`, `xlr2` or `mix:<id>`, each insert is `{id, kind:"lv2", plugin:<uri>, label?, bypass?, params?}` |
 | `setInsertBypass` | `channel`, `insertId`, `value` | bypass one insert |
 | `setInsertParam` | `channel`, `insertId`, `symbol`, `value` | one plugin control, by its LV2 port symbol |
+| `showInsertUi` | `channel`, `insertId` | open an enabled insert's native editor when the optional host is installed |
 | `assignApp` | `identity`, `channel`, `label?` | route an app (creates a registry entry if unseen) |
 | `assignStream` | `streamId`, `channel` | route one live stream by its PipeWire id; also remembered for the app |
 | `forgetApp` | `identity` | drop an app and its remembered channel |

@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.18
+Version:        0.1.19
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -133,6 +133,18 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Sat Sep 05 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.19-1
+- Contributed fixes (Carina Schoppe, PRs #12 to #17): a stream's move is
+  verified on the published sink before it is cached; consecutive
+  pw-dump batches are folded by registry id; the window's daemon client
+  is hardened (idempotent start and disposal, bounded connect and send,
+  keepalive, shared catalog replies, 8 MiB message cap); state
+  broadcasts are coalesced outside device callbacks; a Restart daemon
+  button in the header runs off the UI thread; api.md names the command
+  field correctly.
+- The restart status line clears when the connection comes back.
+- Docs revised for 0.1.14 to 0.1.18.
+
 * Fri Sep 04 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.18-1
 - Control API: commands are validated before they reach the mixer.
   Unknown channel or mix ids, uninstalled or unsupported plugins,

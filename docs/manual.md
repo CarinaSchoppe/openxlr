@@ -217,6 +217,10 @@ Options, STARTUP:
   minimized to tray" starts with no window at all; the tray icon shows
   it the first time you click it.
 
+To land on a known scene at every login, or after the interface
+powers up with its own defaults, mark a profile to recall on connect
+(section 3.6).
+
 The window also remembers which of its sections (INPUTS, HEADPHONES,
 MONITOR, APPLICATIONS, SUBMIXER) you collapsed with the chevron in
 their header, across restarts.
@@ -356,6 +360,7 @@ it to a public issue. Nothing is uploaded automatically.
 |---|---|
 | `~/.config/openxlr/mixer.json` | every mixer decision, written by the daemon |
 | `~/.config/openxlr/profiles/<vid-pid>/<name>.json` | saved profiles, one file each |
+| `~/.config/openxlr/profiles/<vid-pid>/recall-on-connect` | the profile recalled when that interface connects, when one is chosen |
 | `~/.config/openxlr/daemon.json` | the submixer on/off preference |
 | `~/.config/openxlr/gainlock.json` | which devices have the gain lock set |
 | `~/.config/openxlr/ui.json` | window preferences |

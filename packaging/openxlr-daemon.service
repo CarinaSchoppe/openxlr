@@ -23,6 +23,16 @@ ProtectControlGroups=true
 ProtectKernelTunables=true
 RestrictSUIDSGID=true
 UMask=0077
+# Verified on hardware with the device, the submix graph and both clients:
+# none of these touches USB, PipeWire or the .NET runtime.
+KeyringMode=private
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+LockPersonality=true
+RestrictNamespaces=true
+CapabilityBoundingSet=
 
 [Install]
 WantedBy=default.target

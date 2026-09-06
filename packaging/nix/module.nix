@@ -81,6 +81,14 @@ in
         ProtectKernelTunables = true;
         RestrictSUIDSGID = true;
         UMask = "0077";
+        KeyringMode = "private";
+        ProtectClock = true;
+        ProtectHostname = true;
+        ProtectKernelLogs = true;
+        ProtectKernelModules = true;
+        LockPersonality = true;
+        RestrictNamespaces = true;
+        CapabilityBoundingSet = "";
       };
     };
   };

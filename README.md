@@ -58,12 +58,14 @@ Collect diagnostics).
   gain lock in the PipeWire layer instead.
 - **Submixer** built from PipeWire nodes (null sinks, remap sources,
   filter chains), no kernel modules. Channels for the hardware inputs
-  and for application groups (Game, Music, Browser, System, Voice Chat,
-  SFX); five mixes: Monitor A and Monitor B (what you hear, each output
-  choosing which of the two it follows), Stream and Chat (published as
-  virtual microphones) and Aux (sent to the USB Aux port); per-send
-  levels and mutes, level meters, the monitor mixes on several outputs
-  at once.
+  and for application groups; mixes for what you hear (Monitor A and
+  Monitor B, each output choosing which of the two it follows), for
+  virtual microphones other apps record from, and for the USB Aux port.
+  The default layout is Game, Music, Browser, System, Voice Chat and
+  SFX with Stream and Chat microphones; channels and microphones can be
+  added, renamed, reordered and removed while audio plays, from the
+  window or the API. Per-send levels and mutes, level meters, the
+  monitor mixes on several outputs at once.
 - **Inserts**: LV2 plugin chains on each XLR input and each mix, with a
   plugin picker, generated control windows and bypass LEDs.
 - **Application routing**: audio clients are detected from their
@@ -84,9 +86,9 @@ Collect diagnostics).
   on the hardware.
 - **Daemon and UI**: the daemon owns the device and the graph, keeps
   running with the window closed, re-asserts the chosen default sink
-  and source once a second, and serves a WebSocket API on
-  127.0.0.1:37890. The UI has a routing graph view, a tray icon and a
-  diagnostics archive exporter.
+  and source once a second, and serves a WebSocket API and a versioned
+  HTTP API (`/api/v1`) on 127.0.0.1:37890. The UI has a routing graph
+  view, a tray icon and a diagnostics archive exporter.
 - **Optional update notice**: the UI can check the upstream GitHub release
   feed for a newer stable release. Startup checks are off by default and,
   when enabled, run at most once per day. Nothing is installed automatically.
@@ -172,7 +174,11 @@ install-from-file, or copy the folder the package puts in
 `/usr/share/openxlr/` into `~/.config/opendeck/plugins/`. Inserts show
 whatever LV2 plugins are installed (`lsp-plugins-lv2` is the set used
 during development); the software ClipGuard for the XLR Dock needs
-`swh-plugins`. The NixOS module wires both up itself.
+`swh-plugins`. The NixOS module wires both up itself. The packages also
+raise pipewire-pulse's open-file limit with a systemd drop-in, which
+applies at the next login or after `systemctl --user restart
+pipewire-pulse`; a source install needs the same file before growing the
+layout ([manual, section 5.8](docs/manual.md#open-files)).
 
 ### Build from source
 
@@ -206,7 +212,10 @@ user service, updating and uninstalling:
   by distribution, device access, the user service, updating,
   uninstall, environment variables
 - [WebSocket API](docs/api.md): the daemon's command set and the files
-  under `~/.config/openxlr`
+  under `~/.config/openxlr`; [HTTP API](docs/http-api.md) for the same
+  commands over plain HTTP
+- [Saved mixer layout](docs/mixer-layout.md): the layout file and the
+  live layout commands
 - [Architecture](docs/architecture.md): daemon, UI and plugin, the
   PipeWire graph, the device protocols, repository layout
 - [Hardware support](docs/hardware-support.md): per-control status of

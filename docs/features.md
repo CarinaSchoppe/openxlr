@@ -66,15 +66,17 @@ does not reach the speakers until unmuted.
 Built from PipeWire nodes, no kernel modules or custom drivers:
 - Channels for the hardware inputs (XLR 1, XLR 2, Aux In) and for
   application groups (Game, Music, Browser, System, Voice Chat, SFX)
-- Five mixes: Monitor A (what you hear), Monitor B (a second selection
-  for outputs that should hear something else),
-  Stream and Chat (published as the capture devices `OpenXLR Stream` and
-  `OpenXLR Chat`, selectable in OBS or Discord like a microphone), and
-  Aux (what a second computer on the USB Aux port receives)
+- Mixes: Monitor A (what you hear), Monitor B (a second selection for
+  outputs that should hear something else), the virtual microphones
+  (Stream and Chat by default, published as capture devices selectable
+  in OBS or Discord like a microphone), and Aux (what a second computer
+  on the USB Aux port receives)
 - Per-channel, per-mix send levels and mutes; per-mix masters
-- An editable layout: add, rename, reorder and remove application
-  channels and virtual microphones while audio plays, from the window or
-  the API, with stable ids so profiles and Stream Deck keys survive
+- An editable layout: Edit layout in the SUBMIXER card adds, renames,
+  reorders and removes application channels and virtual microphones
+  while audio plays, as does the API, with stable ids so profiles and
+  Stream Deck keys survive a rename. Every change is saved before it is
+  confirmed
 - The monitor mixes can play on several outputs at once, hardware
   outputs included; each output picks which monitor mix feeds it, or
   both summed (Monitor A+B), so a headset with a game sink and a chat
@@ -83,8 +85,9 @@ Built from PipeWire nodes, no kernel modules or custom drivers:
 - Level meters throughout, dB-scaled, pushed at 15 Hz
 
 Each channel is a combine sink with one internal stream per mix; that
-stream's volume is the send fader. The 9 by 5 matrix is 14 sinks and no
-loopback processes. Details in [architecture.md](architecture.md).
+stream's volume is the send fader. The default layout's 9 by 5 matrix
+is 14 sinks and no loopback processes, and mixes come and go without
+touching the channel nodes. Details in [architecture.md](architecture.md).
 
 On the Wave XLR Pro the headphone jacks are fed by a mix inside the
 device. Whenever a Pro jack is a monitor output the daemon makes sure
@@ -102,7 +105,7 @@ devices; the hardware input channels are hidden from it.
 ## Inserts
 
 LV2 plugins in the signal path. Each XLR input carries a mono chain and
-each mix (Monitor, Stream, Chat, Aux) a stereo one. An Inserts row
+every mix a stereo one, the ones you add included. An Inserts row
 under the channel or mix lists what is loaded: a green or red LED for
 active or bypassed, a bypass button, and a gear that opens the plugin's
 controls in their own window. The picker shows every installed LV2
@@ -145,7 +148,7 @@ restores the split profile when it stops.
   Discord
 - A Manage dialog shows the full registry, and an installed-application
   picker pre-assigns channels from `.desktop` entries
-- An app can be marked "ignore": the mixer hands its streams back to
+- An app can be set to "Not managed": the mixer hands its streams back to
   the system default output and never touches them again, so a headset
   with separate game and chat sinks keeps its own routing for that app
 
@@ -221,7 +224,11 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 - The control API validates every command before the mixer sees it and
   answers with an error instead of ignoring it; clients are rate-limited
   and browser pages from other origins are refused; see
-  [api.md](api.md)
+  [api.md](api.md). The same commands are served over HTTP at `/api/v1`
+  with an OpenAPI document ([http-api.md](http-api.md))
+- The daemon rebuilds its graph after a pipewire-pulse restart, and
+  refuses to grow the layout when pipewire-pulse has no open-file
+  headroom left; the packages raise that limit with a systemd drop-in
 - Tray icon, start-minimized option, daemon and window autostart from
   Options
 - Diagnostics archive: one action collects app and device state, a

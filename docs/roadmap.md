@@ -3,7 +3,8 @@
 What OpenXLR is heading towards, in the order the maintainer intends to
 take it, and the rules a change has to meet to land. Items move here
 from issues and pull requests once they are agreed; a checked item is
-released, not merely written.
+merged on main and verified on hardware, and the release notes say when
+it shipped.
 
 The goal has not changed since the first release: native Linux control
 of the Elgato XLR interfaces, a Wave Link style submixer on plain
@@ -16,9 +17,12 @@ feature that is measured over one that is described.
 
 - [x] Wave XLR Pro, XLR Dock (MK.1 and MK.2 modules), Wave XLR, Wave XLR
   MK.2: hardware controls, verified by owners of each device.
-- [x] Submixer: hardware and application channels, five mixes (Monitor A,
-  Monitor B, Stream, Chat, Aux), virtual microphones, monitoring on
-  several outputs with each output choosing which monitor mix feeds it,
+- [x] Submixer: hardware and application channels, the monitor mixes
+  (Monitor A, Monitor B), virtual microphones (Stream and Chat by
+  default) and Aux; an editable layout (channels and microphones added,
+  renamed, reordered and removed live from the window's layout editor
+  or the API, every change saved before it is acknowledged); monitoring
+  on several outputs with each output choosing which monitor mix feeds it,
   the USB Aux port as a second computer's feed, live meters, profiles,
   one profile per device recalled on connect, interfaces without
   settings memory restored to their last settings on connect with a
@@ -33,7 +37,9 @@ feature that is measured over one that is described.
   keys, insert keys and dials, monitor feed keys.
 - [x] Packages: AUR, Debian/Ubuntu, Fedora, NixOS flake and module.
 - [x] Daemon recovery basics: fast shutdown, busy-port wait, self-healing
-  input feeds, UCM coexistence on the Pro.
+  input feeds, UCM coexistence on the Pro, a rebuild after a
+  pipewire-pulse restart, and a refusal to grow the layout past
+  pipewire-pulse's open-file headroom (the packages raise that limit).
 - [x] Control API hygiene: commands validated before the mixer, per-client
   command budget, connection cap, foreign browser origins refused.
 - [x] Daemon memory: workstation GC under a hard limit, one graph dump
@@ -42,12 +48,11 @@ feature that is measured over one that is described.
 
 ## Next: mixer layout and customization
 
-The submixer's shape is fixed today (nine channels, five mixes). Making it
-the user's own is the next block of work, and it is also where the UI
-work lives. This block comes before anything in the plugins section:
-the routing model and the daemon's service behaviour both changed in
-0.1.21 and the release after it, and they get to settle in users' hands
-first.
+The submixer's shape is the user's own since the editable layout landed;
+what remains in this block is how the mixer presents itself. It still
+comes before anything in the plugins section: the routing model, the
+layout editing and the daemon's service behaviour all changed within a
+few releases, and they get to settle in users' hands first.
 
 - [x] Editable application channels and virtual-microphone mixes: add,
   rename, delete, reorder, with stable ids separate from display names so

@@ -39,7 +39,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 
 | Type | When | Content |
 |---|---|---|
-| `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes), `recallOnConnect` (the profile recalled when the device connects, or null), `warning` (one sentence the user should see, or null: mixer settings that cannot be written to disk, which the daemon keeps retrying with backoff, or a device set aside after three hung USB transfers in one run) |
+| `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes), `recallOnConnect` (the profile recalled when the device connects, or null), `warning` (one sentence the user should see, or null: mixer settings that cannot be written to disk, which the daemon keeps retrying with backoff, or a device set aside after three hung USB transfers in one run). In the mixer state, each channel carries `hardware` (true for the fixed input channels), `renamedSinceStart` says a virtual microphone was renamed since the daemon started (its PipeWire device keeps the old name until a restart), and `layoutWarning` is a sentence for the layout editor when pipewire-pulse nears its open-file limit, or null |
 | `meters` | 15 Hz while the mixer is built | live stereo levels per channel and mix |
 | `plugins` | in answer to `listPlugins` | the installed LV2 plugins with their controls; `supported` is false, with `unsupportedFeatures` listed, for a plugin that needs a host feature the PipeWire chain lacks |
 | `error` | when a command without a `requestId` is rejected | `message` |
@@ -64,7 +64,7 @@ a bare `error` message, so an editor can wait for the acknowledgement:
 | `renameChannel` | `channel`, `name` | rename an application channel; its playback device is reloaded under the new name and the streams on it are put back (a short gap on that channel only) |
 | `deleteChannel` | `channel` | remove an application channel; apps and remembered assignments on it move to the first remaining application channel. The last application channel cannot be removed |
 | `createMix` | `name` | add a virtual microphone; every channel gets a muted send into it before the capture device is published |
-| `renameMix` | `mix`, `name` | rename a virtual microphone in OpenXLR; the PipeWire device keeps its old description until the daemon restarts (reloading it would throw recording apps off), and the mixer state's `renamedSinceStart` says so. The mixer state's `layoutWarning` carries a sentence when pipewire-pulse nears its open-file limit |
+| `renameMix` | `mix`, `name` | rename a virtual microphone in OpenXLR; the PipeWire device keeps its old description until the daemon restarts (reloading it would throw recording apps off), and the mixer state's `renamedSinceStart` says so |
 | `deleteMix` | `mix` | remove a virtual microphone with its sends, inserts and capture device |
 | `setLayoutOrder` | `channels[]`, `mixes[]` | complete ordered lists of application-channel and virtual-microphone ids; structural nodes stay fixed |
 | `setChannelMuted` | `channel`, `mix`, `value` | one send mute |
@@ -96,9 +96,10 @@ handler is `WebSocketHub.cs` and the message shapes are in
 
 All under `~/.config/openxlr/` (or `$XDG_CONFIG_HOME/openxlr/`):
 
-- `mixer.json`: every mixer decision: levels, mutes, device choices, the
-  app registry, enforced defaults, the software low cut, the insert
-  chains. Written by the daemon.
+- `mixer.json`: every mixer decision: the layout (`userChannels`,
+  `userMixes`, see [mixer-layout.md](mixer-layout.md)), levels, mutes,
+  device choices, the app registry, enforced defaults, the software low
+  cut, the insert chains. Written by the daemon.
 - `profiles/<vid-pid>/<name>.json`: the named scenes, one file each
 - `profiles/<vid-pid>/recall-on-connect`: the name of the profile
   recalled when that device connects, when one is chosen

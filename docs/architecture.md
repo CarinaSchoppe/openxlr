@@ -16,7 +16,8 @@
                                                                           ▼
                                                                    PipeWire graph
 
-  ~/.config/openxlr: mixer.json, profiles/, gainlock.json (daemon); daemon.json, ui.json (UI)
+  ~/.config/openxlr: mixer.json, profiles/, devices/, gainlock.json (daemon); daemon.json, ui.json (UI)
+  $XDG_RUNTIME_DIR/openxlr/token: the control API token, one per daemon run
 ```
 
 - `OpenXLR.Daemon` owns the device and the graph: it opens the
@@ -45,18 +46,35 @@
 Everything is built with standard PipeWire modules and tools, no kernel
 modules or custom drivers:
 
-- One null sink per mix (`pactl load-module module-null-sink`), 4 in
-  all.
+- One null sink per mix (`pactl load-module module-null-sink`): the
+  two monitor mixes, one per virtual microphone, and Aux.
 - One combine sink per channel (`module-combine-sink`) whose internal
   streams, one per mix, are the send faders: setting a send is setting
-  that stream's volume. Applications play into these sinks. 9 channels
-  make 9 combine sinks, so the 9 by 4 matrix is 13 sinks and no
-  loopback processes.
-- For the Stream and Chat mixes, a post sink fed from the mix (directly
-  or through the mix's insert chain) and a remap source
+  that stream's volume. Applications play into these sinks. The combine
+  names its targets by pattern (`slaves=~OpenXLR_mix_`), and PipeWire's
+  combine keeps watching the registry, so a mix sink created later gets
+  its own stream in every combine and a removed one loses them without
+  any channel being reloaded. The default layout's 9 channels and 5
+  mixes are 14 sinks and no loopback processes.
+- For every virtual-microphone mix, a post sink fed from the mix
+  (directly or through the mix's insert chain) and a remap source
   (`module-remap-source`) reading its monitor: the virtual microphone an
   application records from. The indirection means adding inserts later
   never recreates the device the application is recording.
+- The layout is edited live (`docs/mixer-layout.md`): a channel or mix
+  is added by loading its own nodes, removed by unloading them, and a
+  channel is renamed by reloading its sink and moving its streams back.
+  A virtual microphone is never reloaded for a rename, since a recorder
+  does not come back to a reloaded device; its description follows at
+  the next daemon start. Every edit is written to `mixer.json` before it
+  is acknowledged.
+- pipewire-pulse hosts all of these modules and inherits systemd's
+  default limit of 1024 open files; every combine stream and meter costs
+  it a few. The daemon refuses an addition without headroom and the
+  packages install a drop-in raising the limit. When pipewire-pulse
+  restarts it takes every module with it and reuses their ids, so the
+  daemon forgets the graph without unloading anything and exits with
+  code 75 for systemd to start it afresh.
 - Filter chains (the software low cut and ClipGuard, and the LV2
   inserts on inputs and mixes) are `filter-chain` nodes, each held by a
   long-lived `pw-cli -m` process for the life of the chain; their
@@ -116,7 +134,7 @@ src/            .NET solution: Core (device + mixer), Daemon, UI, Probe, Tests
 plugin/         the OpenDeck (Stream Deck) plugin
 docs/           this documentation, protocol write-up, capture guides
 tools/          proprobe.py, a standalone Python probe for the vendor protocol
-packaging/      systemd unit, udev rule, WirePlumber rules, UCM profile,
-                rpm and nix packaging, OpenDeck patches
+packaging/      systemd unit, the pipewire-pulse open-file drop-in, udev rule,
+                WirePlumber rules, UCM profile, rpm and nix packaging, OpenDeck patches
 debian/         Debian/Ubuntu packaging
 ```

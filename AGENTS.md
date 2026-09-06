@@ -25,7 +25,10 @@ read before touching the tree.
   sentences, sentence case.
 - Every change carries its tests and its docs:
   [docs/api.md](docs/api.md) for commands and state,
-  [docs/manual.md](docs/manual.md) for behaviour users see.
+  [docs/http-api.md](docs/http-api.md) for the HTTP transport,
+  [docs/mixer-layout.md](docs/mixer-layout.md) for the layout file and
+  its live commands, [docs/manual.md](docs/manual.md) for behaviour
+  users see.
 
 ## Build and check
 

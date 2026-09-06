@@ -21,10 +21,12 @@ When the daemon starts with the submixer on (the default), these things
 happen on your system:
 
 - New audio devices appear in your desktop's sound settings, all named
-  `OpenXLR …`: one output per channel (`OpenXLR Game`, `OpenXLR Music`,
+  `OpenXLR …`: one output per channel and one input per virtual
+  microphone. By default that is `OpenXLR Game`, `OpenXLR Music`,
   `OpenXLR Browser`, `OpenXLR System`, `OpenXLR Voice Chat`, `OpenXLR
-  SFX`, and the hardware channels) and two inputs, `OpenXLR Stream` and
-  `OpenXLR Chat`, which are the virtual microphones.
+  SFX` and the hardware channels as outputs, and `OpenXLR Stream` and
+  `OpenXLR Chat` as inputs; a layout you have edited ([section 3.11](#layout))
+  comes back as you left it.
 - Applications that play audio are moved onto a channel output by name
   ([section 2](#concepts)). They keep playing; only the device they play into
   changes.
@@ -55,11 +57,14 @@ downloads or installs an update.
 
 **Channels** are where audio enters the mixer. Three carry the
 interface's inputs (XLR 1, XLR 2 where the device has one, Aux In for
-the Pro's Line In and USB Aux input) and six carry application groups:
-Game, Music, Browser, System, Voice Chat, SFX. Each channel is a
-PipeWire output device an application can play into.
+the Pro's Line In and USB Aux input) and the rest carry application
+groups: Game, Music, Browser, System, Voice Chat and SFX by default, and
+whatever you add, rename or remove in the layout editor
+([section 3.11](#layout)). Each channel is a PipeWire output device an
+application can play into.
 
-**Mixes** are where audio leaves. There are five:
+**Mixes** are where audio leaves. The default layout has five; the
+virtual microphones among them can be added, renamed and removed:
 
 | Mix | What it is | Where it goes |
 |---|---|---|
@@ -67,6 +72,7 @@ PipeWire output device an application can play into.
 | Monitor B | a second selection to hear | the ticked outputs whose feed is set to Monitor B, or summed with A on outputs set to Monitor A+B |
 | Stream | what your audience hears | the `OpenXLR Stream` virtual microphone, for OBS or any recorder |
 | Chat | what your call partners hear | the `OpenXLR Chat` virtual microphone, for Discord, Zoom and the like |
+| any you add | whatever you route into it | its own `OpenXLR <name>` virtual microphone |
 | Aux | what a second computer receives | the interface's USB Aux port (Wave XLR Pro only) |
 
 Every channel has a **send** into every mix: a level and a mute. The
@@ -158,7 +164,7 @@ PipeWire as an audio client; a green light means it is playing.
    from the installed-application list, choose a channel and press Add.
    The identity is guessed from its launcher; if the app reports a
    different name on first play it shows up as a new entry.
-3. To keep OpenXLR's hands off an app, choose "ignore" in its dropdown.
+3. To keep OpenXLR's hands off an app, choose "Not managed" in its dropdown.
    Its streams go back to the system default output at once and from
    then on stay wherever you or the desktop route them, which is what
    you want for an app that must reach a specific side of a headset
@@ -166,7 +172,7 @@ PipeWire as an audio client; a green light means it is playing.
    you can bring it back by picking a channel.
 4. Forget, in the same window, drops an app and its remembered channel.
    A running app re-registers on the next sweep and is routed by the
-   rules again; use "ignore" for a lasting opt-out.
+   rules again; use "Not managed" for a lasting opt-out.
 
 An app that is missing from the card is not registered with PipeWire
 as a client. That happens with some applications until they start
@@ -516,7 +522,7 @@ it to a public issue. Nothing is uploaded automatically.
 
 | Path | What it is |
 |---|---|
-| `~/.config/openxlr/mixer.json` | every mixer decision, written by the daemon |
+| `~/.config/openxlr/mixer.json` | every mixer decision, the layout included (`userChannels`, `userMixes`, see [mixer-layout.md](mixer-layout.md)), written by the daemon |
 | `~/.config/openxlr/profiles/<vid-pid>/<name>.json` | saved profiles, one file each |
 | `~/.config/openxlr/profiles/<vid-pid>/recall-on-connect` | the profile recalled when that interface connects, when one is chosen |
 | `$XDG_RUNTIME_DIR/openxlr/token` | the control API token for this daemon run, readable by your user only; the window and the OpenDeck plugin read it, a daemon older than the window will not have it ([section 3.10](#upgrade)) |
@@ -526,7 +532,8 @@ it to a public issue. Nothing is uploaded automatically.
 | `~/.config/openxlr/gainlock.json` | which devices have the gain lock set |
 | `~/.config/openxlr/ui.json` | window preferences |
 | `openxlr-daemon.service` (systemd user unit) | the daemon; `journalctl --user -u openxlr-daemon` for its log |
-| `ws://127.0.0.1:37890/ws` | the daemon's API, documented in [api.md](api.md) |
+| `/usr/lib/systemd/user/pipewire-pulse.service.d/openxlr.conf` | installed by the packages: raises pipewire-pulse's open-file limit ([section 5.8](#open-files)) |
+| `ws://127.0.0.1:37890/ws` | the daemon's API, documented in [api.md](api.md); the same commands over HTTP at `/api/v1` ([http-api.md](http-api.md)) |
 
 Uninstalling a package leaves `~/.config/openxlr` in place; remove it
 by hand if you want a clean slate.

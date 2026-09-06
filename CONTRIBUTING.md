@@ -17,9 +17,9 @@ or in a GitHub issue.
   you did and what you expected. The daemon's journal is
   `journalctl --user -u openxlr-daemon`.
 - **Code.** The [roadmap](docs/roadmap.md) is the priority list. Right
-  now mixer stability and the editable layout come before plugin-host
-  expansion; a pull request in that order of priorities is easier to
-  take than one against it. Ask first for anything large, so the work
+  now mixer stability and the mixer's presentation (per-mix
+  customization) come before plugin-host expansion; a pull request in
+  that order of priorities is easier to take than one against it. Ask first for anything large, so the work
   is not done twice or built on a model that is about to change.
 
 ## Building and testing
@@ -67,8 +67,11 @@ and both XLR Dock modules before merging.
   `git rebase --exec 'git commit --amend --no-edit -S' main` and a
   `git push --force-with-lease`.
 - **Tests and docs travel with the change.** A new command or state
-  field goes into [docs/api.md](docs/api.md); user-facing behaviour
-  into [docs/manual.md](docs/manual.md) and, when it is a feature,
+  field goes into [docs/api.md](docs/api.md) (and
+  [docs/http-api.md](docs/http-api.md) when the HTTP transport is
+  affected, [docs/mixer-layout.md](docs/mixer-layout.md) for the layout
+  file and its commands); user-facing behaviour into
+  [docs/manual.md](docs/manual.md) and, when it is a feature,
   [docs/features.md](docs/features.md). Tests live in
   `src/OpenXLR.Tests` (xUnit) and `plugin/tests` (Node's test runner).
 - **Commit messages describe the work**, in plain sentences: what

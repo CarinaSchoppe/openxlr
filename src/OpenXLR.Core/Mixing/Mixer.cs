@@ -799,6 +799,10 @@ public sealed class Mixer : IDisposable, ILayoutInfo
         {
             return new MixerSettings
             {
+                UserChannels = [.. _config.Channels.Where(c => c.InputPair is null)
+                    .Select(c => new UserChannelDefinition(c.Id, c.Name))],
+                UserMixes = [.. _config.Mixes.Where(m => m.Kind == MixKind.VirtualMic)
+                    .Select(m => new UserMixDefinition(m.Id, m.Name))],
                 MixVolumes = new Dictionary<string, double>(_mixVolume),
                 MixMuted = [.. _mixMuted],
                 Levels = new Dictionary<string, double>(_levels),
@@ -836,7 +840,7 @@ public sealed class Mixer : IDisposable, ILayoutInfo
                 if (_cells.Contains(cell)) _muted.Add(cell);
 
             foreach ((string identity, string channelId) in s.AppOverrides)
-                Matcher.SetOverride(StreamMatcher.MigrateIdentity(Sanitize(identity)), channelId);
+                Matcher.SetOverride(StreamMatcher.MigrateIdentity(Sanitize(identity)), _config.ResolveApplicationChannel(channelId));
 
             // Remembered apps come back inactive until a stream appears.
             // Identities saved before the "(deleted)" fix are migrated here so
@@ -846,7 +850,7 @@ public sealed class Mixer : IDisposable, ILayoutInfo
                 string identity = StreamMatcher.MigrateIdentity(Sanitize(app.Identity));
                 if (PipeWireAdapter.IsPlumbingIdentity(identity)) continue;   // pre-filter leftovers
                 if (!_apps.ContainsKey(identity))
-                    _apps[identity] = new StreamAssignment(0, 0, Sanitize(app.Label), identity, app.ChannelId) { Active = false, Running = false };
+                    _apps[identity] = new StreamAssignment(0, 0, Sanitize(app.Label), identity, _config.ResolveApplicationChannel(app.ChannelId)) { Active = false, Running = false };
             }
 
             static string Sanitize(string v) => v.EndsWith(" (deleted)", StringComparison.Ordinal) ? v[..^10] : v;
@@ -1381,7 +1385,7 @@ public sealed class Mixer : IDisposable, ILayoutInfo
                 liveIdentities.Add(s.Identity);
                 if (_streams.ContainsKey(s.Id)) continue;
 
-                string channelId = Matcher.Match(s);
+                string channelId = _config.ResolveApplicationChannel(Matcher.Match(s));
                 if (channelId == StreamMatcher.Ignore)
                 {
                     // Not managed: the stream stays where the desktop put it.
@@ -1397,7 +1401,7 @@ public sealed class Mixer : IDisposable, ILayoutInfo
                     continue;
                 }
                 ChannelDefinition? ch = _config.Channels.FirstOrDefault(c => c.Id == channelId)
-                                        ?? _config.Channels.FirstOrDefault();
+                                        ?? _config.Channels.FirstOrDefault(c => c.InputPair is null);
                 if (ch is null) continue;
 
                 try
@@ -1441,7 +1445,7 @@ public sealed class Mixer : IDisposable, ILayoutInfo
                 if (!_apps.ContainsKey(identity))
                 {
                     _apps[identity] = new StreamAssignment(0, 0, client.Label, identity,
-                        Matcher.Match(client)) { Active = false, Running = true };
+                        _config.ResolveApplicationChannel(Matcher.Match(client))) { Active = false, Running = true };
                     changed = true;
                 }
                 else if (!_apps[identity].Active && _apps[identity].Label != client.Label &&

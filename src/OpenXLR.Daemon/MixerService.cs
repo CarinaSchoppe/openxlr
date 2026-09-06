@@ -156,11 +156,11 @@ public sealed class MixerService : IHostedService, IDisposable
 
         try
         {
-            _mixer.Build(MixerConfig.Default(), output);
+            MixerSettings? saved = MixerSettings.Load();
+            _mixer.Build(MixerConfig.FromSettings(saved), output);
 
             // Restore the user's saved levels, mutes, device picks, and per-app
             // assignments. Env vars, when set, still win for the device picks.
-            MixerSettings? saved = MixerSettings.Load();
             if (saved is not null)
             {
                 _mixer.ApplySettings(saved.WithMonitorOverride(output));

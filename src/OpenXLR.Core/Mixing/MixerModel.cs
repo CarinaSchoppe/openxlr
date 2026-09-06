@@ -11,7 +11,7 @@ namespace OpenXLR.Core.Mixing;
 /// a level or mute change never rebuilds the graph. Direct port links carry the
 /// completed mixes to hardware outputs.
 /// </summary>
-public sealed record MixerConfig
+public sealed partial record MixerConfig
 {
     public required IReadOnlyList<MixDefinition> Mixes { get; init; }
     public required IReadOnlyList<ChannelDefinition> Channels { get; init; }

@@ -5,6 +5,10 @@ using OpenXLR.Daemon;
 
 const int ApiPort = 37890;
 
+// The same binary is its own USB helper (see UsbHelperMain): nothing of the
+// host below runs in that mode.
+if (args.Length == 1 && args[0] == "--usb-helper") return UsbHelperMain.Run();
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Start the notifier before graph construction so progressing startup work

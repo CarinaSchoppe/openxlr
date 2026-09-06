@@ -382,11 +382,14 @@ be restarted by hand.
 
 Since 0.1.11 a USB transfer that never returns fails after a few
 seconds instead of stalling the daemon; the device is dropped and
-reconnected after 10 seconds, and the fault is recorded. Each such hang
-leaves a stuck thread behind, so after three in one run the daemon
-stops driving that interface and says so under the window's header,
-while the submixer and any other interface keep working. Unplug the
-interface and plug it back in, or restart the daemon, to try again.
+reconnected after 10 seconds, and the fault is recorded. The USB
+library runs in a small helper process of its own (the daemon binary
+started with `--usb-helper`), which is killed and started again on such
+a hang, so nothing stays stuck inside the daemon. After three hangs in
+one run the daemon stops driving that interface and says so under the
+window's header, while the submixer and any other interface keep
+working. Unplug the interface and plug it back in, or restart the
+daemon, to try again.
 Collect diagnostics afterwards (section 5.8): the archive contains the
 exact transfer, and that is what makes the report actionable.
 

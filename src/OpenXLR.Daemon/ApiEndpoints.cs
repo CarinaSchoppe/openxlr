@@ -40,32 +40,31 @@ internal static class ApiEndpoints
     /// </summary>
     internal static void Map(WebApplication app)
     {
-        app.Use(async (context, next) =>
+        // Bind access control to the resolved endpoints, not a request-path
+        // exception. Events use first-frame authentication in WebSocketHub.
+        var api = app.MapGroup("/api/v1").AddEndpointFilter(async (invocation, next) =>
         {
-            if (context.Request.Path.StartsWithSegments("/api/v1"))
+            HttpContext context = invocation.HttpContext;
+            context.Response.Headers.CacheControl = "no-store";
+            if (!LoopbackOrigin.IsAllowed(context.Request.Headers.Origin))
+                return Results.StatusCode(403);
+            if (!Authorized(context.Request, ApiToken.Current))
             {
-                context.Response.Headers.CacheControl = "no-store";
-                if (!LoopbackOrigin.IsAllowed(context.Request.Headers.Origin))
-                { context.Response.StatusCode = 403; return; }
-                if (context.Request.Path != "/api/v1/events" && !Authorized(context.Request, ApiToken.Current))
-                {
-                    context.Response.Headers.WWWAuthenticate = "Bearer";
-                    context.Response.StatusCode = 401;
-                    return;
-                }
+                context.Response.Headers.WWWAuthenticate = "Bearer";
+                return Results.StatusCode(401);
             }
-            await next(context);
+            return await next(invocation);
         });
 
         app.MapGet("/healthz", () => Results.Json(new { status = "alive" }));
-        app.MapGet("/api/v1", () => Results.Json(new { apiVersion = "1", state = "/api/v1/state",
+        api.MapGet("", () => Results.Json(new { apiVersion = "1", state = "/api/v1/state",
             plugins = "/api/v1/plugins", commands = "/api/v1/commands", events = "/api/v1/events" }));
-        app.MapGet("/api/v1/state", (WebSocketHub hub) => Results.Json(hub.Snapshot()));
-        app.MapGet("/api/v1/plugins", async (WebSocketHub hub) =>
+        api.MapGet("/state", (WebSocketHub hub) => Results.Json(hub.Snapshot()));
+        api.MapGet("/plugins", async (WebSocketHub hub) =>
             Results.Json(await hub.ExecuteForApiAsync("{\"cmd\":\"listPlugins\"}")));
         var budget = new CommandBudget();
         var commandGate = new SemaphoreSlim(1, 1);
-        app.MapPost("/api/v1/commands", async (HttpContext context, WebSocketHub hub) =>
+        api.MapPost("/commands", async (HttpContext context, WebSocketHub hub) =>
         {
             if (!IsJson(context.Request.ContentType)) return Results.StatusCode(415);
             if (context.Request.ContentLength > MaxCommandBytes) return Results.StatusCode(413);
@@ -88,6 +87,9 @@ internal static class ApiEndpoints
         });
         app.Map("/api/v1/events", async (HttpContext context, WebSocketHub hub) =>
         {
+            context.Response.Headers.CacheControl = "no-store";
+            if (!LoopbackOrigin.IsAllowed(context.Request.Headers.Origin))
+            { context.Response.StatusCode = 403; return; }
             if (!context.WebSockets.IsWebSocketRequest) { context.Response.StatusCode = 400; return; }
             using var socket = await context.WebSockets.AcceptWebSocketAsync(new WebSocketAcceptContext
             {

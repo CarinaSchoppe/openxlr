@@ -1,3 +1,4 @@
+using OpenXLR.Core;
 using OpenXLR.Core.Mixing;
 
 namespace OpenXLR.Daemon;
@@ -23,6 +24,11 @@ public sealed class MixerService : IHostedService, IDisposable
     private Timer? _streamSweep;
     private Timer? _saveDebounce;
     private Timer? _meterPush;
+    // The default-device defense after a build: stored and cancellable, so a
+    // stop never leaves a pass behind that would override a default the
+    // user chose after the daemon was gone.
+    private readonly CancellationTokenSource _stopping = new();
+    private Task _defaultDefense = Task.CompletedTask;
     // System.Threading.Timer fires a new callback every period regardless of
     // whether the previous one finished. If one tick runs long (a slow
     // PipeWire round-trip, e.g. spawning a filter-chain module), overlapping
@@ -226,11 +232,14 @@ public sealed class MixerService : IHostedService, IDisposable
             (string? enfSink, string? enfSource) = _mixer.EnforcedDefaults;
             string? wantSink = enfSink ?? defaultSinkBefore;
             string? wantSource = enfSource ?? defaultSourceBefore;
-            _ = Task.Run(async () =>
+            CancellationToken stop = _stopping.Token;
+            _defaultDefense = Task.Run(async () =>
             {
                 foreach (int delayMs in new[] { 2000, 5000, 10000, 20000 })
                 {
-                    await Task.Delay(delayMs);
+                    try { await Task.Delay(delayMs, stop); }
+                    catch (OperationCanceledException) { return; }
+                    if (stop.IsCancellationRequested) return;
                     try
                     {
                         if (wantSink is { Length: > 0 } && Run("pactl", "get-default-sink") != wantSink)
@@ -256,35 +265,28 @@ public sealed class MixerService : IHostedService, IDisposable
 
     private static string Run(string exe, params string[] args)
     {
-        var psi = new System.Diagnostics.ProcessStartInfo(exe)
-            { RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (string a in args) psi.ArgumentList.Add(a);
-        using var p = System.Diagnostics.Process.Start(psi)!;
-        Task<string> outTask = p.StandardOutput.ReadToEndAsync();
-        Task<string> errTask = p.StandardError.ReadToEndAsync();
-        if (!p.WaitForExit(3000))
-        {
-            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
-            throw new TimeoutException($"{exe} timed out after 3 seconds");
-        }
-        string err = errTask.GetAwaiter().GetResult();
-        if (p.ExitCode != 0) throw new InvalidOperationException($"{exe} failed: {err.Trim()}");
-        return outTask.GetAwaiter().GetResult().Trim();
+        ProcessResult r = ProcessRunner.Run(exe, args, TimeSpan.FromSeconds(3), stdoutCap: 1024 * 1024, stderrCap: 64 * 1024);
+        if (r.TimedOut) throw new TimeoutException($"{exe} timed out after 3 seconds");
+        if (r.ExitCode != 0) throw new InvalidOperationException($"{exe} failed: {r.Stderr.Trim()}");
+        return r.StdoutText.Trim();
     }
 
-    public Task StopAsync(CancellationToken ct)
+    public async Task StopAsync(CancellationToken ct)
     {
         _streamSweep?.Dispose();
         _streamSweep = null;
         _meterPush?.Dispose();
         _meterPush = null;
+        // No default-device write may land after the graph is gone.
+        _stopping.Cancel();
+        try { await _defaultDefense.WaitAsync(TimeSpan.FromSeconds(3), ct); }
+        catch (Exception ex) when (ex is TimeoutException or OperationCanceledException) { _log.LogWarning("default defense did not stop in time"); }
         if (_mixer.Built)
         {
             if (_mixer.ExportSettings().Save() is string stopErr) _log.LogWarning("settings not saved at stop: {err}", stopErr);
             _mixer.TearDown();
             _log.LogInformation("submix graph torn down");
         }
-        return Task.CompletedTask;
     }
 
     /// <summary>Apply a mixer command. Returns null on success, else an error.</summary>

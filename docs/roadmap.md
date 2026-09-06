@@ -62,9 +62,10 @@ first.
   state while the monitor feed keys keep working. Renames must not
   rebuild the graph and creation must add nodes incrementally, so
   existing streams are never dropped. Landed so far: the Stream Deck
-  choices (#25) and the saved layout format read at graph build (#33,
-  [docs/mixer-layout.md](mixer-layout.md)); live editing and the
-  desktop editor follow.
+  choices (#25), the saved layout format read at graph build (#33,
+  [docs/mixer-layout.md](mixer-layout.md)), live channel creation with
+  strict persistence (#34) and the saved channel and mix order (#35);
+  rename, delete and the desktop editor follow.
 - [ ] Per-mix customization: icon, colour and order per mix and channel,
   hide a channel without deleting its routing, a compact layout that
   keeps one selected channel visible. Icons and colours also reach the

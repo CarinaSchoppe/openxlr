@@ -261,7 +261,9 @@ Code:
   [#32](https://github.com/emaspa/openxlr/pull/32))
   and the OpenDeck choices generated from daemon state ([#25](https://github.com/emaspa/openxlr/pull/25));
   the saved mixer layout ([#33](https://github.com/emaspa/openxlr/pull/33)),
-  the first piece of the editable layout;
+  live application-channel creation ([#34](https://github.com/emaspa/openxlr/pull/34))
+  and the saved channel and mix order ([#35](https://github.com/emaspa/openxlr/pull/35)),
+  the first pieces of the editable layout;
   the native LV2 plugin editors ([#19](https://github.com/emaspa/openxlr/pull/19))
   and the editable mixer layout ([#22](https://github.com/emaspa/openxlr/pull/22))
   in review, split out of her larger proposal

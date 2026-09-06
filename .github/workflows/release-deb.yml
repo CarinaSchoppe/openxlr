@@ -28,7 +28,8 @@ jobs:
 
       - name: Run tests
         run: |
-          dotnet build src/OpenXLR.slnx -c Release
+          dotnet restore src/OpenXLR.slnx --locked-mode
+          dotnet build src/OpenXLR.slnx -c Release --no-restore
           dotnet test src/OpenXLR.slnx -c Release --no-build
 
       - name: Build package
@@ -73,4 +74,6 @@ jobs:
       - name: Attach to release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload '${{ github.event.release.tag_name }}' dist/*.deb dist/SHA256SUMS-deb.txt --repo '${{ github.repository }}'
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+        run: gh release upload "$TAG" dist/*.deb dist/SHA256SUMS-deb.txt --repo "$REPO"

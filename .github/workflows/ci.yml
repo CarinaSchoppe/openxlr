@@ -37,6 +37,9 @@ jobs:
           node --check plugin/com.emaspa.openxlr.sdPlugin/plugin.mjs
           python3 -m json.tool plugin/com.emaspa.openxlr.sdPlugin/manifest.json >/dev/null
 
+      - name: Lint shell scripts
+        run: shellcheck --severity=error tools/check-version.sh packaging/ppa/make-source.sh
+
       - name: Validate packaged service inputs
         run: |
           test -f packaging/openxlr-daemon.service

@@ -41,7 +41,7 @@ maint=$(dpkg-parsechangelog -l "$tree/debian/changelog" -S Maintainer)
 # folder, then lay the .nupkg files out as a local feed.
 for proj in OpenXLR.Daemon OpenXLR.UI; do
     dotnet restore "$tree/src/$proj" -r linux-x64 -p:SelfContained=false \
-        --packages "$work/packages"
+        --locked-mode --packages "$work/packages"
 done
 rm -rf "$tree"/src/*/obj
 for dir in "$work"/packages/*/*/; do

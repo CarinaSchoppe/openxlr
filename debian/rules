@@ -25,9 +25,9 @@ PKG = $(CURDIR)/debian/openxlr
 
 override_dh_auto_build:
 	dotnet publish src/OpenXLR.Daemon -c Release -r linux-x64 \
-		--self-contained false $(RESTORE_SOURCE) -o $(OUT)/daemon
+		--self-contained false -p:RestoreLockedMode=true $(RESTORE_SOURCE) -o $(OUT)/daemon
 	dotnet publish src/OpenXLR.UI -c Release -r linux-x64 \
-		--self-contained false $(RESTORE_SOURCE) -o $(OUT)/ui
+		--self-contained false -p:RestoreLockedMode=true $(RESTORE_SOURCE) -o $(OUT)/ui
 
 override_dh_auto_install:
 	install -dm755 $(PKG)/usr/lib/openxlr

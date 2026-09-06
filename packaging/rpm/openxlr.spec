@@ -58,9 +58,9 @@ interface once so the udev rule applies.
 export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 \
        DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
 dotnet publish src/OpenXLR.Daemon -c Release -r linux-x64 \
-    --self-contained false -o out/daemon
+    --self-contained false -p:RestoreLockedMode=true -o out/daemon
 dotnet publish src/OpenXLR.UI -c Release -r linux-x64 \
-    --self-contained false -o out/ui
+    --self-contained false -p:RestoreLockedMode=true -o out/ui
 
 %install
 install -dm755 %{buildroot}%{_prefix}/lib/openxlr

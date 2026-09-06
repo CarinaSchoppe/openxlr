@@ -13,6 +13,12 @@ namespace OpenXLR.Core.Mixing;
 /// </summary>
 public sealed record MixerSettings
 {
+    /// <summary>Ordered application channels; null preserves the legacy defaults.</summary>
+    public List<UserChannelDefinition>? UserChannels { get; init; }
+
+    /// <summary>Ordered virtual microphones; null preserves Stream and Chat.</summary>
+    public List<UserMixDefinition>? UserMixes { get; init; }
+
     /// <summary>
     /// The saved settings with the monitor selection replaced by an
     /// environment or command-line override, when one is given. Both the
@@ -121,3 +127,6 @@ public sealed record MixerSettings
 
 /// <summary>A remembered application: identity, display label, channel.</summary>
 public sealed record SavedApp(string Identity, string Label, string ChannelId);
+
+public sealed record UserChannelDefinition(string Id, string Name);
+public sealed record UserMixDefinition(string Id, string Name);

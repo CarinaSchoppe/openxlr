@@ -6,6 +6,29 @@ public sealed partial record MixerConfig
     public const int MaxApplicationChannels = 32;
     public const int MaxVirtualMixes = 16;
 
+    /// <summary>Reorder editable nodes only; every existing ID must occur exactly once.</summary>
+    public MixerConfig WithOrder(IReadOnlyList<string> channels, IReadOnlyList<string> mixes)
+    {
+        var apps = Channels.Where(c => c.InputPair is null).ToDictionary(c => c.Id);
+        var virtualMics = Mixes.Where(m => m.Kind == MixKind.VirtualMic).ToDictionary(m => m.Id);
+        Check(channels, apps.Keys, MaxApplicationChannels, "channels");
+        Check(mixes, virtualMics.Keys, MaxVirtualMixes, "mixes");
+        return this with
+        {
+            Channels = [.. Channels.Where(c => c.InputPair is not null), .. channels.Select(id => apps[id])],
+            Mixes = [.. Mixes.Where(m => m.Kind == MixKind.Monitor), .. mixes.Select(id => virtualMics[id]),
+                .. Mixes.Where(m => m.Kind == MixKind.AuxPort)],
+        };
+
+        static void Check(IReadOnlyList<string> order, IEnumerable<string> existing, int limit, string kind)
+        {
+            ArgumentNullException.ThrowIfNull(order);
+            var expected = existing.ToHashSet(StringComparer.Ordinal);
+            if (order.Count > limit || order.Count != expected.Count || order.Any(id => id is null || !expected.Remove(id)))
+                throw new InvalidOperationException($"{kind}: provide every editable ID exactly once; structural IDs cannot be reordered");
+        }
+    }
+
     /// <summary>Keep obsolete app rules out of hardware inputs after a layout change.</summary>
     public string ResolveApplicationChannel(string requested)
         => requested == StreamMatcher.Ignore ? requested

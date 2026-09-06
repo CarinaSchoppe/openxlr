@@ -284,10 +284,13 @@ public sealed class MixerService : IHostedService, IDisposable
             switch (cmd.Cmd)
             {
                 case "createChannel":
-                    if (cmd.Name is null) return "createChannel: need 'name'";
+                case "setLayoutOrder":
                     lock (_saveGate)
                     {
-                        _mixer.CreateApplicationChannel(cmd.Name, settings => settings.Save());
+                        if (cmd.Cmd == "createChannel")
+                            _mixer.CreateApplicationChannel(cmd.Name!, settings => settings.Save());
+                        else
+                            _mixer.SetLayoutOrder(cmd.Channels!, cmd.Mixes!, settings => settings.Save());
                         _saveDirty = false;
                         _lastSaveError = null;
                         _retryDelay = SaveDelay;

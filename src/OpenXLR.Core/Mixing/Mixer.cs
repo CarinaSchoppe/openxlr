@@ -71,6 +71,24 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     public IReadOnlyDictionary<string, double[]> ReadMeters() => _meters.Read();
 
     public MixerConfig Config => _config;
+
+    /// <summary>Save an order change without touching any PipeWire node or link.</summary>
+    public void SetLayoutOrder(IReadOnlyList<string> channels, IReadOnlyList<string> mixes,
+        Func<MixerSettings, string?> persist)
+    {
+        ArgumentNullException.ThrowIfNull(persist);
+        lock (_gate)
+        {
+            if (!_built) throw new InvalidOperationException("mixer is not built");
+            MixerConfig previous = _config;
+            _config = _config.WithOrder(channels, mixes);
+            try
+            {
+                if (persist(ExportSettings()) is string error) throw new IOException(error);
+            }
+            catch { _config = previous; throw; }
+        }
+    }
     public bool Built => _built;
 
     private static string Cell(string channel, string mix) => $"{channel}|{mix}";

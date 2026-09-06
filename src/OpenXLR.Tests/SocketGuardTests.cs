@@ -53,8 +53,13 @@ public sealed class SocketGuardTests
     public async Task ACloseThePeerNeverAnswersIsAbortedOnItsDeadline()
     {
         var closed = new TaskCompletionSource<TimeSpan>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var clientReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var server = await SocketTestServer.Start(async (socket, stop) =>
         {
+            // Only start closing once the client has finished its handshake;
+            // on a slow runner an abort before that fails the client's
+            // connect instead of exercising the close deadline.
+            await clientReady.Task.WaitAsync(stop);
             var sw = Stopwatch.StartNew();
             await SocketGuard.CloseAsync(socket, WebSocketCloseStatus.PolicyViolation, "test", TimeSpan.FromMilliseconds(300));
             closed.TrySetResult(sw.Elapsed);
@@ -62,6 +67,7 @@ public sealed class SocketGuardTests
         using var client = new ClientWebSocket();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await client.ConnectAsync(new Uri(server.Url), cts.Token);
+        clientReady.SetResult();
         // The client never reads, so it never completes the close handshake.
         TimeSpan elapsed = await closed.Task.WaitAsync(cts.Token);
         Assert.InRange(elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(5));

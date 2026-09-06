@@ -504,7 +504,7 @@
                            ToolTip.Tip="{Binding StatusText}"/>
                   <TextBlock Text="{Binding Label}" Foreground="#e6e9f0" VerticalAlignment="Center"/>
                   <ComboBox ItemsSource="{Binding Channels}" MinWidth="110"
-                            SelectedItem="{Binding ChannelId, Mode=TwoWay}"/>
+                            SelectedItem="{Binding SelectedChannel, Mode=TwoWay}"/>
                 </StackPanel>
               </Border>
             </DataTemplate>
@@ -526,6 +526,10 @@
       <Expander Name="SubmixerTile" Classes="tile" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><TextBlock Text="SUBMIXER" Classes="h"/></Expander.Header>
       <DockPanel>
+        <Button DockPanel.Dock="Top" Content="Edit layout…" Padding="12,4" Margin="0,0,0,8"
+                HorizontalAlignment="Right" IsVisible="{Binding HasMixer}" IsEnabled="{Binding CanEditLayout}"
+                Click="OnEditLayout"
+                ToolTip.Tip="Add, rename, reorder and remove application channels and virtual microphones while audio plays"/>
         <TextBlock DockPanel.Dock="Top" Text="{Binding MixerPlaceholder}" TextWrapping="Wrap"
                    Foreground="#6b7285" IsVisible="{Binding !HasMixer}"/>
 

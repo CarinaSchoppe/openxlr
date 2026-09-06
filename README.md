@@ -18,7 +18,7 @@ LV2 plugin inserts, multi-output monitoring, a dedicated mix for a
 second computer on the USB Aux port, and an OpenDeck plugin for Stream
 Deck control.
 
-![OpenXLR mixer](docs/screenshot-mixer-0122.png)
+![OpenXLR mixer](docs/screenshot-mixer-0125.png)
 
 Elgato ships no Linux software. These devices enumerate as
 class-compliant USB audio interfaces, so audio flows out of the box.

@@ -61,7 +61,10 @@ first.
   desktop layout editor, and Stream Deck choices generated from daemon
   state while the monitor feed keys keep working. Renames must not
   rebuild the graph and creation must add nodes incrementally, so
-  existing streams are never dropped.
+  existing streams are never dropped. Landed so far: the Stream Deck
+  choices (#25) and the saved layout format read at graph build (#33,
+  [docs/mixer-layout.md](mixer-layout.md)); live editing and the
+  desktop editor follow.
 - [ ] Per-mix customization: icon, colour and order per mix and channel,
   hide a channel without deleting its routing, a compact layout that
   keeps one selected channel visible. Icons and colours also reach the

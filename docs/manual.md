@@ -461,21 +461,37 @@ disappear, apps fall back to the default output, and the window shows
 
 OpenXLR refuses to add a channel or mix when the server has no room left
 and says so in the editor, which also shows a note once the server is at
-three quarters of its limit. The packages install a drop-in under
-`/usr/lib/systemd/user/pipewire-pulse.service.d/` that raises the limit
-to 65536. It applies at the next login, or right away with
+three quarters of its limit. The fix is a systemd drop-in that raises the
+limit to 65536:
 
-```sh
-systemctl --user daemon-reload
-systemctl --user restart pipewire-pulse
-```
+1. The deb, rpm and Nix packages install it as
+   `/usr/lib/systemd/user/pipewire-pulse.service.d/openxlr.conf`. On a
+   source checkout, or any install without it, create the file yourself:
 
-Restarting pipewire-pulse reconnects every PulseAudio client for a moment
-and takes OpenXLR's nodes with it; the daemon notices within two seconds
-and restarts itself to rebuild the graph from the saved layout. Check the
-limit afterwards with `systemctl --user show pipewire-pulse -p LimitNOFILESoft`.
-A source checkout without the package can put the same two lines into
-`~/.config/systemd/user/pipewire-pulse.service.d/openxlr.conf` by hand.
+   ```sh
+   mkdir -p ~/.config/systemd/user/pipewire-pulse.service.d
+   printf '[Service]\nLimitNOFILE=65536\n' > ~/.config/systemd/user/pipewire-pulse.service.d/openxlr.conf
+   ```
+
+2. Apply it, now or at your next login:
+
+   ```sh
+   systemctl --user daemon-reload
+   systemctl --user restart pipewire-pulse
+   ```
+
+   Restarting pipewire-pulse reconnects every PulseAudio client for a
+   moment and takes OpenXLR's nodes with it; the daemon notices within two
+   seconds and restarts itself to rebuild the graph from the saved layout.
+
+3. Check:
+
+   ```sh
+   systemctl --user show pipewire-pulse -p LimitNOFILESoft
+   ```
+
+   It should say 65536. If it still says 1024 the file is not where systemd
+   looks; `systemctl --user cat pipewire-pulse` lists every file it read.
 
 <a name="reporting"></a>
 ### 5.9 Reporting a problem

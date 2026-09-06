@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.24
+Version:        0.1.25
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -136,6 +136,14 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Sun Sep 06 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.25-1
+- Editable mixer layout: application channels and virtual microphones are added, renamed, reordered and removed while audio plays, from the window's layout editor or the API; every change is saved before it is acknowledged, new channels start muted, ids stay stable across renames.
+- The channel sinks feed the mix sinks by name pattern, so a new microphone grows its sends on its own and nothing that carries audio is rebuilt.
+- pipewire-pulse's open-file limit: the daemon refuses an addition it has no room for and the package raises the limit with a systemd drop-in; the daemon rebuilds its graph after a pipewire-pulse restart, and only one daemon runs per user.
+- Versioned HTTP API at /api/v1 on the session token, a commandResult for every command that carries a requestId, OpenDeck choices generated from daemon state.
+- Hardening from a codebase evaluation: layout edits fail closed on late sends, a USB helper that cannot open its device is killed with a backoff, the token is replaced only once the daemon listens, per-user file accounting, monotonic deadlines.
+- CI: warnings as errors, plugin tests, an OpenAPI shape check, an rpm recipe check and package content assertions; the manual has fixed anchors and a section on the open-file limit.
+
 * Sun Sep 06 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.24-1
 - Monitor A+B: an output can hear both monitor mixes summed, so one pair of headphones carries the desktop from A and a separately processed microphone from B; the Stream Deck feed key cycles A, B, A+B.
 - libusb runs in a helper process; a hung USB transfer costs the helper, which is killed and started again, instead of a stuck thread in the daemon.

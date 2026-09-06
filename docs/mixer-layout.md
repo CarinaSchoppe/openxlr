@@ -38,6 +38,12 @@ saved. A failed save removes the new channel and reports an error; existing
 channels and virtual microphones remain in place. Ordinary fader saves retain
 their best-effort retry behavior.
 
+`setLayoutOrder {channels, mixes}` changes the list order while running. Supply
+every application-channel ID in `channels` and every virtual-microphone ID in
+`mixes`, each exactly once. Hardware inputs, Monitor A/B and Aux are excluded
+and remain in their structural positions. Duplicate, missing and unknown IDs
+are errors. Success means the order was saved; a failed write restores the
+previous order. No PipeWire node or link changes during this operation.
+
 Other manual changes, including external PipeWire descriptions, take effect at
-startup. A desktop layout editor and other live layout commands are not yet
-provided.
+startup. The desktop layout editor is not yet provided.

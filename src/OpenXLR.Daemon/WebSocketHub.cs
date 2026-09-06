@@ -188,6 +188,7 @@ public sealed class WebSocketHub
                 if (err is not null) await reply(new ErrorMessage(err));
                 break;
             case "createChannel":
+            case "setLayoutOrder":
             case "setLevel":
             case "setChannelMuted":
             case "setMixVolume":

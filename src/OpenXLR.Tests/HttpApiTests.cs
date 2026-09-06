@@ -62,6 +62,22 @@ public sealed class HttpApiTests
             using var http = new HttpClient { BaseAddress = new Uri(address) };
             using var denied = await http.GetAsync("/api/v1");
             Assert.Equal(HttpStatusCode.Unauthorized, denied.StatusCode);
+            foreach (string path in new[] { "/api/v1/state", "/API/V1/state", "/api/v1/state/", "/api/v1/plugins" })
+            {
+                using var protectedRequest = await http.GetAsync(path);
+                Assert.Equal(HttpStatusCode.Unauthorized, protectedRequest.StatusCode);
+            }
+            using var deniedCommand = await http.PostAsync("/API/V1/commands/",
+                new StringContent("{\"cmd\":\"getDiagnostics\"}", Encoding.UTF8, "application/json"));
+            Assert.Equal(HttpStatusCode.Unauthorized, deniedCommand.StatusCode);
+            using var health = await http.GetAsync("/healthz");
+            Assert.Equal(HttpStatusCode.OK, health.StatusCode);
+            using var noUpgrade = await http.GetAsync("/api/v1/events");
+            Assert.Equal(HttpStatusCode.BadRequest, noUpgrade.StatusCode);
+            http.DefaultRequestHeaders.Add("Origin", "https://foreign.example");
+            using var foreignEvents = await http.GetAsync("/api/v1/events");
+            Assert.Equal(HttpStatusCode.Forbidden, foreignEvents.StatusCode);
+            http.DefaultRequestHeaders.Remove("Origin");
             http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
             using var accepted = await http.GetAsync("/api/v1");
             Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);

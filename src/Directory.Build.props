@@ -9,5 +9,9 @@
     <!-- packages.lock.json per project: CI restores in locked mode, so a
          build only ever sees the package graph that was committed. -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- Every package publishes for linux-x64. Declaring it here makes a
+         plain restore and a publish for that runtime agree on the lock
+         file, so locked-mode restores pass in both. -->
+    <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
 </Project>

@@ -289,9 +289,17 @@ public sealed class DeviceManager : BackgroundService
             {
                 if (_absent.Contains(aside) && all.Any(d => d.Info.ProductId == aside))
                 {
-                    _hung.Returned(aside);
-                    _setAsideWarning = null;
-                    _log.LogInformation("{pid:x4} is back on the bus after being set aside; driving it again", aside);
+                    if (_hung.Returned(aside))
+                    {
+                        _setAsideWarning = null;
+                        _log.LogInformation("{pid:x4} is back on the bus after being set aside; driving it again", aside);
+                    }
+                    else
+                    {
+                        _absent.Remove(aside);
+                        _setAsideWarning = $"{aside:x4} hung {HungTransferPolicy.LifetimeLimit} USB transfers in this daemon run and stays set aside until the daemon restarts.";
+                        _log.LogWarning("{pid:x4} is back on the bus but has hung {n} transfers this run; it stays set aside until the daemon restarts", aside, HungTransferPolicy.LifetimeLimit);
+                    }
                 }
             }
             if (_device is { Connected: true }) return;

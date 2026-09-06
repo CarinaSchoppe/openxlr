@@ -18,6 +18,30 @@ public static class ApiToken
     /// <summary>The token in force, or null before <see cref="Initialize"/>.</summary>
     public static string? Current => _current;
 
+    /// <summary>
+    /// Remove any token an earlier run left behind and publish a fresh one
+    /// only once the host is listening, so no client ever hands a token
+    /// that will be valid on this daemon to whoever squats the port before
+    /// it binds, and a second instance that never binds never publishes.
+    /// </summary>
+    public static void PublishWhenListening(IHostApplicationLifetime lifetime, ILogger log)
+    {
+        Clear();
+        lifetime.ApplicationStarted.Register(() =>
+        {
+            try { log.LogInformation("control API token written to {path}", Initialize()); }
+            catch (Exception ex) { log.LogError("control API token could not be written: {msg}; no client can connect", ex.Message); }
+        });
+    }
+
+    /// <summary>Forget the current token and delete the file, so clients present nothing valid.</summary>
+    public static void Clear()
+    {
+        _current = null;
+        try { File.Delete(OpenXlrPaths.TokenPath); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* nothing to remove, or not ours */ }
+    }
+
     /// <summary>Generate a fresh token and write it for the clients. Returns the file path.</summary>
     public static string Initialize()
     {

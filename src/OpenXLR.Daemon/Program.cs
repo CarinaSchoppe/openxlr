@@ -36,9 +36,11 @@ builder.WebHost.ConfigureKestrel(k =>
 var app = builder.Build();
 app.Services.GetRequiredService<WebSocketHub>();   // construct so it subscribes to StateChanged
 
-// A fresh token for this run, written before anything can connect. Every
-// client presents it as its first message (see ApiToken).
-app.Logger.LogInformation("control API token written to {path}", ApiToken.Initialize());
+// The token every client presents as its first message (see ApiToken) is
+// published only after Kestrel owns the port. Written earlier, a process
+// squatting the port would receive it from our own clients and could use
+// it here once it let go of the port.
+ApiToken.PublishWhenListening(app.Lifetime, app.Logger);
 
 app.UseWebSockets();
 

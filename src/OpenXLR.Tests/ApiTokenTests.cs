@@ -1,4 +1,6 @@
 using System.Text;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Logging;
 using OpenXLR.Core;
 using OpenXLR.Daemon;
 
@@ -39,6 +41,35 @@ public sealed class ApiTokenTests
             Assert.Equal(path, second);
             Assert.NotEqual(token, ApiToken.Current);   // every start makes a new one
             Assert.False(ApiToken.Accepts(Bytes($"{{\"cmd\":\"auth\",\"token\":\"{token}\"}}")));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("XDG_RUNTIME_DIR", prev);
+            try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
+    public async Task TheTokenIsPublishedOnlyOnceTheHostListensAndAStaleOneIsRemovedFirst()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "openxlr-test-" + Guid.NewGuid().ToString("N"));
+        string? prev = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
+        Environment.SetEnvironmentVariable("XDG_RUNTIME_DIR", dir);
+        try
+        {
+            string path = Path.Combine(dir, "openxlr", "token");
+            OpenXlrPaths.WriteAtomic(path, "stale-token-from-an-earlier-run\n");
+            var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder();
+            builder.WebHost.UseUrls("http://127.0.0.1:0");
+            builder.Logging.ClearProviders();
+            await using var app = builder.Build();
+            ApiToken.PublishWhenListening(app.Lifetime, app.Logger);
+            Assert.False(File.Exists(path));            // the stale token is gone before anything listens
+            Assert.Null(ApiToken.Current);
+            await app.StartAsync();
+            Assert.True(File.Exists(path));             // and the new one exists only now
+            Assert.Equal(ApiToken.Current, OpenXlrPaths.ReadToken());
+            await app.StopAsync();
         }
         finally
         {

@@ -9,6 +9,8 @@ import { layoutChoices, mixShortName } from "../com.emaspa.openxlr.sdPlugin/layo
 class Element {
   constructor(tag) { this.tag = tag; this.children = []; this.dataset = {}; this._value = ""; }
   appendChild(child) { child.parent = this; this.children.push(child); }
+  insertBefore(child, ref) { child.parent = this; this.children.splice(this.children.indexOf(ref), 0, child); }
+  querySelector(sel) { return sel === "[data-layout-anchor]" ? this.children.find(child => "layoutAnchor" in child.dataset) ?? null : null; }
   remove() { this.parent.children = this.parent.children.filter(child => child !== this); }
   get options() { return this.children.flatMap(child => child.tag === "option" ? [child] : child.options); }
   get value() { return this.tag === "select" ? (this.options.some(o => o.value === this._value) ? this._value : "") : this._value; }
@@ -21,7 +23,11 @@ test("state refresh preserves a selected feed and only replaces layout groups", 
   select.id = "target";
   const feed = new Element("optgroup"); feed.id = "feed-group";
   const option = new Element("option"); option.value = "feed:alsa_output.test";
-  feed.appendChild(option); select.appendChild(feed); select.value = option.value;
+  feed.appendChild(option);
+  // As in the pages: static groups, the anchor, then the groups pi.js appends.
+  const anchor = new Element("optgroup"); anchor.dataset.layoutAnchor = "";
+  select.appendChild(anchor);
+  select.appendChild(feed); select.value = option.value;
   const all = node => [node, ...node.children.flatMap(all)];
   const document = { createElement: tag => new Element(tag), getElementById: id => all(select).find(node => node.id === id) };
   const context = vm.createContext({ document });
@@ -31,6 +37,9 @@ test("state refresh preserves a selected feed and only replaces layout groups", 
   apply(layoutChoices(state).toggleGroups);
   assert.equal(select.value, "feed:alsa_output.test");
   assert.equal(document.getElementById("feed-group"), feed);
+  // Generated groups sit at the anchor, ahead of the feed group, never after it.
+  assert.ok(select.children.indexOf(select.children.find(c => c.dataset.layoutGroup)) < select.children.indexOf(feed));
+  assert.equal(select.children[select.children.length - 1], feed);
   select.value = "mixmute:monitor2";
   state.mixes[1].name = "Headset chat";
   apply(layoutChoices(state).toggleGroups);

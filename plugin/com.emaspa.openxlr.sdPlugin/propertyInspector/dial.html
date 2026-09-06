@@ -29,6 +29,9 @@
       <option value="auxLevel">Aux In level</option>
       <option value="crossfade">Mic / PC crossfade</option>
     </optgroup>
+    <!-- The mix master and send groups are generated from the daemon's
+         state and inserted here, ahead of the insert groups. -->
+    <optgroup data-layout-anchor hidden></optgroup>
   </select>
   <button id="add">Add to stack</button>
   <ul id="stack"></ul>

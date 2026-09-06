@@ -131,10 +131,10 @@ host mechanism stable than two half-finished ones.
   packaged unit is a notify service since 0.1.22.
 - [x] Update notice: an opt-in, throttled check against the project's
   releases, presented once, never automatic installation.
-- [ ] A documented, versioned local API for third parties, once client
-  authentication exists on top of the origin check; today the WebSocket
-  on the loopback is the API and the OpenDeck plugin is its reference
-  client.
+- [x] A documented, versioned local API for third parties: `/api/v1`
+  over HTTP on the session token, with an OpenAPI document, next to the
+  WebSocket the window and the OpenDeck plugin use
+  ([docs/http-api.md](http-api.md)).
 - [ ] Route the focused application to a channel from a key, with a
   portal-based approach that works on Wayland.
 - [ ] Generic PipeWire output volume and mute keys, and a main-output

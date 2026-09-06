@@ -257,6 +257,8 @@ Code:
   and the API document fix ([#17](https://github.com/emaspa/openxlr/pull/17));
   the progress-gated systemd watchdog ([#18](https://github.com/emaspa/openxlr/pull/18))
   and the opt-in update notice ([#23](https://github.com/emaspa/openxlr/pull/23));
+  the versioned HTTP API on the session token ([#24](https://github.com/emaspa/openxlr/pull/24))
+  and the OpenDeck choices generated from daemon state ([#25](https://github.com/emaspa/openxlr/pull/25));
   the native LV2 plugin editors ([#19](https://github.com/emaspa/openxlr/pull/19))
   and the editable mixer layout ([#22](https://github.com/emaspa/openxlr/pull/22))
   in review, split out of her larger proposal

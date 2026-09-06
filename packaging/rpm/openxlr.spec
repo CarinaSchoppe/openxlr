@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.23
+Version:        0.1.24
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -133,6 +133,14 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Sun Sep 06 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.24-1
+- Monitor A+B: an output can hear both monitor mixes summed, so one pair of headphones carries the desktop from A and a separately processed microphone from B; the Stream Deck feed key cycles A, B, A+B.
+- libusb runs in a helper process; a hung USB transfer costs the helper, which is killed and started again, instead of a stuck thread in the daemon.
+- The control API token is published only once the port is bound, so a process squatting the port never receives a usable one.
+- The default-device defense stops with the daemon; LV2 catalog limits; every helper process bounded; more of the systemd sandbox on the unit.
+- Avalonia 12.1.2; Dependabot, CodeQL and shell linting in CI; locked NuGet restores on every packaging path.
+- Contributing guidelines, an agents brief, brand marks on the About links, support badges in the README.
+
 * Sat Sep 05 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.23-1
 - Interfaces without settings memory (Wave XLR, XLR Dock) get their last settings back on every connect, and can be reset to the firmware defaults recorded after a power cycle.
 - Fedora COPR and Ubuntu PPA install channels; the README opens with the banner.

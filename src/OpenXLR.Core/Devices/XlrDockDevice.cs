@@ -1,3 +1,4 @@
+using OpenXLR.Core;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 
@@ -112,28 +113,11 @@ public sealed class XlrDockDevice : IAudioDevice
 
     private string Amixer(params string[] args)
     {
-        var psi = new ProcessStartInfo("amixer")
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
-        psi.ArgumentList.Add("-c");
-        psi.ArgumentList.Add(_card.ToString());
-        foreach (string a in args) psi.ArgumentList.Add(a);
-        using var p = Process.Start(psi)
-            ?? throw new InvalidOperationException("could not start amixer");
-        Task<string> outTask = p.StandardOutput.ReadToEndAsync();
-        Task<string> errTask = p.StandardError.ReadToEndAsync();
-        if (!p.WaitForExit(2000))
-        {
-            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
-            throw new TimeoutException($"amixer {string.Join(' ', args)} timed out");
-        }
-        string outText = outTask.GetAwaiter().GetResult();
-        string errText = errTask.GetAwaiter().GetResult();
-        if (p.ExitCode != 0)
-            throw new InvalidOperationException($"amixer {string.Join(' ', args)}: {errText.Trim()}");
-        return outText;
+        ProcessResult r = ProcessRunner.Run("amixer", ["-c", _card.ToString(), .. args], TimeSpan.FromSeconds(2),
+            stdoutCap: 1024 * 1024, stderrCap: 64 * 1024);
+        if (r.TimedOut) throw new TimeoutException($"amixer {string.Join(' ', args)} timed out");
+        if (r.ExitCode != 0) throw new InvalidOperationException($"amixer {string.Join(' ', args)}: {r.Stderr.Trim()}");
+        return r.StdoutText;
     }
 
 

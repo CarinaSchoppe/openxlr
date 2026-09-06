@@ -33,7 +33,12 @@ internal static class ApiEndpoints
         return new UTF8Encoding(false, true).GetString(content.ToArray());
     }
 
-    internal static void Map(WebApplication app, string? secret)
+    /// <summary>
+    /// The token is read per request: the daemon publishes it only once the
+    /// port is bound (see ApiToken), which is after these endpoints are
+    /// mapped, and a restart rotates it.
+    /// </summary>
+    internal static void Map(WebApplication app)
     {
         app.Use(async (context, next) =>
         {
@@ -42,7 +47,7 @@ internal static class ApiEndpoints
                 context.Response.Headers.CacheControl = "no-store";
                 if (!LoopbackOrigin.IsAllowed(context.Request.Headers.Origin))
                 { context.Response.StatusCode = 403; return; }
-                if (context.Request.Path != "/api/v1/events" && !Authorized(context.Request, secret))
+                if (context.Request.Path != "/api/v1/events" && !Authorized(context.Request, ApiToken.Current))
                 {
                     context.Response.Headers.WWWAuthenticate = "Bearer";
                     context.Response.StatusCode = 401;

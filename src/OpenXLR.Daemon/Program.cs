@@ -47,7 +47,7 @@ app.Services.GetRequiredService<WebSocketHub>();   // construct so it subscribes
 ApiToken.PublishWhenListening(app.Lifetime, app.Logger);
 
 app.UseWebSockets();
-ApiEndpoints.Map(app, ApiToken.Current);
+ApiEndpoints.Map(app);
 
 app.Map("/ws", async (HttpContext ctx, WebSocketHub hub) =>
 {

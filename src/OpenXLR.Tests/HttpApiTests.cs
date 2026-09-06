@@ -12,6 +12,8 @@ using OpenXLR.Daemon;
 
 namespace OpenXLR.Tests;
 
+// Publishes a token file under a redirected runtime directory, like the other store tests.
+[Collection("xdg-config")]
 public sealed class HttpApiTests
 {
     [Fact]
@@ -43,8 +45,15 @@ public sealed class HttpApiTests
         builder.Services.AddSingleton<WebSocketHub>();
         await using var app = builder.Build();
         app.UseWebSockets();
-        const string token = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-        ApiEndpoints.Map(app, token);
+        // The endpoints read the daemon's live token per request; publish one
+        // into a scratch runtime directory the way the daemon does at start.
+        string runtimeDir = Path.Combine(Path.GetTempPath(), "openxlr-test-" + Guid.NewGuid().ToString("N"));
+        string? previousRuntime = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
+        Environment.SetEnvironmentVariable("XDG_RUNTIME_DIR", runtimeDir);
+        string token;
+        try { ApiToken.Initialize(); token = ApiToken.Current!; }
+        finally { Environment.SetEnvironmentVariable("XDG_RUNTIME_DIR", previousRuntime); try { Directory.Delete(runtimeDir, recursive: true); } catch (IOException) { } }
+        ApiEndpoints.Map(app);
         await app.StartAsync();
         try
         {

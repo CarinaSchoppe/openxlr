@@ -213,6 +213,9 @@ user service, updating and uninstalling:
   protocol as reverse engineered, with offsets
 - [USB capture guide](docs/usb-capture.md): how to capture Wave Link
   traffic for an untested device
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to build, test and send a
+  change; [AGENTS.md](AGENTS.md) for work done with an AI agent, which is
+  allowed as long as the author owns and can explain the code
 
 ## Community
 

@@ -7,7 +7,7 @@
                                                                           │
               ┌───────────────────────────────────────────────────────────┼──────────────────┐
               │                                                           │                  │
-   libusb control transfers                                   amixer (ALSA controls)     lilv (in-process)
+   libusb control transfers (USB helper process)              amixer (ALSA controls)     lilv (in-process)
    Wave XLR Pro, Wave XLR MK.2,                               XLR Dock: gain, mute,     LV2 plugin catalog
    XLR Dock MK.2, Wave XLR (MK.1),                            headphone volume
    XLR Dock: phantom, low impedance
@@ -99,9 +99,15 @@ the kernel's audio driver:
   the kernel's standard ALSA controls with `amixer`, and its DSP is
   provided host-side by the submixer
 
-Every USB control transfer runs under a watchdog (the libusb timeout
-plus 3 s); one that never returns is reported, the device dropped and
-reconnected, and the daemon keeps serving.
+libusb never runs inside the daemon: a helper process (the daemon
+binary started with `--usb-helper`) owns it and answers open, close and
+control-transfer requests over length-prefixed frames on its stdin and
+stdout. Every transfer runs under a watchdog (the libusb timeout plus
+3 s); one that never returns is reported, the helper is killed so the
+operating system reclaims the stuck thread and the device handle, the
+device is dropped and reconnected through a fresh helper, and the
+daemon keeps serving. After three hangs of one device without a replug
+the daemon sets it aside instead of retrying.
 
 ## Repository layout
 

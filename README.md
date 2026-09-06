@@ -220,7 +220,9 @@ Support, hardware reports, feature requests and release news also live
 on the OpenXLR Discord server, [discord.gg/4bswtnGPW4](https://discord.gg/4bswtnGPW4),
 and on Reddit at [r/OpenXLR](https://www.reddit.com/r/OpenXLR/). The
 window links to both from Options, About. Confirmed bugs still end up
-as GitHub issues, so any of the three works to start.
+as GitHub issues, so any of the three works to start. Want to help
+with code or hardware reports? Read [CONTRIBUTING.md](CONTRIBUTING.md)
+first.
 
 ## Reporting problems
 

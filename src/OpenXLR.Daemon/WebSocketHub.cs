@@ -187,6 +187,7 @@ public sealed class WebSocketHub
                 string? err = _devices.Apply(cmd.Control, cmd.Value);  // broadcasts on success
                 if (err is not null) await reply(new ErrorMessage(err));
                 break;
+            case "createChannel":
             case "setLevel":
             case "setChannelMuted":
             case "setMixVolume":

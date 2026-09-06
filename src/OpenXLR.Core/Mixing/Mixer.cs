@@ -18,7 +18,7 @@ namespace OpenXLR.Core.Mixing;
 /// The graph is built once; level changes touch only stream volumes, so audio
 /// is never interrupted.
 /// </summary>
-public sealed class Mixer : IDisposable, ILayoutInfo
+public sealed partial class Mixer : IDisposable, ILayoutInfo
 {
     private readonly PipeWireAdapter _pw;
     private readonly Dictionary<string, double> _levels = [];   // "channel|mix" -> level

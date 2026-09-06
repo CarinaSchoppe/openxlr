@@ -283,6 +283,18 @@ public sealed class MixerService : IHostedService, IDisposable
         {
             switch (cmd.Cmd)
             {
+                case "createChannel":
+                    if (cmd.Name is null) return "createChannel: need 'name'";
+                    lock (_saveGate)
+                    {
+                        _mixer.CreateApplicationChannel(cmd.Name, settings => settings.Save());
+                        _saveDirty = false;
+                        _lastSaveError = null;
+                        _retryDelay = SaveDelay;
+                        _saveDebounce?.Change(Timeout.Infinite, Timeout.Infinite);
+                    }
+                    Changed?.Invoke();
+                    return null;
                 case "setLevel":
                     if (cmd.Channel is null || cmd.Mix is null) return "setLevel: need 'channel' and 'mix'";
                     _mixer.SetLevel(cmd.Channel, cmd.Mix, cmd.Value.GetDouble());

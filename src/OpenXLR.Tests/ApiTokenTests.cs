@@ -6,6 +6,7 @@ namespace OpenXLR.Tests;
 
 // Redirects XDG_RUNTIME_DIR, so it joins the serial store collection.
 [Collection("xdg-config")]
+[System.Runtime.Versioning.SupportedOSPlatform("linux")]   // file modes are a Unix matter; the daemon only runs there
 public sealed class ApiTokenTests
 {
     private static ReadOnlySpan<byte> Bytes(string s) => Encoding.UTF8.GetBytes(s);

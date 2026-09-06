@@ -4,6 +4,7 @@ namespace OpenXLR.Tests;
 
 // Redirects XDG_CONFIG_HOME like the other store tests, so it shares their serial collection.
 [Collection("xdg-config")]
+[System.Runtime.Versioning.SupportedOSPlatform("linux")]   // file modes are a Unix matter; the daemon only runs there
 public sealed class PrivateFilesTests
 {
     [Fact]

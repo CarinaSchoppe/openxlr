@@ -16,7 +16,7 @@ namespace OpenXLR.Core.Mixing;
 /// </summary>
 public static class Lv2Catalog
 {
-    private static readonly Lazy<IReadOnlyList<PluginInfo>> Scan = new(ScanNow, LazyThreadSafetyMode.ExecutionAndPublication);
+    private static readonly Lazy<IReadOnlyList<PluginInfo>> Scan = new(() => ScanNow(), LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <summary>
     /// The host features PipeWire's filter-chain LV2 loader provides (read
@@ -48,7 +48,12 @@ public static class Lv2Catalog
 
     public static PluginInfo? Find(string uri) => Plugins.FirstOrDefault(p => p.Plugin == uri);
 
-    private static IReadOnlyList<PluginInfo> ScanNow()
+    /// <summary>
+    /// A fresh scan outside the cached one. With <paramref name="lv2Path"/>
+    /// only those directories are read (tests point it at their own
+    /// bundles); otherwise lilv's default search path applies.
+    /// </summary>
+    internal static IReadOnlyList<PluginInfo> ScanNow(string? lv2Path = null)
     {
         var result = new List<PluginInfo>();
         IntPtr world;
@@ -57,6 +62,12 @@ public static class Lv2Catalog
         if (world == IntPtr.Zero) return result;
         try
         {
+            if (lv2Path is not null)
+            {
+                IntPtr pathNode = Lilv.lilv_new_string(world, lv2Path);
+                Lilv.lilv_world_set_option(world, "http://drobilla.net/ns/lilv#lv2-path", pathNode);
+                Lilv.lilv_node_free(pathNode);
+            }
             Lilv.lilv_world_load_all(world);
             IntPtr controlPort = Lilv.lilv_new_uri(world, "http://lv2plug.in/ns/lv2core#ControlPort");
             IntPtr audioPort = Lilv.lilv_new_uri(world, "http://lv2plug.in/ns/lv2core#AudioPort");
@@ -225,6 +236,8 @@ public static class Lv2Catalog
         [DllImport(Lib)] public static extern void lilv_world_load_all(IntPtr world);
         [DllImport(Lib)] public static extern IntPtr lilv_world_get_all_plugins(IntPtr world);
         [DllImport(Lib)] public static extern IntPtr lilv_new_uri(IntPtr world, [MarshalAs(UnmanagedType.LPUTF8Str)] string uri);
+        [DllImport(Lib)] public static extern IntPtr lilv_new_string(IntPtr world, [MarshalAs(UnmanagedType.LPUTF8Str)] string str);
+        [DllImport(Lib)] public static extern void lilv_world_set_option(IntPtr world, [MarshalAs(UnmanagedType.LPUTF8Str)] string uri, IntPtr value);
         [DllImport(Lib)] public static extern void lilv_node_free(IntPtr node);
         [DllImport(Lib)] public static extern IntPtr lilv_node_as_uri(IntPtr node);
         [DllImport(Lib)] public static extern IntPtr lilv_node_as_string(IntPtr node);

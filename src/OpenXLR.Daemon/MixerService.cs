@@ -232,24 +232,8 @@ public sealed class MixerService : IHostedService, IDisposable
             (string? enfSink, string? enfSource) = _mixer.EnforcedDefaults;
             string? wantSink = enfSink ?? defaultSinkBefore;
             string? wantSource = enfSource ?? defaultSourceBefore;
-            CancellationToken stop = _stopping.Token;
-            _defaultDefense = Task.Run(async () =>
-            {
-                foreach (int delayMs in new[] { 2000, 5000, 10000, 20000 })
-                {
-                    try { await Task.Delay(delayMs, stop); }
-                    catch (OperationCanceledException) { return; }
-                    if (stop.IsCancellationRequested) return;
-                    try
-                    {
-                        if (wantSink is { Length: > 0 } && Run("pactl", "get-default-sink") != wantSink)
-                            Run("pactl", "set-default-sink", wantSink);
-                        if (wantSource is { Length: > 0 } && Run("pactl", "get-default-source") != wantSource)
-                            Run("pactl", "set-default-source", wantSource);
-                    }
-                    catch (Exception ex) { _log.LogDebug("default defense: {msg}", ex.Message); }
-                }
-            });
+            _defaultDefense = DefaultDefense.RunAsync(wantSink, wantSource, args => Run("pactl", args),
+                DefaultDefense.DelaysMs, _stopping.Token, msg => _log.LogDebug("default defense: {msg}", msg));
         }
         catch (Exception ex)
         {

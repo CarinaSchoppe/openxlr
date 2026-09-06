@@ -38,7 +38,10 @@ jobs:
           python3 -m json.tool plugin/com.emaspa.openxlr.sdPlugin/manifest.json >/dev/null
 
       - name: Lint shell scripts
-        run: shellcheck --severity=error tools/check-version.sh packaging/ppa/make-source.sh
+        run: shellcheck --severity=error tools/check-version.sh tools/check-locked-restore.sh packaging/ppa/make-source.sh
+
+      - name: Locked restore enforced on every packaging path
+        run: tools/check-locked-restore.sh
 
       - name: Validate packaged service inputs
         run: |

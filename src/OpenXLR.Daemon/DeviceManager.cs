@@ -18,6 +18,7 @@ public sealed class DeviceManager : BackgroundService
     private IAudioDevice? _device;
     private DeviceState? _last;
     private IReadOnlyList<DeviceInfo> _detected = [];
+    private readonly Func<IReadOnlyList<IAudioDevice>> _detect;
     private ushort? _preferredPid;
     internal ServiceProgress Progress { get; } = new();
 
@@ -26,8 +27,12 @@ public sealed class DeviceManager : BackgroundService
     // hardware-control mode the stock layout (UCM split) stays in place.
     private readonly bool _submixer;
 
-    public DeviceManager(ILogger<DeviceManager> log, IConfiguration config)
+    public DeviceManager(ILogger<DeviceManager> log, IConfiguration config) : this(log, config, DeviceRegistry.DetectAll) { }
+
+    /// <summary>The detection source is injectable so the reconnect and set-aside logic can be driven by a fake device.</summary>
+    internal DeviceManager(ILogger<DeviceManager> log, IConfiguration config, Func<IReadOnlyList<IAudioDevice>> detect)
     {
+        _detect = detect;
         _log = log;
         string? want = Environment.GetEnvironmentVariable("OPENXLR_DEVICE");
         if (want is not null && ushort.TryParse(want, System.Globalization.NumberStyles.HexNumber, null, out ushort pid))
@@ -191,25 +196,7 @@ public sealed class DeviceManager : BackgroundService
     {
         while (!stop.IsCancellationRequested)
         {
-            try
-            {
-                EnsureConnected();
-                Progress.Mark();
-                PollOnce();
-                Progress.Mark();
-                TryParkCardProfile();
-                FlushLastState(force: false);
-            }
-            catch (UsbHungException ex)
-            {
-                NoteHung(ex);
-            }
-            catch (Exception ex)
-            {
-                _log.LogWarning("device loop: {msg}", ex.Message);
-                Drop();
-            }
-            Progress.Mark(); // a completed failed poll is responsive too
+            SweepOnce();
             await Task.Delay(100, stop).ContinueWith(_ => { }, TaskScheduler.Default);
         }
         FlushLastState(force: true);
@@ -217,10 +204,34 @@ public sealed class DeviceManager : BackgroundService
         RestoreCardProfile();
     }
 
-    // After a transfer that never returned, the worker thread is still parked
-    // in libusb on the old handle. Reconnecting straight away would hang the
-    // same way and leak a thread every few seconds, so wait before retrying.
-    private static readonly TimeSpan HungReconnectDelay = TimeSpan.FromSeconds(10);
+    /// <summary>One pass of the device loop: connect, poll, park the card profile, persist. Tests drive it directly.</summary>
+    internal void SweepOnce()
+    {
+        try
+        {
+            EnsureConnected();
+            Progress.Mark();
+            PollOnce();
+            Progress.Mark();
+            TryParkCardProfile();
+            FlushLastState(force: false);
+        }
+        catch (UsbHungException ex)
+        {
+            NoteHung(ex);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning("device loop: {msg}", ex.Message);
+            Drop();
+        }
+        Progress.Mark(); // a completed failed poll is responsive too
+    }
+
+    // After a transfer that never returned the helper process was killed;
+    // a device that hangs at once again is not worth a tight loop, so wait
+    // before retrying. Tests shorten it.
+    internal static TimeSpan HungReconnectDelay = TimeSpan.FromSeconds(10);
     private DateTime _reconnectNotBefore = DateTime.MinValue;
 
     /// <summary>
@@ -279,7 +290,7 @@ public sealed class DeviceManager : BackgroundService
     {
         lock (_gate)
         {
-            IReadOnlyList<IAudioDevice> all = DeviceRegistry.DetectAll();
+            IReadOnlyList<IAudioDevice> all = _detect();
             _detected = [.. all.Select(d => d.Info)];
             foreach (ushort driven in _driven)
                 if (!all.Any(d => d.Info.ProductId == driven)) _absent.Add(driven);

@@ -197,6 +197,14 @@ public sealed class PipeWireAdapter
         return id;
     }
 
+    /// <summary>Remove one owned module, retaining it for teardown if unloading fails.</summary>
+    public void UnloadModule(uint id)
+    {
+        if (!_modules.Contains(id)) throw new InvalidOperationException("module is not owned by this mixer");
+        Run("pactl", "unload-module", id.ToString());
+        _modules.Remove(id);
+    }
+
     /// <summary>A "sink#suffix" pseudo-device address without its suffix.</summary>
     private static string BareSink(string sinkName)
     {

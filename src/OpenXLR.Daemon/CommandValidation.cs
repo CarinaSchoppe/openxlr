@@ -24,6 +24,9 @@ public static class CommandValidation
     {
         switch (cmd.Cmd)
         {
+            case "createChannel":
+                return cmd.Name is null || cmd.Name.Length > 60 || string.IsNullOrWhiteSpace(cmd.Name) || cmd.Name.Any(char.IsControl)
+                    ? "createChannel: name must contain 1 to 60 printable characters" : null;
             case "setLevel":
             case "setChannelMuted":
                 if (cmd.Channel is not null && !layout.HasChannel(cmd.Channel)) return $"{cmd.Cmd}: unknown channel '{Short(cmd.Channel)}'";

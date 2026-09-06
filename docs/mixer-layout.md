@@ -32,5 +32,12 @@ save and restart. Removed application destinations fall back to the first
 application channel, never a hardware input; ignored applications stay ignored.
 Existing monitor-feed settings and profile semantics are unchanged.
 
-This format does not provide live layout commands or a desktop layout editor.
-Manual changes, including external PipeWire descriptions, take effect at startup.
+The `createChannel {name}` command adds an application channel while running,
+without rebuilding existing nodes. It succeeds only after the new layout is
+saved. A failed save removes the new channel and reports an error; existing
+channels and virtual microphones remain in place. Ordinary fader saves retain
+their best-effort retry behavior.
+
+Other manual changes, including external PipeWire descriptions, take effect at
+startup. A desktop layout editor and other live layout commands are not yet
+provided.

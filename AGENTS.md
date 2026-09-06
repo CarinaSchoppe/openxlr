@@ -1,10 +1,10 @@
 # Working on OpenXLR with an AI agent
 
-Contributions written with an AI agent are welcome here, under one
-rule: **the person who opens the pull request is the author.** You are
-responsible for the code, you must be able to explain every line of it
-when asked, and you must have run it. A pull request whose author
-cannot answer questions about it is closed, whatever produced it.
+AI-assisted contributions are allowed here, under one rule: **the
+person who opens the pull request is the author.** You are responsible
+for the code, you must be able to explain every line of it when asked,
+and you must have run it. A pull request whose author cannot answer
+questions about it is closed, whatever helped write it.
 
 The rest of this page is for the agent. [CONTRIBUTING.md](CONTRIBUTING.md)
 holds the full guidelines; this is the short version an agent should

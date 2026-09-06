@@ -82,12 +82,12 @@ Merged contributors are listed in the README's Credits and get the
 Contributor role on Discord, with access to the private `#contributors`
 channel.
 
-## AI agents
+## AI-assisted contributions
 
-Using an AI agent to write or review code is fine. The person who
-opens the pull request is the author: responsible for the code, able
-to explain every part of it, and the one who ran it. [AGENTS.md](AGENTS.md)
-is the short brief an agent should read before working on the tree.
+AI-assisted contributions are allowed. The person who opens the pull
+request is the author: responsible for the code, able to explain every
+part of it, and the one who ran it. [AGENTS.md](AGENTS.md) is the short
+brief an agent should read before working on the tree.
 
 ## Code conventions
 

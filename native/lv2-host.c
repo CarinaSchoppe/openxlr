@@ -10,13 +10,18 @@
 #include <lilv/lilv.h>
 #include <lv2/atom/atom.h>
 #include <lv2/atom/util.h>
+#include <lv2/buf-size/buf-size.h>
 #include <lv2/instance-access/instance-access.h>
+#include <lv2/options/options.h>
+#include <lv2/parameters/parameters.h>
 #include <lv2/ui/ui.h>
 #include <lv2/urid/urid.h>
+#include <lv2/worker/worker.h>
 #include <math.h>
 #include <pipewire/filter.h>
 #include <pipewire/pipewire.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <stdatomic.h>
@@ -32,8 +37,61 @@ enum {
   MAX_PORTS = 4096,
   MAX_FRAMES = 8192,
   ATOM_CAPACITY = 65536,
-  MAX_URIS = 4096
+  MAX_URIS = 4096,
+  // Worker traffic. The ring is a power of two so the counters can wrap.
+  WORK_RING = 65536,
+  WORK_FRAME_MAX = 8192
 };
+
+// One direction of worker traffic between the audio callback and the worker
+// thread: one writer, one reader, no locks and no allocation. The counters
+// count bytes ever written and read, so the difference is what is queued.
+typedef struct {
+  uint8_t data[WORK_RING];
+  _Atomic uint32_t written, read;
+} Ring;
+
+static void ring_copy_in(Ring *r, uint32_t at, const void *src, uint32_t size) {
+  uint32_t start = at & (WORK_RING - 1);
+  uint32_t first = size < WORK_RING - start ? size : WORK_RING - start;
+  memcpy(r->data + start, src, first);
+  memcpy(r->data, (const uint8_t *)src + first, size - first);
+}
+
+static void ring_copy_out(const Ring *r, uint32_t at, void *dst, uint32_t size) {
+  uint32_t start = at & (WORK_RING - 1);
+  uint32_t first = size < WORK_RING - start ? size : WORK_RING - start;
+  memcpy(dst, r->data + start, first);
+  memcpy((uint8_t *)dst + first, r->data, size - first);
+}
+
+static bool ring_push(Ring *r, const void *data, uint32_t size) {
+  uint32_t written = atomic_load_explicit(&r->written, memory_order_relaxed);
+  uint32_t read = atomic_load_explicit(&r->read, memory_order_acquire);
+  uint32_t need = size + (uint32_t)sizeof(uint32_t);
+  if (need > WORK_RING - (written - read))
+    return false;
+  ring_copy_in(r, written, &size, sizeof(size));
+  ring_copy_in(r, written + (uint32_t)sizeof(size), data, size);
+  atomic_store_explicit(&r->written, written + need, memory_order_release);
+  return true;
+}
+
+static bool ring_pop(Ring *r, void *dst, uint32_t *size_out) {
+  uint32_t read = atomic_load_explicit(&r->read, memory_order_relaxed);
+  uint32_t written = atomic_load_explicit(&r->written, memory_order_acquire);
+  if (written - read < sizeof(uint32_t))
+    return false;
+  uint32_t size;
+  ring_copy_out(r, read, &size, sizeof(size));
+  if (size > WORK_FRAME_MAX || written - read < sizeof(size) + size)
+    return false;
+  ring_copy_out(r, read + (uint32_t)sizeof(size), dst, size);
+  atomic_store_explicit(&r->read, read + (uint32_t)sizeof(size) + size,
+                        memory_order_release);
+  *size_out = size;
+  return true;
+}
 typedef struct {
   bool input, audio, control, atom;
   const char *symbol;
@@ -64,8 +122,24 @@ typedef struct {
   LV2_URID_Map map;
   LV2_URID_Unmap unmap;
   LV2_URID sequence_type;
+  // Worker: the plugin hands the audio thread's work to a thread that may
+  // block. Its answers come back before the next run.
+  const LV2_Worker_Interface *worker;
+  LV2_Worker_Schedule schedule;
+  pthread_t worker_thread;
+  sem_t work_ready;
+  bool work_ready_valid, worker_started;
+  _Atomic bool worker_stop;
+  Ring requests, responses;
+  uint8_t work_in[WORK_FRAME_MAX];   // worker thread only
+  uint8_t work_out[WORK_FRAME_MAX];  // audio thread only
+  // Options the plugin reads at instantiation. They outlive that call
+  // because plugins are permitted to keep the pointer.
+  int32_t min_block, max_block, sequence_size;
+  float rate_hz;
+  LV2_Options_Option options[5];
   Display *display;
-  Window window;
+  Window window, child;
   Atom close_message;
   void *ui_library;
   const LV2UI_Descriptor *ui_descriptor;
@@ -109,6 +183,10 @@ static bool required_features_supported(const LilvNodes *required, bool ui) {
       return false;
     if (!strcmp(uri, LV2_URID__map) || !strcmp(uri, LV2_URID__unmap))
       continue;
+    if (!ui && (!strcmp(uri, LV2_WORKER__schedule) ||
+                !strcmp(uri, LV2_OPTIONS__options) ||
+                !strcmp(uri, LV2_BUF_SIZE__boundedBlockLength)))
+      continue;
     if (ui && (!strcmp(uri, LV2_INSTANCE_ACCESS_URI) ||
                !strcmp(uri, LV2_UI__parent) || !strcmp(uri, LV2_UI__resize) ||
                !strcmp(uri, LV2_UI__idleInterface)))
@@ -117,6 +195,52 @@ static bool required_features_supported(const LilvNodes *required, bool ui) {
     return false;
   }
   return true;
+}
+
+// Called from the audio thread. Queue the work and wake the worker; never
+// touch the plugin here.
+static LV2_Worker_Status schedule_work(LV2_Worker_Schedule_Handle handle,
+                                       uint32_t size, const void *data) {
+  Host *h = handle;
+  if (size > WORK_FRAME_MAX || !ring_push(&h->requests, data, size))
+    return LV2_WORKER_ERR_NO_SPACE;
+  sem_post(&h->work_ready);
+  return LV2_WORKER_SUCCESS;
+}
+
+// Called from the worker thread, inside work().
+static LV2_Worker_Status worker_respond(LV2_Worker_Respond_Handle handle,
+                                        uint32_t size, const void *data) {
+  Host *h = handle;
+  return size <= WORK_FRAME_MAX && ring_push(&h->responses, data, size)
+             ? LV2_WORKER_SUCCESS
+             : LV2_WORKER_ERR_NO_SPACE;
+}
+
+static void *run_worker(void *data) {
+  Host *h = data;
+  while (!atomic_load(&h->worker_stop)) {
+    if (sem_wait(&h->work_ready) != 0)
+      continue;  // interrupted
+    if (atomic_load(&h->worker_stop))
+      break;
+    uint32_t size;
+    while (ring_pop(&h->requests, h->work_in, &size))
+      h->worker->work(lilv_instance_get_handle(h->instance), worker_respond, h,
+                      size, h->work_in);
+  }
+  return NULL;
+}
+
+// Idempotent: the plugin must not be asked to work after it is deactivated,
+// so this runs before that, and again on the paths that skip it.
+static void stop_worker(Host *h) {
+  if (!h->worker_started)
+    return;
+  atomic_store(&h->worker_stop, true);
+  sem_post(&h->work_ready);
+  pthread_join(h->worker_thread, NULL);
+  h->worker_started = false;
 }
 
 static void process_audio(void *data, struct spa_io_position *position) {
@@ -156,7 +280,15 @@ static void process_audio(void *data, struct spa_io_position *position) {
       p->sequence->body.pad = 0;
     }
   }
+  if (h->worker) {
+    uint32_t size;
+    while (ring_pop(&h->responses, h->work_out, &size))
+      h->worker->work_response(lilv_instance_get_handle(h->instance), size,
+                               h->work_out);
+  }
   lilv_instance_run(h->instance, frames);
+  if (h->worker && h->worker->end_run)
+    h->worker->end_run(lilv_instance_get_handle(h->instance));
   for (uint32_t i = 0; i < h->count; ++i) {
     Port *p = &h->ports[i];
     if (p->audio && !p->input && p->pw_port) {
@@ -220,6 +352,28 @@ static void forget_ui(Host *h) {
   h->idle = NULL;
   h->display = NULL;
   h->window = 0;
+  h->child = 0;
+}
+
+// A plugin builds its interface in a window of its own inside ours, at
+// whatever size it wants, and many never call the host's resize. Take the
+// size from that window, and watch it so later changes follow.
+static void fit_to_child(Host *h) {
+  Window root, parent, *children = NULL;
+  unsigned count = 0;
+  if (!XQueryTree(h->display, h->window, &root, &parent, &children, &count))
+    return;
+  if (count > 0) {
+    h->child = children[count - 1];
+    XSelectInput(h->display, h->child, StructureNotifyMask);
+    XWindowAttributes attributes;
+    if (XGetWindowAttributes(h->display, h->child, &attributes) &&
+        attributes.width > 0 && attributes.height > 0)
+      XResizeWindow(h->display, h->window, (unsigned)attributes.width,
+                    (unsigned)attributes.height);
+  }
+  if (children)
+    XFree(children);
 }
 
 static void close_ui(Host *h) {
@@ -298,6 +452,8 @@ static bool open_editor_window(Host *h, const char *bundle) {
                     (int)strlen(h->node_name));
     h->close_message = XInternAtom(h->display, "WM_DELETE_WINDOW", False);
     XSetWMProtocols(h->display, h->window, &h->close_message, 1);
+    XSelectInput(h->display, h->window,
+                 StructureNotifyMask | SubstructureNotifyMask);
     h->resize = (LV2UI_Resize){h, ui_resize};
     LV2_Feature parent = {LV2_UI__parent, (void *)(uintptr_t)h->window};
     LV2_Feature map = {LV2_URID__map, &h->map},
@@ -316,6 +472,7 @@ static bool open_editor_window(Host *h, const char *bundle) {
       h->idle = h->ui_descriptor->extension_data
                     ? h->ui_descriptor->extension_data(LV2_UI__idleInterface)
                     : NULL;
+      fit_to_child(h);  // before mapping, so the frame never opens wrong
       XMapRaised(h->display, h->window);
       XFlush(h->display);
     }
@@ -457,6 +614,27 @@ static void pump_editor(Host *h) {
       close_ui(h);
       return;
     }
+    // A plugin that builds its window after instantiate returns is found
+    // when that window appears.
+    if (!h->child && (event.type == MapNotify || event.type == CreateNotify))
+      fit_to_child(h);
+    // Keep the frame and the plugin's window the same size, whichever of
+    // the two changed. Each resize is skipped when the sizes already agree,
+    // so the two notifications cannot chase each other.
+    if (event.type == ConfigureNotify && h->child) {
+      const XConfigureEvent *c = &event.xconfigure;
+      XWindowAttributes attributes;
+      if (c->window == h->child &&
+          XGetWindowAttributes(h->display, h->window, &attributes) &&
+          (attributes.width != c->width || attributes.height != c->height))
+        XResizeWindow(h->display, h->window, (unsigned)c->width,
+                      (unsigned)c->height);
+      else if (c->window == h->window &&
+               XGetWindowAttributes(h->display, h->child, &attributes) &&
+               (attributes.width != c->width || attributes.height != c->height))
+        XResizeWindow(h->display, h->child, (unsigned)c->width,
+                      (unsigned)c->height);
+    }
   }
   if (h->ui_descriptor->port_event)
     for (uint32_t i = 0; i < h->count; ++i) {
@@ -562,16 +740,50 @@ int main(int argc, char **argv) {
   }
   h.map = (LV2_URID_Map){&h, map_uri};
   h.unmap = (LV2_URID_Unmap){&h, unmap_uri};
+  h.sequence_type = map_uri(&h, LV2_ATOM__Sequence);
+  h.schedule = (LV2_Worker_Schedule){&h, schedule_work};
+  if (sem_init(&h.work_ready, 0, 0) != 0) {
+    h.exit_code = 1;
+    goto cleanup;
+  }
+  h.work_ready_valid = true;
+  // The block length is bounded by the check in the audio callback, so the
+  // promise these options make is one this host keeps.
+  h.min_block = 1;
+  h.max_block = MAX_FRAMES;
+  h.sequence_size = ATOM_CAPACITY;
+  h.rate_hz = (float)h.rate;
+  LV2_URID atom_int = map_uri(&h, LV2_ATOM__Int),
+           atom_float = map_uri(&h, LV2_ATOM__Float);
+  h.options[0] = (LV2_Options_Option){
+      LV2_OPTIONS_INSTANCE, 0, map_uri(&h, LV2_BUF_SIZE__minBlockLength),
+      sizeof(int32_t), atom_int, &h.min_block};
+  h.options[1] = (LV2_Options_Option){
+      LV2_OPTIONS_INSTANCE, 0, map_uri(&h, LV2_BUF_SIZE__maxBlockLength),
+      sizeof(int32_t), atom_int, &h.max_block};
+  h.options[2] = (LV2_Options_Option){
+      LV2_OPTIONS_INSTANCE, 0, map_uri(&h, LV2_BUF_SIZE__sequenceSize),
+      sizeof(int32_t), atom_int, &h.sequence_size};
+  h.options[3] = (LV2_Options_Option){
+      LV2_OPTIONS_INSTANCE, 0, map_uri(&h, LV2_PARAMETERS__sampleRate),
+      sizeof(float), atom_float, &h.rate_hz};
+  h.options[4] = (LV2_Options_Option){LV2_OPTIONS_BLANK, 0, 0, 0, 0, NULL};
+
   LV2_Feature map = {LV2_URID__map, &h.map},
               unmap = {LV2_URID__unmap, &h.unmap};
-  const LV2_Feature *features[] = {&map, &unmap, NULL};
-  h.sequence_type = map_uri(&h, LV2_ATOM__Sequence);
+  LV2_Feature schedule = {LV2_WORKER__schedule, &h.schedule};
+  LV2_Feature options = {LV2_OPTIONS__options, h.options};
+  LV2_Feature bounded = {LV2_BUF_SIZE__boundedBlockLength, NULL};
+  const LV2_Feature *features[] = {&map,     &unmap,   &schedule,
+                                   &options, &bounded, NULL};
   h.instance = lilv_plugin_instantiate(h.plugin, h.rate, features);
   if (!h.instance) {
     fputs("LV2 instantiation failed\n", stderr);
     h.exit_code = 1;
     goto cleanup;
   }
+  h.worker = lilv_instance_get_extension_data(h.instance, LV2_WORKER__interface);
+  if (h.worker && !h.worker->work) h.worker = NULL;
   h.ports = calloc(h.count, sizeof(Port));
   float *ranges = calloc(h.count * 3, sizeof(float));
   if (!h.ports || !ranges) {
@@ -689,6 +901,13 @@ ports_done:
       goto cleanup;
     }
   }
+  if (h.worker && pthread_create(&h.worker_thread, NULL, run_worker, &h) == 0)
+    h.worker_started = true;
+  else if (h.worker) {
+    fputs("could not start the plugin's worker thread\n", stderr);
+    h.exit_code = 1;
+    goto cleanup;
+  }
   lilv_instance_activate(h.instance);
   if (pw_filter_connect(h.filter, PW_FILTER_FLAG_RT_PROCESS, NULL, 0) < 0) {
     h.exit_code = 1;
@@ -713,8 +932,12 @@ ports_done:
   pthread_join(monitor, NULL);
   pw_filter_disconnect(h.filter);
 deactivate:
+  stop_worker(&h);
   lilv_instance_deactivate(h.instance);
 cleanup:
+  stop_worker(&h);
+  if (h.work_ready_valid)
+    sem_destroy(&h.work_ready);
   close_ui(&h);
   if (h.filter)
     pw_filter_destroy(h.filter);

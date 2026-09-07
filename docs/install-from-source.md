@@ -51,6 +51,25 @@ dotnet build -c Release
 Binaries land in `src/OpenXLR.Daemon/bin/Release/net10.0/` and
 `src/OpenXLR.UI/bin/Release/net10.0/`.
 
+The packages install the small host process that opens a plugin's own
+editor. A source build leaves it out unless you ask:
+
+```sh
+dotnet build -c Release -p:EnableNativeLv2Host=true
+```
+
+That step compiles `native/lv2-host.c` and copies the helper next to the
+daemon. It needs a C compiler, make, pkg-config and the development files
+for PipeWire, lilv, LV2 and X11 (`base-devel`, `pipewire`, `lilv`, `lv2`
+and `libx11` on Arch; the `-dev` packages of the same on Debian and
+Ubuntu). Without the flag nothing native is built and inserts use
+PipeWire's filter chain, which is also the default when the helper is
+present. The manual describes the feature in 3.12.
+
+Build with the flag every time once you rely on it. A later build without it
+removes the helper again, and inserts set to the native host then report that
+it is not installed.
+
 ## 3. Device access (udev rule, then replug the device):
 
 ```sh

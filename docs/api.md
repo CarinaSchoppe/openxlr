@@ -85,6 +85,7 @@ a bare `error` message, so an editor can wait for the acknowledgement:
 | `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is `xlr1`, `xlr2` or `mix:<id>`, each insert is `{id, kind:"lv2", plugin:<uri>, label?, bypass?, params?}` |
 | `setInsertBypass` | `channel`, `insertId`, `value` | bypass one insert |
 | `setInsertParam` | `channel`, `insertId`, `symbol`, `value` | one plugin control, by its LV2 port symbol |
+| `showInsertUi` | `channel`, `insertId` | open an enabled insert's native editor when the optional host is installed |
 | `assignApp` | `identity`, `channel`, `label?` | route an app (creates a registry entry if unseen); `channel: "ignore"` stops managing it, its streams go back to the system default output and stay wherever the desktop routes them |
 | `assignStream` | `streamId`, `channel` | route one live stream by its PipeWire id; also remembered for the app; `ignore` works here too |
 | `forgetApp` | `identity` | drop an app and its remembered channel |
@@ -94,6 +95,11 @@ a bare `error` message, so an editor can wait for the acknowledgement:
 | `setRecallOnConnect` | `name` | the profile recalled whenever the active device connects fresh (daemon start, replug, switch to it); empty clears it. With none chosen, a device whose capabilities say `retainsSettings: false` gets the last settings the daemon saw on it instead |
 | `resetDevice` | none | write the firmware defaults back to a device without settings memory and forget its last settings (an error until the daemon has seen the device connect after a power cycle once); on the Wave XLR Pro, which keeps its own settings, write OpenXLR's baseline instead: gain 30 dB on both inputs, every processing stage and phantom off, headphones and aux level at half, the crossfade fully on PC, routing untouched, refused while the gain lock is on. The capabilities say `builtInDefaults` when a model has a baseline |
 | `getDiagnostics` | none | vendor block dump for bug reports |
+
+Insert definitions optionally carry `nativeHost: true` to select the native
+LV2 helper for that insert. Missing or false keeps PipeWire filter-chain, even
+when the helper is installed. Unsupported native selections are rejected.
+Changing this choice via `setInserts` rebuilds the chain and can interrupt audio.
 
 The OpenDeck plugin in `plugin/` is a client of this API; the command
 handler is `WebSocketHub.cs` and the message shapes are in

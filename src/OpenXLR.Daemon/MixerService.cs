@@ -222,6 +222,14 @@ public sealed class MixerService : IHostedService, IDisposable
                     if (restoredSinks.Count > 0)
                         _log.LogWarning("put {n} OpenXLR sink(s) back to full volume, unmuted ({names}); something outside OpenXLR had changed them",
                             restoredSinks.Count, string.Join(", ", restoredSinks));
+                    // Collect what the plugins' own editors changed before the
+                    // healing pass below, so a chain that is about to be rebuilt
+                    // comes back with the values its editor last showed.
+                    if (_mixer.SyncPluginControls())
+                    {
+                        ScheduleSave();
+                        Changed?.Invoke();
+                    }
                     if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()
                         | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()
                         | _mixer.EnsureFilterRoutes()
@@ -437,6 +445,10 @@ public sealed class MixerService : IHostedService, IDisposable
                         return "setInsertParam: need 'channel', 'insertId', and 'symbol'";
                     _mixer.SetInsertParam(cmd.Channel, cmd.InsertId, cmd.Symbol, cmd.Value.GetDouble());
                     break;
+                case "showInsertUi":
+                    if (cmd.Channel is null || cmd.InsertId is null) return "showInsertUi: need 'channel' and 'insertId'";
+                    _mixer.ShowInsertUi(cmd.Channel, cmd.InsertId);
+                    return null;
                 default:
                     return $"unknown mixer command '{cmd.Cmd}'";
             }

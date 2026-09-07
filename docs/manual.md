@@ -237,11 +237,20 @@ daemon remembers every change and writes it back whenever the
 interface connects fresh, so a reboot or a replug leaves you where you
 were, with no profile needed. The picker shows "(last settings)" in
 place of "(none)" on these devices; a chosen profile takes precedence.
-"Reset device to defaults" under the picker writes the firmware
+"Reset device to defaults", in Options under INTERFACE (away from the
+profile picker, where a slip would be costly), writes the firmware
 defaults back and forgets the remembered settings (saved profiles
 stay). The defaults are recorded the first time the interface connects
 after a power cycle, so the button asks for one replug on a fresh
 install.
+
+The Wave XLR Pro keeps its settings in its own memory, so there is no
+clean state to record and whatever is set on Linux is what Wave Link
+finds on Windows, and the other way round. For it the same button
+writes OpenXLR's baseline instead: gain 30 dB on both inputs, every
+processing stage and phantom power off, headphones and aux level at
+half, the crossfade fully on PC. Output routing and saved profiles
+stay. The gain lock has to be off.
 
 <a name="default-devices"></a>
 ### 3.7 Hold the system default devices
@@ -535,7 +544,7 @@ it to a public issue. Nothing is uploaded automatically.
 | `$XDG_RUNTIME_DIR/openxlr/token` (or `~/.config/openxlr/token` without a runtime directory) | the control API token for this daemon run, readable by your user only; the window and the OpenDeck plugin read it, a daemon older than the window will not have it ([section 3.10](#upgrade)) |
 | `$XDG_RUNTIME_DIR/openxlr/daemon.lock` | held by the running daemon; a second daemon started for the same user stops at once instead of waiting for the port |
 | `~/.config/openxlr/devices/<vid-pid>/last-state.json` | the settings restored on connect to an interface without settings memory |
-| `~/.config/openxlr/devices/<vid-pid>/defaults.json` | the firmware defaults of such an interface, recorded after a power cycle, written back by "Reset device to defaults" |
+| `~/.config/openxlr/devices/<vid-pid>/defaults.json` | the firmware defaults of such an interface, recorded after a power cycle, written back by "Reset device to defaults" (the Pro has no such file: its reset writes OpenXLR's baseline) |
 | `~/.config/openxlr/daemon.json` | the submixer on/off preference |
 | `~/.config/openxlr/gainlock.json` | which devices have the gain lock set |
 | `~/.config/openxlr/ui.json` | window preferences |

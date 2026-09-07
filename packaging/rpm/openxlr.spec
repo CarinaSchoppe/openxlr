@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.26
+Version:        0.1.27
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -136,6 +136,10 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Mon Sep 07 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.27-1
+- The daemon holds every OpenXLR sink at full volume and unmuted: a desktop applet or the session manager had turned all channel sinks on a user's machine down to 55 percent, which cut every mix 15 dB below the raw microphone.
+- Inserts whose LV2 plugin URI contains a hash (the x42 plugins, for one) load again: PipeWire's argument parser reads the hash as a comment, so the daemon now escapes it.
+
 * Mon Sep 07 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.26-1
 - Wave XLR Pro: a reset to OpenXLR's baseline from Options, since the device keeps its own settings and has no firmware defaults to record: gain 30 dB on both inputs, every processing stage and phantom power off, headphones and aux level at half, the crossfade fully on PC; output routing and saved profiles stay.
 - The device reset moved from the profile picker to Options under INTERFACE, where a slip cannot reach it.

@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.27
+Version:        0.1.28
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -147,6 +147,10 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Mon Sep 07 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.28-1
+- A plugin's own editor opens on the instance that is processing audio: one insert at a time moves out of the shared filter chain into a host process that carries the plugin and its editor, chosen per insert and off by default. An editor that fails costs the editor and never the sound.
+- The window is one per user: a second launch shows the running window instead of opening another.
+
 * Mon Sep 07 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.27-1
 - The daemon holds every OpenXLR sink at full volume and unmuted: a desktop applet or the session manager had turned all channel sinks on a user's machine down to 55 percent, which cut every mix 15 dB below the raw microphone.
 - Inserts whose LV2 plugin URI contains a hash (the x42 plugins, for one) load again: PipeWire's argument parser reads the hash as a comment, so the daemon now escapes it.

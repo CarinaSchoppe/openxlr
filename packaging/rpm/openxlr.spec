@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.25
+Version:        0.1.26
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -136,6 +136,10 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Mon Sep 07 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.26-1
+- Wave XLR Pro: a reset to OpenXLR's baseline from Options, since the device keeps its own settings and has no firmware defaults to record: gain 30 dB on both inputs, every processing stage and phantom power off, headphones and aux level at half, the crossfade fully on PC; output routing and saved profiles stay.
+- The device reset moved from the profile picker to Options under INTERFACE, where a slip cannot reach it.
+
 * Sun Sep 06 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.25-1
 - Editable mixer layout: application channels and virtual microphones are added, renamed, reordered and removed while audio plays, from the window's layout editor or the API; every change is saved before it is acknowledged, new channels start muted, ids stay stable across renames.
 - The channel sinks feed the mix sinks by name pattern, so a new microphone grows its sends on its own and nothing that carries audio is rebuilt.

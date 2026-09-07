@@ -1,3 +1,10 @@
+openxlr (0.1.26) resolute; urgency=medium
+
+  * Wave XLR Pro: a reset to OpenXLR's baseline from Options, since the device keeps its own settings and has no firmware defaults to record: gain 30 dB on both inputs, every processing stage and phantom power off, headphones and aux level at half, the crossfade fully on PC; output routing and saved profiles stay.
+  * The device reset moved from the profile picker to Options under INTERFACE, where a slip cannot reach it.
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Mon, 07 Sep 2026 07:09:40 +0100
+
 openxlr (0.1.25) resolute; urgency=medium
 
   * Editable mixer layout: application channels and virtual microphones are added, renamed, reordered and removed while audio plays, from the window's layout editor or the API; every change is saved before it is acknowledged, new channels start muted, ids stay stable across renames.

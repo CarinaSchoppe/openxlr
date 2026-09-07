@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.28
+Version:        0.1.29
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -147,6 +147,12 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Mon Sep 07 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.29-1
+- The native host runs the plugins that hand their heavy work to a background thread, which is how reverbs and convolvers build their impulse responses. Nine plugins on a typical desktop move from unhostable to hostable, and every installed plugin with an X11 editor can now be opened.
+- A plugin's editor opens at the size the plugin wants instead of a fixed frame that clipped the larger ones, and the frame and the interface follow each other when either is resized.
+- The cog on an insert row opens the plugin's own editor when one is running, and OpenXLR's generated controls otherwise. The switch that chooses the host moved onto the row beside bypass.
+- The plugin host no longer appears in the list of applications to route, and a build that leaves it out now says so instead of blaming the plugin.
+
 * Mon Sep 07 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.28-1
 - A plugin's own editor opens on the instance that is processing audio: one insert at a time moves out of the shared filter chain into a host process that carries the plugin and its editor, chosen per insert and off by default. An editor that fails costs the editor and never the sound.
 - The window is one per user: a second launch shows the running window instead of opening another.

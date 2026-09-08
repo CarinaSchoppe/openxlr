@@ -10,7 +10,7 @@ Source0: openxlr-yabridge-@VERSION@-source.tar.xz
 ExclusiveArch: x86_64
 AutoProv: no
 BuildRequires: python3 gcc-c++ meson ninja-build cmake pkgconf-pkg-config
-BuildRequires: wine-devel libxcb-devel dbus-devel cargo rust
+BuildRequires: wine wine-devel libxcb-devel dbus-devel cargo rust
 Requires: wine dbus-libs
 
 %description
@@ -29,7 +29,13 @@ export HOME=%{_builddir}
 export WINEPREFIX=%{_builddir}/wine
 export WINEDEBUG=-all
 mkdir -p "$WINEPREFIX"
-wine --version
+wine --version || :
+# Winelib output carries relocations in a read-only segment, which the
+# distribution's hardened link flags refuse. The bridge is built with the
+# flags its own recipe uses, as it is on every other channel.
+export CFLAGS="-O2 -g"
+export CXXFLAGS="-O2 -g"
+export LDFLAGS="-Wl,-z,notext"
 python3 openxlr-packaging/build.py build --source . --output out --jobs %{_smp_build_ncpus}
 
 %install

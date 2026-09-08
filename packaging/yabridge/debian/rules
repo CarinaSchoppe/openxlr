@@ -1,4 +1,13 @@
 #!/usr/bin/make -f
+
+# Winelib output keeps relocations in a read-only segment, which the
+# distribution's hardened link flags reject, and the bridge is built with the
+# flags its own recipe uses on every other channel.
+export DEB_BUILD_MAINT_OPTIONS = hardening=-all
+export DEB_CFLAGS_MAINT_SET = -O2 -g
+export DEB_CXXFLAGS_MAINT_SET = -O2 -g
+export DEB_LDFLAGS_MAINT_SET = -Wl,-z,notext
+
 %:
 	dh $@
 

@@ -22,6 +22,14 @@ CLAP plugins. Wine is supplied by the system.
 %autosetup -n openxlr-yabridge-@VERSION@
 
 %build
+# Wine reports no version without a prefix it can write, and the build reads
+# that version to decide whether VST3 support is safe to compile. A build root
+# has no home directory, so give it one here.
+export HOME=%{_builddir}
+export WINEPREFIX=%{_builddir}/wine
+export WINEDEBUG=-all
+mkdir -p "$WINEPREFIX"
+wine --version
 python3 openxlr-packaging/build.py build --source . --output out --jobs %{_smp_build_ncpus}
 
 %install

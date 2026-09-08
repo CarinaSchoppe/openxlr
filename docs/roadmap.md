@@ -13,10 +13,9 @@ behaviour verified on hardware before it ships. The project is small on
 purpose. It prefers one small, idiomatic change over a framework, and a
 feature that is measured over one that is described.
 
-## Where it stands on main
+## Where it stands (0.1.30)
 
-This includes changes merged after 0.1.29. A checked item does not imply
-that a published package already includes it.
+This is what 0.1.30 ships. A checked item is in the released packages.
 
 - [x] Wave XLR Pro, XLR Dock (MK.1 and MK.2 modules), Wave XLR, Wave XLR
   MK.2: hardware controls, verified by owners of each device.

@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.29
+Version:        0.1.30
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -149,6 +149,13 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Tue Sep 08 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.30-1
+- CLAP and VST3 plugins run as inserts in the native host, beside LV2, and the picker marks each plugin with its format and filters by it.
+- Plugins install from the window: pick a file or a folder and OpenXLR puts it where it looks. Windows VST3 and CLAP plugins go through yabridge, which the packages can now provide as a tested companion build.
+- A plugin's own editor takes the mouse from the first click and keeps the size the plugin asks for.
+- A dock that keeps no settings is given its gain back when it connects even when the gain lock is set, so it no longer comes up at the gain its firmware chooses.
+- The audio flow window shows inputs, channels, mixes and outputs in four columns with selectable signal paths.
+
 * Mon Sep 07 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.29-1
 - The native host runs the plugins that hand their heavy work to a background thread, which is how reverbs and convolvers build their impulse responses. Nine plugins on a typical desktop move from unhostable to hostable, and every installed plugin with an X11 editor can now be opened.
 - A plugin's editor opens at the size the plugin wants instead of a fixed frame that clipped the larger ones, and the frame and the interface follow each other when either is resized.

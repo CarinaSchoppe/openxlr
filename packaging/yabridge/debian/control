@@ -3,7 +3,7 @@ Section: sound
 Priority: optional
 Maintainer: Emanuele Sparvoli <sparvoli@gmail.com>
 Build-Depends: debhelper-compat (= 13), python3, g++, meson, ninja-build,
- cmake, pkg-config, wine64-tools, libwine-dev, libxcb1-dev, libdbus-1-dev,
+ cmake, pkg-config, wine, wine64-tools, libwine-dev, libxcb1-dev, libdbus-1-dev,
  cargo, rustc
 Standards-Version: 4.7.0
 Homepage: https://github.com/emaspa/openxlr

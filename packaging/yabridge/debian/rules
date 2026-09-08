@@ -9,11 +9,12 @@ override_dh_auto_configure:
 # the build calls them by their plain names. Put the plain names on PATH for
 # the build when the distribution does not provide them.
 override_dh_auto_build:
-	mkdir -p debian/winetools
-	for tool in winegcc wineg++; do \
+	mkdir -p debian/winetools debian/wineprefix
+	for tool in wine winegcc wineg++; do \
 		command -v $$tool >/dev/null || ln -sf "$$(command -v $$tool-stable)" "debian/winetools/$$tool"; \
 	done
 	PATH="$(CURDIR)/debian/winetools:$$PATH" \
+	HOME="$(CURDIR)/debian" WINEPREFIX="$(CURDIR)/debian/wineprefix" WINEDEBUG=-all \
 		python3 openxlr-packaging/build.py build --source . --output out
 
 override_dh_auto_test:
@@ -24,7 +25,7 @@ override_dh_auto_install:
 	python3 openxlr-packaging/test-package.py debian/openxlr-yabridge
 
 override_dh_auto_clean:
-	rm -rf out debian/winetools
+	rm -rf out debian/winetools debian/wineprefix
 
 override_dh_dwz:
 	:

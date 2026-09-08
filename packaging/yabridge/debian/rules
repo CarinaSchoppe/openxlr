@@ -38,3 +38,8 @@ override_dh_auto_clean:
 
 override_dh_dwz:
 	:
+
+# The vendored Rust crates carry a Cargo.toml.orig each, and cargo refuses to
+# build without them. To dh_clean they look like leftovers from patching.
+override_dh_clean:
+	dh_clean -XCargo.toml.orig

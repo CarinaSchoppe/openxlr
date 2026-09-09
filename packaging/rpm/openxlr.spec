@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.31
+Version:        0.1.32
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -149,6 +149,11 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Wed Sep 09 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.32-1
+- The inline N, B and cog buttons on the microphone strips and the mix cards are larger, with a minimum 24 by 24 target and accessibility names.
+- The Options update check label keeps its note on its own row instead of wrapping one word.
+- The Ubuntu source packages vendor the .NET runtime packs each series asks for, so a series whose builder bundles an older SDK restores offline.
+
 * Wed Sep 09 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.31-1
 - The Options window fits a 1080p screen: two columns that scroll, never taller than the screen it opens on.
 - XLR 1 and XLR 2 open their inserts in the same window a mix uses, and their strips keep the short row with bypass and the plugin's own controls.

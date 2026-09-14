@@ -17,9 +17,12 @@ internal static class PluginScanLog
     {
         IReadOnlyList<PluginScanFailure> failures = PluginScanDiagnostics.Failures();
         foreach (PluginScanFailure failure in failures)
-            log.LogWarning("plugin scan: {kind} bundle not read: {path}: {outcome}{exit}",
+            log.LogWarning("plugin scan: {kind} bundle not read: {path}: {outcome}{exit}{log}",
                 failure.Kind, failure.Path, failure.Outcome,
-                failure.ExitCode is int code ? $" (exit {code})" : "");
+                failure.ExitCode is int code ? $" (exit {code})" : "",
+                // The scanner's whole output is too long for a log line, so
+                // name the file it went to instead of clipping it again.
+                failure.LogId is { Length: > 0 } id ? $" (scanner output saved as {id}.log)" : "");
         return failures;
     }
 }

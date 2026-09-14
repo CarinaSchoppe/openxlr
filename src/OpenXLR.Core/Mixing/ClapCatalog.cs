@@ -34,7 +34,8 @@ public static class ClapCatalog
 
     internal static IReadOnlyList<PluginInfo> ScanNow(IEnumerable<string>? directories = null)
         => HostScan.Run("clap", "scan-clap", directories ?? SearchPath(),
-            directory => Directory.EnumerateFiles(directory, "*.clap", SearchOption.AllDirectories));
+            directory => Directory.EnumerateFiles(directory, "*.clap", SearchOption.AllDirectories),
+            logs: new PluginScanLogStore(PluginScanLogStore.DefaultDirectory));
 
     internal static IReadOnlyList<PluginInfo> Parse(string json) => HostScan.Parse(json, "clap");
 }
@@ -87,7 +88,8 @@ public static class Vst3Catalog
     }
 
     internal static IReadOnlyList<PluginInfo> ScanNow(IEnumerable<string>? directories = null)
-        => HostScan.Run("vst3", "scan-vst3", directories ?? SearchPath(), Bundles);
+        => HostScan.Run("vst3", "scan-vst3", directories ?? SearchPath(), Bundles,
+            logs: new PluginScanLogStore(PluginScanLogStore.DefaultDirectory));
 
     internal static IReadOnlyList<PluginInfo> Parse(string json) => HostScan.Parse(json, "vst3");
 }
@@ -95,9 +97,16 @@ public static class Vst3Catalog
 /// <summary>What the two scanners share: running the helper per bundle, and reading its JSON.</summary>
 internal static class HostScan
 {
+    /// <summary>
+    /// Scan one format. <paramref name="logs"/> is where the whole output of
+    /// a failed attempt is kept; the two catalogues pass the daemon's store,
+    /// and a caller that supplies its own <paramref name="describe"/> passes
+    /// its own or none, so a test never writes into the user's cache.
+    /// </summary>
     internal static IReadOnlyList<PluginInfo> Run(string kind, string command, IEnumerable<string> directories,
         Func<string, IEnumerable<string>> bundlesIn,
-        Func<string, ProcessResult>? describe = null, ScanCache? scanCache = null)
+        Func<string, ProcessResult>? describe = null, ScanCache? scanCache = null,
+        PluginScanLogStore? logs = null)
     {
         // Nothing here may throw: the catalogue is read once and kept, so an
         // exception would be kept with it, and every lookup after would fail.
@@ -111,6 +120,12 @@ internal static class HostScan
                 return result;
             }
             ManagedYabridge? bridge = ManagedYabridge.Discover();
+            // What a saved log may say about the tools involved, taken from
+            // what discovery has already read. Nothing here probes, launches
+            // or asks the network for a version.
+            string? bridgeStamp = bridge is null ? null
+                : $"yabridge {bridge.Version} (source {bridge.SourceCommit})";
+            string? scannerStamp = describe is null ? NativePluginHost.Executable : null;
             var cache = scanCache ?? new ScanCache(bridge is null ? ScanCache.DefaultDirectory
                 : Path.Combine(ScanCache.DefaultDirectory, "bridge-" + bridge.CacheKey));
             var known = new HashSet<string>(StringComparer.Ordinal);
@@ -148,6 +163,10 @@ internal static class HostScan
                     byte[]? description = cache.Lookup(bundle);
                     bool cached = description is not null;
                     string? stderr = null;
+                    int? exitCode = null;
+                    bool timedOut = false, outputCapped = false;
+                    DateTimeOffset startedAt = DateTimeOffset.UtcNow;
+                    long begun = System.Diagnostics.Stopwatch.GetTimestamp();
                     if (description is null)
                     {
                         // A module that carries hundreds of plugins is created and
@@ -156,6 +175,7 @@ internal static class HostScan
                         ProcessResult scan;
                         try { scan = describe is not null ? describe(bundle)
                             : ProcessRunner.Run(NativePluginHost.Executable, [command, bundle], TimeSpan.FromSeconds(60),
+                                stderrCap: PluginScanLogStore.StreamCapBytes,
                                 environment: bridge?.HostEnvironment()); }
                         catch (Exception ex)
                         {
@@ -163,14 +183,23 @@ internal static class HostScan
                             continue;
                         }
                         stderr = scan.Stderr;
+                        // The runner reports -1 when the exit status could not be
+                        // read at all, which is not an exit status to report.
+                        exitCode = scan.ExitCode == -1 ? null : scan.ExitCode;
+                        timedOut = scan.TimedOut;
+                        outputCapped = scan.Truncated;
                         if (scan.ExitCode != 0 || scan.TimedOut || scan.Truncated)
                         {
                             bool missingWindows = kind == "vst3" && !scan.TimedOut && !scan.Truncated
                                 && stderr.Contains("does not contain a Windows VST3 module", StringComparison.Ordinal);
-                            evidence.Add(bundle, scan.TimedOut ? "timeout" : scan.Truncated ? "output-limit"
-                                    : missingWindows ? "windows-module-missing" : "scan-failed",
-                                exitCode: scan.ExitCode, detail: missingWindows
-                                    ? stderr + "\n" + MissingWindowsModuleDetail(bundle) : stderr);
+                            string outcome = scan.TimedOut ? "timeout" : scan.Truncated ? "output-limit"
+                                : missingWindows ? "windows-module-missing" : "scan-failed";
+                            string detail = missingWindows ? stderr + "\n" + MissingWindowsModuleDetail(bundle) : stderr;
+                            PluginScanLogRef log = Keep(logs, new PluginScanAttempt(kind, bundle, outcome, startedAt,
+                                System.Diagnostics.Stopwatch.GetElapsedTime(begun), exitCode, timedOut, outputCapped,
+                                Scanner: scannerStamp, Bridge: bridgeStamp), scan.Stdout, stderr, scan.Truncated);
+                            evidence.Add(bundle, outcome, exitCode: scan.ExitCode, detail: detail,
+                                logId: log.Id, logNote: log.Note);
                             continue;
                         }
                         description = scan.Stdout;
@@ -186,7 +215,14 @@ internal static class HostScan
                     }
                     catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
                     {
-                        evidence.Add(bundle, "invalid-description", cached, detail: ex.Message);
+                        // The description itself is the evidence here, whether it
+                        // came from a launch or from the cache a launch filled.
+                        PluginScanLogRef log = Keep(logs, new PluginScanAttempt(kind, bundle, "invalid-description",
+                            startedAt, System.Diagnostics.Stopwatch.GetElapsedTime(begun), exitCode, timedOut,
+                            outputCapped, cached, scannerStamp, bridgeStamp, ex.Message),
+                            description, stderr ?? "", outputCapped);
+                        evidence.Add(bundle, "invalid-description", cached, detail: ex.Message,
+                            logId: log.Id, logNote: log.Note);
                     }
                 }
             }
@@ -196,6 +232,16 @@ internal static class HostScan
         finally { evidence.Complete(); }
         return result;
     }
+
+    /// <summary>
+    /// Save what the failed attempt printed, when there is somewhere to save
+    /// it. A store that cannot write hands back the reason, which the entry
+    /// carries; it never becomes an exception, because losing the log must
+    /// not lose the scan or the error it was recording.
+    /// </summary>
+    private static PluginScanLogRef Keep(PluginScanLogStore? logs, PluginScanAttempt attempt,
+        ReadOnlySpan<byte> stdout, string stderr, bool capped)
+        => logs is null ? default : logs.Save(attempt, stdout, capped, stderr, capped);
 
     private static bool SourceExists(string path)
     {

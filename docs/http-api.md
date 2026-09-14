@@ -53,7 +53,11 @@ unset TOKEN
 ```
 
 `getPluginSetup` is available through `POST /api/v1/commands` and reports
-the effective plugin host, Wine and bridge provider. `getPluginDiagnostics` reads bridge status and the latest completed native
+the effective plugin host, Wine and bridge provider. Its `memoryLockLimitBytes`
+is the running daemon's soft memory-lock limit in bytes (-1 for unlimited,
+null when unknown), and `memoryLockNote` is recovery advice when Windows
+plugin support is available and the limit is below 256 MiB, otherwise null.
+`getPluginDiagnostics` reads bridge status and the latest completed native
 scan evidence without syncing or changing inserts. Both reply shapes are
 documented in [api.md](api.md); the transport does not select a bridge itself.
 

@@ -90,6 +90,10 @@ public partial class OptionsWindow : Window
     }
 
     private void OnPluginsManual(object? sender, RoutedEventArgs e) => ExternalLink.Open(PluginInstall.Manual);
+    private void OnWindowsEditorHelp(object? sender, RoutedEventArgs e)
+        => ExternalLink.Open("https://github.com/emaspa/openxlr/blob/main/docs/manual.md#windows-editor-input");
+    private void OnMemoryLockHelp(object? sender, RoutedEventArgs e)
+        => ExternalLink.Open("https://github.com/emaspa/openxlr/blob/main/docs/manual.md#memlock");
 
     // Appearance: the picker applies on selection; this reads the folders again
     // for a skin added or edited while the window was open.

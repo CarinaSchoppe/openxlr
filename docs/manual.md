@@ -637,6 +637,20 @@ grep 'Max locked memory' /proc/$(systemctl --user show openxlr-daemon -p MainPID
 
 "unlimited" there means the plugins the daemon starts inherit it too.
 
+Options, PLUGINS also checks the running daemon's memory-lock limit. When
+Wine, yabridge and the native host are available, a limit below 256 MiB
+shows a warning and a Memory-lock setup link here. This is yabridge's
+warning threshold; it is not a measurement of how much memory a plugin
+needs. An unreadable limit is unknown, not zero. Diagnostics archives
+include the same effective limit in `plugin-setup.json`.
+
+After changing group membership, a daemon restart within the old login
+session can still inherit the old limit. If user services survive signing
+out, reboot to start a fresh session. Check the daemon's limit again after
+that. A memory-lock warning and a Windows editor ignoring clicks have
+different remedies: the separate Fix Windows editor input link in Options
+leads to the companion package instructions above.
+
 <a name="wine-ends"></a>
 **Wine ends with the last bridged plugin.** A Windows plugin runs in Wine,
 and Wine keeps service processes of its own behind it that stay after the

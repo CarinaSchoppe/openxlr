@@ -44,6 +44,9 @@ public sealed record PluginSetup(
     /// with this pair of versions, or null when there is nothing to say.
     /// </summary>
     public string? WindowsEditorNote { get; init; }
+    /// <summary>The daemon's soft memory-lock limit in bytes; -1 is unlimited, null is unknown.</summary>
+    public long? MemoryLockLimitBytes { get; init; }
+    public string? MemoryLockNote { get; init; }
     public string BridgeProvider { get; init; } = "system";
     public string? BridgeDirectory { get; init; }
     public string? WindowsPluginDirectory { get; init; }
@@ -892,8 +895,11 @@ public sealed class PluginInstaller
         IReadOnlyList<string> wine = _wine is null || _yabridgectl is null
             ? []
             : [.. WinePluginFolders().Where(f => !known.Contains(Path.GetFullPath(f).TrimEnd('/')))];
+        long? memoryLockLimit = PluginMemoryLock.ReadLimit();
         return new(_hostInstalled, Shorten(_lv2), Shorten(_clap), Shorten(_vst3), _managed?.Version ?? version, _wine is not null, bridged, wine)
         {
+            MemoryLockLimitBytes = memoryLockLimit,
+            MemoryLockNote = PluginMemoryLock.Note(memoryLockLimit, _hostInstalled && _yabridgectl is not null && _wine is not null),
             WineVersion = wineVersion,
             BridgeProvider = _managed is null ? "system" : "openxlr",
             BridgeDirectory = _managed is null ? null : Shorten(_managed.Directory),

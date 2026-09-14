@@ -56,6 +56,9 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     // changes (KDE applet, hardware knobs) can be detected and pushed.
     private double? _outputVolume;
 
+    /// <summary>Follow the first selected monitor output as the system playback device.</summary>
+    public const string FollowMonitorOutput = "@monitor";
+
     // Enforced system defaults (null = not enforced).
     private string? _enforcedSink;
     private string? _enforcedSource;
@@ -1252,6 +1255,11 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         EnforceDefaults();
     }
 
+    internal static string? ResolveDefaultSink(string? setting, IReadOnlyList<string> outputs)
+        => setting == FollowMonitorOutput
+            ? outputs.FirstOrDefault() is string first ? StripMarker(first) : null
+            : setting;
+
     /// <summary>
     /// Re-assert the enforced defaults. WirePlumber auto-switches defaults to
     /// new devices and replays remembered preferences, so a one-time set is not
@@ -1260,7 +1268,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     public bool EnforceDefaults()
     {
         string? sink, source;
-        lock (_gate) { sink = _enforcedSink; source = _enforcedSource; }
+        lock (_gate) { sink = ResolveDefaultSink(_enforcedSink, _monitorOutputs); source = _enforcedSource; }
         bool corrected = false;
         try
         {
@@ -1290,6 +1298,16 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             string? first = _monitorOutputs.FirstOrDefault();
             double? outV = first is null ? null : _pw.GetSinkVolume(first);
             bool changed = Differs(outV, _outputVolume);
+            // In follow mode the desktop changes the first output directly.
+            // Carry that change to the other selected outputs just as the
+            // MONITOR slider does. A new output selection establishes a fresh
+            // baseline rather than overwriting its remembered device volume.
+            if (_enforcedSink == FollowMonitorOutput && changed && _outputVolume is not null && outV is double volume)
+                foreach (string sink in _monitorOutputs.Select(StripMarker).Distinct().Skip(1))
+                {
+                    try { _pw.SetSinkVolume(sink, volume); }
+                    catch (InvalidOperationException) { /* device gone */ }
+                }
             _outputVolume = outV;
             return changed;
         }
@@ -1397,6 +1415,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         foreach (PortLink route in _monitorRoutes.Values) _pw.Unlink(route);
         _monitorRoutes.Clear();
         _monitorOutputs.Clear();
+        _outputVolume = null;
         foreach (string name in sinkNames.Where(n => !string.IsNullOrEmpty(n)).Distinct())
         {
             // The aux port is owned by the Aux mix now; old saved selections

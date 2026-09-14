@@ -330,7 +330,9 @@ public sealed class MixerService : IHostedService, IDisposable
             // Defend the defaults after WirePlumber's delayed auto-switch. Two
             // passes because the switch can land seconds after node creation.
             (string? enfSink, string? enfSource) = _mixer.EnforcedDefaults;
-            string? wantSink = enfSink ?? defaultSinkBefore;
+            // Follow mode is resolved by the regular sweep from the current
+            // monitor selection, never pinned to a startup-time device.
+            string? wantSink = enfSink == Mixer.FollowMonitorOutput ? null : enfSink ?? defaultSinkBefore;
             string? wantSource = enfSource ?? defaultSourceBefore;
             _defaultDefense = DefaultDefense.RunAsync(wantSink, wantSource, args => Run("pactl", args),
                 DefaultDefense.DelaysMs, _stopping.Token, msg => _log.LogDebug("default defense: {msg}", msg));

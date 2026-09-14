@@ -81,7 +81,7 @@
     <Border Classes="card">
       <StackPanel Spacing="6">
         <TextBlock Text="SYSTEM DEFAULT DEVICES" Classes="h"/>
-        <TextBlock Text="When set, OpenXLR holds these as the system defaults and reverts any outside change, like Wave Link does. Applications that follow the system default will use them."
+        <TextBlock Text="When set, OpenXLR holds these as the system defaults and reverts any outside change, like Wave Link does. Applications that follow the system default will use them. Choose Follow MONITOR output to use keyboard volume keys and the desktop volume slider for the selected monitor device."
                    FontSize="11" Foreground="{DynamicResource Ox.Text.Muted}" TextWrapping="Wrap"/>
 
         <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,8,Auto">

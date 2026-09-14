@@ -155,7 +155,22 @@ configuration.
    on B, add a denoiser under the Monitor B master, and one pair of
    headphones hears both, with the plugin touching only your voice.
    The Pro's own jacks share one feed.
-3. The Volume slider sets the level of the selected devices.
+3. The Volume slider sets the level of the selected devices. To control this
+   same level with a keyboard volume wheel, media keys or the Linux audio
+   applet, open Options, SYSTEM DEFAULT DEVICES, and choose **Follow MONITOR
+   output (system volume controls)** as Default output. Linux then uses the
+   first selected monitor device as its default playback device. Changing
+   the MONITOR selection updates that default on the next sweep (about one
+   second). No selected output means no default is enforced.
+
+   Desktop changes appear in the MONITOR slider on the next sweep and also
+   update the other selected monitor outputs. The OpenXLR slider writes the
+   same device volumes, so Linux sees its changes too. OpenXLR's application
+   routing and the Stream and Chat mix levels stay unchanged. Applications
+   left to desktop routing play directly to the default monitor device.
+   Existing fixed default-device choices remain available; a virtual channel
+   such as OpenXLR System is a routing destination, not a monitor volume
+   control.
 4. The HEADPHONES card holds the interface's own headphone volume,
    low-impedance mode, and on the Pro the Mic ↔ PC crossfade, which is
    the zero-latency direct monitor inside the device: left is only your

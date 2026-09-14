@@ -85,3 +85,8 @@ rejects blocked editors over HTTP just as it does over WebSocket.
 The [OpenAPI document](openapi-v1.json) describes the HTTP endpoints. Restarting
 the daemon rotates its per-session token once the new instance listens;
 clients must reread it.
+
+For `setEnforcedDefaults`, `sink: "@monitor"` follows the first selected
+monitor output as the system playback device. The response state retains
+that value; see [the command contract](api.md) for resolution and volume
+synchronization.

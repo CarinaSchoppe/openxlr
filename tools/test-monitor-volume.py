@@ -30,8 +30,20 @@ def main():
                             raise RuntimeError(command + " did not create its socket")
                         time.sleep(0.05)
                 help_text = subprocess.check_output(["wireplumber", "--help"], text=True)
-                policy = ["--profile", "policy"] if "--profile" in help_text else ["--config-file", "policy.conf"]
-                processes.append(subprocess.Popen(["wireplumber", *policy], env=env, stdout=log, stderr=log))
+                if "--profile" in help_text:
+                    policies = [["--profile", "policy"]]
+                else:
+                    # WirePlumber 0.4 keeps default-node management in main,
+                    # separate from routing policy. Disable its hardware
+                    # monitors before loading that configuration as well.
+                    fragments = Path(env["XDG_CONFIG_HOME"], "wireplumber", "main.lua.d")
+                    fragments.mkdir(parents=True)
+                    (fragments / "51-no-hardware.lua").write_text(
+                        "alsa_monitor.enabled = false\nv4l2_monitor.enabled = false\n"
+                        "libcamera_monitor.enabled = false\n")
+                    policies = [["--config-file", "main.conf"], ["--config-file", "policy.conf"]]
+                for policy in policies:
+                    processes.append(subprocess.Popen(["wireplumber", *policy], env=env, stdout=log, stderr=log))
                 subprocess.run(["dotnet", "test", "src/OpenXLR.Tests/OpenXLR.Tests.csproj",
                                 "-c", "Release", "--no-build", "--filter",
                                 "FullyQualifiedName~MonitorVolumeIntegrationTests"],

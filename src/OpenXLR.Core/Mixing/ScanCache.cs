@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -111,27 +112,44 @@ public sealed class ScanCache
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* next run scans again */ }
     }
 
-    /// <summary>A bundle's identity on disk: for a directory, its newest file counts.</summary>
+    /// <summary>A bundle's identity on disk, including the files its links load.</summary>
     internal static (long Modified, long Size)? Stamp(string bundle)
     {
         try
         {
             if (File.Exists(bundle))
             {
-                var info = new FileInfo(bundle);
-                return (info.LastWriteTimeUtc.Ticks, info.Length);
+                return FileStamp(bundle);
             }
             if (!Directory.Exists(bundle)) return null;
-            long newest = 0, total = 0;
-            foreach (string file in Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories))
+            long total = 0;
+            using var stamp = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            byte[] numbers = new byte[16];
+            foreach (string file in Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
             {
-                var info = new FileInfo(file);
-                newest = Math.Max(newest, info.LastWriteTimeUtc.Ticks);
-                total += info.Length;
+                if (FileStamp(file) is not (long modified, long size)) return null;
+                // The newest file alone can hide an updated Windows source
+                // whose timestamp is still older than the Linux wrapper.
+                stamp.AppendData(Encoding.UTF8.GetBytes(Path.GetRelativePath(bundle, file) + "\0"));
+                BinaryPrimitives.WriteInt64LittleEndian(numbers, modified);
+                BinaryPrimitives.WriteInt64LittleEndian(numbers.AsSpan(8), size);
+                stamp.AppendData(numbers);
+                total += size;
             }
-            return (newest, total);
+            return (BinaryPrimitives.ReadInt64LittleEndian(stamp.GetHashAndReset()), total);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    private static (long Modified, long Size)? FileStamp(string path)
+    {
+        var info = new FileInfo(path);
+        // Bridge bundles link to the original Windows module. FileInfo on
+        // the link describes the link itself, which stays unchanged when the
+        // plugin is updated, moved or deleted. Stamp the loaded file instead.
+        if (info.LinkTarget is not null)
+            info = info.ResolveLinkTarget(returnFinalTarget: true) as FileInfo;
+        return info is { Exists: true } ? (info.LastWriteTimeUtc.Ticks, info.Length) : null;
     }
 
     private static Dictionary<string, Entry> Load(string path)

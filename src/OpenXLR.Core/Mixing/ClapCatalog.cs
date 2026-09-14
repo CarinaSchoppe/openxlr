@@ -131,6 +131,20 @@ internal static class HostScan
                 evidence.Add(directory, "directory", detail: $"{bundles.Count()} candidate bundles");
                 foreach (string bundle in bundles)
                 {
+                    try
+                    {
+                        if (!SourceExists(bundle))
+                        {
+                            evidence.Add(bundle, "source-missing",
+                                detail: "The plugin path or its symbolic-link target is missing. Restore the original plugin or install it again, then rescan.");
+                            continue;
+                        }
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        evidence.Add(bundle, "scan-error", detail: ex.Message);
+                        continue;
+                    }
                     byte[]? description = cache.Lookup(bundle);
                     bool cached = description is not null;
                     string? stderr = null;
@@ -151,8 +165,12 @@ internal static class HostScan
                         stderr = scan.Stderr;
                         if (scan.ExitCode != 0 || scan.TimedOut || scan.Truncated)
                         {
-                            evidence.Add(bundle, scan.TimedOut ? "timeout" : scan.Truncated ? "output-limit" : "scan-failed",
-                                exitCode: scan.ExitCode, detail: stderr);
+                            bool missingWindows = kind == "vst3" && !scan.TimedOut && !scan.Truncated
+                                && stderr.Contains("does not contain a Windows VST3 module", StringComparison.Ordinal);
+                            evidence.Add(bundle, scan.TimedOut ? "timeout" : scan.Truncated ? "output-limit"
+                                    : missingWindows ? "windows-module-missing" : "scan-failed",
+                                exitCode: scan.ExitCode, detail: missingWindows
+                                    ? stderr + "\n" + MissingWindowsModuleDetail(bundle) : stderr);
                             continue;
                         }
                         description = scan.Stdout;
@@ -177,6 +195,33 @@ internal static class HostScan
         catch (Exception ex) { evidence.Add("", "scan-error", detail: ex.Message); }
         finally { evidence.Complete(); }
         return result;
+    }
+
+    private static bool SourceExists(string path)
+    {
+        if (Directory.Exists(path)) return true;
+        var file = new FileInfo(path);
+        // On Unix, File.Exists also reports dangling symbolic links as files.
+        return file.LinkTarget is null ? file.Exists
+            : file.ResolveLinkTarget(returnFinalTarget: true) is { Exists: true };
+    }
+
+    internal static string MissingWindowsModuleDetail(string bundle)
+    {
+        const string advice = "Restore the original Windows plugin or install it again, then sync and rescan. A generated yabridge wrapper does not contain the original plugin.";
+        try
+        {
+            string name = Path.GetFileNameWithoutExtension(bundle.TrimEnd(Path.DirectorySeparatorChar));
+            foreach (string architecture in new[] { "x86_64-win", "i386-win" })
+            {
+                string module = Path.Combine(bundle, "Contents", architecture, name + ".vst3");
+                string? target = new FileInfo(module).LinkTarget;
+                if (target is not null && !SourceExists(module))
+                    return $"Missing Windows source: {Path.GetFullPath(target, Path.GetDirectoryName(module)!)}. {advice}";
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { }
+        return advice;
     }
 
     internal static IReadOnlyList<PluginInfo> Parse(string json, string kind)

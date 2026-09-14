@@ -253,7 +253,7 @@ startup, with `kind`, `completedAt`, `entries` and `omitted`. An empty list
 means no native scan has completed yet. Entries carry `path`, `outcome`,
 `cached`, `plugins`, `duplicates`, `exitCode` and `detail`. Outcomes include
 `host-missing`, `directory`, `directory-missing`, `directory-error`,
-`start-error`, `scan-failed`, `timeout`, `output-limit`, `invalid-description`,
+`start-error`, `scan-failed`, `source-missing`, `windows-module-missing`, `timeout`, `output-limit`, `invalid-description`,
 `no-plugins`, `ok` and `scan-error`. A cached description is reused only
 while the native helper that wrote it is the one asking, so `cached` is
 false everywhere in the first scan after the helper changes. Reports retain
@@ -271,7 +271,13 @@ install or sync step, not whether every bundle could be scanned. Missing
 optional directories, an absent native helper and bundles reporting no
 plugins are not counted as scan failures. The summary uses the retained
 entries, so check `omitted` for larger scans. A timed-out scan is not cached
-and will be retried on the next rescan.
+and will be retried on the next rescan. `source-missing` identifies a missing
+plugin path or dangling bundle link. `windows-module-missing` identifies a
+yabridge wrapper that cannot find its original Windows module; its detail
+includes the broken Windows link target when available. Both are scan
+failures and include recovery guidance in the user-facing summary. Cache
+stamps follow linked plugin files, so a removed or updated Windows source
+cannot keep an unchanged wrapper's old catalogue entry alive.
 
 These reports describe scanner output before the `plugins` message's size
 budget and the picker's channel-width/format filters. Compare them with

@@ -30,6 +30,8 @@ public static class PluginScanDiagnostics
     {
         ["timeout"] = "timed out",
         ["scan-failed"] = "the scanner failed",
+        ["source-missing"] = "the plugin file or link target is missing",
+        ["windows-module-missing"] = "the original Windows plugin is missing",
         ["output-limit"] = "it described too much",
         ["start-error"] = "the scanner could not start",
         ["invalid-description"] = "its description could not be read",
@@ -60,7 +62,9 @@ public static class PluginScanDiagnostics
             $"{Name(f.Path)} ({Reasons.GetValueOrDefault(f.Outcome, f.Outcome)})"));
         if (failures.Count > Named) names += $" and {failures.Count - Named} more";
         string count = failures.Count == 1 ? "1 bundle" : $"{failures.Count} bundles";
-        return $"{count} could not be read: {names}; the daemon's log says more.";
+        string recovery = failures.Any(f => f.Outcome is "source-missing" or "windows-module-missing")
+            ? " Restore the original plugin files or install them again, then rescan." : "";
+        return $"{count} could not be read: {names}; the daemon's log says more.{recovery}";
     }
 
     private static string Name(string path)

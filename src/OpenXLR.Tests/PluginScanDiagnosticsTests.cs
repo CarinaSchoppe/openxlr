@@ -217,6 +217,7 @@ public sealed class PluginScanDiagnosticsTests
             var cache = new ScanCache(Path.Combine(dir, "cache"));
             HostScan.Run(kind, "unused", [dir], _ => throw new UnauthorizedAccessException("cannot read folder"), _ => throw new Exception(), cache);
             Assert.Contains(PluginScanDiagnostics.Snapshot().Single(r => r.Kind == kind).Entries, e => e.Outcome == "directory-error");
+            File.WriteAllText(Path.Combine(dir, "plugin.vst3"), "fixture");
             HostScan.Run(kind, "unused", [dir], _ => [Path.Combine(dir, "plugin.vst3")], _ => throw new IOException("loader missing"), cache);
             Assert.Contains(PluginScanDiagnostics.Snapshot().Single(r => r.Kind == kind).Entries, e => e.Outcome == "start-error" && e.Detail == "loader missing");
         }

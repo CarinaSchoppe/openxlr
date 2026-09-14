@@ -964,6 +964,16 @@ has its chain switched off after it has failed three times in five
 minutes, with the reason on the insert;
 changing or bypassing that chain starts it over.
 
+A VST3 scan that says the original Windows plugin is missing usually means
+its yabridge wrapper still exists under `~/.vst3/yabridge`, but the source
+file was moved or deleted. The wrapper is a bridge, not a copy of the
+Windows plugin. Restore the source to its original location, or install
+it again and register its current folder in Options. Then sync and rescan.
+The scan diagnostics include the missing link target when available.
+An ordinary missing plugin path or dangling bundle link is reported
+separately. Updating or restoring a linked source causes it to be scanned
+again even when the generated Linux wrapper did not change.
+
 <a name="stream-deck"></a>
 ## 4. Stream Deck (OpenDeck)
 

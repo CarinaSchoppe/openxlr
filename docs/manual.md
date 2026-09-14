@@ -164,11 +164,16 @@ configuration.
    second). No selected output means no default is enforced.
 
    Desktop changes appear in the MONITOR slider on the next sweep and also
-   update the other selected monitor outputs. The OpenXLR slider writes the
-   same device volumes, so Linux sees its changes too. Changing the first
-   selected device adopts its current volume. Relinking the same device,
-   including after a monitor feed or insert change, keeps volume changes
-   synchronized across the selected outputs. OpenXLR's application
+   update the other selected monitor outputs, at the level the desktop
+   chose: a desktop that boosts past 100% sets the other outputs there too,
+   rather than leaving them quieter with nothing to show for it. The
+   OpenXLR slider writes the same device volumes, so Linux sees its changes
+   too, and its own scale stops at 100%. Changing the first selected device
+   adopts its current volume. Relinking the same device, including after a
+   monitor feed or insert change, keeps volume changes synchronized across
+   the selected outputs. An output that was asleep or unplugged when the
+   volume changed is set as soon as it answers again, without waiting for
+   the next desktop change. OpenXLR's application
    routing and the Stream and Chat mix levels stay unchanged. Applications
    left to desktop routing play directly to the default monitor device.
    Existing fixed default-device choices remain available; a virtual channel
@@ -292,8 +297,8 @@ and always run in that host. VST2 plugins cannot be loaded.
 **Native editor compatibility.** Open Options, PLUGINS, then "Native editors"
 to choose plugins that should use OpenXLR's generated controls instead of their
 own editor. The release list includes Elgato De-Esser because its
-native editor freezes under Wine, and Elgato Noise Removal and Compressor
-because closing or reopening their native editors can crash the plugin host.
+native editor freezes under Wine, and Elgato Noise Removal because closing
+or reopening its native editor can crash the plugin host.
 
 - Find an installed plugin and press "Use OpenXLR controls" to add a block.
 - Select a blocked entry and choose "Allow native editor" to try its own
@@ -576,11 +581,13 @@ they change or stop other Wine applications using that prefix. Start with
 the scan evidence instead.
 
 <a name="windows-editor-input"></a>
-Elgato Noise Removal 1.1.2 and Compressor 1.0.1 can crash when their own
-editors close or reopen with Wine 11.17 and the OpenXLR bridge 5.1.1.54.
-Their native editors are blocked by default. Use their OpenXLR controls;
-this does not disable the effects. Options, Native editors lets users test
-a different bridge or plugin version by explicitly allowing an editor again.
+Elgato Noise Removal 1.1.2 can crash when its own editor closes or reopens
+with Wine 11.17 and the OpenXLR bridge 5.1.1.54. Its native editor is
+blocked by default. Use its OpenXLR controls; this does not disable the
+effect. Options, Native editors lets users test a different bridge or
+plugin version by explicitly allowing an editor again, and lets anyone put
+a plugin that is not on the list, Elgato Compressor among them, on OpenXLR
+controls for themselves.
 
 **A Windows plugin's own editor ignores the mouse.** The plugin plays, its
 interface is drawn and it follows anything you change from OpenXLR, but

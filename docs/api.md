@@ -92,7 +92,7 @@ a bare `error` message, so an editor can wait for the acknowledgement:
 | `setMonitorOutput` | `device` | a single monitor sink; `null` disconnects the route |
 | `setMonitorFeed` | `device`, `mix` | what feeds one selected output: `monitor` (Monitor A), `monitor2` (Monitor B), or both summed as `monitor+monitor2` (Monitor A+B); the Pro's own jacks follow one feed together. The state's `monitorFeeds` lists the exceptions from the first mix in the same form. An error when the feed names anything but distinct monitor mixes, or the output is not selected |
 | `setAuxPortEnabled` | `value` | send the Aux mix to the USB Aux port |
-| `setOutputVolume` | `value` | volume of the selected monitor devices |
+| `setOutputVolume` | `value` | volume of the selected monitor devices, 0 to 1.5; the range the devices themselves take, so a desktop level above unity can be held and written back unchanged. Values outside it are clamped, and the state reports what reached the devices |
 | `listPlugins` | none | the installed LV2, CLAP and VST3 plugins, answered with a `plugins` message |
 | `getPluginDiagnostics` | none | read bridge status and existing native scan evidence without syncing, rescanning or changing inserts; answered with `pluginDiagnostics` |
 | `getPluginSetup` | none | where plugins are installed and what bridges Windows ones, answered with a `pluginSetup` message |
@@ -126,8 +126,14 @@ monitor output as the system playback device. The state and saved settings
 retain `@monitor`; the daemon resolves it to the device's actual sink name
 (without a headphone-pair suffix) on each sweep. With no selected output it
 does not change the system default. Desktop volume changes on that first
-output update the MONITOR volume and the other selected outputs. A fixed
-sink name and `null` (no enforcement) keep their existing meanings.
+output update the MONITOR volume and the other selected outputs, at the
+level the desktop chose, a boost past 100% included. An output that refuses
+the change, because it is asleep, re-enumerating or unplugged, is written
+again on the following sweeps and once more whenever its monitor route is
+rebuilt, so it does not stay behind until the desktop volume happens to
+move again. Choosing a different first output starts a fresh baseline and
+drops what the previous selection was owed. A fixed sink name and `null`
+(no enforcement) keep their existing meanings.
 
 
 Application identities use playback-node metadata, falling back to the
@@ -285,8 +291,15 @@ plugin path or dangling bundle link. `windows-module-missing` identifies a
 yabridge wrapper that cannot find its original Windows module; its detail
 includes the broken Windows link target when available. Both are scan
 failures and include recovery guidance in the user-facing summary. Cache
-stamps follow linked plugin files, so a removed or updated Windows source
-cannot keep an unchanged wrapper's old catalogue entry alive.
+stamps follow linked plugin files and where each link points, a bundle that
+is itself a link included, so a removed, updated or repointed Windows source
+cannot keep an unchanged wrapper's old catalogue entry alive, even when the
+new source has the same length and timestamp as the old one. A link with nothing behind it is part of the
+stamp rather than a bundle the cache refuses to keep: a bundle also holds
+files the host never loads, a wrapper for another architecture among them,
+and one of those pointing nowhere does not stop the rest being remembered.
+Whether the files the host does need are usable stays the scanner's answer,
+and a failed scan is never cached.
 
 These reports describe scanner output before the `plugins` message's size
 budget and the picker's channel-width/format filters. Compare them with

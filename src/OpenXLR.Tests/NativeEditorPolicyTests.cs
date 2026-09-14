@@ -12,6 +12,8 @@ namespace OpenXLR.Tests;
 public sealed class NativeEditorPolicyTests
 {
     private const string DeEsser = "ABCDEF019182FAEB4D616E75466C7665";
+    private const string NoiseRemoval = "ABCDEF019182FAEB4D616E7547756770";
+    private const string Compressor = "ABCDEF019182FAEB4D616E7549307A6A";
 
     private static readonly IReadOnlyList<NativeEditorRule> Sample =
     [
@@ -39,16 +41,12 @@ public sealed class NativeEditorPolicyTests
             Assert.False(rule.Override.HasValue);
             Assert.True(rule.Blocked);
 
-            const string noiseRemoval = "ABCDEF019182FAEB4D616E7547756770";
-            NativeEditorRuleState noise = Assert.Single(policy.Rules, r => r.Plugin == noiseRemoval);
+            NativeEditorRuleState noise = Assert.Single(policy.Rules, r => r.Plugin == NoiseRemoval);
             Assert.Equal("Elgato Noise Removal", noise.Name);
             Assert.True(noise.DefaultBlocked && noise.Blocked);
             Assert.Null(noise.Override);
-            Assert.Contains("Closing or reopening", policy.BlockReason("vst3", noiseRemoval));
-            const string compressor = "ABCDEF019182FAEB4D616E7549307A6A";
-            Assert.True(policy.IsBlocked("vst3", compressor));
-            Assert.Contains("Wine 11.17", policy.BlockReason("vst3", compressor));
-            Assert.Equal(3, policy.Rules.Count);
+            Assert.Contains("Closing or reopening", policy.BlockReason("vst3", NoiseRemoval));
+            Assert.Equal(2, policy.Rules.Count);
             Assert.False(policy.IsBlocked("vst3", "ABCDEF019182FAEB4D616E754232626D")); // EQ
 
             // Every other plugin keeps its own editor.
@@ -77,21 +75,45 @@ public sealed class NativeEditorPolicyTests
         });
     }
 
-    [Theory]
-    [InlineData("ABCDEF019182FAEB4D616E7547756770")]
-    [InlineData("ABCDEF019182FAEB4D616E7549307A6A")]
-    public void NewElgatoDefaultsKeepAnExplicitAllowAndCanBeRestored(string plugin)
+    [Fact]
+    public void TheNoiseRemovalDefaultKeepsAnExplicitAllowAndCanBeRestored()
     {
         Run(directory =>
         {
             string path = Path.Combine(directory, "native-editors.json");
             var before = new NativeEditorPolicy(path, []);
-            Assert.Null(before.Set("vst3", plugin, "Elgato", false));
+            Assert.Null(before.Set("vst3", NoiseRemoval, "Elgato", false));
             var after = new NativeEditorPolicy(path);
-            Assert.False(after.IsBlocked("vst3", plugin));
-            Assert.True(after.Rules.Single(r => r.Plugin == plugin).DefaultBlocked);
-            Assert.Null(after.Set("vst3", plugin, null, null));
-            Assert.True(new NativeEditorPolicy(path).IsBlocked("vst3", plugin));
+            Assert.False(after.IsBlocked("vst3", NoiseRemoval));
+            Assert.True(after.Rules.Single(r => r.Plugin == NoiseRemoval).DefaultBlocked);
+            Assert.Null(after.Set("vst3", NoiseRemoval, null, null));
+            Assert.True(new NativeEditorPolicy(path).IsBlocked("vst3", NoiseRemoval));
+        });
+    }
+
+    [Fact]
+    public void TheCompressorOpensItsOwnEditorUnlessTheUserSaysOtherwise()
+    {
+        Run(directory =>
+        {
+            // Its editor works on the current bridge, so nothing in the
+            // release list stands between it and the user.
+            string path = Path.Combine(directory, "native-editors.json");
+            var policy = new NativeEditorPolicy(path);
+            Assert.False(policy.IsBlocked("vst3", Compressor));
+            Assert.Null(policy.BlockReason("vst3", Compressor));
+            Assert.DoesNotContain(policy.Rules, r => r.Plugin == Compressor);
+
+            // Someone who prefers the OpenXLR controls for it still can.
+            Assert.Null(policy.Set("vst3", Compressor, "Elgato Compressor", true));
+            var reopened = new NativeEditorPolicy(path);
+            Assert.True(reopened.IsBlocked("vst3", Compressor));
+            Assert.Equal(NativeEditorPolicy.ChosenReason, reopened.BlockReason("vst3", Compressor));
+            NativeEditorRuleState chosen = reopened.Rules.Single(r => r.Plugin == Compressor);
+            Assert.False(chosen.DefaultBlocked);
+            Assert.True(chosen.Override);
+            Assert.Null(reopened.Set("vst3", Compressor, null, null));
+            Assert.False(new NativeEditorPolicy(path).IsBlocked("vst3", Compressor));
         });
     }
 

@@ -66,8 +66,6 @@ public sealed class NativeEditorPolicy
             "Its native editor freezes under Wine; the OpenXLR controls work."),
         new("vst3", "ABCDEF019182FAEB4D616E7547756770", "Elgato Noise Removal",
             "Closing or reopening its native editor can crash the plugin with Wine 11.17 and the OpenXLR bridge 5.1.1.54. Use the OpenXLR controls to keep audio processing running."),
-        new("vst3", "ABCDEF019182FAEB4D616E7549307A6A", "Elgato Compressor",
-            "Closing or reopening its native editor can crash the plugin with Wine 11.17 and the OpenXLR bridge 5.1.1.54. Use the OpenXLR controls to keep audio processing running."),
     ];
 
     /// <summary>~/.config/openxlr/native-editors.json, honouring XDG_CONFIG_HOME.</summary>

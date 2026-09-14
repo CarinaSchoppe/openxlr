@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Run monitor controls on private PipeWire sockets with policy but no hardware."""
+"""Run monitor controls on private PipeWire sockets with policy but no hardware.
+
+Arguments are passed on to `dotnet test`, so a build that lives somewhere
+other than the default output can be tested with `--artifacts-path <dir>`.
+"""
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -46,8 +51,8 @@ def main():
                     processes.append(subprocess.Popen(["wireplumber", *policy], env=env, stdout=log, stderr=log))
                 subprocess.run(["dotnet", "test", "src/OpenXLR.Tests/OpenXLR.Tests.csproj",
                                 "-c", "Release", "--no-build", "--filter",
-                                "FullyQualifiedName~MonitorVolumeIntegrationTests"],
-                               env=env, check=True, timeout=90,
+                                "FullyQualifiedName~MonitorVolumeIntegrationTests", *sys.argv[1:]],
+                               env=env, check=True, timeout=180,
                                cwd=Path(__file__).resolve().parent.parent)
             except Exception:
                 log.flush()

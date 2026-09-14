@@ -146,6 +146,13 @@
              to the mouse. Worth saying before the user spends an evening on it. -->
         <TextBlock Text="{Binding WindowsEditorNote}" IsVisible="{Binding HasWindowsEditorNote}"
                    FontSize="11" Foreground="{DynamicResource Ox.Text.Alert}" TextWrapping="Wrap"/>
+        <Button Content="Fix Windows editor input" IsVisible="{Binding HasWindowsEditorNote}"
+                HorizontalAlignment="Left" Click="OnWindowsEditorHelp"/>
+        <StackPanel IsVisible="{Binding HasMemoryLockNote}" Spacing="4">
+          <TextBlock Name="MemoryLockWarning" Text="{Binding MemoryLockNote}" FontSize="{DynamicResource Ox.Label.FontSize}"
+                     Foreground="{DynamicResource Ox.Text.Alert}" TextWrapping="Wrap"/>
+          <Button Content="Memory-lock setup" HorizontalAlignment="Left" Click="OnMemoryLockHelp"/>
+        </StackPanel>
         <!-- Wine keeps its plugins under a dot directory a file dialog hides,
              so what is found there is offered rather than browsed to. -->
         <Button Name="BridgeWine" Content="{Binding BridgeWineLabel}" Padding="14,5" HorizontalAlignment="Left"

@@ -273,6 +273,27 @@ public sealed class WindowLayoutTests
                 Assert.False(vm.MinimizeToTray);
                 Capture(options, "options-startup");
 
+                optionsVm.ApplyPluginSetup(new JsonObject
+                {
+                    ["yabridge"] = "5.1.1",
+                    ["wine"] = true,
+                    ["windowsEditorNote"] = "The companion package fixes Windows editor input.",
+                    ["memoryLockNote"] = OpenXLR.Core.Mixing.PluginMemoryLock.Note(8388608, true),
+                });
+                Layout(options, 980, 800);
+                var memoryWarning = options.FindControl<TextBlock>("MemoryLockWarning")!;
+                Assert.True(memoryWarning.IsVisible);
+                Assert.True(memoryWarning.Bounds.Height > memoryWarning.FontSize * 2);
+                AssertInside(memoryWarning, (Control)memoryWarning.Parent!);
+                Assert.Single(options.GetVisualDescendants().OfType<Button>(),
+                    b => b.IsEffectivelyVisible && Equals(b.Content, "Memory-lock setup"));
+                memoryWarning.BringIntoView();
+                Layout(options, 980, 800);
+                Capture(options, "options-plugin-runtime");
+                optionsVm.ApplyPluginSetup(JsonNode.Parse("{}"));
+                Layout(options, 980, 800);
+                Assert.False(memoryWarning.IsEffectivelyVisible);
+
                 var focusedRules = new NativeEditorRulesWindow(new DaemonClient(), "vst3", "ABCDEF019182FAEB4D616E75466C7665");
                 windows.Add(focusedRules);
                 focusedRules.ApplyRules(JsonNode.Parse("""

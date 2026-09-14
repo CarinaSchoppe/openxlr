@@ -95,6 +95,10 @@ public sealed class OptionsViewModel : ViewModelBase
 
     public bool HasWindowsEditorNote => !string.IsNullOrEmpty(_windowsEditorNote);
 
+    private string? _memoryLockNote;
+    public string? MemoryLockNote { get => _memoryLockNote; private set { if (Set(ref _memoryLockNote, value)) Raise(nameof(HasMemoryLockNote)); } }
+    public bool HasMemoryLockNote => !string.IsNullOrEmpty(_memoryLockNote);
+
     private bool _canBridgeWine;
     /// <summary>
     /// Whether Wine holds plugins nobody has bridged yet. The button spares
@@ -114,6 +118,8 @@ public sealed class OptionsViewModel : ViewModelBase
     {
         if (setup is null)
         {
+            WindowsEditorNote = null;
+            MemoryLockNote = null;
             WindowsPlugins = "Windows plugins: the daemon did not answer.";
             CanSyncWindows = false;
             CanManageWindows = false;
@@ -126,6 +132,7 @@ public sealed class OptionsViewModel : ViewModelBase
         PluginDirectories = $"Plugins are looked for in {lv2}, {clap} and {vst3} and the system plugin directories."
             + (host ? "" : " The native plugin host is not installed beside the daemon, so CLAP and VST3 plugins cannot run.");
         WindowsEditorNote = setup["windowsEditorNote"]?.GetValue<string>();
+        MemoryLockNote = setup["memoryLockNote"]?.GetValue<string>();
         string? yabridge = setup["yabridge"]?.GetValue<string>();
         bool wine = setup["wine"]?.GetValue<bool>() ?? false;
         int folders = (setup["windowsDirectories"] as System.Text.Json.Nodes.JsonArray)?.Count ?? 0;

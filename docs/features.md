@@ -160,6 +160,8 @@ and includes the Wine 9.22+ editor input fix. It creates wrappers under
 `~/.config/openxlr/bridge`, honoring XDG overrides. Other DAWs' wrappers and controller settings remain separate.
 Private wrappers take priority over duplicate global copies. A system/user
 bridge remains supported; Options warns about known incompatible versions.
+Options also checks the running daemon's memory-lock allowance for Windows
+plugins and links directly to the relevant memory-lock or editor-input fix.
 See [Windows plugins](manual.md#windows-plugins) for availability and setup.
 
 The catalogue sent to clients is bounded. While it fits, all formats are

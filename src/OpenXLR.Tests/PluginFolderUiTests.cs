@@ -49,6 +49,28 @@ public sealed class PluginFolderUiTests : IDisposable
     }
 
     [Fact]
+    public async Task RuntimeWarningsRefreshIndependentlyAndDisappearWhenSetupIsUnavailable()
+    {
+        await using var client = new DaemonClient();
+        var vm = new OptionsViewModel(client, new MainViewModel(client));
+        vm.ApplyPluginSetup(JsonNode.Parse("""
+            {"windowsEditorNote":"Install the companion","memoryLockNote":"Configure memory locking"}
+            """));
+        Assert.True(vm.HasWindowsEditorNote);
+        Assert.True(vm.HasMemoryLockNote);
+        Assert.Equal("Configure memory locking", vm.MemoryLockNote);
+        vm.ApplyPluginSetup(JsonNode.Parse("""{"memoryLockNote":"Configure memory locking"}"""));
+        Assert.False(vm.HasWindowsEditorNote);
+        Assert.True(vm.HasMemoryLockNote);
+        vm.ApplyPluginSetup(JsonNode.Parse("{}"));
+        Assert.False(vm.HasMemoryLockNote);
+        vm.ApplyPluginSetup(JsonNode.Parse("""{"memoryLockNote":"Old warning"}"""));
+        vm.ApplyPluginSetup(null);
+        Assert.False(vm.HasMemoryLockNote);
+        Assert.False(vm.HasWindowsEditorNote);
+    }
+
+    [Fact]
     public void PluginFileReplyUsesTheFieldsTheManagerReads()
     {
         var result = new OpenXLR.Core.Mixing.WindowsPluginFiles(true, "", [

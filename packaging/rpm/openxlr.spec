@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.34
+Version:        0.1.35
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -149,6 +149,18 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Mon Sep 14 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.35-1
+- Skins: the window's appearance is read from a named value set, and two ship. Material is the default and looks as the window always has; Deck dresses it in the OpenDeck visual language, with near-black faceplates, black caps whose lettering is backlit green when a control is on and red when something is muted or bypassed, console faders with a machined cap, indicator lamps in a bezel and meters that run green to amber to red across the scale.
+- The skin picker is in Options, the choice is saved in ui.json alone, and switching repaints open windows without touching audio, routing or the layout; Reload reads the skin folders again without a restart.
+- A skin is data: named values, a choice among the control appearances OpenXLR draws itself, and local images and fonts that are bounded and measured before they are read. It carries no markup and no code, reaches no file outside its own folder and makes no network request. The value list, a JSON schema and an example skin document the format for skin authors.
+- The Applications window docks its add card and Close button to the bottom and scrolls the list above them, so a long list no longer pushes those controls off a window that cannot be resized.
+- The system default output can follow the first selected MONITOR device. It is off unless chosen in Options, and it lets keyboard keys, media keys and the desktop applet move the same output the MONITOR slider does, including the other selected monitor outputs. A desktop that boosts past 100% sets the other outputs there too; the mixer's own slider and dial still stop at 100%.
+- A monitor output that was asleep or unplugged when the volume changed is set as soon as it answers again, and relinking a device, including after a monitor feed or insert change, keeps the selected outputs at the volume the desktop set. Application routing and the Stream and Chat mix levels are unchanged.
+- A Windows plugin imported into an OpenXLR-managed folder records what its link points at, so a source that was moved or deleted is reported as missing instead of being scanned again, and a cache entry follows the file it was made from.
+- Options reports the memory-lock allowance the running daemon inherited and links to the memory-lock or editor-input fix that applies. It reads the limit only; no privilege and no system setting is changed.
+- Elgato Noise Removal joins the De-Esser among the plugins that open with OpenXLR's generated controls by default, because its own editor can crash the plugin host when it closes or reopens; those two are the whole release list, the Elgato Compressor and every other plugin still open their own editor, choices made by hand are kept, and no audio processing changes.
+- The whole output of a failed plugin scan is kept in a file under the cache directory: 256 KiB of standard error and 64 KiB of standard output per attempt, one file per bundle, 24 files and 4 MiB in all with the oldest deleted first. Diagnostics collects them by copying the files that exist, starting no plugin, scanner, bridge or Wine process, and redacting as the rest of the archive does.
+
 * Sat Sep 12 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.34-1
 - Options separates login startup, window behavior and software mixing into their own cards, with the audio notes next to the controls they describe and every saved preference preserved.
 - The applications card carries Manage in its heading and drops the hint line, so more application cards fit at the same window width.

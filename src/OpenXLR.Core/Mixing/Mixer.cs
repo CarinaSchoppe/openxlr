@@ -1412,10 +1412,10 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
 
     private void SetMonitorOutputsLocked(IReadOnlyList<string> sinkNames)
     {
+        string? previousSink = ResolveDefaultSink(FollowMonitorOutput, _monitorOutputs);
         foreach (PortLink route in _monitorRoutes.Values) _pw.Unlink(route);
         _monitorRoutes.Clear();
         _monitorOutputs.Clear();
-        _outputVolume = null;
         foreach (string name in sinkNames.Where(n => !string.IsNullOrEmpty(n)).Distinct())
         {
             // The aux port is owned by the Aux mix now; old saved selections
@@ -1423,6 +1423,10 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             if (name.EndsWith("#usbaux", StringComparison.Ordinal)) continue;
             _monitorOutputs.Add(name);
         }
+        // A different device needs its own volume baseline. Relinking the
+        // same device must keep pending desktop volume changes detectable.
+        if (previousSink != ResolveDefaultSink(FollowMonitorOutput, _monitorOutputs))
+            _outputVolume = null;
         // Feeds only make sense for selected outputs; drop the rest so a
         // stale choice never resurfaces when the output is ticked again.
         foreach (string stale in _monitorFeeds.Keys.Where(o => !_monitorOutputs.Contains(o)).ToList())

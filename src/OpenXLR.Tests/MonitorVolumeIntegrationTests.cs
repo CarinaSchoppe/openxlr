@@ -45,13 +45,23 @@ public sealed class MonitorVolumeIntegrationTests
         Assert.Equal(0.58, pw.GetSinkVolume("test_speakers"));
         Assert.False(mixer.SyncDeviceVolumes());
 
+        // Relinking the same devices must not swallow the next desktop
+        // adjustment before the daemon's next volume poll.
+        mixer.SetMonitorOutputs(["test_headphones", "test_speakers"]);
+        command = ProcessRunner.Run("pactl", ["set-sink-volume", "@DEFAULT_SINK@", "52%"]);
+        Assert.True(command.Ok, command.Stderr);
+        Assert.True(mixer.SyncDeviceVolumes());
+        Assert.Equal(0.52, mixer.Snapshot().OutputVolume);
+        Assert.Equal(0.52, pw.GetSinkVolume("test_speakers"));
+        Assert.False(mixer.SyncDeviceVolumes());
+
         pw.SetSinkVolume("test_speakers", 0.31);
         mixer.SetMonitorOutputs(["test_speakers", "test_headphones"]);
         mixer.EnforceDefaults();
         Assert.True(SpinWait.SpinUntil(() => pw.GetDefaultSink() == "test_speakers", TimeSpan.FromSeconds(3)));
         mixer.SyncDeviceVolumes();
         Assert.Equal(0.31, mixer.Snapshot().OutputVolume);
-        Assert.Equal(0.58, pw.GetSinkVolume("test_headphones"));
+        Assert.Equal(0.52, pw.GetSinkVolume("test_headphones"));
 
         mixer.SetMonitorOutputs([]);
         Assert.False(mixer.EnforceDefaults());
@@ -66,6 +76,6 @@ internal sealed class MonitorPipeWireFactAttribute : FactAttribute
     public MonitorPipeWireFactAttribute()
     {
         if (Environment.GetEnvironmentVariable("OPENXLR_TEST_MONITOR_VOLUME") != "1")
-        Skip = "Run tools/test-monitor-volume.py against a private PipeWire server.";
+            Skip = "Run tools/test-monitor-volume.py against a private PipeWire server.";
     }
 }

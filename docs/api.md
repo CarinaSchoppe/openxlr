@@ -114,12 +114,21 @@ a bare `error` message, so an editor can wait for the acknowledgement:
 | `assignApp` | `identity`, `channel`, `label?` | route an app (creates a registry entry if unseen); `channel: "ignore"` stops managing it, its streams go back to the system default output and stay wherever the desktop routes them |
 | `assignStream` | `streamId`, `channel` | route one live stream by its PipeWire id; also remembered for the app; `ignore` works here too |
 | `forgetApp` | `identity` | drop an app and its remembered channel |
-| `setEnforcedDefaults` | `sink`, `source` | system defaults to hold |
+| `setEnforcedDefaults` | `sink`, `source` | system defaults to hold; `sink: "@monitor"` follows the first selected monitor output |
 | `setActiveDevice` | `device` | switch to another attached interface (`vvvv:pppp`) |
 | `saveProfile` / `loadProfile` / `deleteProfile` | `name` | named scenes, scoped to the active device |
 | `setRecallOnConnect` | `name` | the profile recalled whenever the active device connects fresh (daemon start, replug, switch to it); empty clears it. With none chosen, a device whose capabilities say `retainsSettings: false` gets the last settings the daemon saw on it instead |
 | `resetDevice` | none | write the recorded defaults back to a device using connect-time restoration and forget its last settings (an error until the daemon has seen the device connect after a power cycle once); on the Wave XLR Pro, which keeps its own settings, write OpenXLR's baseline instead: gain 30 dB on both inputs, every processing stage and phantom off, headphones and aux level at half, the crossfade fully on PC, routing untouched, refused while the gain lock is on. The capabilities say `builtInDefaults` when a model has a baseline |
 | `getDiagnostics` | none | vendor block dump for bug reports |
+
+`setEnforcedDefaults` accepts `sink: "@monitor"` to follow the first selected
+monitor output as the system playback device. The state and saved settings
+retain `@monitor`; the daemon resolves it to the device's actual sink name
+(without a headphone-pair suffix) on each sweep. With no selected output it
+does not change the system default. Desktop volume changes on that first
+output update the MONITOR volume and the other selected outputs. A fixed
+sink name and `null` (no enforcement) keep their existing meanings.
+
 
 Application identities use playback-node metadata, falling back to the
 owning PipeWire client's application name and process binary when absent.

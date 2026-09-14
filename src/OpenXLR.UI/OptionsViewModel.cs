@@ -426,6 +426,7 @@ public sealed class OptionsViewModel : ViewModelBase
     private void BuildChoices()
     {
         OutputChoices.Add(new DeviceChoice(null, "(don't enforce)"));
+        OutputChoices.Add(new DeviceChoice("@monitor", "Follow MONITOR output (system volume controls)"));
         // "#phones" entries are channel-pair routing targets, not real sinks a
         // system default can point to.
         foreach (AudioDeviceItem d in _main.Outputs.Where(d => !d.Name.Contains("#phones", StringComparison.Ordinal)))

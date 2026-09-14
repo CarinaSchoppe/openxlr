@@ -272,6 +272,11 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 - Enforced defaults: the daemon re-asserts the chosen system default
   sink and source on its one-second sweep, undoing WirePlumber's
   auto-switch to newly created nodes
+- Desktop monitor volume: the default output can follow the first selected
+  MONITOR device. Keyboard volume controls and the desktop applet then use
+  the same output volume as the mixer window, including synchronization to
+  the other selected monitor devices, without changing Stream or Chat levels.
+
 - The control API validates every command before the mixer sees it and
   answers with an error instead of ignoring it. A private token is required
   before any state is sent or command executed; clients are rate-limited

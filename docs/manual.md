@@ -291,8 +291,9 @@ and always run in that host. VST2 plugins cannot be loaded.
 <a name="native-editor-compatibility"></a>
 **Native editor compatibility.** Open Options, PLUGINS, then "Native editors"
 to choose plugins that should use OpenXLR's generated controls instead of their
-own editor. The initial release list includes Elgato De-Esser because its
-native editor freezes under Wine.
+own editor. The release list includes Elgato De-Esser because its
+native editor freezes under Wine, and Elgato Noise Removal and Compressor
+because closing or reopening their native editors can crash the plugin host.
 
 - Find an installed plugin and press "Use OpenXLR controls" to add a block.
 - Select a blocked entry and choose "Allow native editor" to try its own
@@ -575,6 +576,12 @@ they change or stop other Wine applications using that prefix. Start with
 the scan evidence instead.
 
 <a name="windows-editor-input"></a>
+Elgato Noise Removal 1.1.2 and Compressor 1.0.1 can crash when their own
+editors close or reopen with Wine 11.17 and the OpenXLR bridge 5.1.1.54.
+Their native editors are blocked by default. Use their OpenXLR controls;
+this does not disable the effects. Options, Native editors lets users test
+a different bridge or plugin version by explicitly allowing an editor again.
+
 **A Windows plugin's own editor ignores the mouse.** The plugin plays, its
 interface is drawn and it follows anything you change from OpenXLR, but
 clicking its knobs does nothing, wherever you click. This is a known fault

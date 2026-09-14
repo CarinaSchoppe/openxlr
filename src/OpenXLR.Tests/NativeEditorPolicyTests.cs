@@ -20,7 +20,7 @@ public sealed class NativeEditorPolicyTests
     ];
 
     [Fact]
-    public void TheReleaseListBlocksTheDeEsserEditorAndNothingElse()
+    public void TheReleaseListBlocksKnownUnstableEditorsAndLeavesOtherPluginsAlone()
     {
         Run(directory =>
         {
@@ -31,14 +31,25 @@ public sealed class NativeEditorPolicyTests
             Assert.NotNull(reason);
             Assert.Contains("Wine", reason);
 
-            // The only shipped entry, blocked by default and untouched.
-            NativeEditorRuleState rule = Assert.Single(policy.Rules);
+            NativeEditorRuleState rule = Assert.Single(policy.Rules, r => r.Plugin == DeEsser);
             Assert.Equal("vst3", rule.Kind);
             Assert.Equal(DeEsser, rule.Plugin);
             Assert.Equal("Elgato De-Esser", rule.Name);
             Assert.True(rule.DefaultBlocked);
             Assert.False(rule.Override.HasValue);
             Assert.True(rule.Blocked);
+
+            const string noiseRemoval = "ABCDEF019182FAEB4D616E7547756770";
+            NativeEditorRuleState noise = Assert.Single(policy.Rules, r => r.Plugin == noiseRemoval);
+            Assert.Equal("Elgato Noise Removal", noise.Name);
+            Assert.True(noise.DefaultBlocked && noise.Blocked);
+            Assert.Null(noise.Override);
+            Assert.Contains("Closing or reopening", policy.BlockReason("vst3", noiseRemoval));
+            const string compressor = "ABCDEF019182FAEB4D616E7549307A6A";
+            Assert.True(policy.IsBlocked("vst3", compressor));
+            Assert.Contains("Wine 11.17", policy.BlockReason("vst3", compressor));
+            Assert.Equal(3, policy.Rules.Count);
+            Assert.False(policy.IsBlocked("vst3", "ABCDEF019182FAEB4D616E754232626D")); // EQ
 
             // Every other plugin keeps its own editor.
             Assert.False(policy.IsBlocked("vst3", "0123456789ABCDEF0123456789ABCDEF"));
@@ -63,6 +74,24 @@ public sealed class NativeEditorPolicyTests
             Assert.False(policy.IsBlocked("clap", DeEsser));
             Assert.False(policy.IsBlocked("lv2", DeEsser));
             Assert.False(policy.IsBlocked("vst3", "Elgato De-Esser"));
+        });
+    }
+
+    [Theory]
+    [InlineData("ABCDEF019182FAEB4D616E7547756770")]
+    [InlineData("ABCDEF019182FAEB4D616E7549307A6A")]
+    public void NewElgatoDefaultsKeepAnExplicitAllowAndCanBeRestored(string plugin)
+    {
+        Run(directory =>
+        {
+            string path = Path.Combine(directory, "native-editors.json");
+            var before = new NativeEditorPolicy(path, []);
+            Assert.Null(before.Set("vst3", plugin, "Elgato", false));
+            var after = new NativeEditorPolicy(path);
+            Assert.False(after.IsBlocked("vst3", plugin));
+            Assert.True(after.Rules.Single(r => r.Plugin == plugin).DefaultBlocked);
+            Assert.Null(after.Set("vst3", plugin, null, null));
+            Assert.True(new NativeEditorPolicy(path).IsBlocked("vst3", plugin));
         });
     }
 

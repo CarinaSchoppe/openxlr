@@ -73,6 +73,126 @@ public sealed class PluginSourceRecoveryTests
     }
 
     [Fact]
+    public void RetargetingAPluginLinkIsNotACacheHitEvenWithAnIdenticalTargetStamp()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        string dir = Directory.CreateTempSubdirectory("plugin-link-retarget-").FullName;
+        try
+        {
+            // Two builds of the same plugin, same length and same timestamp,
+            // telling the host about different parameters.
+            string first = Path.Combine(dir, "first.clap");
+            string second = Path.Combine(dir, "second.clap");
+            File.WriteAllText(first, "AAAA");
+            File.WriteAllText(second, "BBBB");
+            DateTime when = DateTime.UtcNow.AddDays(-3);
+            File.SetLastWriteTimeUtc(first, when);
+            File.SetLastWriteTimeUtc(second, when);
+            string link = Path.Combine(dir, "effect.clap");
+            File.CreateSymbolicLink(link, first);
+            var cache = new ScanCache(Path.Combine(dir, "cache"), "test-scanner");
+            byte[] description = Encoding.UTF8.GetBytes(Description);
+            cache.Store(link, description);
+            Assert.Equal(description, cache.Lookup(link));
+
+            File.Delete(link);
+            File.CreateSymbolicLink(link, second);
+            Assert.Null(cache.Lookup(link));
+            cache.Store(link, description);
+            Assert.Equal(description, cache.Lookup(link));
+
+            // The same retarget one level down in a bundle.
+            string bundle = Path.Combine(dir, "Effect.vst3");
+            string win = Directory.CreateDirectory(Path.Combine(bundle, "Contents", "x86_64-win")).FullName;
+            string module = Path.Combine(win, "Effect.vst3");
+            File.CreateSymbolicLink(module, first);
+            cache.Store(bundle, description);
+            Assert.Equal(description, cache.Lookup(bundle));
+            File.Delete(module);
+            File.CreateSymbolicLink(module, second);
+            Assert.Null(cache.Lookup(bundle));
+
+            // And a bundle that is a link to one of two identical folders,
+            // the shape the managed Windows folder uses.
+            string here = MakeCopy(Path.Combine(dir, "here.vst3"), when);
+            string there = MakeCopy(Path.Combine(dir, "there.vst3"), when);
+            string linked = Path.Combine(dir, "Linked.vst3");
+            Directory.CreateSymbolicLink(linked, here);
+            cache.Store(linked, description);
+            Assert.Equal(description, cache.Lookup(linked));
+            Directory.Delete(linked);
+            Directory.CreateSymbolicLink(linked, there);
+            Assert.Null(cache.Lookup(linked));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+
+        static string MakeCopy(string bundle, DateTime when)
+        {
+            string linux = Directory.CreateDirectory(Path.Combine(bundle, "Contents", "x86_64-linux")).FullName;
+            string module = Path.Combine(linux, "Linked.so");
+            File.WriteAllText(module, "ELF");
+            File.SetLastWriteTimeUtc(module, when);
+            return bundle;
+        }
+    }
+
+    [Fact]
+    public void AnUnrelatedDanglingLinkInABundleStillAllowsACacheHit()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        string dir = Directory.CreateTempSubdirectory("plugin-dangling-arch-").FullName;
+        try
+        {
+            // The host loads Contents/x86_64-linux only; a leftover link for
+            // another architecture says nothing about this bundle.
+            string bundle = Path.Combine(dir, "Example.vst3");
+            string linux = Directory.CreateDirectory(Path.Combine(bundle, "Contents", "x86_64-linux")).FullName;
+            string other = Directory.CreateDirectory(Path.Combine(bundle, "Contents", "i386-linux")).FullName;
+            File.WriteAllText(Path.Combine(linux, "Example.so"), "ELF wrapper");
+            string dangling = Path.Combine(other, "Example.so");
+            string missing = Path.Combine(dir, "gone.so");
+            File.CreateSymbolicLink(dangling, missing);
+            var cache = new ScanCache(Path.Combine(dir, "cache"), "test-scanner");
+            byte[] description = Encoding.UTF8.GetBytes(Description);
+            cache.Store(bundle, description);
+            Assert.Equal(description, cache.Lookup(bundle));
+
+            // A broken link that starts resolving is still a change.
+            File.WriteAllText(missing, "ELF 32-bit wrapper");
+            Assert.Null(cache.Lookup(bundle));
+            cache.Store(bundle, description);
+            Assert.Equal(description, cache.Lookup(bundle));
+            File.Delete(missing);
+            Assert.Null(cache.Lookup(bundle));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [Fact]
+    public void ABundleWhoseWindowsModuleIsGoneIsNotCachedAsUsable()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        string dir = Directory.CreateTempSubdirectory("vst3-source-uncached-").FullName;
+        try
+        {
+            string bundle = Path.Combine(dir, "Compressor.vst3");
+            string win = Directory.CreateDirectory(Path.Combine(bundle, "Contents", "x86_64-win")).FullName;
+            string linux = Directory.CreateDirectory(Path.Combine(bundle, "Contents", "x86_64-linux")).FullName;
+            File.WriteAllText(Path.Combine(linux, "Compressor.so"), "ELF wrapper");
+            File.CreateSymbolicLink(Path.Combine(win, "Compressor.vst3"), Path.Combine(dir, "gone.vst3"));
+            var cache = new ScanCache(Path.Combine(dir, "cache"), "test-scanner");
+            Assert.Empty(HostScan.Run("vst3", "unused", [dir], Vst3Catalog.Bundles,
+                _ => new ProcessResult(1, [], "Compressor.vst3 does not contain a Windows VST3 module.", false, false),
+                cache));
+            var entry = Assert.Single(PluginScanDiagnostics.Snapshot().Single(r => r.Kind == "vst3").Entries,
+                e => e.Path == bundle);
+            Assert.Equal("windows-module-missing", entry.Outcome);
+            Assert.Null(cache.Lookup(bundle));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [Fact]
     public void MissingBundleLinkIsReportedWithoutStartingTheScanner()
     {
         if (!OperatingSystem.IsLinux()) return;

@@ -26,7 +26,13 @@ namespace OpenXLR.Core.Mixing;
 public sealed class ScanCache
 {
     /// <summary>One bundle as it was when scanned, where its description is, and what wrote it.</summary>
-    public sealed record Entry(long Modified, long Size, string File, string? Scanner = null);
+    /// <param name="Target">
+    /// Where a bundle that is itself a symbolic link pointed, so a link aimed
+    /// at another file of the same length and timestamp is not mistaken for
+    /// the one that was scanned. Null for anything that is not a link, which
+    /// is also what entries written before this was recorded carry.
+    /// </param>
+    public sealed record Entry(long Modified, long Size, string File, string? Scanner = null, string? Target = null);
 
     private readonly string _directory;
     private readonly string _scanner;
@@ -49,8 +55,8 @@ public sealed class ScanCache
     public static string ScannerStamp => StampText(NativePluginHost.Executable);
 
     /// <summary>One file's stamp as a word, or "none" where there is no such file.</summary>
-    internal static string StampText(string path) => Stamp(path) is (long modified, long size)
-        ? size.ToString(CultureInfo.InvariantCulture) + "-" + modified.ToString(CultureInfo.InvariantCulture)
+    internal static string StampText(string path) => Stamp(path) is { } stamp
+        ? stamp.Size.ToString(CultureInfo.InvariantCulture) + "-" + stamp.Modified.ToString(CultureInfo.InvariantCulture)
         : "none";
 
     /// <summary>Where the daemon keeps it: under the user's cache directory.</summary>
@@ -69,8 +75,9 @@ public sealed class ScanCache
     public byte[]? Lookup(string bundle)
     {
         if (!_index.TryGetValue(bundle, out Entry? entry) || !string.Equals(entry.Scanner, _scanner, StringComparison.Ordinal)
-            || Stamp(bundle) is not (long modified, long size)
-            || entry.Modified != modified || entry.Size != size)
+            || Stamp(bundle) is not { } stamp
+            || entry.Modified != stamp.Modified || entry.Size != stamp.Size
+            || !string.Equals(entry.Target, stamp.Target, StringComparison.Ordinal))
             return null;
         try { return File.ReadAllBytes(Path.Combine(_directory, entry.File)); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
@@ -78,7 +85,7 @@ public sealed class ScanCache
 
     public void Store(string bundle, byte[] description)
     {
-        if (Stamp(bundle) is not (long modified, long size)) return;
+        if (Stamp(bundle) is not { } stamp) return;
         string file = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(bundle))) + ".json";
         try
         {
@@ -89,7 +96,7 @@ public sealed class ScanCache
             File.Move(temporary, Path.Combine(_directory, file), overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return; }
-        _index[bundle] = new Entry(modified, size, file, _scanner);
+        _index[bundle] = new Entry(stamp.Modified, stamp.Size, file, _scanner, stamp.Target);
         _dirty = true;
     }
 
@@ -112,14 +119,29 @@ public sealed class ScanCache
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* next run scans again */ }
     }
 
-    /// <summary>A bundle's identity on disk, including the files its links load.</summary>
-    internal static (long Modified, long Size)? Stamp(string bundle)
+    /// <summary>
+    /// A bundle's identity on disk: the files its links load, and where those
+    /// links point. A directory folds every file's relative path, link target
+    /// and target stamp into one hash, so an updated, retargeted, broken or
+    /// repaired link makes a different bundle.
+    ///
+    /// A link with nothing behind it is stamped as broken rather than leaving
+    /// the whole bundle unstampable. A bundle carries files the host never
+    /// loads, a wrapper for another architecture among them, and one leftover
+    /// link to a plugin that was removed must not cost a full rescan of the
+    /// bundle at every start. Whether the files the host does need are usable
+    /// is the scanner's answer, not the cache's: a scan that fails is never
+    /// stored, and a source that disappears changes the stamp, so the entry
+    /// that was already there stops being used.
+    /// </summary>
+    internal static (long Modified, long Size, string? Target)? Stamp(string bundle)
     {
         try
         {
             if (File.Exists(bundle))
             {
-                return FileStamp(bundle);
+                FileIdentity one = FileStamp(bundle);
+                return one.Broken ? null : (one.Modified, one.Size, one.Target);
             }
             if (!Directory.Exists(bundle)) return null;
             long total = 0;
@@ -127,29 +149,67 @@ public sealed class ScanCache
             byte[] numbers = new byte[16];
             foreach (string file in Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
             {
-                if (FileStamp(file) is not (long modified, long size)) return null;
+                FileIdentity identity = FileStamp(file);
                 // The newest file alone can hide an updated Windows source
-                // whose timestamp is still older than the Linux wrapper.
+                // whose timestamp is still older than the Linux wrapper. Only
+                // a link adds its target, so a bundle of plain files keeps the
+                // stamp it already has in the index and needs no rescan.
                 stamp.AppendData(Encoding.UTF8.GetBytes(Path.GetRelativePath(bundle, file) + "\0"));
-                BinaryPrimitives.WriteInt64LittleEndian(numbers, modified);
-                BinaryPrimitives.WriteInt64LittleEndian(numbers.AsSpan(8), size);
+                if (identity.Target.Length > 0) stamp.AppendData(Encoding.UTF8.GetBytes(identity.Target + "\0"));
+                BinaryPrimitives.WriteInt64LittleEndian(numbers, identity.Modified);
+                BinaryPrimitives.WriteInt64LittleEndian(numbers.AsSpan(8), identity.Size);
                 stamp.AppendData(numbers);
-                total += size;
+                total += identity.Size;
             }
-            return (BinaryPrimitives.ReadInt64LittleEndian(stamp.GetHashAndReset()), total);
+            return (BinaryPrimitives.ReadInt64LittleEndian(stamp.GetHashAndReset()), total, DirectoryTarget(bundle));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
 
-    private static (long Modified, long Size)? FileStamp(string path)
+    /// <summary>
+    /// Where a bundle that is itself a link to another directory points. The
+    /// managed folder links to Windows plugins installed elsewhere, and a
+    /// link aimed at a different copy is a different bundle even when the two
+    /// hold files of the same names, lengths and times. Null for a real
+    /// directory.
+    /// </summary>
+    private static string? DirectoryTarget(string bundle)
+    {
+        var info = new DirectoryInfo(bundle);
+        if (info.LinkTarget is null) return null;
+        try
+        {
+            if (info.ResolveLinkTarget(returnFinalTarget: true) is DirectoryInfo { Exists: true } resolved)
+                return resolved.FullName;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* a loop, or an unreadable path */ }
+        return "missing:" + Path.GetFullPath(info.LinkTarget, info.Parent?.FullName ?? ".");
+    }
+
+    /// <summary>One file as the host would load it, and what it resolves to.</summary>
+    /// <param name="Target">Empty for a plain file, else where the link ends up.</param>
+    /// <param name="Broken">The file is a link with nothing behind it, or is gone.</param>
+    private readonly record struct FileIdentity(long Modified, long Size, string Target, bool Broken);
+
+    private static FileIdentity FileStamp(string path)
     {
         var info = new FileInfo(path);
         // Bridge bundles link to the original Windows module. FileInfo on
         // the link describes the link itself, which stays unchanged when the
-        // plugin is updated, moved or deleted. Stamp the loaded file instead.
-        if (info.LinkTarget is not null)
-            info = info.ResolveLinkTarget(returnFinalTarget: true) as FileInfo;
-        return info is { Exists: true } ? (info.LastWriteTimeUtc.Ticks, info.Length) : null;
+        // plugin is updated, moved or deleted. Stamp the loaded file instead,
+        // and keep the resolved path: two builds of one plugin can share a
+        // length and a timestamp, and then only the path tells them apart.
+        if (info.LinkTarget is null)
+            return info.Exists ? new(info.LastWriteTimeUtc.Ticks, info.Length, "", false) : new(0, 0, "", true);
+        try
+        {
+            if (info.ResolveLinkTarget(returnFinalTarget: true) is FileInfo { Exists: true } resolved)
+                return new(resolved.LastWriteTimeUtc.Ticks, resolved.Length, resolved.FullName, false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* a loop, or an unreadable path */ }
+        // Where a broken link points is part of the identity too, so aiming
+        // it somewhere else, or putting the file back, reads as a change.
+        return new(0, 0, "missing:" + Path.GetFullPath(info.LinkTarget, info.DirectoryName ?? "."), true);
     }
 
     private static Dictionary<string, Entry> Load(string path)

@@ -291,8 +291,15 @@ plugin path or dangling bundle link. `windows-module-missing` identifies a
 yabridge wrapper that cannot find its original Windows module; its detail
 includes the broken Windows link target when available. Both are scan
 failures and include recovery guidance in the user-facing summary. Cache
-stamps follow linked plugin files, so a removed or updated Windows source
-cannot keep an unchanged wrapper's old catalogue entry alive.
+stamps follow linked plugin files and where each link points, a bundle that
+is itself a link included, so a removed, updated or repointed Windows source
+cannot keep an unchanged wrapper's old catalogue entry alive, even when the
+new source has the same length and timestamp as the old one. A link with nothing behind it is part of the
+stamp rather than a bundle the cache refuses to keep: a bundle also holds
+files the host never loads, a wrapper for another architecture among them,
+and one of those pointing nowhere does not stop the rest being remembered.
+Whether the files the host does need are usable stays the scanner's answer,
+and a failed scan is never cached.
 
 These reports describe scanner output before the `plugins` message's size
 budget and the picker's channel-width/format filters. Compare them with

@@ -164,11 +164,16 @@ configuration.
    second). No selected output means no default is enforced.
 
    Desktop changes appear in the MONITOR slider on the next sweep and also
-   update the other selected monitor outputs. The OpenXLR slider writes the
-   same device volumes, so Linux sees its changes too. Changing the first
-   selected device adopts its current volume. Relinking the same device,
-   including after a monitor feed or insert change, keeps volume changes
-   synchronized across the selected outputs. OpenXLR's application
+   update the other selected monitor outputs, at the level the desktop
+   chose: a desktop that boosts past 100% sets the other outputs there too,
+   rather than leaving them quieter with nothing to show for it. The
+   OpenXLR slider writes the same device volumes, so Linux sees its changes
+   too, and its own scale stops at 100%. Changing the first selected device
+   adopts its current volume. Relinking the same device, including after a
+   monitor feed or insert change, keeps volume changes synchronized across
+   the selected outputs. An output that was asleep or unplugged when the
+   volume changed is set as soon as it answers again, without waiting for
+   the next desktop change. OpenXLR's application
    routing and the Stream and Chat mix levels stay unchanged. Applications
    left to desktop routing play directly to the default monitor device.
    Existing fixed default-device choices remain available; a virtual channel

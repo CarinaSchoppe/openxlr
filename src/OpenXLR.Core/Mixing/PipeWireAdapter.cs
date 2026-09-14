@@ -289,10 +289,24 @@ public sealed class PipeWireAdapter
         return found;
     }
 
-    /// <summary>Set a sink's volume.</summary>
+    /// <summary>
+    /// The loudest an output device is driven from here, and the most a read
+    /// of one reports. PipeWire and every desktop applet allow a boost past
+    /// unity, so a device found at 120% has to be writable at 120% as well:
+    /// a mixer that reads a range it cannot write lets the outputs it holds
+    /// together drift apart with nothing to say so. The faders (combine legs,
+    /// mix masters) and the microphone keep their own 0 to 1 range, which is
+    /// what their controls mean.
+    /// </summary>
+    public const double MaxSinkVolume = 1.5;
+
+    /// <summary>A device volume as pactl takes it, within the range above.</summary>
+    internal static string VolumePercent(double volume)
+        => $"{(int)Math.Round(Math.Clamp(volume, 0, MaxSinkVolume) * 100)}%";
+
+    /// <summary>Set a sink's volume (0 to <see cref="MaxSinkVolume"/>).</summary>
     public void SetSinkVolume(string sinkName, double volume)
-        => Run("pactl", "set-sink-volume", BareSink(sinkName),
-            $"{(int)Math.Round(Math.Clamp(volume, 0, 1) * 100)}%");
+        => Run("pactl", "set-sink-volume", BareSink(sinkName), VolumePercent(volume));
 
     /// <summary>Mute or unmute a sink.</summary>
     public void SetSinkMuted(string sinkName, bool muted)
@@ -463,11 +477,11 @@ public sealed class PipeWireAdapter
         catch (InvalidOperationException) { return null; }
     }
 
-    private static double? ParseVolumePercent(string? pactlOutput)
+    internal static double? ParseVolumePercent(string? pactlOutput)
     {
         if (pactlOutput is null) return null;
         var m = System.Text.RegularExpressions.Regex.Match(pactlOutput, @"(\d+)%");
-        return m.Success ? Math.Clamp(int.Parse(m.Groups[1].Value) / 100.0, 0, 1.5) : null;
+        return m.Success ? Math.Clamp(int.Parse(m.Groups[1].Value) / 100.0, 0, MaxSinkVolume) : null;
     }
 
     /// <summary>The capture device applications record from by default.</summary>

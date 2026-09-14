@@ -53,8 +53,10 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     private bool _auxPortEnabled = true;
 
     // Cached hardware volume of the selected output device, so external
-    // changes (KDE applet, hardware knobs) can be detected and pushed.
+    // changes (KDE applet, hardware knobs) can be detected and pushed, and
+    // what the other selected outputs still owe that volume.
     private double? _outputVolume;
+    private readonly OutputVolumeSync _outputVolumeDue = new();
 
     /// <summary>Follow the first selected monitor output as the system playback device.</summary>
     public const string FollowMonitorOutput = "@monitor";
@@ -1214,19 +1216,42 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         if (s.OutputVolume is double v) SetOutputVolume(v);
     }
 
-    /// <summary>Volume of the selected output devices (0..1), applied to each.</summary>
+    /// <summary>
+    /// Volume of the selected output devices, applied to each. The range is
+    /// the devices' own (0 to <see cref="PipeWireAdapter.MaxSinkVolume"/>),
+    /// so a level the desktop set above unity can be held and written back
+    /// unchanged; the cached value is the one that reached the devices.
+    /// </summary>
     public void SetOutputVolume(double volume)
     {
         lock (_gate)
         {
-            if (_monitorOutputs.Count == 0) return;
-            foreach (string sink in _monitorOutputs.Select(StripMarker).Distinct())
-            {
-                try { _pw.SetSinkVolume(sink, volume); }
-                catch (InvalidOperationException) { /* device gone */ }
-            }
+            string[] sinks = [.. _monitorOutputs.Select(StripMarker).Distinct()];
+            if (sinks.Length == 0) return;
+            volume = Math.Clamp(volume, 0, PipeWireAdapter.MaxSinkVolume);
+            // The first output is the one the desktop drives and the one
+            // every sweep reads back, so a failed write on it corrects
+            // itself; only what the others owe is worth chasing.
+            try { _pw.SetSinkVolume(sinks[0], volume); }
+            catch (InvalidOperationException) { /* device gone */ }
+            foreach (string sink in sinks.Skip(1)) WriteFollowerVolumeLocked(sink, volume);
             _outputVolume = volume;
         }
+    }
+
+    /// <summary>The selected outputs the first one's volume is copied to.</summary>
+    private IEnumerable<string> FollowerOutputsLocked()
+        => _monitorOutputs.Select(StripMarker).Distinct().Skip(1);
+
+    /// <summary>Write one follower's volume, remembering it when the device refuses.</summary>
+    private void WriteFollowerVolumeLocked(string sink, double volume)
+    {
+        try
+        {
+            _pw.SetSinkVolume(sink, volume);
+            _outputVolumeDue.Delivered(sink);
+        }
+        catch (InvalidOperationException) { _outputVolumeDue.Failed(sink, volume); }
     }
 
     private static string StripMarker(string name)
@@ -1303,11 +1328,12 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             // MONITOR slider does. A new output selection establishes a fresh
             // baseline rather than overwriting its remembered device volume.
             if (_enforcedSink == FollowMonitorOutput && changed && _outputVolume is not null && outV is double volume)
-                foreach (string sink in _monitorOutputs.Select(StripMarker).Distinct().Skip(1))
-                {
-                    try { _pw.SetSinkVolume(sink, volume); }
-                    catch (InvalidOperationException) { /* device gone */ }
-                }
+                foreach (string sink in FollowerOutputsLocked()) WriteFollowerVolumeLocked(sink, volume);
+            // Nothing moved, so a device that refused an earlier copy is the
+            // only thing left out of step; it gets that value again.
+            else
+                foreach ((string sink, double owed) in _outputVolumeDue.Due())
+                    WriteFollowerVolumeLocked(sink, owed);
             _outputVolume = outV;
             return changed;
         }
@@ -1423,10 +1449,16 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             if (name.EndsWith("#usbaux", StringComparison.Ordinal)) continue;
             _monitorOutputs.Add(name);
         }
-        // A different device needs its own volume baseline. Relinking the
-        // same device must keep pending desktop volume changes detectable.
+        // A different device needs its own volume baseline, and with it no
+        // output is owed the volume of the selection that is gone. Relinking
+        // the same device must keep pending desktop volume changes detectable,
+        // and only drops what is owed to outputs no longer selected.
         if (previousSink != ResolveDefaultSink(FollowMonitorOutput, _monitorOutputs))
+        {
             _outputVolume = null;
+            _outputVolumeDue.Clear();
+        }
+        else _outputVolumeDue.Keep(FollowerOutputsLocked());
         // Feeds only make sense for selected outputs; drop the rest so a
         // stale choice never resurfaces when the output is ticked again.
         foreach (string stale in _monitorFeeds.Keys.Where(o => !_monitorOutputs.Contains(o)).ToList())
@@ -1561,13 +1593,21 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 {
                     LinkHealth health = _pw.EnsureLinks(route);
                     if (health == LinkHealth.Healthy) continue;
+                    // A route that had to be made again is a device that went
+                    // away and returned, so a volume it refused while it was
+                    // gone is worth writing once more.
+                    _outputVolumeDue.Rearm(StripMarker(target));
                     if (health == LinkHealth.Relinked) { changed = true; continue; }
                     _pw.Unlink(route);   // Broken: the port names themselves are stale
                 }
                 PortLink? fresh = RouteFeedLocked(target);
                 if (fresh is null) return changed;
                 _monitorRoutes[key] = fresh;
-                changed |= fresh.Pairs.Count > 0;
+                if (fresh.Pairs.Count > 0)
+                {
+                    _outputVolumeDue.Rearm(StripMarker(target));
+                    changed = true;
+                }
             }
             return changed;
         }

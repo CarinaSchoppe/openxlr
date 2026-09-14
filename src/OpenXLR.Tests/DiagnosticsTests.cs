@@ -73,9 +73,139 @@ public sealed class DiagnosticsTests
                 using var json = System.Text.Json.JsonDocument.Parse(entries[name]);
             }
             Assert.Contains("plugin", entries["PRIVACY.txt"], StringComparison.OrdinalIgnoreCase);
+            // The archive carries the saved scan logs and always says what it
+            // found there, even when a daemon this old names no directory.
+            Assert.Contains("plugin-scan-logs/index.txt", entries.Keys);
+            Assert.Contains("The daemon did not say where it keeps them", entries["plugin-scan-logs/index.txt"]);
         }
         finally { File.Delete(archive); }
     }
+
+    [Fact]
+    public async Task SavedScanLogsAreCollectedRedactedAndCorrelatedWithoutFollowingLinks()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        const string marker = "OPENXLR-SAVED-LOG-MARKER";
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string root = Directory.CreateTempSubdirectory("scan-log-collect-").FullName;
+        string logs = Path.Combine(root, "plugin-scan-logs");
+        string output = Path.Combine(root, "archive");
+        Directory.CreateDirectory(logs);
+        Directory.CreateDirectory(output);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(logs, "vst3-aaaabbbbccccdddd.log"),
+                $"bundle: {home}/.vst3/Kotelnikov.vst3\ntoken: hunter2-not-a-real-token\n{marker}\n");
+            await File.WriteAllTextAsync(Path.Combine(root, "outside.txt"), "SECRET-OUTSIDE-THE-DIRECTORY");
+            File.CreateSymbolicLink(Path.Combine(logs, "vst3-1111222233334444.log"), Path.Combine(root, "outside.txt"));
+            await File.WriteAllTextAsync(Path.Combine(logs, "bad name.log"), "SHOULD-NOT-APPEAR");
+            await File.WriteAllTextAsync(Path.Combine(logs, "notes.txt"), "SHOULD-NOT-APPEAR-EITHER");
+            string[] before = [.. Directory.GetFileSystemEntries(logs).Order(StringComparer.Ordinal)];
+
+            await using var server = await SocketTestServer.Start(async (socket, stop) =>
+            {
+                while (!stop.IsCancellationRequested)
+                {
+                    var command = await SocketTestServer.Receive(socket, stop);
+                    string cmd = command["cmd"]!.GetValue<string>();
+                    if (cmd == "auth") continue;
+                    Assert.DoesNotContain(cmd, new[] { "rescanPlugins", "syncWindowsPlugins", "setInserts" });
+                    object reply = cmd == "getPluginDiagnostics"
+                        ? new
+                        {
+                            type = "pluginDiagnostics",
+                            discovery = new
+                            {
+                                scanLogs = new { directory = logs, maxFiles = 24 },
+                                scans = new[]
+                                {
+                                    new
+                                    {
+                                        kind = "vst3",
+                                        entries = new[]
+                                        {
+                                            new { path = home + "/.vst3/Kotelnikov.vst3", outcome = "timeout", logId = "vst3-aaaabbbbccccdddd" },
+                                            new { path = "/opt/vst3/Gone.vst3", outcome = "timeout", logId = "vst3-9999888877776666" },
+                                        },
+                                    },
+                                },
+                            },
+                        }
+                        : new { type = cmd == "listPlugins" ? "plugins" : "pluginSetup" };
+                    await SocketTestServer.Send(socket, reply, stop);
+                    await SocketTestServer.Send(socket, new { type = "commandResult", requestId = command["requestId"]!.GetValue<string>() }, stop);
+                }
+            });
+            await using var client = new DaemonClient(server.Url);
+            var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            client.ConnectionChanged += up => { if (up) connected.TrySetResult(); };
+            client.Start();
+            await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            await Diagnostics.WritePluginDataAsync(client, output, TimeSpan.FromSeconds(5));
+
+            string collected = Path.Combine(output, "plugin-scan-logs");
+            string kept = await File.ReadAllTextAsync(Path.Combine(collected, "vst3-aaaabbbbccccdddd.log"));
+            Assert.Contains(marker, kept);
+            Assert.DoesNotContain(home, kept);
+            Assert.Contains("bundle: <redacted>/.vst3/Kotelnikov.vst3", kept);
+            Assert.DoesNotContain("hunter2", kept);
+            Assert.Contains("token: <redacted>", kept);
+
+            // A link is never followed, and a name the store could not have
+            // written is never copied, whatever it points at.
+            Assert.Equal(["index.txt", "vst3-aaaabbbbccccdddd.log"],
+                Directory.GetFiles(collected).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+            foreach (string file in Directory.GetFiles(collected))
+            {
+                string text = await File.ReadAllTextAsync(file);
+                Assert.DoesNotContain("SECRET-OUTSIDE-THE-DIRECTORY", text);
+                Assert.DoesNotContain("SHOULD-NOT-APPEAR", text);
+            }
+
+            string index = await File.ReadAllTextAsync(Path.Combine(collected, "index.txt"));
+            Assert.Contains("vst3-1111222233334444.log: a link, not a file of its own", index);
+            Assert.Contains("a name this directory should not hold (bad name.log)", index);
+            Assert.Contains("vst3-aaaabbbbccccdddd.log: ", index);
+            Assert.Contains("vst3-9999888877776666.log: named by a scan entry but not collected", index);
+            Assert.Contains("No plugin, scanner,", index);
+
+            // Collecting reads: the daemon's directory comes out as it went in.
+            Assert.Equal(before, Directory.GetFileSystemEntries(logs).Order(StringComparer.Ordinal));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task ScanLogCollectionSaysSoWhenThereIsNothingToCollect()
+    {
+        string root = Directory.CreateTempSubdirectory("scan-log-empty-").FullName;
+        string output = Path.Combine(root, "archive");
+        Directory.CreateDirectory(output);
+        string index = Path.Combine(output, "plugin-scan-logs", "index.txt");
+        try
+        {
+            await Diagnostics.WriteScanLogsAsync(Path.Combine(root, "never-written", "plugin-scan-logs"), null, output, []);
+            Assert.Contains("The directory does not exist", await File.ReadAllTextAsync(index));
+
+            await Diagnostics.WriteScanLogsAsync(null, null, output, []);
+            Assert.Contains("The daemon did not say where it keeps them", await File.ReadAllTextAsync(index));
+
+            // Only the daemon's own retention directory is ever read.
+            await Diagnostics.WriteScanLogsAsync(root, null, output, []);
+            Assert.Contains("named a directory this does not collect from", await File.ReadAllTextAsync(index));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Theory]
+    [InlineData("token: abc123", "token: <redacted>")]
+    [InlineData("API_KEY=\"sk-live-9\"", "API_KEY=<redacted>")]
+    [InlineData("Authorization: Bearer eyJhbGciOi", "Authorization: <redacted>")]
+    [InlineData("password = swordfish", "password = <redacted>")]
+    [InlineData("no credentials here", "no credentials here")]
+    public void RedactSecretValues_MasksCredentialShapedFields(string input, string expected)
+        => Assert.Equal(expected, Diagnostics.RedactSecretValues(input));
 
     [Fact]
     public void Redact_RemovesCommonIdentityAndSerialFields()

@@ -43,8 +43,11 @@ public static class Diagnostics
                 It contains OpenXLR state, USB control blocks, PipeWire topology,
                 recent openxlr-daemon journal entries, application audio metadata,
                 configuration files, plugin names and paths, the plugin catalogue,
-                Wine/yabridge versions and status, latest scan results, and system
-                version information. No plugin binaries, presets, Wine registry
+                Wine/yabridge versions and status, latest scan results, the saved
+                output of plugin scans that failed, and system
+                version information. Collecting it copies files that already
+                exist: no plugin, scanner, bridge or Wine process is started.
+                No plugin binaries, presets, Wine registry
                 files or API token are collected. The home
                 path, the host name, the serial numbers of attached USB devices
                 (including inside PipeWire node names) and process-id fields are
@@ -101,17 +104,180 @@ public static class Diagnostics
             ("plugin-discovery.json", client.RequestPluginDiagnosticsAsync(timeout))
         };
         string[] secrets = DefaultSecrets().ToArray();
+        string? scanLogs = null;
+        JsonNode? discovery = null;
         foreach (var (file, request) in requests)
         {
             JsonNode? reply = await request;
+            // Where the daemon says it kept failed scans, read before the copy
+            // is redacted, since redaction rewrites the home path inside it.
+            if (file == "plugin-discovery.json") scanLogs = Text(reply, "discovery", "scanLogs", "directory");
             var data = reply?.DeepClone() ?? new JsonObject
             {
                 ["unavailable"] = "No reply: daemon disconnected, query timed out, or command unsupported."
             };
             RedactJson(data, secrets);
+            if (file == "plugin-discovery.json") discovery = data;
             await File.WriteAllTextAsync(Path.Combine(directory, file), data.ToJsonString(
                 new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
         }
+        await WriteScanLogsAsync(scanLogs, discovery, directory, secrets);
+    }
+
+    /// <summary>One string from a path of object keys, or null if it is not there or is not a string.</summary>
+    private static string? Text(JsonNode? node, params string[] path)
+    {
+        foreach (string key in path)
+        {
+            if (node is not JsonObject obj) return null;
+            node = obj[key];
+        }
+        return node is JsonValue value && value.TryGetValue(out string? text) && text.Length > 0 ? text : null;
+    }
+
+    /// <summary>
+    /// The scanner output the daemon saved for scans that failed, copied into
+    /// the archive. This is a copy of files already on disk and nothing else:
+    /// no plugin, scanner, bridge or Wine process is started, no rescan is
+    /// asked for, and the daemon is not even involved beyond having said where
+    /// the directory is. What is copied is bounded the way the daemon's own
+    /// retention is, and only files that directory could itself have written
+    /// are taken: a name outside the pattern, a symbolic link and anything
+    /// that is not a plain readable file are listed in the index and skipped,
+    /// so nothing the archive holds was reached by following a link out.
+    /// </summary>
+    internal static async Task WriteScanLogsAsync(string? source, JsonNode? discovery, string work, string[] secrets)
+    {
+        // The daemon's own bounds, and one more on each file, since a log is
+        // read here rather than written here.
+        const int MaxLogs = 24;
+        const long MaxTotalBytes = 4L * 1024 * 1024;
+        const int MaxFileBytes = 512 * 1024;
+
+        string destination = Path.Combine(work, "plugin-scan-logs");
+        Directory.CreateDirectory(destination);
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(destination, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+
+        var index = new StringBuilder();
+        index.AppendLine("The scanner's own output for plugin scans that failed, as the daemon saved it.");
+        index.AppendLine("Collecting these copies files that were already on disk. No plugin, scanner,");
+        index.AppendLine("bridge or Wine process is started by collecting them, and nothing is uploaded.");
+        index.AppendLine("Each failed entry in plugin-discovery.json names its file in logId; an entry");
+        index.AppendLine("with logNote instead is one whose output could not be saved at the time.");
+        index.AppendLine("Paths and host names are redacted here as they are elsewhere in the archive.");
+        index.AppendLine();
+
+        var collected = new HashSet<string>(StringComparer.Ordinal);
+        if (source is null)
+            index.AppendLine("The daemon did not say where it keeps them, so none were collected.");
+        // The one directory this collects from, whatever a reply says. A
+        // daemon that answered with somewhere else, by fault or otherwise,
+        // would have the archive copying files nobody meant to share.
+        else if (!string.Equals(Path.GetFileName(source.TrimEnd('/')), "plugin-scan-logs", StringComparison.Ordinal))
+            index.AppendLine("The daemon named a directory this does not collect from, so none were collected.");
+        else if (!Directory.Exists(source))
+            index.AppendLine("The directory does not exist: no scan has failed since it was last cleared.");
+        else
+        {
+            List<FileInfo> logs = [];
+            try
+            {
+                logs = [.. new DirectoryInfo(source).EnumerateFiles("*.log", SearchOption.TopDirectoryOnly)
+                    .OrderByDescending(f => f.LastWriteTimeUtc).ThenBy(f => f.Name, StringComparer.Ordinal)];
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                index.AppendLine("The directory could not be read: " + ex.Message);
+            }
+            long total = 0;
+            foreach (FileInfo log in logs)
+            {
+                string name = log.Name;
+                if (!IsScanLogName(name)) { index.AppendLine($"skipped: a name this directory should not hold ({Printable(name)})"); continue; }
+                if (log.LinkTarget is not null) { index.AppendLine($"skipped {name}: a link, not a file of its own"); continue; }
+                if (collected.Count >= MaxLogs) { index.AppendLine($"skipped {name}: the archive collects the {MaxLogs} newest"); continue; }
+                if (total >= MaxTotalBytes) { index.AppendLine($"skipped {name}: the archive's {MaxTotalBytes} byte budget is used up"); continue; }
+                string text;
+                long had;
+                try
+                {
+                    await using FileStream stream = File.OpenRead(Path.Combine(source, name));
+                    // A plain file has a length and a position; a pipe or a
+                    // device left here by something else has neither, and a
+                    // read of one would block the archive.
+                    if (!stream.CanSeek) { index.AppendLine($"skipped {name}: not a plain file"); continue; }
+                    had = stream.Length;
+                    int room = (int)Math.Min(MaxFileBytes, MaxTotalBytes - total);
+                    byte[] buffer = new byte[Math.Min(room, (int)Math.Min(had, int.MaxValue))];
+                    int read = await stream.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false);
+                    text = Encoding.UTF8.GetString(buffer, 0, read);
+                    total += read;
+                    if (read < had) text += $"\n[the archive kept the first {read} of {had} bytes of this log]\n";
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    index.AppendLine($"skipped {name}: {ex.Message}");
+                    continue;
+                }
+                await File.WriteAllTextAsync(Path.Combine(destination, name),
+                    RedactSecretValues(Redact(text, secrets)));
+                collected.Add(Path.GetFileNameWithoutExtension(name));
+                index.AppendLine($"{name}: {had} bytes, last written {log.LastWriteTimeUtc:O}");
+            }
+        }
+
+        // A summary entry whose log is gone says so here rather than leaving
+        // the reader to wonder which file the id points at.
+        foreach (string id in ReferencedLogIds(discovery).Where(id => !collected.Contains(id)).Order(StringComparer.Ordinal))
+            index.AppendLine($"{id}.log: named by a scan entry but not collected (aged out of the daemon's retention, "
+                + "or never written because a scan happened before this version, or the copy above skipped it)");
+        await File.WriteAllTextAsync(Path.Combine(destination, "index.txt"), index.ToString());
+    }
+
+    /// <summary>Exactly the names the daemon's log store writes, and nothing else.</summary>
+    internal static bool IsScanLogName(string name)
+        => name.Length is > 5 and <= 96 && name.EndsWith(".log", StringComparison.Ordinal)
+           && name.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '.');
+
+    /// <summary>Every logId a scan report names, however deep it sits.</summary>
+    private static IEnumerable<string> ReferencedLogIds(JsonNode? node)
+    {
+        if (node is JsonObject obj)
+        {
+            foreach ((string key, JsonNode? child) in obj)
+                if (key == "logId" && child is JsonValue value && value.TryGetValue(out string? id) && id.Length > 0) yield return id;
+                else foreach (string found in ReferencedLogIds(child)) yield return found;
+        }
+        else if (node is JsonArray array)
+            foreach (JsonNode? child in array)
+                foreach (string found in ReferencedLogIds(child)) yield return found;
+    }
+
+    /// <summary>A name from an unexpected file, with nothing in it that could rewrite the line it lands on.</summary>
+    private static string Printable(string name)
+        => new([.. name.Take(64).Select(c => char.IsControl(c) ? '?' : c)]);
+
+    /// <summary>
+    /// The value of any field whose name says it holds a credential. The
+    /// archive's other passes look for known strings; this one looks for the
+    /// shape, because a scanner's output is whatever a plugin decided to
+    /// print and nobody enumerated what a bridge might echo.
+    /// </summary>
+    internal static string RedactSecretValues(string text)
+    {
+        try
+        {
+            // A name, then an explicit assignment, then one value. The
+            // assignment is what makes it a field rather than the same word in
+            // a sentence, and a scheme in front of the value ("Bearer x") is
+            // part of the value, not the end of the match.
+            return Regex.Replace(text,
+                "\\b(token|password|passphrase|secret|api[-_]?key|apikey|authorization)\\b(\\s*[:=]\\s*)" +
+                "(?:(?:Bearer|Basic|Token|Digest)\\s+)?(?:\"[^\"\\n]{1,4096}\"|'[^'\\n]{1,4096}'|[^\\s,;)}\\]]{1,4096})",
+                "$1$2<redacted>", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(5));
+        }
+        catch (RegexMatchTimeoutException) { return text; }
     }
 
     private static void RedactJson(JsonNode node, string[] secrets)

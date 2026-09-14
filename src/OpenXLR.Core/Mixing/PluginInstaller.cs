@@ -859,7 +859,18 @@ public sealed class PluginInstaller
             hostExecutable = NativePluginHost.Executable, hostInstalled = _hostInstalled,
             processArchitecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
             searchPaths = new { lv2Override = Environment.GetEnvironmentVariable("LV2_PATH"), clap = ClapCatalog.SearchPath().Take(64), vst3 = Vst3Catalog.SearchPath().Take(64) },
-            scans = PluginScanDiagnostics.Snapshot()
+            scans = PluginScanDiagnostics.Snapshot(),
+            // Where a failed scan's own output was written, and the bounds it
+            // was written under, so a reader knows what is there and what is
+            // not. Reading the directory runs nothing.
+            scanLogs = new
+            {
+                directory = PluginScanLogStore.DefaultDirectory,
+                stderrCapBytes = PluginScanLogStore.StreamCapBytes,
+                stdoutCapBytes = PluginScanLogStore.StdoutCapBytes,
+                maxFiles = PluginScanLogStore.MaxFiles,
+                maxTotalBytes = PluginScanLogStore.MaxTotalBytes
+            }
         };
     }
 

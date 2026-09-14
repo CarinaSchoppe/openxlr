@@ -1,14 +1,21 @@
 namespace OpenXLR.Core.Mixing;
 
-/// <summary>Bounded evidence from the last completed scan of each native format.</summary>
+/// <summary>
+/// Bounded evidence from the last completed scan of each native format.
+/// <c>LogId</c> names the saved scanner output for a failed attempt, and
+/// <c>LogNote</c> says why there is none. Both are absent from an entry an
+/// older OpenXLR recorded, and from every entry that did not fail.
+/// </summary>
 public sealed record PluginScanEntry(string Path, string Outcome, bool Cached = false,
-    int Plugins = 0, int Duplicates = 0, int? ExitCode = null, string? Detail = null);
+    int Plugins = 0, int Duplicates = 0, int? ExitCode = null, string? Detail = null,
+    string? LogId = null, string? LogNote = null);
 
 public sealed record PluginScanReport(string Kind, DateTimeOffset CompletedAt,
     IReadOnlyList<PluginScanEntry> Entries, int Omitted);
 
 /// <summary>One bundle the last scan of a format found and could not read.</summary>
-public sealed record PluginScanFailure(string Kind, string Path, string Outcome, int? ExitCode);
+public sealed record PluginScanFailure(string Kind, string Path, string Outcome, int? ExitCode,
+    string? LogId = null);
 
 public static class PluginScanDiagnostics
 {
@@ -45,7 +52,7 @@ public static class PluginScanDiagnostics
     /// <summary>The same over reports a caller already holds.</summary>
     public static IReadOnlyList<PluginScanFailure> Failures(IEnumerable<PluginScanReport> reports)
         => [.. reports.SelectMany(r => r.Entries.Where(e => Reasons.ContainsKey(e.Outcome))
-            .Select(e => new PluginScanFailure(r.Kind, e.Path, e.Outcome, e.ExitCode)))];
+            .Select(e => new PluginScanFailure(r.Kind, e.Path, e.Outcome, e.ExitCode, e.LogId)))];
 
     /// <summary>
     /// The failures as a sentence for the user, empty when there are none.
@@ -64,7 +71,11 @@ public static class PluginScanDiagnostics
         string count = failures.Count == 1 ? "1 bundle" : $"{failures.Count} bundles";
         string recovery = failures.Any(f => f.Outcome is "source-missing" or "windows-module-missing")
             ? " Restore the original plugin files or install them again, then rescan." : "";
-        return $"{count} could not be read: {names}; the daemon's log says more.{recovery}";
+        // The summary here is a line; the scanner's own output is far longer
+        // than a line and is kept on disk instead, so say where it went.
+        string saved = failures.Any(f => f.LogId is { Length: > 0 })
+            ? " The scanner output was saved for the diagnostics archive." : "";
+        return $"{count} could not be read: {names}; the daemon's log says more.{saved}{recovery}";
     }
 
     private static string Name(string path)
@@ -80,7 +91,8 @@ public static class PluginScanDiagnostics
         private int _omitted;
 
         public void Add(string path, string outcome, bool cached = false, int plugins = 0,
-            int duplicates = 0, int? exitCode = null, string? detail = null)
+            int duplicates = 0, int? exitCode = null, string? detail = null,
+            string? logId = null, string? logNote = null)
         {
             if (_entries.Count >= Limit)
             {
@@ -90,7 +102,8 @@ public static class PluginScanDiagnostics
                 if (replace < 0) return;
                 _entries.RemoveAt(replace);
             }
-            _entries.Add(new(Clip(path, 4096)!, outcome, cached, plugins, duplicates, exitCode, ClipEnds(detail, 2048)));
+            _entries.Add(new(Clip(path, 4096)!, outcome, cached, plugins, duplicates, exitCode,
+                ClipEnds(detail, 2048), logId, Clip(logNote, 512)));
         }
 
         public PluginScanReport Complete()
@@ -104,7 +117,12 @@ public static class PluginScanDiagnostics
     internal static string? Clip(string? text, int limit)
         => text is { Length: > 0 } && text.Length > limit ? text[..limit] + " [truncated]" : text;
 
-    /// <summary>Keep the startup context and later errors without letting a bridge banner fill the detail.</summary>
+    /// <summary>
+    /// Keep the startup context and later errors without letting a bridge
+    /// banner fill the detail. What this drops is not lost: a failed attempt's
+    /// whole output goes to <see cref="PluginScanLogStore"/>, and the entry's
+    /// <c>LogId</c> names it.
+    /// </summary>
     internal static string? ClipEnds(string? text, int limit)
     {
         if (text is not { Length: > 0 } || text.Length <= limit) return text;

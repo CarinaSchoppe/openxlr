@@ -541,11 +541,12 @@ catalogue. Install, bridge, sync and Rescan replies name up to three scan
 failures and count the rest, for example:
 
 ```
-1 bundle could not be read: TDR Kotelnikov.vst3 (timed out); the daemon's log says more.
+1 bundle could not be read: TDR Kotelnikov.vst3 (timed out); the daemon's log says more. The scanner output was saved for the diagnostics archive.
 ```
 
 The daemon also logs scan failures after startup discovery and after these
-commands, with the format, bundle path, outcome and exit code when known:
+commands, with the format, bundle path, outcome, exit code when known, and
+the name of the saved scanner output:
 
 ```sh
 journalctl --user -u openxlr-daemon -n 200 --no-pager | grep 'plugin scan'
@@ -554,9 +555,6 @@ journalctl --user -u openxlr-daemon -n 200 --no-pager | grep 'plugin scan'
 A timeout is not cached, so the next Rescan tries that bundle again. The
 warning makes a failed scan visible; it does not fix the underlying Wine
 or plugin failure. Collect [diagnostics](#reporting) after the scan ends.
-`plugin-discovery.json` keeps both the beginning and the end of long scanner
-output, since a bridge's startup banner can otherwise hide later errors.
-Review paths and output before sharing.
 
 After a Wine upgrade, a bridged scan can be the first program to use an
 older Wine prefix. Wine then updates it and may show an optional Mono or
@@ -578,7 +576,38 @@ proof that every missing plugin is waiting on a dialog.
 A timeout alone does not tell us why Wine or the plugin stopped answering.
 Do not run `wineboot -u` or a prefix-wide `wineserver -k` as a routine fix:
 they change or stop other Wine applications using that prefix. Start with
-the scan evidence instead.
+[the scan evidence](#scan-logs) instead.
+
+<a name="scan-logs"></a>
+**What a failed scan keeps.**
+`plugin-discovery.json` holds one short line per bundle, and a bundle that
+fails can print far more than a line: a bridge's startup banner fills the
+beginning and a Wine unwind fills the end, so the exception in between
+would be the part that is clipped. The whole output of an attempt that
+failed is written to a file instead, under
+`~/.cache/openxlr/plugin-scan-logs/` (or `$XDG_CACHE_HOME` when that is
+set), readable only by you. The scan entry names its file in `logId`, so
+the line and the file are held together.
+
+The bounds are fixed, and a log always states where it was cut:
+
+- 256 KiB of standard error and 64 KiB of standard output per attempt.
+- One file per bundle: a bundle that fails again replaces its own file and
+  counts the attempt, so repeated failures do not grow the directory.
+- 24 files and 4 MiB in total, oldest deleted first.
+
+Each file starts with what the attempt was: the bundle, the outcome, the
+attempt number, when it ran and for how long, the exit status when it could
+be read, and whether OpenXLR's own deadline or output limit ended it or the
+scanner exited by itself. Nothing there is guessed, and nothing is run to
+find it out.
+
+A scan that succeeds writes nothing, and a file is deleted on its own once
+newer failures push it out. Failing to write one never fails a scan: the
+entry then carries `logNote` with the reason instead of `logId`. Collect
+[diagnostics](#reporting) to include them; that copies the files and starts
+no plugin, scanner, bridge or Wine process. To clear them by hand, delete
+the directory. Review paths and output before sharing.
 
 <a name="windows-editor-input"></a>
 Elgato Noise Removal 1.1.2 can crash when its own editor closes or reopens
@@ -1243,8 +1272,16 @@ The archive adds:
 - `plugin-discovery.json`: the daemon's search paths and Wine prefix,
   `yabridgectl status`, and the latest completed VST3/CLAP scan results,
   including cache hits, duplicate ids, missing loaders, failures and timeouts.
+- `plugin-scan-logs/`: the scanner's own output for scans that failed, one
+  file per bundle, named by the `logId` of the scan entry it belongs to. See
+  [what a failed scan keeps](#scan-logs) for the sizes and how long they are
+  held. `index.txt` lists what was collected, what was skipped and why, and
+  any entry whose file was already gone. Nothing here is a plugin binary; it
+  is what the scanner printed.
 
-Collection does not sync folders, force a rescan or change live inserts.
+Collection does not sync folders, force a rescan or change live inserts, and
+it starts no plugin, scanner, bridge or Wine process: saved scanner output is
+copied from disk as it is.
 Scan evidence is bounded and marks omitted entries. It is collected from
 scans performed by the updated daemon; restart an older daemon after updating
 when convenient, then let discovery finish. An older, disconnected or busy

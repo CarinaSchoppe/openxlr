@@ -165,7 +165,10 @@ configuration.
 
    Desktop changes appear in the MONITOR slider on the next sweep and also
    update the other selected monitor outputs. The OpenXLR slider writes the
-   same device volumes, so Linux sees its changes too. OpenXLR's application
+   same device volumes, so Linux sees its changes too. Changing the first
+   selected device adopts its current volume. Relinking the same device,
+   including after a monitor feed or insert change, keeps volume changes
+   synchronized across the selected outputs. OpenXLR's application
    routing and the Stream and Chat mix levels stay unchanged. Applications
    left to desktop routing play directly to the default monitor device.
    Existing fixed default-device choices remain available; a virtual channel

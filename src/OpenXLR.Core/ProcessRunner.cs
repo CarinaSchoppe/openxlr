@@ -12,16 +12,27 @@ namespace OpenXLR.UI;
 namespace OpenXLR.Core;
 #endif
 
-/// <summary>What a helper process left behind.</summary>
+/// <summary>
+/// What a helper process left behind. <paramref name="ExitCode"/> is the
+/// helper's own status, or -1 when none could be read (the helper never
+/// started, or its status was gone by the time it was asked for).
+/// <paramref name="Truncated"/> is a cap breach; <paramref name="Incomplete"/>
+/// is output that never reached end of file for another reason: the
+/// deadline or a cancellation ended the read while a child still held the
+/// pipe, or the pipe itself failed. <paramref name="Cancelled"/> is the
+/// caller's own token ending the run.
+/// </summary>
 #if OPENXLR_UI
-internal sealed record ProcessResult(int ExitCode, byte[] Stdout, string Stderr, bool TimedOut, bool Truncated)
+internal sealed record ProcessResult(int ExitCode, byte[] Stdout, string Stderr, bool TimedOut, bool Truncated,
+    bool Incomplete = false, bool Cancelled = false)
 #else
-public sealed record ProcessResult(int ExitCode, byte[] Stdout, string Stderr, bool TimedOut, bool Truncated)
+public sealed record ProcessResult(int ExitCode, byte[] Stdout, string Stderr, bool TimedOut, bool Truncated,
+    bool Incomplete = false, bool Cancelled = false)
 #endif
 {
     public string StdoutText => Encoding.UTF8.GetString(Stdout);
-    /// <summary>Exit 0 within the time and output limits.</summary>
-    public bool Ok => ExitCode == 0 && !TimedOut && !Truncated;
+    /// <summary>Exit 0 within the time and output limits, output read to the end, not cancelled.</summary>
+    public bool Ok => ExitCode == 0 && !TimedOut && !Truncated && !Incomplete && !Cancelled;
 }
 
 /// <summary>
@@ -55,15 +66,17 @@ public static class ProcessRunner
     /// <summary>
     /// Run a helper with a deadline and output caps. Throws only when the
     /// process cannot be started; a timeout, a cap breach or a nonzero exit
-    /// are reported in the result. Cancellation returns a non-success result.
-    /// Descendants still attached to the helper are killed on interruption;
-    /// a child already reparented after its parent exited is outside that tree.
+    /// are reported in the result. Cancellation returns a result flagged
+    /// <see cref="ProcessResult.Cancelled"/> that keeps the exit code the
+    /// helper had. Descendants still attached to the helper are killed on
+    /// interruption; a child already reparented after its parent exited is
+    /// outside that tree.
     /// </summary>
     public static async Task<ProcessResult> RunAsync(string exe, IReadOnlyList<string> args, TimeSpan? timeout = null,
         int stdoutCap = DefaultStdoutCap, int stderrCap = DefaultStderrCap, bool cLocale = true,
         CancellationToken cancel = default, IReadOnlyDictionary<string, string>? environment = null)
     {
-        if (cancel.IsCancellationRequested) return new ProcessResult(-1, [], "", false, false);
+        if (cancel.IsCancellationRequested) return new ProcessResult(-1, [], "", false, false, Cancelled: true);
         var psi = new ProcessStartInfo(exe)
         {
             RedirectStandardOutput = true,
@@ -87,8 +100,8 @@ public static class ProcessRunner
         // Both pipes drain concurrently so a chatty helper never blocks on a
         // full pipe; a cap breach cancels the other reader and kills the tree.
         using var breach = CancellationTokenSource.CreateLinkedTokenSource(limit.Token);
-        Task<(byte[] Data, bool Truncated, bool Interrupted)> stdout = ReadCappedAsync(p.StandardOutput.BaseStream, stdoutCap, breach);
-        Task<(byte[] Data, bool Truncated, bool Interrupted)> stderr = ReadCappedAsync(p.StandardError.BaseStream, stderrCap, breach);
+        Task<(byte[] Data, bool Truncated, bool Incomplete)> stdout = ReadCappedAsync(p.StandardOutput.BaseStream, stdoutCap, breach);
+        Task<(byte[] Data, bool Truncated, bool Incomplete)> stderr = ReadCappedAsync(p.StandardError.BaseStream, stderrCap, breach);
 
         bool interrupted = false;
         try
@@ -100,16 +113,22 @@ public static class ProcessRunner
             interrupted = true;
             KillTree(p);
         }
-        (byte[] outData, bool outTrunc, bool outInterrupted) = await stdout.ConfigureAwait(false);
-        (byte[] errData, bool errTrunc, bool errInterrupted) = await stderr.ConfigureAwait(false);
-        interrupted |= outInterrupted || errInterrupted;
-        bool timedOut = interrupted && limit.IsCancellationRequested && !cancel.IsCancellationRequested;
+        (byte[] outData, bool outTrunc, bool outIncomplete) = await stdout.ConfigureAwait(false);
+        (byte[] errData, bool errTrunc, bool errIncomplete) = await stderr.ConfigureAwait(false);
+        // A parent can exit before its child's inherited pipes close, so an
+        // unfinished read counts as an interruption even when the wait
+        // succeeded. A cap breach ends the other pipe's read too; that run
+        // is reported as truncated, not as incomplete.
+        bool truncated = outTrunc || errTrunc;
+        bool incomplete = (outIncomplete || errIncomplete) && !truncated;
+        interrupted |= outIncomplete || errIncomplete;
+        bool cancelled = interrupted && cancel.IsCancellationRequested;
+        bool timedOut = interrupted && limit.IsCancellationRequested && !cancelled;
         if (!p.HasExited) KillTree(p);
         try { p.WaitForExit(); } catch (Exception) { /* reaped */ }
         int exit;
         try { exit = p.ExitCode; } catch (InvalidOperationException) { exit = -1; }
-        if (interrupted && cancel.IsCancellationRequested) exit = -1;
-        return new ProcessResult(exit, outData, Encoding.UTF8.GetString(errData), timedOut, outTrunc || errTrunc);
+        return new ProcessResult(exit, outData, Encoding.UTF8.GetString(errData), timedOut, truncated, incomplete, cancelled);
     }
 
     /// <summary>
@@ -128,7 +147,7 @@ public static class ProcessRunner
         return process.ExitCode;
     }
 
-    private static async Task<(byte[] Data, bool Truncated, bool Interrupted)> ReadCappedAsync(Stream pipe, int cap, CancellationTokenSource breach)
+    private static async Task<(byte[] Data, bool Truncated, bool Incomplete)> ReadCappedAsync(Stream pipe, int cap, CancellationTokenSource breach)
     {
         var buf = new byte[16 * 1024];
         var kept = new MemoryStream();
@@ -149,13 +168,11 @@ public static class ProcessRunner
         }
         catch (OperationCanceledException)
         {
-            // A parent can exit before its child's inherited pipes close.
-            // Propagate the interrupted read even when the process wait succeeded.
-            return (kept.ToArray(), false, true);
+            return (kept.ToArray(), false, true);   // the deadline, a cancellation or the other pipe's cap ended the read
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException)
         {
-            return (kept.ToArray(), true, false); // output did not reach EOF
+            return (kept.ToArray(), false, true);   // the pipe failed before end of file
         }
         return (kept.ToArray(), false, false);
     }

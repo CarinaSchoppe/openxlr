@@ -1495,6 +1495,8 @@ public sealed class PipeWireAdapter
             throw new InvalidOperationException($"{exe} {string.Join(' ', args)} timed out after {ProcessRunner.DefaultTimeout.TotalSeconds:0} seconds");
         if (r.Truncated)
             throw new InvalidOperationException($"{exe} {string.Join(' ', args)} produced more than {ProcessRunner.DefaultStdoutCap} bytes");
+        if (r.Incomplete)
+            throw new InvalidOperationException($"{exe} {string.Join(' ', args)}: output ended before the helper closed it");
         if (r.ExitCode != 0)
             throw new InvalidOperationException($"{exe} {string.Join(' ', args)}: {r.Stderr.Trim()}");
         return r.Stdout;
@@ -1517,6 +1519,8 @@ public sealed class PipeWireAdapter
             throw new InvalidOperationException($"{exe} {string.Join(' ', args)} timed out after {ProcessRunner.DefaultTimeout.TotalSeconds:0} seconds");
         if (r.Truncated)
             throw new InvalidOperationException($"{exe} {string.Join(' ', args)} produced more than {ProcessRunner.DefaultStdoutCap} bytes");
+        if (r.Incomplete)
+            throw new InvalidOperationException($"{exe} {string.Join(' ', args)}: output ended before the helper closed it");
         if (r.ExitCode != 0)
             throw new InvalidOperationException($"{exe} {string.Join(' ', args)} failed: {r.Stderr.Trim()}");
         return r.StdoutText;

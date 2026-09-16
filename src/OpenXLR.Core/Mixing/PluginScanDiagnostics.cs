@@ -40,6 +40,7 @@ public static class PluginScanDiagnostics
         ["source-missing"] = "the plugin file or link target is missing",
         ["windows-module-missing"] = "the original Windows plugin is missing",
         ["output-limit"] = "it described too much",
+        ["output-incomplete"] = "its description ended early",
         ["start-error"] = "the scanner could not start",
         ["invalid-description"] = "its description could not be read",
         ["directory-error"] = "the folder could not be read",

@@ -589,12 +589,9 @@ Use the plugin's actual prefix if it is not the default. Wait for Wine to
 finish, then Rescan. This is a possible explanation for a timeout, not
 proof that every missing plugin is waiting on a dialog.
 
-A helper deadline includes reading its output, even if its main process has
-already exited and a child still holds the output pipe open. Incomplete output
-is not treated as a successful scan. Cancellation does not start a new helper
-and interrupts one already running. OpenXLR can stop descendants still attached
-to that helper; it cannot use that process tree to stop a child already
-reparented after the helper exited.
+A helper's deadline includes reading its output, even when its main process
+has already exited and a child still holds the output pipe open. Incomplete
+output is not a successful scan.
 
 A timeout alone does not tell us why Wine or the plugin stopped answering.
 Do not run `wineboot -u` or a prefix-wide `wineserver -k` as a routine fix:

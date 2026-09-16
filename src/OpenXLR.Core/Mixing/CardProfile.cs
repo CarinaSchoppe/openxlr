@@ -82,6 +82,7 @@ public static class CardProfile
         ProcessResult r = ProcessRunner.Run(cmd, args, TimeSpan.FromSeconds(5), stdoutCap: 16 * 1024 * 1024, stderrCap: 64 * 1024);
         if (r.TimedOut) throw new TimeoutException($"{cmd} timed out after 5 seconds");
         if (r.Truncated) throw new InvalidOperationException($"{cmd}: output over the 16 MiB cap");
+        if (r.Incomplete) throw new InvalidOperationException($"{cmd}: output ended before the helper closed it");
         if (r.ExitCode != 0) throw new InvalidOperationException($"{cmd}: {r.Stderr.Trim()}");
         return r.StdoutText;
     }

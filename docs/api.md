@@ -67,6 +67,11 @@ Messages from the daemon, each a JSON object with a `type` field:
 | `error` | when a command without a `requestId` is rejected | `message` |
 | `commandResult` | in answer to a command that carried a `requestId` | `requestId`, `error` (null on success); preceded by the state the result refers to |
 
+Meter readings stay finite when an audio source emits NaN or infinity: an
+invalid sample contributes silence to its channel's RMS calculation, without
+changing the other channel or later valid frames. This protects metering and
+its JSON messages; it does not modify the audio signal sent to outputs.
+
 Commands are single JSON objects with a `cmd` field. The layout commands
 (`createChannel` through `setLayoutOrder` below) succeed only after the
 new layout is written to `mixer.json`; a failed write restores the previous

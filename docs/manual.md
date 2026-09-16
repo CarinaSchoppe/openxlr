@@ -350,8 +350,9 @@ look up to three subfolder levels deep. OpenXLR accepts up to 200 plugins
 from one pick and reads at most 10,000 directory entries while looking. A
 larger pick is refused, with a request to choose a smaller folder, before
 any plugin is installed; nothing is installed in part. A registered Windows
-folder is never refused for its size: its list shows the first 200 plugins
-found, and a bigger collection is best split into several folders. Linux
+folder is not refused for holding more than 200 plugins: its list shows the
+first 200 found, and a bigger collection is best split into several folders.
+The 10,000 directory entry budget applies to it as well. Linux
 plugins are copied into `~/.clap`, `~/.vst3` or `~/.lv2`, so the download
 can go afterwards. Installing over a plugin that is already there builds the new
 copy beside it and swaps the two only once the copy is complete, so a
@@ -764,7 +765,10 @@ and when you switch to it in the device picker. Use it to land on a
 known scene at every login. The reconnect after a passing USB error
 does not count, so the recall never undoes changes you made since.
 Pick "(none)" to stop. Recall waits until the mixer has finished restoring
-its settings, so those settings cannot overwrite the chosen profile.
+its settings, so those settings cannot overwrite the chosen profile. A named
+profile also waits for a plugin install or rescan in progress; restoring the
+last settings does not, so a device plugged in during a rescan comes back at
+its last state rather than its boot values.
 A manual profile load supersedes an automatic recall still waiting to run.
 An arrival that belongs to a previous connection is ignored, including a
 replug of the same model. If the chosen profile is missing or unreadable,
@@ -1137,10 +1141,9 @@ restart WirePlumber.
 A second cause, when the microphone is silent only after a reboot: the
 dock forgets its gain at every power cycle and comes back at the gain its
 firmware restores, which can differ from the gain used by your insert chain.
-OpenXLR gives the
-gain back when the dock connects, even when the gain lock is on. This
-fix is on `main` after 0.1.29; on a build without it, take the lock off
-and set the gain again. A gate or expander tuned at the gain you meant to have stays shut at a lower one and passes nothing at all, which
+Since 0.1.30 OpenXLR gives the
+gain back when the dock connects, even when the gain lock is on; on an
+older build, take the lock off and set the gain again. A gate or expander tuned at the gain you meant to have stays shut at a lower one and passes nothing at all, which
 is what makes the microphone sound dead rather than quiet.
 
 <a name="daemon-not-starting"></a>
@@ -1274,13 +1277,14 @@ while the OpenXLR Stream and Chat microphones sit some 15 dB lower, with
 every send and master at 100, one of OpenXLR's own sinks has been turned
 down. The channel sinks are playback devices, and a desktop applet or
 the session manager restoring a remembered level can set one to half
-volume; nothing in OpenXLR uses a sink's own volume as a control, so
-that only cuts audio. Since 0.1.27 the daemon puts every OpenXLR sink
+volume. Only the Monitor A and Monitor B sinks carry a master of their
+own; on every other OpenXLR sink the volume is not a control, so turning
+it down only cuts audio. Since 0.1.27 the daemon puts those other sinks
 back to full volume on its sweep and logs when it had to. On an older
 version, set them by hand:
 
 ```sh
-for s in $(pactl list sinks short | awk '/OpenXLR_/ {print $2}'); do pactl set-sink-volume "$s" 100%; done
+for s in $(pactl list sinks short | awk '/OpenXLR_/ && !/OpenXLR_mix_monitor/ {print $2}'); do pactl set-sink-volume "$s" 100%; done
 ```
 
 <a name="reporting"></a>

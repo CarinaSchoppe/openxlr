@@ -1,7 +1,8 @@
 # OpenXLR source tree
 
-The canonical user, installation, hardware-support, architecture, and API
-documentation lives in the repository [README](../README.md). Protocol status
+The canonical user, installation, hardware-support, architecture and API
+documentation lives under [docs/](../docs/README.md), with the repository
+[README](../README.md) as the entry point. Protocol status
 is tracked in [hardware-support.md](../docs/hardware-support.md); the chronological
 capture notebook is [wave-xlr-pro-protocol.md](../docs/wave-xlr-pro-protocol.md).
 

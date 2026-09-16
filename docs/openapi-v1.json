@@ -33,6 +33,9 @@
           },
           "401": {
             "description": "Credential required"
+          },
+          "403": {
+            "description": "Foreign Origin"
           }
         }
       }
@@ -45,6 +48,9 @@
           },
           "401": {
             "description": "Credential required"
+          },
+          "403": {
+            "description": "Foreign Origin"
           }
         }
       }
@@ -57,6 +63,9 @@
           },
           "401": {
             "description": "Credential required"
+          },
+          "403": {
+            "description": "Foreign Origin"
           }
         }
       }
@@ -135,8 +144,8 @@
           "400": {
             "description": "Upgrade required"
           },
-          "401": {
-            "description": "Credential required"
+          "403": {
+            "description": "Foreign Origin"
           }
         },
         "security": []
@@ -148,7 +157,7 @@
       "localToken": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Existing per-session token from OpenXlrPaths.TokenPath"
+        "description": "Per-session token read from $XDG_RUNTIME_DIR/openxlr/token, or ~/.config/openxlr/token without a runtime directory; 64 hex characters."
       }
     },
     "schemas": {

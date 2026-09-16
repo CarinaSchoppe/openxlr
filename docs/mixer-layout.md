@@ -16,7 +16,10 @@ ordered list of virtual microphones. Each entry has a stable `id` and a display
 ```
 
 These are fields in the existing settings object; retain its other fields when
-editing. Missing or null lists keep the legacy defaults. An empty mix list
+editing. Missing or null lists keep the legacy defaults. A single invalid entry
+is dropped and logged with its path, and the rest of the file still applies; a
+file that cannot be parsed at all is copied to `mixer.json.corrupt` before the
+next save replaces it. An empty mix list
 removes the editable virtual microphones. An empty application list falls back
 to System so incoming applications have a destination.
 

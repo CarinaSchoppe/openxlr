@@ -280,6 +280,10 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   MONITOR device. Keyboard volume controls and the desktop applet then use
   the same output volume as the mixer window, including synchronization to
   the other selected monitor devices, without changing Stream or Chat levels.
+  A `150%` button next to MONITOR and next to each monitor mix opens a boost
+  range above unity; a boosted value arriving from the desktop opens it on its
+  own, so the window and the OpenDeck dials show the boosted level instead of
+  stopping at 100%.
 
 - The control API validates every command before the mixer sees it and
   answers with an error instead of ignoring it. A private token is required

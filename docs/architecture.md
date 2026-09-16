@@ -87,9 +87,10 @@ modules or custom drivers:
   In/USB Aux = pair 2); the Aux mix feeds the device's aux return pair
   so the hardware forwards it to the USB Aux port.
 - `pw-dump` reads the graph, once per sweep and parsed straight from
-  its bytes; `wpctl` sets card profiles (parking the Pro on pro-audio)
-  and node volumes, and `parec` on the sinks' monitors feeds the level
-  meters. Helpers run in the C locale, since `pactl`'s output is parsed
+  its bytes; `wpctl` sets card profiles (parking the Pro on pro-audio) and
+  send-leg volumes; `pactl` sets sink, source and application-stream
+  volumes and mutes; `pw-cli set-param` sets filter-chain controls; and
+  `parec` on the sinks' monitors feeds the level meters. Helpers run in the C locale, since `pactl`'s output is parsed
   and localised.
 - Sink and source properties reach `pactl` as one double-quoted list
   with descriptions single-quoted inside (PipeWire's module parser

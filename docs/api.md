@@ -54,7 +54,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 
 | Type | When | Content |
 |---|---|---|
-| `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes), `recallOnConnect` (the profile recalled when the device connects, or null), `warning` (one sentence the user should see, or null: mixer settings that cannot be written to disk, which the daemon keeps retrying with backoff, or a device set aside after three hung USB transfers in one run). In the mixer state, each channel carries `hardware` (true for the fixed input channels), `renamedSinceStart` says a virtual microphone was renamed since the daemon started (its PipeWire device keeps the old name until a restart), and `layoutWarning` is a sentence for the layout editor when pipewire-pulse nears its open-file limit, or null |
+| `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes), `recallOnConnect` (the profile recalled when the device connects, or null), `warning` (one sentence the user should see, or null: mixer settings that cannot be written to disk, which the daemon keeps retrying with backoff, or a device set aside after three hung USB transfers in one run). In the mixer state, each channel carries `hardware` (true for the fixed input channels), `renamedSinceStart` says a virtual microphone was renamed since the daemon started (its PipeWire device keeps the old name until a restart), and `layoutWarning` is a sentence for the layout editor when pipewire-pulse nears its open-file limit, or null. Each mix carries `id`, `name`, `volume`, `muted` and `kind` (`monitor`, `virtualMic` or `auxPort`), which gives a client the mix's volume ceiling; `outputVolume` is the first selected output's volume, 0 to 1.5, or null with no output selected |
 | `diagnostics` | in answer to `getDiagnostics` | `blocks`, mapping vendor block names to hex strings or read errors |
 | `meters` | 15 Hz while the mixer is built | live stereo levels per channel and mix |
 | `plugins` | in answer to `listPlugins` | the installed LV2, CLAP and VST3 plugins with their controls, within the message size limit above and always including the plugins the saved chains use; `supported` is false, with `unsupportedFeatures` listed, for a plugin that needs a host feature the PipeWire chain lacks. `audioIns` and `audioOuts` are the plugin's own port counts, or for VST3 its main buses' default width; a VST3 entry also carries `widths`, the chain widths in channels (1 and 2 are the ones the host carries) its main buses accepted when the helper asked the way the host asks at load, so a plugin that reports 2 and lists 1 in `widths` can be inserted on a mono input. An entry without `widths` (LV2, CLAP, or a description an older helper wrote) fits a mono input with one port each way and a stereo mix with two or more |
@@ -64,7 +64,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 | `nativeEditorRulesChanged` | after a successful rule change | notification to refresh the catalogue and editor availability; no plugin rescan is needed |
 | `pluginDiagnostics` | in answer to `getPluginDiagnostics` | `discovery`: daemon host/controller paths, Wine prefix, architecture, effective search paths, bounded `yabridgectl status` output and latest completed CLAP/VST3 scan reports. A scan entry that failed carries `logId`, the name of the file holding that attempt's whole scanner output, or `logNote` saying why there is none; both are absent from an entry that did not fail and from one an older daemon recorded. `scanLogs` gives the `directory` those files are in and the bounds they are kept under (`stderrCapBytes`, `stdoutCapBytes`, `maxFiles`, `maxTotalBytes`). Reading the reply or the directory scans nothing and starts no process |
 | `pluginInstall` | in answer to `installPlugin`, `addWindowsPluginFolder`, `removeWindowsPluginFolder`, `removeWindowsPluginInserts`, `setWindowsPluginEnabled`, `deleteWindowsPlugin`, `syncWindowsPlugins` and `rescanPlugins` | `ok`, `message` (a sentence or two for the user, ending with the bundles the scan that followed could not read, up to three by name and the rest as a count), `installed` (the bundles or folders put in place), `added` (plugins in the catalogue that were not before) and `total` |
-| `error` | when a command without a `requestId` is rejected | `message` |
+| `error` | when a command without a `requestId` is rejected | `message`; for the mixer commands a `state` follows, so an optimistic edit can be reverted |
 | `commandResult` | in answer to a command that carried a `requestId` | `requestId`, `error` (null on success); preceded by the state the result refers to |
 
 Meter readings stay finite when an audio source emits NaN or infinity: an
@@ -103,7 +103,7 @@ that final acknowledgement (or an `error` without a request id):
 | `setMonitorOutput` | `device` | a single monitor sink; `null` disconnects the route |
 | `setMonitorFeed` | `device`, `mix` | what feeds one selected output: `monitor` (Monitor A), `monitor2` (Monitor B), or both summed as `monitor+monitor2` (Monitor A+B); the Pro's own jacks follow one feed together. The state's `monitorFeeds` lists the exceptions from the first mix in the same form. An error when the feed names anything but distinct monitor mixes, or the output is not selected |
 | `setAuxPortEnabled` | `value` | send the Aux mix to the USB Aux port |
-| `setOutputVolume` | `value` | volume of the selected monitor devices, 0 to 1.5; the range the devices themselves take, so a desktop level above unity can be held and written back unchanged. Values outside it are clamped, and the state reports what reached the devices |
+| `setOutputVolume` | `value` | volume of the selected monitor devices, 0 to 1.5; the range the devices themselves take, so a desktop level above unity can be held and written back unchanged. Values outside it are clamped, and the state reports what reached the devices. With no output selected the command succeeds and changes nothing |
 | `listPlugins` | none | the installed LV2, CLAP and VST3 plugins, answered with a `plugins` message |
 | `getPluginDiagnostics` | none | read bridge status and existing native scan evidence without syncing, rescanning or changing inserts; answered with `pluginDiagnostics` |
 | `getPluginSetup` | none | where plugins are installed and what bridges Windows ones, answered with a `pluginSetup` message |
@@ -134,8 +134,10 @@ that final acknowledgement (or an `error` without a request id):
 
 When `loadProfile` writes the device settings but the mixer settings fail, the
 error says the device settings were applied and gives the mixer error. A
-profile file that fails validation is refused before anything is applied; the
-error starts with `profile '<name>':` and names the offending field.
+profile file that fails validation, or that cannot be parsed, is refused
+before anything is applied; the error starts with `profile '<name>':`. A bad
+mixer field is named; a non-finite device level is reported as `Saved device
+levels must be finite numbers.` without one.
 
 `setEnforcedDefaults` accepts `sink: "@monitor"` to follow the first selected
 monitor output as the system playback device. The state and saved settings
@@ -156,7 +158,9 @@ Monitor mix sinks (`OpenXLR_mix_monitor` and `OpenXLR_mix_monitor2` in the
 standard layout) expose the same volume and mute as their mix masters.
 Desktop changes update `mixer.mixes[].volume` and `muted` on the next sweep
 and are persisted with mixer settings. Values are desktop percentages
-scaled by 100 (1.0 = 100%, 1.5 = 150%), not PipeWire's raw linear amplitude.
+divided by 100 (1.0 = 100%, 1.5 = 150%), the scale `pactl` shows, not
+PipeWire's raw linear amplitude; the daemon takes the cube root when reading
+and writes percentages back with `pactl`.
 `setMixVolume` and `setMixMuted` update those sinks directly, leaving channel
 sends and other mixes unchanged. Monitor gain is applied once, at the mix
 sink before its inserts. Non-monitor masters still apply to the channel
@@ -295,7 +299,7 @@ startup, with `kind`, `completedAt`, `entries` and `omitted`. An empty list
 means no native scan has completed yet. Entries carry `path`, `outcome`,
 `cached`, `plugins`, `duplicates`, `exitCode` and `detail`. Outcomes include
 `host-missing`, `directory`, `directory-missing`, `directory-error`,
-`start-error`, `scan-failed`, `source-missing`, `windows-module-missing`, `timeout`, `output-limit`, `invalid-description`,
+`start-error`, `scan-failed`, `source-missing`, `windows-module-missing`, `timeout`, `output-limit`, `output-incomplete`, `invalid-description`,
 `no-plugins`, `ok` and `scan-error`. A cached description is reused only
 while the native helper that wrote it is the one asking, so `cached` is
 false everywhere in the first scan after the helper changes. Reports retain

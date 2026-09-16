@@ -121,6 +121,9 @@ a bare `error` message, so an editor can wait for the acknowledgement:
 | `resetDevice` | none | write the recorded defaults back to a device using connect-time restoration and forget its last settings (an error until the daemon has seen the device connect after a power cycle once); on the Wave XLR Pro, which keeps its own settings, write OpenXLR's baseline instead: gain 30 dB on both inputs, every processing stage and phantom off, headphones and aux level at half, the crossfade fully on PC, routing untouched, refused while the gain lock is on. The capabilities say `builtInDefaults` when a model has a baseline |
 | `getDiagnostics` | none | vendor block dump for bug reports |
 
+When `loadProfile` writes the device settings but the mixer settings fail, the
+error says the device settings were applied and gives the mixer error.
+
 `setEnforcedDefaults` accepts `sink: "@monitor"` to follow the first selected
 monitor output as the system playback device. The state and saved settings
 retain `@monitor`; the daemon resolves it to the device's actual sink name

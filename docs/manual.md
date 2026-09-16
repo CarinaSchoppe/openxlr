@@ -760,6 +760,9 @@ replug of the same model. If the chosen profile is missing or unreadable,
 the daemon logs the failure and uses the last stored hardware settings
 instead of saving the device's boot values over them.
 
+If a profile's device settings apply but its mixer settings fail, the error
+says so and gives the mixer failure.
+
 Loading a named profile, by clicking it or on connect, restores its saved
 gain even when the gain lock is on. The lock remains on and still blocks
 ordinary gain changes. A profile is a saved snapshot: changing a control

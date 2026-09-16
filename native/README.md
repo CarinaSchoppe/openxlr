@@ -63,6 +63,15 @@ tests the explicit OpenGL override. It creates no audio links.
   why it watches that pipe rather than using PDEATHSIG, whose Linux semantics
   follow the thread that spawned it.
 
+Plugin libraries share the helper's stdout. The daemon retains at most 4096
+characters per protocol line and discards an oversized line through its next
+newline, then resumes reading replies and heartbeats. Parameter symbols must
+contain 1 to 255 characters, and values must be finite. Pending control changes
+and meter values each retain at most 4096 distinct symbols, matching the native
+host's control limit. Existing symbols can still update at that limit; draining
+pending changes frees their slots. These bounds protect the daemon's protocol
+buffers, not the plugin process's own memory or CPU use.
+
 ## Editor failures and audio recovery
 
 Display loss or stalled editor controls do not rebuild a healthy audio

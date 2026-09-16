@@ -35,6 +35,112 @@ public sealed class NativeHostProtocolTests
     }
 
     [Fact]
+    public void APartialProtocolLineHasAFixedBoundAndRecoversAtTheNextNewline()
+    {
+        var line = new System.Text.StringBuilder();
+        bool discard = false;
+        var received = new List<string>();
+        string block = new('x', 4096);
+        NativePluginHost.FoldOutputBlock(line, block, ref discard, received.Add);
+        Assert.Equal(4096, line.Length);
+        NativePluginHost.FoldOutputBlock(line, "\n", ref discard, received.Add);
+        Assert.Equal(block, Assert.Single(received));
+        received.Clear();
+        for (int i = 0; i < 100; i++)
+        {
+            NativePluginHost.FoldOutputBlock(line, block, ref discard, received.Add);
+            Assert.InRange(line.Length, 0, 4096);
+        }
+        Assert.True(discard);
+        NativePluginHost.FoldOutputBlock(line, "\nready\r", ref discard, received.Add);
+        NativePluginHost.FoldOutputBlock(line, "\nheartbeat\nui opened\n", ref discard, received.Add);
+        Assert.Equal(["ready", "heartbeat", "ui opened"], received);
+        Assert.False(discard);
+        Assert.Empty(line.ToString());
+    }
+
+    [Fact]
+    public void PluginOutputCannotGrowTheControlAndMeterTablesWithoutBound()
+    {
+        using var host = Start("""
+            import sys
+            print('ready')
+            print('control gain 0.25')
+            print('meter peak 0.25')
+            for i in range(5000):
+                print('control c%d 0.5' % i)
+                print('meter m%d 0.5' % i)
+            for line in sys.stdin:
+                if line.strip() == 'show':
+                    print('control gain 0.75')
+                    print('meter peak 0.75')
+                    print('ui opened')
+                elif line.startswith('set '):
+                    _, symbol, value = line.split()
+                    print('control', symbol, value)
+            """);
+        host.ShowUi();
+        Assert.Equal(4096, host.Meters.Count);
+        Assert.Equal(0.75, host.Meters["peak"]);
+        var changes = host.DrainChanges().ToArray();
+        Assert.Equal(4096, changes.Length);
+        Assert.Equal(0.75, changes.Single(pair => pair.Key == "gain").Value);
+        host.SetControl("after-drain", 0.9);
+        host.ShowUi();
+        Assert.Equal(0.9, host.DrainChanges().Single(pair => pair.Key == "after-drain").Value);
+    }
+
+    [Fact]
+    public void MaximumLengthSymbolsWorkAndNonFiniteOrEmptyValuesAreIgnored()
+    {
+        using var host = Start("""
+            import sys
+            print('ready')
+            for line in sys.stdin:
+                if line.strip() == 'show':
+                    for kind in ['control', 'meter']:
+                        print(kind, 's' * 255, '0.75')
+                        for value in ['NaN', 'Infinity', '-Infinity', '1e999', '']:
+                            print(kind, 'invalid', value)
+                        print(kind + '  0.5')
+                    print('ui opened')
+            """);
+        host.ShowUi();
+        var control = Assert.Single(host.DrainChanges());
+        var meter = Assert.Single(host.Meters);
+        Assert.Equal(new string('s', 255), control.Key);
+        Assert.Equal(control, meter);
+        Assert.Equal(0.75, control.Value);
+    }
+
+    [Fact]
+    public void OversizedProtocolLinesAndSymbolsAreDiscardedWithoutLosingTheNextReply()
+    {
+        using var host = Start("""
+            import sys
+            print('ready')
+            print('control poisoned 0.5' + ' ' * 16384)
+            print('meter poisoned 0.5' + ' ' * 16384)
+            print('control ' + 's' * 256 + ' 0.5')
+            print('meter ' + 's' * 256 + ' 0.5')
+            print('x' * 16384, end='')
+            print('ready')
+            for line in sys.stdin:
+                if line.strip() == 'show':
+                    print('control gain 0.75')
+                    print('meter peak 0.5')
+                    print('heartbeat')
+                    print('ui-heartbeat')
+                    print('ui opened')
+            """);
+        host.ShowUi();
+        Assert.Equal("peak", Assert.Single(host.Meters).Key);
+        Assert.Equal("gain", Assert.Single(host.DrainChanges()).Key);
+        Assert.True(host.IsHealthy);
+        Assert.False(host.EditorStalled);
+    }
+
+    [Fact]
     public void UnresponsiveEditorHasOneSecondBudgetAndCannotQueueMoreShows()
     {
         using var host = Start("""

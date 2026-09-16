@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.35
+Version:        0.1.36
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -55,8 +55,8 @@ per-application channels, virtual microphones, multi-output monitoring
 and a dedicated mix for a second computer on the USB Aux port, plus an
 OpenDeck plugin for Stream Deck control.
 
-Supported devices: Wave XLR Pro, XLR Dock (Stream Deck+ module),
-Wave XLR and Wave XLR MK.2.
+Supported devices: Wave XLR Pro, XLR Dock and XLR Dock MK.2
+(Stream Deck+ modules), Wave XLR and Wave XLR MK.2.
 
 After installing, enable the per-user daemon with
 "systemctl --user enable --now openxlr-daemon" and replug the
@@ -149,6 +149,15 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Wed Sep 16 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.36-1
+- The desktop's volume and OpenXLR's monitor volume stay in step, with the master gain applied once at each monitor sink. A 150% button next to MONITOR and next to each monitor mix opens an explicit boost range; while it is off the slider stops at 100%, and turning it off returns a boosted output to 100%. A boosted value arriving from the desktop opens the range on its own, and OpenDeck dials follow it instead of pinning at the top.
+- A profile recall waits for the mixer to finish starting and writes the saved gain, so a recall no longer lands on a half-built mixer or leaves the locked gains at their boot values. A recall that arrives after the device has moved on is discarded, and one that fails leaves the current settings as they were.
+- A device plugged in while a plugin rescan is running restores its last hardware state at once instead of sitting at its boot values, and changes made meanwhile are kept rather than dropped. Only a named profile still waits for the scan. A load that writes the device settings and then fails on the mixer half says so in its error.
+- A single malformed entry in mixer.json no longer discards the whole file. The bad entry is dropped and the layout, the app registry, the overrides and the insert chains are kept, with the path and each dropped field logged. A file that cannot be parsed at all is copied to mixer.json.corrupt before the next save replaces it, so nothing is lost. Profiles still reject a bad file outright, because applying half a scene is worse than applying none, and the message names the condition that was hit and the profile it came from.
+- A registered yabridge folder lists, enables and disables its plugins past the 200 plugin limit, which now applies only to a folder picked for installing. VST2 files no longer count toward it, and the manual describes that limit and the 10,000 directory entry budget in one place.
+- Meters stay finite when a source emits an invalid audio sample. The sample contributes silence to its own channel and leaves the other channel and later valid frames untouched. Metering only; the audio sent to the outputs is not changed.
+- Hardening along the file and plugin paths: files are created private and staging is cleaned only on failure, the scan cache and the scan logs are written atomically and an existing archive is preserved, the VST3 host validates its buffers and stream bounds, folder discovery is bounded before installation, and the daemon rejects a malformed insert and reports a failed plugin operation instead of answering as though it succeeded.
+
 * Mon Sep 14 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.35-1
 - Skins: the window's appearance is read from a named value set, and two ship. Material is the default and looks as the window always has; Deck dresses it in the OpenDeck visual language, with near-black faceplates, black caps whose lettering is backlit green when a control is on and red when something is muted or bypassed, console faders with a machined cap, indicator lamps in a bezel and meters that run green to amber to red across the scale.
 - The skin picker is in Options, the choice is saved in ui.json alone, and switching repaints open windows without touching audio, routing or the layout; Reload reads the skin folders again without a restart.

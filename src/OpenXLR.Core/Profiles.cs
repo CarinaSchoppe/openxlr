@@ -126,7 +126,13 @@ public static class ProfileStore
     {
         MigrateOnce();
         string path = Path.Combine(Dir(deviceId), name + ".json");
-        try { return JsonSerializer.Deserialize<Profile>(File.ReadAllText(path), Json); }
+        try
+        {
+            Profile? profile = JsonSerializer.Deserialize<Profile>(File.ReadAllText(path), Json);
+            if (profile?.Mixer is { } scene) SavedMixerValidation.Validate(scene);
+            if (profile?.Device is { } device) DeviceStateStore.Validate(device);
+            return profile;
+        }
         catch (FileNotFoundException) { return null; }
         catch (DirectoryNotFoundException) { return null; }
     }

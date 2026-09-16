@@ -98,17 +98,44 @@ public sealed record MixerSettings
     public static string DefaultPath => OpenXlrPaths.ConfigFile("mixer.json");
 
     /// <summary>Read settings, or null when there is no file or it is unreadable.</summary>
-    public static MixerSettings? Load(string? path = null)
+    public static MixerSettings? Load(string? path = null) => Load(path, out _);
+
+    /// <summary>
+    /// Read settings, or null when there is no file or it is unreadable.
+    /// <paramref name="warning"/> is null when the file was read as is. It names
+    /// the entries dropped from a file that could otherwise be kept, or the
+    /// reason a file could not be read at all. Such a file is copied next to
+    /// itself with a ".corrupt" suffix, because the next save replaces it.
+    /// </summary>
+    public static MixerSettings? Load(string? path, out string? warning)
     {
         path ??= DefaultPath;
+        warning = null;
         try
         {
             if (!File.Exists(path)) return null;
-            return JsonSerializer.Deserialize<MixerSettings>(File.ReadAllText(path), Json);
+            MixerSettings? settings = JsonSerializer.Deserialize<MixerSettings>(File.ReadAllText(path), Json);
+            if (settings is null) return null;
+            settings = SavedMixerValidation.Sanitize(settings, out IReadOnlyList<string> dropped);
+            if (dropped.Count > 0) warning = $"{path}: dropped malformed entries ({string.Join(", ", dropped)})";
+            return settings;
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {
-            return null;   // a corrupt file must not stop the daemon starting
+            // A corrupt file must not stop the daemon starting, and the copy
+            // survives the save that would otherwise overwrite it.
+            warning = $"{path}: {ex.Message}";
+            string copy = path + ".corrupt";
+            try
+            {
+                OpenXlrPaths.WriteAtomic(copy, File.ReadAllBytes(path));
+                warning += $"; copy kept as {copy}";
+            }
+            catch (Exception copyEx) when (copyEx is IOException or UnauthorizedAccessException)
+            {
+                warning += $"; could not keep a copy as {copy}: {copyEx.Message}";
+            }
+            return null;
         }
     }
 

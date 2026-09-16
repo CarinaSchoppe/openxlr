@@ -188,11 +188,12 @@ internal static class HostScan
                         exitCode = scan.ExitCode == -1 ? null : scan.ExitCode;
                         timedOut = scan.TimedOut;
                         outputCapped = scan.Truncated;
-                        if (scan.ExitCode != 0 || scan.TimedOut || scan.Truncated)
+                        if (!scan.Ok)
                         {
-                            bool missingWindows = kind == "vst3" && !scan.TimedOut && !scan.Truncated
+                            bool missingWindows = kind == "vst3" && !scan.TimedOut && !scan.Truncated && !scan.Incomplete
                                 && stderr.Contains("does not contain a Windows VST3 module", StringComparison.Ordinal);
                             string outcome = scan.TimedOut ? "timeout" : scan.Truncated ? "output-limit"
+                                : scan.Incomplete ? "output-incomplete"
                                 : missingWindows ? "windows-module-missing" : "scan-failed";
                             string detail = missingWindows ? stderr + "\n" + MissingWindowsModuleDetail(bundle) : stderr;
                             PluginScanLogRef log = Keep(logs, new PluginScanAttempt(kind, bundle, outcome, startedAt,

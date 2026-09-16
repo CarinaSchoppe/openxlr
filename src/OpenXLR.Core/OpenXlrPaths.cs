@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 
 #if OPENXLR_UI
@@ -98,17 +99,43 @@ public static class OpenXlrPaths
         }
     }
 
-    /// <summary>Write text to a private file atomically, creating its directory.</summary>
-    public static void WriteAtomic(string path, string text)
+    /// <summary>
+    /// Write text atomically, creating its directory. Private permissions are
+    /// the default. Startup files in desktop-owned directories opt out so the
+    /// directory keeps its permissions and the file follows the process umask.
+    /// </summary>
+    public static void WriteAtomic(string path, string text, bool privatePermissions = true)
+        => WriteAtomic(path, Encoding.UTF8.GetBytes(text), privatePermissions);
+
+    /// <summary>Write bytes atomically, creating the directory; see the text overload.</summary>
+    public static void WriteAtomic(string path, byte[] bytes, bool privatePermissions = true)
     {
         string dir = Path.GetDirectoryName(path)!;
-        EnsurePrivateDir(dir);
-        string tmp = path + ".tmp";
-        var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write, Share = FileShare.None };
-        if (!OperatingSystem.IsWindows()) options.UnixCreateMode = PrivateFile;
-        using (var writer = new StreamWriter(tmp, options)) writer.Write(text);
-        if (!OperatingSystem.IsWindows() && File.GetUnixFileMode(tmp) != PrivateFile) File.SetUnixFileMode(tmp, PrivateFile);
-        File.Move(tmp, path, overwrite: true);
+        if (privatePermissions) EnsurePrivateDir(dir);
+        else Directory.CreateDirectory(dir);
+        // Each writer owns its staging file. Reusing path + ".tmp" lets
+        // concurrent writers collide, follows a leftover symbolic link, and
+        // trips over a leftover from a crash for as long as it stays there.
+        string tmp = Path.Combine(dir, ".openxlr-" + Guid.NewGuid().ToString("N") + ".tmp");
+        bool published = false;
+        try
+        {
+            using (FileStream stream = privatePermissions ? CreatePrivate(tmp)
+                : new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                stream.Write(bytes);
+            File.Move(tmp, path, overwrite: true);
+            published = true;
+        }
+        finally
+        {
+            // The staging file is gone once the rename took it; after a
+            // failure it is removed so the next writer finds a clean directory.
+            if (!published)
+            {
+                try { File.Delete(tmp); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* the caller sees the failure that got here */ }
+            }
+        }
     }
 
     /// <summary>Serialize a value and write it as a private file atomically.</summary>
@@ -117,12 +144,18 @@ public static class OpenXlrPaths
 
     /// <summary>
     /// Open a new private file for writing (0600 from the first byte), for
-    /// callers that stream into it, such as the diagnostics archive.
+    /// callers that stream into it, such as the diagnostics archive. Existing
+    /// files and symbolic links are refused without truncating their contents.
     /// </summary>
     public static FileStream CreatePrivate(string path)
     {
-        var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write, Share = FileShare.None };
+        var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None };
         if (!OperatingSystem.IsWindows()) options.UnixCreateMode = PrivateFile;
-        return new FileStream(path, options);
+        var stream = new FileStream(path, options);
+        // The umask can strip bits from the requested mode; the file is ours
+        // to tighten before the first byte lands.
+        if (!OperatingSystem.IsWindows() && File.GetUnixFileMode(stream.SafeFileHandle) != PrivateFile)
+            File.SetUnixFileMode(stream.SafeFileHandle, PrivateFile);
+        return stream;
     }
 }

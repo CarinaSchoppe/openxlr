@@ -89,11 +89,7 @@ public sealed class ScanCache
         string file = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(bundle))) + ".json";
         try
         {
-            OpenXlrPaths.EnsurePrivateDir(_directory);
-            string temporary = Path.Combine(_directory, file + ".tmp");
-            using (FileStream stream = OpenXlrPaths.CreatePrivate(temporary))
-                stream.Write(description);
-            File.Move(temporary, Path.Combine(_directory, file), overwrite: true);
+            OpenXlrPaths.WriteAtomic(Path.Combine(_directory, file), description);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return; }
         _index[bundle] = new Entry(stamp.Modified, stamp.Size, file, _scanner, stamp.Target);

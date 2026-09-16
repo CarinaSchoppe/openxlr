@@ -232,7 +232,9 @@ public sealed class MixerService : IHostedService, IDisposable
 
         try
         {
-            MixerSettings? saved = MixerSettings.Load();
+            MixerSettings? saved = MixerSettings.Load(MixerSettings.DefaultPath, out string? settingsWarning);
+            if (settingsWarning is not null)
+                _log.LogWarning("mixer settings: {warning}{fallback}", settingsWarning, saved is null ? "; starting with defaults" : "");
             _mixer.Build(MixerConfig.FromSettings(saved), output);
 
             // Restore the user's saved levels, mutes, device picks, and per-app
@@ -265,7 +267,7 @@ public sealed class MixerService : IHostedService, IDisposable
                     // Software DSP only for devices without the hardware version.
                     _mixer.SetLowCutApplicable(!(_devices.ActiveCapabilities?.LowCut ?? false));
                     _mixer.SetClipGuardApplicable(!(_devices.ActiveCapabilities?.ClipGuard ?? false));
-                    IReadOnlyList<string> restoredSinks = _mixer.EnsureOwnSinkLevels();
+                    bool monitorChanged = _mixer.SyncOwnSinkLevels(out IReadOnlyList<string> restoredSinks);
                     if (restoredSinks.Count > 0)
                         _log.LogWarning("put {n} OpenXLR sink(s) back to full volume, unmuted ({names}); something outside OpenXLR had changed them",
                             restoredSinks.Count, string.Join(", ", restoredSinks));
@@ -273,7 +275,7 @@ public sealed class MixerService : IHostedService, IDisposable
                     // healing pass below, so a chain that is about to be rebuilt
                     // comes back with the values its editor last showed.
                     // Desktop volume and mute changes are user settings too.
-                    if (_mixer.SyncPluginControls() | _mixer.SyncMonitorVolumes() | _mixer.SyncDeviceVolumes())
+                    if (_mixer.SyncPluginControls() | monitorChanged | _mixer.SyncDeviceVolumes())
                     {
                         ScheduleSave();
                         Changed?.Invoke();
@@ -486,11 +488,7 @@ public sealed class MixerService : IHostedService, IDisposable
                     _mixer.SetSoftClipGuard(cmd.Value.GetBoolean());
                     break;
                 case "setInserts":
-                    if (cmd.Channel is null || cmd.Inserts is null) return "setInserts: need 'channel' and 'inserts'";
-                    foreach (InsertDefinition i in cmd.Inserts)
-                        if (string.IsNullOrWhiteSpace(i.Id) || i.Kind is not ("lv2" or "clap" or "vst3") || string.IsNullOrWhiteSpace(i.Plugin))
-                            return "setInserts: every insert needs an id, a kind of 'lv2', 'clap' or 'vst3', and a plugin identifier";
-                    _mixer.SetInserts(cmd.Channel, cmd.Inserts);
+                    _mixer.SetInserts(cmd.Channel!, cmd.Inserts!);   // both checked by CommandValidation
                     break;
                 case "setInsertBypass":
                     if (cmd.Channel is null || cmd.InsertId is null) return "setInsertBypass: need 'channel' and 'insertId'";

@@ -305,7 +305,8 @@ public static class Diagnostics
             // killed with its children and the archive says so.
             ProcessResult r = await ProcessRunner.RunAsync(exe, args, TimeSpan.FromSeconds(15),
                 stdoutCap: 8 * 1024 * 1024, stderrCap: 64 * 1024, cLocale: false);
-            string note = r.TimedOut ? $"\n[{exe} killed after 15 s]" : r.Truncated ? $"\n[{exe} output truncated at 8 MiB]" : "";
+            string note = r.TimedOut ? $"\n[{exe} killed after 15 s]" : r.Truncated ? $"\n[{exe} output truncated at 8 MiB]"
+                : r.Incomplete ? $"\n[{exe} output ended before the helper closed it]" : "";
             return Redact(r.StdoutText + r.Stderr + note);
         }
         catch (Exception ex) { return Redact($"failed to run {exe}: {ex.Message}"); }

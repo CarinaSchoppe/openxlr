@@ -339,14 +339,9 @@ public static class StartupIntegration
     /// the desktop and systemd own rather than in OpenXLR's own tree:
     /// ~/.config/autostart and ~/.config/systemd/user.
     ///
-    /// AGENTS.md requires <c>OpenXlrPaths.WriteAtomic</c> for files under
-    /// ~/.config/openxlr. These two are outside that tree and that helper is
-    /// wrong for them: it forces the directory to 0700 and the file to 0600,
-    /// which is not OpenXLR's call to make for a shared directory, and its
-    /// rename would turn an entry the user symlinked into a regular file.
-    /// So the write is still a temporary file and a rename in the same
-    /// directory, but the directory keeps its mode and the process umask
-    /// decides the file's (0644 on a default umask).
+    /// Use the shared atomic writer without private permissions: the directory
+    /// keeps its mode and the process umask decides the file's mode. Its unique,
+    /// exclusive temporary file cannot follow a stale temporary symbolic link.
     ///
     /// False when the target is a symbolic link: whatever it points at
     /// belongs to whoever made the link, so it is left untouched and the
@@ -356,9 +351,7 @@ public static class StartupIntegration
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         if (IsSymbolicLink(path)) return false;
-        string tmp = path + ".openxlr-tmp";
-        File.WriteAllText(tmp, text);
-        File.Move(tmp, path, overwrite: true);
+        OpenXlrPaths.WriteAtomic(path, text, privatePermissions: false);
         return true;
     }
 

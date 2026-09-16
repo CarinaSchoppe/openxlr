@@ -162,6 +162,7 @@ configuration.
    changing the other mix or its channel sends. Its **150%** button unlocks
    boost in OpenXLR too. OpenDeck's monitor and output dials also support
    0 to 150%, so a boosted desktop value changes smoothly with each tick.
+   Those needles sweep the full range; every other dial keeps its 0 to 100% scale.
    Desktop changes are saved with the mixer settings
    and recalled after a daemon restart; explicitly loading a profile restores
    the values saved in that profile. A physical device named simply
@@ -344,9 +345,16 @@ the picker offers only plugins compatible with the selected slot.
 For a plugin you downloaded, press "Install file" or "Install folder" in the picker or in Options and pick it; OpenXLR puts it where
 it looks and the picker lists it a moment later. A file is a `.clap` or a
 single-file `.vst3`; a folder is a `.vst3` or `.lv2` bundle, or a folder
-holding several of them, such as an extracted download. Linux plugins are
-copied into `~/.clap`, `~/.vst3` or `~/.lv2`, so the download can go
-afterwards. Installing over a plugin that is already there builds the new
+holding several of them, such as an extracted download. Folder selections
+look up to three subfolder levels deep. OpenXLR accepts up to 200 plugins
+from one pick and reads at most 10,000 directory entries while looking. A
+larger pick is refused, with a request to choose a smaller folder, before
+any plugin is installed; nothing is installed in part. A registered Windows
+folder is not refused for holding more than 200 plugins: its list shows the
+first 200 found, and a bigger collection is best split into several folders.
+The 10,000 directory entry budget applies to it as well. Linux
+plugins are copied into `~/.clap`, `~/.vst3` or `~/.lv2`, so the download
+can go afterwards. Installing over a plugin that is already there builds the new
 copy beside it and swaps the two only once the copy is complete, so a
 download that turns out to be unreadable, or a disk that fills up, costs
 the update and not the plugin you had. An archive has to be extracted
@@ -588,6 +596,10 @@ Use the plugin's actual prefix if it is not the default. Wait for Wine to
 finish, then Rescan. This is a possible explanation for a timeout, not
 proof that every missing plugin is waiting on a dialog.
 
+A helper's deadline includes reading its output, even when its main process
+has already exited and a child still holds the output pipe open. Incomplete
+output is not a successful scan.
+
 A timeout alone does not tell us why Wine or the plugin stopped answering.
 Do not run `wineboot -u` or a prefix-wide `wineserver -k` as a routine fix:
 they change or stop other Wine applications using that prefix. Start with
@@ -753,12 +765,18 @@ and when you switch to it in the device picker. Use it to land on a
 known scene at every login. The reconnect after a passing USB error
 does not count, so the recall never undoes changes you made since.
 Pick "(none)" to stop. Recall waits until the mixer has finished restoring
-its settings, so those settings cannot overwrite the chosen profile.
+its settings, so those settings cannot overwrite the chosen profile. A named
+profile also waits for a plugin install or rescan in progress; restoring the
+last settings does not, so a device plugged in during a rescan comes back at
+its last state rather than its boot values.
 A manual profile load supersedes an automatic recall still waiting to run.
 An arrival that belongs to a previous connection is ignored, including a
 replug of the same model. If the chosen profile is missing or unreadable,
 the daemon logs the failure and uses the last stored hardware settings
 instead of saving the device's boot values over them.
+
+If a profile's device settings apply but its mixer settings fail, the error
+says so and gives the mixer failure.
 
 Loading a named profile, by clicking it or on connect, restores its saved
 gain even when the gain lock is on. The lock remains on and still blocks
@@ -1123,10 +1141,9 @@ restart WirePlumber.
 A second cause, when the microphone is silent only after a reboot: the
 dock forgets its gain at every power cycle and comes back at the gain its
 firmware restores, which can differ from the gain used by your insert chain.
-OpenXLR gives the
-gain back when the dock connects, even when the gain lock is on. This
-fix is on `main` after 0.1.29; on a build without it, take the lock off
-and set the gain again. A gate or expander tuned at the gain you meant to have stays shut at a lower one and passes nothing at all, which
+Since 0.1.30 OpenXLR gives the
+gain back when the dock connects, even when the gain lock is on; on an
+older build, take the lock off and set the gain again. A gate or expander tuned at the gain you meant to have stays shut at a lower one and passes nothing at all, which
 is what makes the microphone sound dead rather than quiet.
 
 <a name="daemon-not-starting"></a>
@@ -1260,13 +1277,14 @@ while the OpenXLR Stream and Chat microphones sit some 15 dB lower, with
 every send and master at 100, one of OpenXLR's own sinks has been turned
 down. The channel sinks are playback devices, and a desktop applet or
 the session manager restoring a remembered level can set one to half
-volume; nothing in OpenXLR uses a sink's own volume as a control, so
-that only cuts audio. Since 0.1.27 the daemon puts every OpenXLR sink
+volume. Only the Monitor A and Monitor B sinks carry a master of their
+own; on every other OpenXLR sink the volume is not a control, so turning
+it down only cuts audio. Since 0.1.27 the daemon puts those other sinks
 back to full volume on its sweep and logs when it had to. On an older
 version, set them by hand:
 
 ```sh
-for s in $(pactl list sinks short | awk '/OpenXLR_/ {print $2}'); do pactl set-sink-volume "$s" 100%; done
+for s in $(pactl list sinks short | awk '/OpenXLR_/ && !/OpenXLR_mix_monitor/ {print $2}'); do pactl set-sink-volume "$s" 100%; done
 ```
 
 <a name="reporting"></a>
@@ -1286,7 +1304,9 @@ catalogue, effective bridge setup and latest native scan results. The home path,
 and the serial numbers of attached USB devices are redacted, in the
 text files and inside the hex dump of the vendor blocks (the XLR Dock
 stores its serial in one); review the archive anyway before attaching
-it to a public issue. Nothing is uploaded automatically.
+it to a public issue. Nothing is uploaded automatically. An archive is
+created as a new private file; an existing file or symbolic link at its
+path is refused without overwriting its contents.
 
 For a Windows plugin missing from the picker, collect diagnostics after the
 scan finishes and name the plugin and intended insert slot in the report.
@@ -1338,9 +1358,34 @@ Review plugin names, paths and scanner output before sharing the archive.
 | `/usr/lib/systemd/user/pipewire-pulse.service.d/openxlr.conf` | installed by the packages: raises pipewire-pulse's open-file limit ([section 5.8](#open-files)) |
 | `ws://127.0.0.1:37890/ws` | the daemon's API, documented in [api.md](api.md); the same commands over HTTP at `/api/v1` ([http-api.md](http-api.md)) |
 
+Saved mixer and hardware data are checked before restoration. A null entry
+or a number that is not finite (`1e999`) counts as a bad entry. What happens
+next depends on the file:
+
+- `mixer.json` with a bad entry: the entry is dropped, the rest of the file
+  is used, and the daemon log names the field. The next save writes the file
+  without the entry.
+- `mixer.json` that cannot be parsed: the daemon logs the path and the
+  reason, keeps a private copy as `mixer.json.corrupt`, and starts with default
+  settings. The copy is published atomically; an existing backup link is
+  replaced without writing through it. The next save replaces the original.
+- a hardware snapshot (`last-state.json`, `defaults.json`) with a bad entry:
+  treated as unreadable, nothing from it is applied.
+- a profile with a bad entry: refused before any of its hardware or mixer
+  settings are applied. `loadProfile` returns the profile name and the
+  field; a profile recalled on connect is skipped and the last settings are
+  restored instead.
+
+Reading a rejected file never rewrites it. Missing optional fields in older
+files keep their legacy meaning, and an unavailable plugin can still be
+remembered for later use.
+
 Configuration paths honor `XDG_CONFIG_HOME`; the private wrapper root honors
 `XDG_DATA_HOME`. Without `XDG_RUNTIME_DIR`, runtime files use the private
 OpenXLR configuration directory.
+
+OpenXLR writes configuration and profile files completely or not at all, so
+an interrupted write leaves the previous file in place.
 
 Uninstalling a package leaves `~/.config/openxlr` in place; remove it
 by hand if you want a clean slate.

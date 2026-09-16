@@ -40,13 +40,21 @@ tools/check-locked-restore.sh                   # every packaging path restores 
 tools/check-openapi.py docs/openapi-v1.json     # the HTTP API document keeps its shape
 tools/check-spec.py packaging/rpm/openxlr.spec  # every installed file is in %files
 make -C native  # C/C++, PipeWire, lilv, LV2 and X11 development headers
-make -C native test-audio test-clap  # audio bounds, stall detection and CLAP bus layouts
+make -C native test-audio test-clap test-vst3  # audio bounds, stall detection, CLAP bus layouts and VST3 parameter and stream checks
 python3 tools/test-monitor-volume.py  # private PipeWire server; pipewire-pulse, wireplumber, pactl
 xvfb-run -a make -C native test-editor  # also needs Xvfb and xauth
 OPENXLR_TEST_DESKTOP=1 xvfb-run -a dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~TrayWindowTests
 OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
 OPENXLR_TEST_TOOLTIP=1 xvfb-run -a -s '-screen 0 1600x1000x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~ToolTipInputTests
+OPENXLR_TEST_SKIN=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~SkinWindowTests
 ```
+
+The monitor gain test plays a constant 0.1 signal, not a sine. On PipeWire
+1.0.x the two combine legs of a summed monitor feed are not sample-aligned,
+so a 1 kHz sine summed from Monitor A and B reads below the expected level
+although each leg's gain is right. With DC the sum does not depend on that
+delay. The test measures the settled part of the capture and the peak of
+the whole capture; it does not measure frequency response.
 
 The private PipeWire runner also checks profile startup ordering. To exercise
 ClipGuard with recorded test audio, low cut and a native LSP gate, run

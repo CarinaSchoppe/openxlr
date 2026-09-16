@@ -36,6 +36,14 @@ fixed-size editors and plugin-driven scaling, the Wine coordinate nudge
 and display cleanup. Real plugin repainting and mouse input still need
 desktop testing.
 
+`make -C native test-vst3` checks VST3 parameter queue indices, attribute
+identifiers and buffers, and the component-state memory stream. Invalid
+lengths, seek modes and arithmetic overflow are rejected without changing
+stream contents. Reads at or beyond EOF return zero bytes; a later write
+fills the skipped bytes with zeroes. Empty binary attributes are supported.
+These checks need no display, installed plugin or PipeWire server. They do
+not turn a native plugin into a sandbox or cap its own allocations.
+
 `python3 native/tests/lsp-editor.py` is an opt-in desktop regression using
 an isolated LSP Gate Mono LV2 instance. It needs python-xlib, the installed
 plugin, a running PipeWire server and a display large enough for the tested

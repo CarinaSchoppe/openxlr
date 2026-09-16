@@ -75,7 +75,8 @@ Collect diagnostics).
   SFX with Stream and Chat microphones; channels and microphones can be
   added, renamed, reordered and removed while audio plays, from the
   window or the API. Per-send levels and mutes, level meters, the
-  monitor mixes on several outputs at once.
+  monitor mixes on several outputs at once, and an optional boost that
+  takes the monitor volume to 150%.
 - **Inserts**: LV2, CLAP and VST3 plugin chains on each XLR input and each mix, with a
   plugin picker, generated controls, bypass and native plugin editors.
   Input chains use mono effects; mix chains use stereo effects. VST3 discovery

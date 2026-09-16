@@ -16,6 +16,16 @@ namespace OpenXLR.Tests;
 [Collection("xdg-config")]
 public sealed class HttpApiTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PluginOperationRepliesCarryTheirFailureIntoTheCommandOutcome(bool ok)
+    {
+        string? expected = ok ? null : "operation failed";
+        Assert.Equal(expected, WebSocketHub.OperationError(new PluginInstallMessage(ok, "operation failed", [], 0, 0)));
+        Assert.Equal(expected, WebSocketHub.OperationError(new WindowsPluginFilesMessage(new(ok, "operation failed", []))));
+    }
+
     [Fact]
     public async Task ChunkedBodyCannotBypassTheSizeLimit()
     {
@@ -106,6 +116,24 @@ public sealed class HttpApiTests
                         Encoding.UTF8, "application/json"));
                 Assert.Equal(HttpStatusCode.BadRequest, folder.StatusCode);
                 Assert.Contains("absolute path", await folder.Content.ReadAsStringAsync());
+            }
+            foreach (string? requestId in new string?[] { null, "failed-folder" })
+            {
+                using var folder = await http.PostAsync("/api/v1/commands", new StringContent(
+                    System.Text.Json.JsonSerializer.Serialize(new { cmd = "getWindowsPluginFiles", path = policyDirectory, requestId }),
+                    Encoding.UTF8, "application/json"));
+                Assert.Equal(HttpStatusCode.BadRequest, folder.StatusCode);
+                using var result = System.Text.Json.JsonDocument.Parse(await folder.Content.ReadAsStringAsync());
+                Assert.False(result.RootElement.GetProperty("ok").GetBoolean());
+                var messages = result.RootElement.GetProperty("messages").EnumerateArray().ToArray();
+                Assert.Equal("windowsPluginFiles", messages[0].GetProperty("type").GetString());
+                Assert.False(messages[0].GetProperty("ok").GetBoolean());
+                if (requestId is not null)
+                {
+                    var commandResult = messages.Single(m => m.GetProperty("type").GetString() == "commandResult");
+                    Assert.False(string.IsNullOrWhiteSpace(commandResult.GetProperty("error").GetString()));
+                    Assert.Equal(requestId, commandResult.GetProperty("requestId").GetString());
+                }
             }
             const string deEsser = "ABCDEF019182FAEB4D616E75466C7665";
             foreach (bool? blocked in new bool?[] { false, null })

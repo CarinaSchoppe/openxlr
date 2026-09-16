@@ -173,6 +173,13 @@ public sealed class WebSocketHub
         return new("1", !messages.Any(message => message is ErrorMessage or CommandResultMessage { Error: not null }), messages);
     }
 
+    internal static string? OperationError(object message) => message switch
+    {
+        PluginInstallMessage { Ok: false } result => result.Message,
+        WindowsPluginFilesMessage { Ok: false } result => result.Message,
+        _ => null,
+    };
+
     private async Task DispatchAsync(Func<object, Task> reply, string text)
     {
         Command? cmd;
@@ -192,6 +199,11 @@ public sealed class WebSocketHub
         // for the optimistic mixer controls so a rejected change snaps back.
         string? error = null;
         bool stateOnError = false;
+        async Task ReplyOperationAsync(object message)
+        {
+            error = OperationError(message);
+            await reply(message);
+        }
         switch (cmd.Cmd)
         {
             case "auth":
@@ -236,13 +248,13 @@ public sealed class WebSocketHub
                 break;
             case "installPlugin":
                 if (string.IsNullOrWhiteSpace(cmd.Path)) { error = "installPlugin: missing 'path'"; break; }
-                await reply(await Task.Run(() => InstallPlugin(installer => installer.Install(cmd.Path))));
+                await ReplyOperationAsync(await Task.Run(() => InstallPlugin(installer => installer.Install(cmd.Path))));
                 break;
             case "addWindowsPluginFolder":
             case "removeWindowsPluginFolder":
                 error = CommandValidation.CheckPluginPath(cmd);
                 if (error is not null) break;
-                await reply(await Task.Run(() => InstallPlugin(installer =>
+                await ReplyOperationAsync(await Task.Run(() => InstallPlugin(installer =>
                     cmd.Cmd == "addWindowsPluginFolder"
                         ? installer.AddWindowsFolder(cmd.Path!)
                         : installer.RemoveWindowsFolder(cmd.Path!, InsertPluginPaths()))));
@@ -250,7 +262,7 @@ public sealed class WebSocketHub
             case "getWindowsPluginFiles":
                 error = CommandValidation.CheckPluginPath(cmd);
                 if (error is not null) break;
-                await reply(await Task.Run(() =>
+                await ReplyOperationAsync(await Task.Run(() =>
                 {
                     lock (_installGate)
                         return new WindowsPluginFilesMessage(new OpenXLR.Core.Mixing.PluginInstaller()
@@ -260,7 +272,7 @@ public sealed class WebSocketHub
             case "removeWindowsPluginInserts":
                 error = CommandValidation.CheckPluginPath(cmd);
                 if (error is not null) break;
-                await reply(await Task.Run(() => RemoveWindowsPluginInserts(cmd.Path!)));
+                await ReplyOperationAsync(await Task.Run(() => RemoveWindowsPluginInserts(cmd.Path!)));
                 break;
             case "setWindowsPluginEnabled":
             case "deleteWindowsPlugin":
@@ -271,16 +283,16 @@ public sealed class WebSocketHub
                     error = "setWindowsPluginEnabled: value must be a boolean";
                     break;
                 }
-                await reply(await Task.Run(() => InstallPlugin(installer =>
+                await ReplyOperationAsync(await Task.Run(() => InstallPlugin(installer =>
                     cmd.Cmd == "setWindowsPluginEnabled"
                         ? installer.SetWindowsPluginEnabled(cmd.Path!, cmd.Value.GetBoolean(), InsertPluginPaths())
                         : installer.DeleteWindowsPlugin(cmd.Path!, InsertPluginPaths()))));
                 break;
             case "syncWindowsPlugins":
-                await reply(await Task.Run(() => InstallPlugin(installer => installer.SyncWindows(InsertPluginPaths()))));
+                await ReplyOperationAsync(await Task.Run(() => InstallPlugin(installer => installer.SyncWindows(InsertPluginPaths()))));
                 break;
             case "rescanPlugins":
-                await reply(await Task.Run(() => InstallPlugin(_ => new OpenXLR.Core.Mixing.InstallOutcome(true, "", []))));
+                await ReplyOperationAsync(await Task.Run(() => InstallPlugin(_ => new OpenXLR.Core.Mixing.InstallOutcome(true, "", []))));
                 break;
             case "setInserts":
                 // A folder cannot be removed between checking its users and
@@ -387,7 +399,8 @@ public sealed class WebSocketHub
             return devErr ?? "the active device changed during profile recall";
         string? mixErr = p.Mixer is null || !_mixer.SubmixerEnabled ? null : _mixer.ApplyScene(p.Mixer);
         if (devErr is null && mixErr is null) _activeProfile[connection.DeviceId] = name;
-        return devErr ?? mixErr;
+        return devErr ?? (mixErr is not null && p.Device is not null
+            ? $"device settings were applied, but mixer settings failed: {mixErr}" : mixErr);
     }
 
     /// <summary>Choose (or with an empty name clear) the profile recalled on connect.</summary>
@@ -429,42 +442,40 @@ public sealed class WebSocketHub
             string? name = RecallName(devId);
             // Without a profile the hardware can be restored immediately.
             if (name is not null) await _mixer.Initialized.WaitAsync(_stopping);
-            lock (_installGate)
+            OpenXLR.Core.Profile? profile = null;
+            if (name is not null)
             {
-                // Re-check after both waits, including shutdown and a replug
-                // of the same model. Old callbacks must not restore new devices.
-                if (_stopping.IsCancellationRequested || _devices.CurrentConnection != connection ||
-                    Interlocked.Read(ref _manualProfileRevision) != expectedRevision) return;
-                OpenXLR.Core.Profile? profile = null;
-                if (name is not null)
+                try
                 {
-                    try
-                    {
-                        profile = OpenXLR.Core.ProfileStore.Load(devId, name);
-                        if (profile is null) _log.LogWarning("recall on connect: no profile named '{name}'", name);
-                    }
-                    catch (Exception ex) { _log.LogWarning("recall of profile '{name}': {msg}", name, ex.Message); }
+                    profile = OpenXLR.Core.ProfileStore.Load(devId, name);
+                    if (profile is null) _log.LogWarning("recall on connect: no profile named '{name}'", name);
                 }
-                if (profile is null)
+                catch (Exception ex) { _log.LogWarning("recall of profile '{name}': {msg}", name, ex.Message); }
+            }
+            if (profile is null)
+            {
+                // Restore last settings before releasing the persistence guard.
+                _devices.WithConnection(connection, () =>
                 {
-                    // A missing or unreadable scene must not release the
-                    // persistence guard around the device's boot values.
-                    // Restore the last known hardware state first.
-                    _devices.WithConnection(connection, () =>
-                    {
-                        if (_stopping.IsCancellationRequested) return;
-                        string? status = _devices.RestoreLastState();
-                        if (status is not null) _log.LogInformation("{status}", status);
-                    });
-                }
-                else
+                    if (_stopping.IsCancellationRequested ||
+                        Interlocked.Read(ref _manualProfileRevision) != expectedRevision) return;
+                    string? status = _devices.RestoreLastState();
+                    if (status is not null) _log.LogInformation("{status}", status);
+                });
+            }
+            else
+            {
+                lock (_installGate)
                 {
+                    // Re-check after both waits, including a replug of the same model.
+                    if (_stopping.IsCancellationRequested || _devices.CurrentConnection != connection ||
+                        Interlocked.Read(ref _manualProfileRevision) != expectedRevision) return;
                     string? err = ApplyLoadedProfile(connection, name!, profile);
                     if (err is null) _log.LogInformation("recalled profile '{name}' on connect of {dev}", name, devId);
                     else _log.LogWarning("recall of profile '{name}' on connect of {dev}: {err}", name, devId, err);
                 }
-                _stateBroadcasts.Signal();
             }
+            _stateBroadcasts.Signal();
         }
         catch (OperationCanceledException) when (_stopping.IsCancellationRequested) { }
         catch (Exception ex) { _log.LogWarning("recall on connect of {dev}: {msg}", devId, ex.Message); }
@@ -575,7 +586,9 @@ public sealed class WebSocketHub
         }
         catch (Exception ex)
         {
-            return ex.Message;
+            // A rejected file names the profile, so the client knows which
+            // one to fix when the message goes to a log or a notification.
+            return $"profile '{name}': {ex.Message}";
         }
     }
 

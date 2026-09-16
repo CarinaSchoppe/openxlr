@@ -102,19 +102,21 @@ public static class CommandValidation
                 if (TooLong(cmd.Sink, MaxText) || TooLong(cmd.Source, MaxText)) return "setEnforcedDefaults: device name too long";
                 return null;
             case "setInserts":
-                if (cmd.Channel is not null && !layout.IsInsertKey(cmd.Channel)) return $"setInserts: '{Short(cmd.Channel)}' has no insert chain";
+                if (cmd.Channel is null || cmd.Inserts is null) return "setInserts: need 'channel' and 'inserts'";
+                if (!layout.IsInsertKey(cmd.Channel)) return $"setInserts: '{Short(cmd.Channel)}' has no insert chain";
                 if (cmd.Inserts is { Count: > MaxInsertsPerChannel }) return $"setInserts: at most {MaxInsertsPerChannel} inserts per chain";
                 if (cmd.Inserts is not null)
                 {
                     var ids = new HashSet<string>(StringComparer.Ordinal);
                     foreach (InsertDefinition i in cmd.Inserts)
                     {
-                        if (string.IsNullOrWhiteSpace(i.Id)) continue;   // the service reports missing fields
+                        if (i is null || string.IsNullOrWhiteSpace(i.Id) || i.Kind is not ("lv2" or "clap" or "vst3") || string.IsNullOrWhiteSpace(i.Plugin))
+                            return "setInserts: every insert needs an id, a kind of 'lv2', 'clap' or 'vst3', and a plugin identifier";
+                        if (i.Params is null) return "setInserts: parameters must be an object";
                         if (i.Id.Length > MaxInsertId || !i.Id.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
                             return "setInserts: insert ids are up to 64 letters, digits, '-' or '_'";
                         if (!ids.Add(i.Id)) return $"setInserts: duplicate insert id '{i.Id}'";
                         if (TooLong(i.Label, MaxText)) return "setInserts: label too long";
-                        if (string.IsNullOrWhiteSpace(i.Plugin)) continue;
                         if (i.Plugin.Length > MaxUri) return "setInserts: plugin URI too long";
                         PluginInfo? plugin = findPlugin(i);
                         if (plugin is null) return $"setInserts: plugin '{Short(i.Plugin)}' is not installed";

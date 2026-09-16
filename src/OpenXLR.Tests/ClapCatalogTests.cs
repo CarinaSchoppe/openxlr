@@ -243,6 +243,38 @@ public sealed class ClapCatalogTests
         finally { Directory.Delete(dir, true); }
     }
 
+    /// <summary>
+    /// A daemon that died mid-store used to leave "<hash>.json.tmp" behind,
+    /// and the next store of the same bundle failed on the name being taken,
+    /// so that bundle was scanned at every start from then on.
+    /// </summary>
+    [Fact]
+    public void AStaleTemporaryFileDoesNotBlockStoringTheBundle()
+    {
+        string dir = Directory.CreateTempSubdirectory("openxlr-scan-stale-").FullName;
+        try
+        {
+            string bundle = Path.Combine(dir, "Thing.vst3");
+            Directory.CreateDirectory(Path.Combine(bundle, "Contents", "x86_64-linux"));
+            File.WriteAllText(Path.Combine(bundle, "Contents", "x86_64-linux", "Thing.so"), "not really");
+            string cacheDir = Path.Combine(dir, "cache", "plugin-scans");
+            byte[] description = System.Text.Encoding.UTF8.GetBytes("{\"file\":\"x\",\"plugins\":[]}");
+            string hash = Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(bundle)));
+            Directory.CreateDirectory(cacheDir);
+            string stale = Path.Combine(cacheDir, hash + ".json.tmp");
+            File.WriteAllText(stale, "half written");
+
+            var cache = new ScanCache(cacheDir);
+            cache.Store(bundle, description);
+            cache.Save();
+
+            Assert.Equal(description, new ScanCache(cacheDir).Lookup(bundle));
+            Assert.Equal("half written", File.ReadAllText(stale));   // not ours to touch
+            Assert.Empty(Directory.GetFiles(cacheDir, ".openxlr-*.tmp"));
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
     [Fact]
     public void AScanIsReadAgainWhenTheHelperThatWroteItChanged()
     {

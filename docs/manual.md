@@ -739,6 +739,11 @@ known scene at every login. The reconnect after a passing USB error
 does not count, so the recall never undoes changes you made since.
 Pick "(none)" to stop. Recall waits until the mixer has finished restoring
 its settings, so those settings cannot overwrite the chosen profile.
+A manual profile load supersedes an automatic recall still waiting to run.
+An arrival that belongs to a previous connection is ignored, including a
+replug of the same model. If the chosen profile is missing or unreadable,
+the daemon logs the failure and uses the last stored hardware settings
+instead of saving the device's boot values over them.
 
 Loading a named profile, by clicking it or on connect, restores its saved
 gain even when the gain lock is on. The lock remains on and still blocks

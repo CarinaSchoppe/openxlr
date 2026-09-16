@@ -13,7 +13,7 @@ public sealed class ProfileStartupTests
 {
     private sealed class Dock : IAudioDevice
     {
-        public DeviceInfo Info { get; } = new("Elgato", "XLR Dock", 0x0fd9, 0x00a6);
+        public DeviceInfo Info { get; init; } = new("Elgato", "XLR Dock", 0x0fd9, 0x00a6);
         public DeviceCapabilities Capabilities { get; } = new() { Gain = true, RetainsSettings = false };
         public bool Connected { get; private set; }
         public int Gain = 75;
@@ -40,6 +40,98 @@ public sealed class ProfileStartupTests
         public void Dispose() { _stop.Cancel(); _stop.Dispose(); }
     }
 
+    [Theory]
+    [InlineData("corrupt")]
+    [InlineData("missing")]
+    [InlineData("switched")]
+    [InlineData("replugged")]
+    [InlineData("stopping")]
+    public async Task ArrivalRejectsStaleWorkAndPreservesLastSettings(string scenario)
+    {
+        string dir = Directory.CreateTempSubdirectory("openxlr-profile-review-").FullName;
+        string? previous = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", dir);
+        try
+        {
+            new DaemonSettings { Submixer = false }.Save();
+            var config = new ConfigurationBuilder().Build();
+            var dock = new Dock();
+            var attached = new List<IAudioDevice> { dock };
+            using var devices = new DeviceManager(NullLogger<DeviceManager>.Instance, config, () => attached);
+            devices.SweepOnce();
+            var arrival = devices.CurrentConnection!.Value;
+            if (scenario is "switched" or "replugged")
+            {
+                dock.Disconnect();
+                attached.Clear();
+                devices.SweepOnce();
+                if (scenario == "switched") dock = new Dock { Info = new("Elgato", "Wave XLR", 0x0fd9, 0x007d) };
+                attached.Add(dock);
+                devices.SweepOnce();
+                Assert.NotEqual(arrival, devices.CurrentConnection!.Value);
+            }
+            string deviceId = devices.CurrentConnection!.Value.DeviceId;
+            DeviceStateStore.SaveLast(deviceId, new() { GainDb = 55 });
+            using var lifetime = new Lifetime();
+            using var mixer = new MixerService(NullLogger<MixerService>.Instance, config, devices);
+            var hub = new WebSocketHub(devices, mixer, NullLogger<WebSocketHub>.Instance, lifetime);
+            await mixer.StartAsync(CancellationToken.None);
+            bool invalidProfile = scenario is "corrupt" or "missing";
+            if (invalidProfile)
+            {
+                ProfileStore.SetRecallOnConnect(deviceId, "Broken");
+                if (scenario == "corrupt")
+                    OpenXlrPaths.WriteAtomic(Path.Combine(OpenXlrPaths.ConfigDir, "profiles", "0fd9-00a6", "Broken.json"), "{");
+            }
+            if (scenario == "stopping") lifetime.StopApplication();
+            await hub.RecallOnArrivalAsync(arrival);
+            Assert.Equal(invalidProfile ? 55 : 75, dock.Gain);
+            Assert.Null(hub.Snapshot().ActiveProfile);
+            await Task.Delay(1100);
+            devices.SweepOnce();
+            Assert.Equal(55, DeviceStateStore.LoadLast(deviceId)!.GainDb);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", previous);
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ManualRecallSupersedesAnArrivalWaitingForInitialization()
+    {
+        string dir = Directory.CreateTempSubdirectory("openxlr-profile-").FullName;
+        string? previous = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", dir);
+        try
+        {
+            new DaemonSettings { Submixer = false }.Save();
+            var config = new ConfigurationBuilder().Build();
+            var dock = new Dock();
+            using var devices = new DeviceManager(NullLogger<DeviceManager>.Instance, config, () => [dock]);
+            devices.SweepOnce();
+            ProfileStore.Save("0fd9:00a6", "Automatic", new() { Device = new() { GainDb = 45 } });
+            ProfileStore.Save("0fd9:00a6", "Manual", new() { Device = new() { GainDb = 55 } });
+            ProfileStore.SetRecallOnConnect("0fd9:00a6", "Automatic");
+            using var lifetime = new Lifetime();
+            using var mixer = new MixerService(NullLogger<MixerService>.Instance, config, devices);
+            var hub = new WebSocketHub(devices, mixer, NullLogger<WebSocketHub>.Instance, lifetime);
+            Task recall = hub.RecallOnArrivalAsync(devices.CurrentConnection!.Value);
+            Assert.False(recall.IsCompleted);
+            Assert.True((await hub.ExecuteForApiAsync("""{"cmd":"loadProfile","name":"Manual"}""")).Ok);
+            await mixer.StartAsync(CancellationToken.None);
+            await recall.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(55, dock.Gain);
+            Assert.Equal("Manual", hub.Snapshot().ActiveProfile);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", previous);
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     [MonitorPipeWireFact]
     public async Task StartupProfileWinsOverSavedMixerSettings()
     {
@@ -58,7 +150,6 @@ public sealed class ProfileStartupTests
             var config = new ConfigurationBuilder().Build();
             var dock = new Dock();
             using var devices = new DeviceManager(NullLogger<DeviceManager>.Instance, config, () => [dock]);
-            devices.SweepOnce();
             ProfileStore.Save("0fd9:00a6", "Saved", new Profile
             {
                 Device = new() { GainDb = 55 },
@@ -69,12 +160,12 @@ public sealed class ProfileStartupTests
             using var mixer = new MixerService(NullLogger<MixerService>.Instance, config, devices);
             var hub = new WebSocketHub(devices, mixer, NullLogger<WebSocketHub>.Instance, lifetime);
             Assert.True(mixer.SubmixerEnabled);
-            Task recall = hub.RecallOnArrivalAsync("0fd9:00a6");
-            Assert.False(recall.IsCompleted);
+            devices.SweepOnce(); // Exercise the actual DeviceArrived subscription.
+            Assert.False(mixer.Initialized.IsCompleted);
             try
             {
                 await mixer.StartAsync(CancellationToken.None);
-                await recall.WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.True(SpinWait.SpinUntil(() => hub.Snapshot().ActiveProfile == "Saved", TimeSpan.FromSeconds(10)));
                 Assert.Equal("Saved", hub.Snapshot().ActiveProfile);
                 Assert.Equal(55, dock.Gain);
                 Assert.Equal(0.25, mixer.ExportScene()!.MixVolumes["monitor"]);
@@ -109,7 +200,7 @@ public sealed class ProfileStartupTests
             using var mixer = new MixerService(NullLogger<MixerService>.Instance, config, devices);
             var hub = new WebSocketHub(devices, mixer, NullLogger<WebSocketHub>.Instance, lifetime);
             DeviceStateStore.SaveLast("0fd9:00a6", new() { GainDb = 55 });
-            Task recall = hub.RecallOnArrivalAsync("0fd9:00a6");
+            Task recall = hub.RecallOnArrivalAsync(devices.CurrentConnection!.Value);
             Assert.False(recall.IsCompleted);
             Assert.Equal(75, dock.Gain);
             if (cancel) lifetime.StopApplication();

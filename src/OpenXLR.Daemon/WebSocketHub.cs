@@ -45,7 +45,14 @@ public sealed class WebSocketHub
             if (!_clients.IsEmpty) Broadcast(Snapshot());
         }, _log);
         _devices.StateChanged += ignored => _stateBroadcasts.Signal();
-        _devices.DeviceArrived += devId => _ = Task.Run(() => RecallOnArrivalAsync(devId));
+        _devices.DeviceArrived += ignored =>
+        {
+            if (_devices.CurrentConnection is { } connection)
+            {
+                long revision = Interlocked.Read(ref _manualProfileRevision);
+                _ = Task.Run(() => RecallOnArrivalAsync(connection, revision));
+            }
+        };
         _mixer.Changed += _stateBroadcasts.Signal;
         _ = _stateBroadcasts.RunAsync(_stopping);
         _mixer.MetersUpdated += () =>
@@ -59,6 +66,9 @@ public sealed class WebSocketHub
     /// <summary>Device state plus mixer state, as one message.</summary>
     // Last recalled or saved profile per device id, for the state message.
     private readonly ConcurrentDictionary<string, string> _activeProfile = new();
+    // Captured on arrival and advanced on a successful manual recall, under
+    // the device lock so a newer connection cannot inherit an obsolete value.
+    private long _manualProfileRevision;
 
     internal StateMessage Snapshot() =>
         _devices.Snapshot() with
@@ -344,22 +354,39 @@ public sealed class WebSocketHub
 
     /// <summary>
     /// Recall a saved profile onto the device and the mixer. Both halves are
-    /// tried and the first failure reported, so a missing device does not
-    /// block the mixer scene (and the other way round). The mixer half is
-    /// skipped when this run has no submixer. Null on success.
+    /// tried and the first failure reported, so a failed hardware control does
+    /// not block the mixer scene. A changed connection aborts the recall. The
+    /// mixer half is skipped when this run has no submixer. Null on success.
     /// </summary>
     private string? ApplyNamedProfile(string devId, string name)
     {
-        lock (_installGate) return ApplyNamedProfileLocked(devId, name);
+        if (_devices.CurrentConnection is not { } connection || connection.DeviceId != devId)
+            return "the active device changed before profile recall";
+        lock (_installGate)
+        {
+            OpenXLR.Core.Profile? profile = OpenXLR.Core.ProfileStore.Load(devId, name);
+            string? error = profile is null ? $"no profile named '{name}'" : ApplyLoadedProfile(connection, name, profile);
+            if (error is null)
+                _devices.WithConnection(connection, () => Interlocked.Increment(ref _manualProfileRevision));
+            return error;
+        }
     }
 
-    private string? ApplyNamedProfileLocked(string devId, string name)
+    private string? ApplyLoadedProfile(DeviceManager.Connection connection, string name, OpenXLR.Core.Profile p)
     {
-        OpenXLR.Core.Profile? p = OpenXLR.Core.ProfileStore.Load(devId, name);
-        if (p is null) return $"no profile named '{name}'";
-        string? devErr = p.Device is null ? null : _devices.ApplyProfile(p.Device, restoring: true);
+        string? devErr = "the active device changed before profile recall";
+        // Never wait for the install gate while holding the device gate.
+        // Only hardware restoration holds both; native plugin startup and
+        // graph rewiring must not prevent the device poller making progress.
+        if (!_devices.WithConnection(connection, () =>
+            {
+                if (_stopping.IsCancellationRequested) { devErr = "daemon is stopping"; return; }
+                devErr = p.Device is null ? null : _devices.ApplyProfile(p.Device, restoring: true);
+                if (devErr is null) _devices.MarkRestored();
+            }) || _stopping.IsCancellationRequested || _devices.CurrentConnection != connection)
+            return devErr ?? "the active device changed during profile recall";
         string? mixErr = p.Mixer is null || !_mixer.SubmixerEnabled ? null : _mixer.ApplyScene(p.Mixer);
-        if (devErr is null && mixErr is null) _activeProfile[devId] = name;
+        if (devErr is null && mixErr is null) _activeProfile[connection.DeviceId] = name;
         return devErr ?? mixErr;
     }
 
@@ -392,40 +419,61 @@ public sealed class WebSocketHub
     /// half lands too (at daemon start the graph follows the device by a few
     /// seconds).
     /// </summary>
-    internal async Task RecallOnArrivalAsync(string devId)
+    internal async Task RecallOnArrivalAsync(DeviceManager.Connection connection, long? revision = null)
     {
-        string? name;
-        try { name = OpenXLR.Core.ProfileStore.RecallOnConnect(devId); }
-        catch (Exception ex) { _log.LogWarning("recall on connect: {msg}", ex.Message); name = null; }
-        if (name is null)
-        {
-            // No profile chosen: a device without settings memory gets the
-            // last settings back (device half only, so no wait for the
-            // graph); one with memory needs nothing.
-            string? status = _devices.RestoreLastState();
-            if (status is not null)
-            {
-                _log.LogInformation("{status}", status);
-                Broadcast(Snapshot());
-            }
-            return;
-        }
+        string devId = connection.DeviceId;
+        long expectedRevision = revision ?? Interlocked.Read(ref _manualProfileRevision);
         try
         {
-            await _mixer.Initialized.WaitAsync(_stopping);
-            if (_stopping.IsCancellationRequested || ActiveDeviceId() != devId) return;
-            // Connect-time restoration includes gain even while locked.
-            string? err = ApplyNamedProfile(devId, name);
-            if (err is null) _log.LogInformation("recalled profile '{name}' on connect of {dev}", name, devId);
-            else _log.LogWarning("recall of profile '{name}' on connect of {dev}: {err}", name, devId, err);
-            Broadcast(Snapshot());
+            if (_stopping.IsCancellationRequested) return;
+            string? name = RecallName(devId);
+            // Without a profile the hardware can be restored immediately.
+            if (name is not null) await _mixer.Initialized.WaitAsync(_stopping);
+            lock (_installGate)
+            {
+                // Re-check after both waits, including shutdown and a replug
+                // of the same model. Old callbacks must not restore new devices.
+                if (_stopping.IsCancellationRequested || _devices.CurrentConnection != connection ||
+                    Interlocked.Read(ref _manualProfileRevision) != expectedRevision) return;
+                OpenXLR.Core.Profile? profile = null;
+                if (name is not null)
+                {
+                    try
+                    {
+                        profile = OpenXLR.Core.ProfileStore.Load(devId, name);
+                        if (profile is null) _log.LogWarning("recall on connect: no profile named '{name}'", name);
+                    }
+                    catch (Exception ex) { _log.LogWarning("recall of profile '{name}': {msg}", name, ex.Message); }
+                }
+                if (profile is null)
+                {
+                    // A missing or unreadable scene must not release the
+                    // persistence guard around the device's boot values.
+                    // Restore the last known hardware state first.
+                    _devices.WithConnection(connection, () =>
+                    {
+                        if (_stopping.IsCancellationRequested) return;
+                        string? status = _devices.RestoreLastState();
+                        if (status is not null) _log.LogInformation("{status}", status);
+                    });
+                }
+                else
+                {
+                    string? err = ApplyLoadedProfile(connection, name!, profile);
+                    if (err is null) _log.LogInformation("recalled profile '{name}' on connect of {dev}", name, devId);
+                    else _log.LogWarning("recall of profile '{name}' on connect of {dev}: {err}", name, devId, err);
+                }
+                _stateBroadcasts.Signal();
+            }
         }
         catch (OperationCanceledException) when (_stopping.IsCancellationRequested) { }
-        catch (Exception ex) { _log.LogWarning("recall of profile '{name}': {msg}", name, ex.Message); }
-        finally
-        {
-            if (!_stopping.IsCancellationRequested && ActiveDeviceId() == devId) _devices.MarkRestored();
-        }
+        catch (Exception ex) { _log.LogWarning("recall on connect of {dev}: {msg}", devId, ex.Message); }
+    }
+
+    private string? RecallName(string devId)
+    {
+        try { return OpenXLR.Core.ProfileStore.RecallOnConnect(devId); }
+        catch (Exception ex) { _log.LogWarning("recall on connect: {msg}", ex.Message); return null; }
     }
 
     /// <summary>The active device's usb id, or null while disconnected.</summary>

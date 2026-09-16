@@ -93,6 +93,26 @@ public sealed class WindowAutostartTests : IDisposable
         Assert.Empty(Directory.GetFiles(AutostartDir, "*.openxlr-tmp"));
     }
 
+    [Fact]
+    public void ATemporarySymlinkCannotRedirectTheStartupWrite()
+    {
+        Directory.CreateDirectory(AutostartDir);
+        string unrelated = Path.Combine(_home, "unrelated.txt");
+        File.WriteAllText(unrelated, "keep this file");
+        File.CreateSymbolicLink(Entry + ".openxlr-tmp", unrelated);
+        Assert.True(StartupIntegration.SetWindowAtLogin(true, Executable));
+        Assert.Equal("keep this file", File.ReadAllText(unrelated));
+        Assert.Equal([StartupIntegration.DesktopExec(Executable)], ExecValues());
+    }
+
+    [Fact]
+    public void AFailedStartupPublishLeavesNoTemporaryFile()
+    {
+        Directory.CreateDirectory(Entry);
+        Assert.False(StartupIntegration.SetWindowAtLogin(true, Executable));
+        Assert.Empty(Directory.GetFiles(AutostartDir));
+    }
+
     /// <summary>
     /// A symlinked entry points at a file somebody else manages. Replacing it
     /// with a regular file, or writing through it, is not OpenXLR's call.

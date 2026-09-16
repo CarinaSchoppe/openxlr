@@ -98,18 +98,24 @@ public static class OpenXlrPaths
         }
     }
 
-    /// <summary>Write text to a private file atomically, creating its directory.</summary>
-    public static void WriteAtomic(string path, string text)
+    /// <summary>
+    /// Write text atomically, creating its directory. Private permissions are
+    /// the default. Startup files in desktop-owned directories opt out so the
+    /// directory keeps its permissions and the file follows the process umask.
+    /// </summary>
+    public static void WriteAtomic(string path, string text, bool privatePermissions = true)
     {
         string dir = Path.GetDirectoryName(path)!;
-        EnsurePrivateDir(dir);
+        if (privatePermissions) EnsurePrivateDir(dir);
+        else Directory.CreateDirectory(dir);
         // Each writer owns its staging file. Reusing path + ".tmp" lets
         // concurrent writers collide and follows a leftover symbolic link.
         string tmp = Path.Combine(dir, ".openxlr-" + Guid.NewGuid().ToString("N") + ".tmp");
         bool created = false;
         try
         {
-            using (FileStream stream = CreatePrivate(tmp))
+            using (FileStream stream = privatePermissions ? CreatePrivate(tmp)
+                : new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
                 created = true;
                 using var writer = new StreamWriter(stream);

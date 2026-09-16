@@ -1346,7 +1346,10 @@ OpenXLR configuration directory.
 
 Configuration and profile writes publish a complete private file atomically.
 Concurrent writers use separate temporary files; a failed publish keeps the
-previous file and cleans up its temporary file.
+previous file and cleans up its temporary file. Autostart entries use the same
+publication mechanism while preserving the shared directory permissions and
+the file mode selected by the process umask. A symlinked startup destination
+is still refused.
 
 Uninstalling a package leaves `~/.config/openxlr` in place; remove it
 by hand if you want a clean slate.

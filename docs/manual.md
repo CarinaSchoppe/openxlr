@@ -1366,8 +1366,9 @@ next depends on the file:
   is used, and the daemon log names the field. The next save writes the file
   without the entry.
 - `mixer.json` that cannot be parsed: the daemon logs the path and the
-  reason, keeps a copy as `mixer.json.corrupt`, and starts with default
-  settings. The next save replaces the original.
+  reason, keeps a private copy as `mixer.json.corrupt`, and starts with default
+  settings. The copy is published atomically; an existing backup link is
+  replaced without writing through it. The next save replaces the original.
 - a hardware snapshot (`last-state.json`, `defaults.json`) with a bad entry:
   treated as unreadable, nothing from it is applied.
 - a profile with a bad entry: refused before any of its hardware or mixer

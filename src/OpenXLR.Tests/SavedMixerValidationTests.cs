@@ -112,6 +112,40 @@ public sealed class SavedMixerValidationTests
     }
 
     [Fact]
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    public void ACorruptBackupCannotOverwriteASymbolicLinkTarget()
+    {
+        InConfig(root =>
+        {
+            string path = Path.Combine(root, "mixer.json");
+            string unrelated = Path.Combine(root, "unrelated.txt");
+            File.WriteAllText(path, "{broken");
+            File.WriteAllText(unrelated, "keep this file");
+            File.CreateSymbolicLink(path + ".corrupt", unrelated);
+            Assert.Null(MixerSettings.Load(path, out string? warning));
+            Assert.Contains("copy kept as", warning);
+            Assert.Equal("keep this file", File.ReadAllText(unrelated));
+            Assert.Equal("{broken", File.ReadAllText(path + ".corrupt"));
+            Assert.Null(new FileInfo(path + ".corrupt").LinkTarget);
+            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(path + ".corrupt"));
+        });
+    }
+
+    [Fact]
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    public void ACorruptBackupIsPrivateEvenWhenTheOriginalWasShared()
+    {
+        InConfig(root =>
+        {
+            string path = Path.Combine(root, "mixer.json");
+            File.WriteAllText(path, "{broken");
+            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.OtherRead);
+            Assert.Null(MixerSettings.Load(path, out _));
+            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(path + ".corrupt"));
+        });
+    }
+
+    [Fact]
     public void UnparseableSettingsAreSetAsideBeforeTheNextSave()
     {
         InConfig(root =>

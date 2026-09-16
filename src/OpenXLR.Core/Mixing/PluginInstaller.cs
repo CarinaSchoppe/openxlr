@@ -195,27 +195,46 @@ public sealed class PluginInstaller
     /// of Windows plugins or an extracted download works as one pick.
     /// Oversized selections throw IOException before any install can begin.
     /// </summary>
-    public static IReadOnlyList<PluginItem> Items(string path)
+    public static IReadOnlyList<PluginItem> Items(string path) => Items(path, cap: false);
+
+    /// <summary>
+    /// The plugins reachable from a folder that is already registered, where
+    /// refusing would leave nothing to list, enable or disable: the first
+    /// <see cref="MaxSelectionPlugins"/> are returned and the rest ignored.
+    /// The directory entry budget still applies.
+    /// </summary>
+    public static IReadOnlyList<PluginItem> RegisteredItems(string path) => Items(path, cap: true);
+
+    private static IReadOnlyList<PluginItem> Items(string path, bool cap)
     {
         PluginItem self = Inspect(path);
         if (self.Kind != PluginItemKind.Unknown || !Directory.Exists(path)) return [self];
-        var found = new List<PluginItem>();
-        int remaining = MaxSelectionEntries;
-        Collect(path, 0, found, ref remaining);
-        return found.Count == 0 ? [self] : found;
+        var discovery = new Discovery(cap);
+        Collect(path, 0, discovery);
+        return discovery.Found.Count == 0 ? [self] : discovery.Found;
     }
 
-    private static void Collect(string directory, int depth, List<PluginItem> found, ref int remaining)
+    /// <summary>One walk over a selected tree: what was found and how much budget is left.</summary>
+    private sealed class Discovery(bool cap)
+    {
+        public readonly List<PluginItem> Found = [];
+        public readonly bool Cap = cap;
+        public int Remaining = MaxSelectionEntries;
+        /// <summary>Recognised plugins so far, excluding VST2 files, which are only ever reported as left out.</summary>
+        public int Plugins;
+    }
+
+    private static void Collect(string directory, int depth, Discovery discovery)
     {
         if (depth > 3) return;
         List<string> entries;
         // Bound enumeration before sorting, with one extra entry to detect a
         // partial selection. Share the budget across the whole selected tree.
-        try { entries = Directory.EnumerateFileSystemEntries(directory).Take(remaining + 1).ToList(); }
+        try { entries = Directory.EnumerateFileSystemEntries(directory).Take(discovery.Remaining + 1).ToList(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return; }
-        if (entries.Count > remaining)
-            throw new IOException($"The selection exceeds {MaxSelectionEntries} directory entries. Pick a smaller folder.");
-        remaining -= entries.Count;
+        if (entries.Count > discovery.Remaining)
+            throw new IOException("The selection exceeds 10,000 directory entries. Pick a smaller folder.");
+        discovery.Remaining -= entries.Count;
         entries.Sort(StringComparer.Ordinal);
         foreach (string entry in entries)
         {
@@ -223,11 +242,18 @@ public sealed class PluginInstaller
             if (item.Kind is PluginItemKind.Archive or PluginItemKind.Installer) continue;   // not what a folder pick means
             if (item.Kind != PluginItemKind.Unknown)
             {
-                if (found.Count == MaxSelectionPlugins)
-                    throw new IOException($"The selection exceeds {MaxSelectionPlugins} plugins. Pick a smaller folder.");
-                found.Add(item);
+                if (item.Kind != PluginItemKind.WindowsVst2)
+                {
+                    if (discovery.Plugins == MaxSelectionPlugins)
+                    {
+                        if (discovery.Cap) return;
+                        throw new IOException($"The selection exceeds {MaxSelectionPlugins} plugins. Pick a smaller folder.");
+                    }
+                    discovery.Plugins++;
+                }
+                discovery.Found.Add(item);
             }
-            else if (Directory.Exists(entry)) Collect(entry, depth + 1, found, ref remaining);
+            else if (Directory.Exists(entry)) Collect(entry, depth + 1, discovery);
         }
     }
 
@@ -460,7 +486,7 @@ public sealed class PluginInstaller
         if (!Directory.Exists(path)) return new(false, $"There is no folder at {path}.", []);
         try
         {
-            if (!Items(path).Any(i => i.Kind == PluginItemKind.WindowsPlugin))
+            if (!RegisteredItems(path).Any(i => i.Kind == PluginItemKind.WindowsPlugin))
                 return new(false, "This folder holds no Windows VST3 or CLAP plugins. Use Install file or Install folder for native Linux plugins.", []);
             var installed = new List<string>();
             var destinations = new List<string>();
@@ -489,7 +515,7 @@ public sealed class PluginInstaller
                     .SelectMany(w => w.Targets).Select(WindowsPluginWrappers.Canonical).Distinct(StringComparer.Ordinal).ToArray()
                 : [];
             var plugins = new List<WindowsPluginFile>();
-            foreach (PluginItem item in Items(folder).Where(i => i.Kind == PluginItemKind.WindowsPlugin))
+            foreach (PluginItem item in RegisteredItems(folder).Where(i => i.Kind == PluginItemKind.WindowsPlugin))
             {
                 string path = WindowsPluginWrappers.Normalize(item.Path);
                 string? prefix = WinePrefixFor(path);
@@ -627,7 +653,7 @@ public sealed class PluginInstaller
         if (!TryWindowsDirectories(out folders, out error)) return false;
         string requested = normalized;
         if (!folders.Where(f => WindowsPluginWrappers.Under(requested, f))
-            .Any(f => Items(f).Any(i => i.Kind == PluginItemKind.WindowsPlugin && WindowsPluginWrappers.Normalize(i.Path) == requested)))
+            .Any(f => RegisteredItems(f).Any(i => i.Kind == PluginItemKind.WindowsPlugin && WindowsPluginWrappers.Normalize(i.Path) == requested)))
         {
             error = "This is not a Windows VST3 or CLAP plugin in a registered folder.";
             return false;

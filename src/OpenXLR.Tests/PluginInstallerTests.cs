@@ -124,6 +124,31 @@ public sealed class PluginInstallerTests : IDisposable
     }
 
     [Fact]
+    public void Vst2FilesDoNotCountAgainstThePluginLimit()
+    {
+        for (int i = 0; i < 250; i++) File_(Path.Combine("set", $"old{i:D3}.dll"), Windows);
+        LinuxVst3(Path.Combine("set", "A.vst3"));
+        LinuxVst3(Path.Combine("set", "B.vst3"));
+        File_(Path.Combine("set", "C.clap"), Elf);
+        InstallOutcome result = Installer().Install(Path.Combine(_picked, "set"));
+        Assert.True(result.Ok, result.Message);
+        Assert.Equal(3, result.Installed.Count);
+        Assert.Contains("VST2", result.Message);
+    }
+
+    [Fact]
+    public void ARegisteredWindowsFolderListsAtMostTheLimitInsteadOfRefusing()
+    {
+        for (int i = 0; i < 230; i++) File_(Path.Combine("set", $"w{i:D3}.vst3"), Windows);
+        string folder = Path.Combine(_picked, "set");
+        Assert.Throws<IOException>(() => PluginInstaller.Items(folder));
+        IReadOnlyList<PluginItem> items = PluginInstaller.RegisteredItems(folder);
+        Assert.Equal(200, items.Count);
+        Assert.All(items, i => Assert.Equal(PluginItemKind.WindowsPlugin, i.Kind));
+        Assert.Equal(Enumerable.Range(0, 200).Select(i => $"w{i:D3}.vst3"), items.Select(i => Path.GetFileName(i.Path)));
+    }
+
+    [Fact]
     public void UnrelatedFilesAlsoConsumeTheSharedDiscoveryBudget()
     {
         Directory.CreateDirectory(Path.Combine(_picked, "nested"));
@@ -131,7 +156,7 @@ public sealed class PluginInstallerTests : IDisposable
             File_(i < 6_000 ? $"f{i}.txt" : Path.Combine("nested", $"f{i}.txt"), []);
         InstallOutcome result = Installer().Install(_picked);
         Assert.False(result.Ok);
-        Assert.Contains("10000 directory entries", result.Message);
+        Assert.Contains("10,000 directory entries", result.Message);
         Assert.False(Directory.Exists(_clap));
     }
 

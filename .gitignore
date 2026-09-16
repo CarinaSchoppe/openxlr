@@ -35,3 +35,7 @@ debian/*.substvars
 # PPA source packages and the vendored NuGet feed (packaging/ppa/make-source.sh)
 dist/
 vendor/
+
+# local agent state and generated knowledge graph
+.claude/
+graphify-out/

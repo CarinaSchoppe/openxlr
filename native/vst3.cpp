@@ -10,14 +10,15 @@
 // of the SDK is compiled here.
 #include "host.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <dirent.h>
 #include <dlfcn.h>
-#include <map>
 #include <limits>
+#include <map>
 #include <string>
 #include <sys/stat.h>
 #include <vector>

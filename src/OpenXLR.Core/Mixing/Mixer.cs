@@ -1342,6 +1342,19 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             => a.HasValue != b.HasValue || (a.HasValue && Math.Abs(a.Value - b!.Value) > 0.005);
     }
 
+    /// <summary>Repair internal sinks and read monitor masters from one dump under the mixer lock.</summary>
+    public bool SyncOwnSinkLevels(out IReadOnlyList<string> restored)
+    {
+        lock (_gate)
+        {
+            restored = [];
+            if (!_built) return false;
+            IReadOnlyList<OwnSinkLevel> levels = _pw.OwnSinkLevels();
+            restored = EnsureOwnSinkLevelsLocked(levels);
+            return SyncMonitorVolumesLocked(levels);
+        }
+    }
+
     /// <summary>
     /// Hold internal channel, DSP and non-monitor mix sinks at unity and
     /// unmuted. Monitor sinks carry their own masters and belong to the
@@ -1350,49 +1363,53 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     public IReadOnlyList<string> EnsureOwnSinkLevels()
     {
         lock (_gate)
+            return _built ? EnsureOwnSinkLevelsLocked(_pw.OwnSinkLevels()) : [];
+    }
+
+    private IReadOnlyList<string> EnsureOwnSinkLevelsLocked(IReadOnlyList<OwnSinkLevel> levels)
+    {
+        var restored = new List<string>();
+        foreach (OwnSinkLevel sink in levels)
         {
-            if (!_built) return [];
-            var restored = new List<string>();
-            foreach (OwnSinkLevel sink in _pw.OwnSinkLevels())
+            if (_config.Mixes.Any(m => m.Kind == MixKind.Monitor && m.SinkName == sink.Name)) continue;
+            bool off = Math.Abs(sink.Volume - 1.0) > 0.01;
+            if (!off && !sink.Muted) continue;
+            try
             {
-                if (_config.Mixes.Any(m => m.Kind == MixKind.Monitor && m.SinkName == sink.Name)) continue;
-                bool off = Math.Abs(sink.Volume - 1.0) > 0.01;
-                if (!off && !sink.Muted) continue;
-                try
-                {
-                    if (off) _pw.SetSinkVolume(sink.Name, 1.0);
-                    if (sink.Muted) _pw.SetSinkMuted(sink.Name, false);
-                    restored.Add(sink.Name);
-                }
-                catch (InvalidOperationException) { /* the sink went away; the next sweep sees the rest */ }
+                if (off) _pw.SetSinkVolume(sink.Name, 1.0);
+                if (sink.Muted) _pw.SetSinkMuted(sink.Name, false);
+                restored.Add(sink.Name);
             }
-            return restored;
+            catch (InvalidOperationException) { /* the sink went away; the next sweep sees the rest */ }
         }
+        return restored;
     }
 
     /// <summary>Read desktop monitor masters without touching the other mixes or channel sends.</summary>
     public bool SyncMonitorVolumes()
     {
         lock (_gate)
+            return _built ? SyncMonitorVolumesLocked(_pw.OwnSinkLevels()) : false;
+    }
+
+    private bool SyncMonitorVolumesLocked(IReadOnlyList<OwnSinkLevel> levels)
+    {
+        bool changed = false;
+        foreach (OwnSinkLevel sink in levels)
         {
-            if (!_built) return false;
-            bool changed = false;
-            foreach (OwnSinkLevel sink in _pw.OwnSinkLevels())
+            MixDefinition? mix = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor && m.SinkName == sink.Name);
+            if (mix is null) continue;
+            double volume = Math.Min(sink.DesktopVolume, PipeWireAdapter.MaxSinkVolume);
+            if (sink.DesktopVolume > PipeWireAdapter.MaxSinkVolume)
+                _pw.SetSinkVolume(sink.Name, volume);
+            if (Math.Round(volume * 100) != Math.Round(_mixVolume.GetValueOrDefault(mix.Id, 1) * 100))
             {
-                MixDefinition? mix = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor && m.SinkName == sink.Name);
-                if (mix is null) continue;
-                double volume = Math.Min(sink.DesktopVolume, PipeWireAdapter.MaxSinkVolume);
-                if (sink.DesktopVolume > PipeWireAdapter.MaxSinkVolume)
-                    _pw.SetSinkVolume(sink.Name, volume);
-                if (Math.Abs(volume - _mixVolume.GetValueOrDefault(mix.Id, 1)) > 0.005)
-                {
-                    _mixVolume[mix.Id] = volume;
-                    changed = true;
-                }
-                changed |= sink.Muted ? _mixMuted.Add(mix.Id) : _mixMuted.Remove(mix.Id);
+                _mixVolume[mix.Id] = volume;
+                changed = true;
             }
-            return changed;
+            changed |= sink.Muted ? _mixMuted.Add(mix.Id) : _mixMuted.Remove(mix.Id);
         }
+        return changed;
     }
 
     /// <summary>First selected monitor output, or null (legacy single view).</summary>

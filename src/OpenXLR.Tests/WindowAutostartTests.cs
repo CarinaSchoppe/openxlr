@@ -90,7 +90,7 @@ public sealed class WindowAutostartTests : IDisposable
 
         Assert.Equal(directoryBefore, File.GetUnixFileMode(AutostartDir));
         Assert.Equal(umaskMode, File.GetUnixFileMode(Entry));
-        Assert.Empty(Directory.GetFiles(AutostartDir, "*.openxlr-tmp"));
+        Assert.Equal([Entry, reference], Directory.GetFiles(AutostartDir).Order(StringComparer.Ordinal));
     }
 
     [Fact]

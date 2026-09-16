@@ -45,12 +45,14 @@ public sealed class AtomicWriteTests : IDisposable
     {
         string path = Path.Combine(_directory, "diagnostics.tar.gz");
         string link = Path.Combine(_directory, "link.tar.gz");
+        const UnixFileMode shared = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.OtherRead;
         File.WriteAllText(path, "previous archive");
-        File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.OtherRead);
+        File.SetUnixFileMode(path, shared);
         File.CreateSymbolicLink(link, path);
         Assert.ThrowsAny<IOException>(() => OpenXlrPaths.CreatePrivate(path).Dispose());
         Assert.ThrowsAny<IOException>(() => OpenXlrPaths.CreatePrivate(link).Dispose());
         Assert.Equal("previous archive", File.ReadAllText(path));
+        Assert.Equal(shared, File.GetUnixFileMode(path));   // the refused file keeps its mode as well as its bytes
     }
 
     public void Dispose() => Directory.Delete(_directory, recursive: true);

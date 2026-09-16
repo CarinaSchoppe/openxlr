@@ -1348,12 +1348,8 @@ Configuration paths honor `XDG_CONFIG_HOME`; the private wrapper root honors
 `XDG_DATA_HOME`. Without `XDG_RUNTIME_DIR`, runtime files use the private
 OpenXLR configuration directory.
 
-Configuration and profile writes publish a complete private file atomically.
-Concurrent writers use separate temporary files; a failed publish keeps the
-previous file and cleans up its temporary file. Autostart entries use the same
-publication mechanism while preserving the shared directory permissions and
-the file mode selected by the process umask. A symlinked startup destination
-is still refused.
+OpenXLR writes configuration and profile files completely or not at all, so
+an interrupted write leaves the previous file in place.
 
 Uninstalling a package leaves `~/.config/openxlr` in place; remove it
 by hand if you want a clean slate.

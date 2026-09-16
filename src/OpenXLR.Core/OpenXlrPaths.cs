@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 
 #if OPENXLR_UI
@@ -104,31 +105,35 @@ public static class OpenXlrPaths
     /// directory keeps its permissions and the file follows the process umask.
     /// </summary>
     public static void WriteAtomic(string path, string text, bool privatePermissions = true)
+        => WriteAtomic(path, Encoding.UTF8.GetBytes(text), privatePermissions);
+
+    /// <summary>Write bytes atomically, creating the directory; see the text overload.</summary>
+    public static void WriteAtomic(string path, byte[] bytes, bool privatePermissions = true)
     {
         string dir = Path.GetDirectoryName(path)!;
         if (privatePermissions) EnsurePrivateDir(dir);
         else Directory.CreateDirectory(dir);
         // Each writer owns its staging file. Reusing path + ".tmp" lets
-        // concurrent writers collide and follows a leftover symbolic link.
+        // concurrent writers collide, follows a leftover symbolic link, and
+        // trips over a leftover from a crash for as long as it stays there.
         string tmp = Path.Combine(dir, ".openxlr-" + Guid.NewGuid().ToString("N") + ".tmp");
-        bool created = false;
+        bool published = false;
         try
         {
             using (FileStream stream = privatePermissions ? CreatePrivate(tmp)
                 : new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            {
-                created = true;
-                using var writer = new StreamWriter(stream);
-                writer.Write(text);
-            }
+                stream.Write(bytes);
             File.Move(tmp, path, overwrite: true);
+            published = true;
         }
         finally
         {
-            if (created)
+            // The staging file is gone once the rename took it; after a
+            // failure it is removed so the next writer finds a clean directory.
+            if (!published)
             {
                 try { File.Delete(tmp); }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* preserve the write failure */ }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* the caller sees the failure that got here */ }
             }
         }
     }
@@ -146,6 +151,11 @@ public static class OpenXlrPaths
     {
         var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None };
         if (!OperatingSystem.IsWindows()) options.UnixCreateMode = PrivateFile;
-        return new FileStream(path, options);
+        var stream = new FileStream(path, options);
+        // The umask can strip bits from the requested mode; the file is ours
+        // to tighten before the first byte lands.
+        if (!OperatingSystem.IsWindows() && File.GetUnixFileMode(stream.SafeFileHandle) != PrivateFile)
+            File.SetUnixFileMode(stream.SafeFileHandle, PrivateFile);
+        return stream;
     }
 }

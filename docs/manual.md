@@ -155,7 +155,18 @@ configuration.
    on B, add a denoiser under the Monitor B master, and one pair of
    headphones hears both, with the plugin touching only your voice.
    The Pro's own jacks share one feed.
-3. The Volume slider sets the level of the selected devices. To control this
+3. Linux lists **OpenXLR Monitor A** and **OpenXLR Monitor B** as separate
+   playback devices. Their desktop volume and mute controls correspond to
+   the respective SUBMIXER master, in both directions. Selecting one as the
+   desktop default lets the keyboard volume wheel control that mix without
+   changing the other mix or its channel sends. Its **150%** button unlocks
+   boost in OpenXLR too. OpenDeck's monitor and output dials also support
+   0 to 150%, so a boosted desktop value changes smoothly with each tick.
+   Desktop changes are saved with the mixer settings
+   and recalled after a daemon restart; explicitly loading a profile restores
+   the values saved in that profile. A physical device named simply
+   "Monitor" (often HDMI audio) is a separate output device, not a third mix.
+4. The Volume slider sets the level of the selected devices. To control this
    same level with a keyboard volume wheel, media keys or the Linux audio
    applet, open Options, SYSTEM DEFAULT DEVICES, and choose **Follow MONITOR
    output (system volume controls)** as Default output. Linux then uses the
@@ -168,7 +179,11 @@ configuration.
    chose: a desktop that boosts past 100% sets the other outputs there too,
    rather than leaving them quieter with nothing to show for it. The
    OpenXLR slider writes the same device volumes, so Linux sees its changes
-   too, and its own scale stops at 100%. Changing the first selected device
+   too. Both show the same percentage: 100% is unity, not two thirds of
+   another control's scale. The **150%** button unlocks boost above 100%;
+   switching it off returns a boosted output to 100%. A boosted desktop
+   value automatically enables the expanded range so opening the window
+   cannot turn the volume down. Changing the first selected device
    adopts its current volume. Relinking the same device, including after a
    monitor feed or insert change, keeps volume changes synchronized across
    the selected outputs. An output that was asleep or unplugged when the
@@ -179,7 +194,7 @@ configuration.
    Existing fixed default-device choices remain available; a virtual channel
    such as OpenXLR System is a routing destination, not a monitor volume
    control.
-4. The HEADPHONES card holds the interface's own headphone volume,
+5. The HEADPHONES card holds the interface's own headphone volume,
    low-impedance mode, and on the Pro the Mic ↔ PC crossfade, which is
    the zero-latency direct monitor inside the device: left is only your
    microphone, right is only computer audio.

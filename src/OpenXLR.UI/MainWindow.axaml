@@ -444,6 +444,9 @@
         <Expander.Header>
           <StackPanel Orientation="Horizontal" Spacing="6">
             <TextBlock Text="MONITOR" Classes="h" VerticalAlignment="Center"/>
+            <ToggleButton Name="OutputBoost" Content="150%" IsChecked="{Binding OutputVolumeRange.Boost, Mode=TwoWay}"
+                          Padding="8,1" FontSize="{DynamicResource Ox.Label.FontSize}" MinHeight="0" VerticalAlignment="Center"
+                          ToolTip.Tip="Allow output volume above 100%, up to 150%. Turning this off returns a boosted output to 100%."/>
             <TextBlock Text="&#x24D8;" Classes="h" FontSize="12" VerticalAlignment="Center" Margin="0,-1,0,0" Cursor="Help"
                        ToolTip.Tip="Tick every device the monitor mixes should play on; next to a ticked device, choose which of the two it hears: Monitor A, or Monitor B for a second selection. The Wave XLR Pro's own outputs (Headphones 1/2, USB Aux, Line Out) switch the hardware when ticked and share one feed. The USB Aux port is fed by the dedicated Aux mix in the submixer instead. XLR 1, XLR 2 and Line In feed their channels automatically. System default devices for apps are set in Options."/>
           </StackPanel>
@@ -480,7 +483,7 @@
           </DropDownButton>
 
           <TextBlock Grid.Column="3" Text="Volume" Classes="h" VerticalAlignment="Center"/>
-          <Slider Grid.Column="4" Minimum="0" Maximum="1" Value="{Binding OutputVolume, Mode=TwoWay}"/>
+          <Slider Name="OutputVolumeSlider" Grid.Column="4" Minimum="0" Maximum="{Binding OutputVolumeRange.Maximum}" Value="{Binding OutputVolume, Mode=TwoWay}"/>
           <TextBlock Grid.Column="5" Text="{Binding OutputVolumeText}" Classes="val"
                      VerticalAlignment="Center" HorizontalAlignment="Right"/>
         </Grid>
@@ -555,8 +558,13 @@
                     <skin:LevelMeter Level="{Binding MeterL}" AutomationProperties.Name="Left level"/>
                     <skin:LevelMeter Level="{Binding MeterR}" AutomationProperties.Name="Right level"/>
                   </StackPanel>
-                  <Slider Minimum="0" Maximum="1" Value="{Binding Volume, Mode=TwoWay}"/>
-                  <ToggleButton Content="Mute" Classes="mute" IsChecked="{Binding Muted, Mode=TwoWay}"/>
+                  <Slider Minimum="0" Maximum="{Binding VolumeRange.Maximum}" Value="{Binding Volume, Mode=TwoWay}"/>
+                  <Grid ColumnDefinitions="*,Auto">
+                    <ToggleButton Content="Mute" Classes="mute" IsChecked="{Binding Muted, Mode=TwoWay}"/>
+                    <ToggleButton Grid.Column="1" Content="150%" IsChecked="{Binding VolumeRange.Boost, Mode=TwoWay}"
+                                  IsVisible="{Binding IsMonitor}" Margin="6,0,0,0"
+                                  ToolTip.Tip="Allow this monitor mix above 100%, up to 150%. Turning this off returns a boosted mix to 100%."/>
+                  </Grid>
                   <Button Content="{Binding Inserts.ButtonText}" HorizontalAlignment="Stretch"
                           HorizontalContentAlignment="Center" Padding="8,4" FontSize="12" Click="OnMixInserts"
                           ToolTip.Tip="Stereo plugins processing this mix before it reaches its outputs"/>

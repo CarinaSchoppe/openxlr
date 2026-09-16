@@ -131,7 +131,7 @@ public sealed record MixerState
     /// </summary>
     public IReadOnlyDictionary<string, string> MonitorFeeds { get; init; } = new Dictionary<string, string>();
 
-    /// <summary>Volume of the selected output device (0..1), or null.</summary>
+    /// <summary>Volume of the selected output device (0..1.5), or null.</summary>
     public double? OutputVolume { get; init; }
 
     /// <summary>Whether the Aux mix is sent to the device's USB Aux port.</summary>

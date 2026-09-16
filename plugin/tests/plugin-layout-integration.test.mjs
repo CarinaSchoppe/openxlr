@@ -49,6 +49,29 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
     state.mixer.channels[0].name = "Another name";
     daemon.receive(state);
     assert.equal(host.messages.filter(m => m.event === "sendToPropertyInspector").length, count);
+
+    // A desktop boost must not jump back to 100% on the first dial tick.
+    state.mixer.mixes = [
+      {id:"monitor",name:"Monitor A",kind:"monitor",volume:1.5},
+      {id:"monitor2",name:"Monitor B",kind:"monitor",volume:1.2},
+      {id:"chat",name:"Chat",kind:"virtualMic",volume:1}
+    ];
+    state.mixer.outputVolume = 1.5;
+    daemon.receive(state);
+    for (const [target, ticks, expected] of [
+      ["mixvol:monitor", -1, {cmd:"setMixVolume",mix:"monitor",value:1.49}],
+      ["mixvol:monitor", 1, {cmd:"setMixVolume",mix:"monitor",value:1.5}],
+      ["mixvol:monitor2", -1, {cmd:"setMixVolume",mix:"monitor2",value:1.19}],
+      ["mixvol:chat", 1, {cmd:"setMixVolume",mix:"chat",value:1}],
+      ["outputVolume", -1, {cmd:"setOutputVolume",value:1.49}],
+      ["outputVolume", 1, {cmd:"setOutputVolume",value:1.5}],
+      ["outputVolume", -200, {cmd:"setOutputVolume",value:0}],
+    ]) {
+      host.receive({event:"willAppear",context:"volume-dial",action:"com.emaspa.openxlr.dial",payload:{settings:{target}}});
+      host.receive({event:"dialRotate",context:"volume-dial",payload:{ticks}});
+      assert.deepEqual(daemon.messages.at(-1), expected);
+    }
+
   }
   finally {
     intervals.forEach(clearInterval);

@@ -54,6 +54,12 @@ public sealed class MonitorVolumeIntegrationTests
         Assert.Equal(1.2, pw.GetSinkVolume("test_speakers"));
         Assert.False(mixer.SyncDeviceVolumes());
 
+        command = ProcessRunner.Run("pactl", ["set-sink-volume", "@DEFAULT_SINK@", "150%"]);
+        Assert.True(command.Ok, command.Stderr);
+        Assert.True(mixer.SyncDeviceVolumes());
+        Assert.Equal(1.5, mixer.Snapshot().OutputVolume);
+        Assert.Equal(1.5, pw.GetSinkVolume("test_speakers"));
+
         mixer.SetOutputVolume(0.58);
         Assert.Equal(0.58, pw.GetSinkVolume("test_headphones"));
         Assert.Equal(0.58, pw.GetSinkVolume("test_speakers"));
@@ -155,6 +161,152 @@ public sealed class MonitorVolumeIntegrationTests
         Assert.False(mixer.SyncDeviceVolumes());
         Assert.Equal(0.6, pw.GetSinkVolume("stale_second"));
     }
+    private static MixerConfig MonitorConfig() => new()
+    {
+        Mixes = [new("monitor", "Monitor A", MixKind.Monitor), new("monitor2", "Monitor B", MixKind.Monitor),
+            new("chat", "Chat", MixKind.VirtualMic)],
+        Channels = [new("test", "Test") { Levels = new Dictionary<string, double>
+            { ["monitor"] = 0.8, ["monitor2"] = 0.6, ["chat"] = 0.7 } }],
+    };
+
+    [MonitorPipeWireFact]
+    public void DesktopMonitorMastersAreIndependentAndSurviveSceneAndSettingsRecall()
+    {
+        var pw = new PipeWireAdapter();
+        using var mixer = new Mixer(pw);
+        mixer.Build(MonitorConfig());
+        mixer.SetMixVolume("monitor2", 0.6);
+        pw.SetDefaultSink("OpenXLR_mix_monitor");
+        Assert.True(SpinWait.SpinUntil(() => pw.GetDefaultSink() == "OpenXLR_mix_monitor", TimeSpan.FromSeconds(3)));
+        foreach (double volume in new[] { 0, 0.5, 1, 1.2, 1.5, 0.25 })
+        {
+            var result = ProcessRunner.Run("pactl", ["set-sink-volume", "@DEFAULT_SINK@", $"{volume * 100:0}%"]);
+            Assert.True(result.Ok, result.Stderr);
+            Assert.True(SpinWait.SpinUntil(() => { mixer.SyncMonitorVolumes(); return mixer.Snapshot().Mixes.Single(m => m.Id == "monitor").Volume == volume; }, TimeSpan.FromSeconds(3)));
+            Assert.Equal(0.6, mixer.Snapshot().Mixes.Single(m => m.Id == "monitor2").Volume);
+            Assert.DoesNotContain("OpenXLR_mix_monitor", mixer.EnsureOwnSinkLevels());
+            Assert.Equal(volume, pw.GetSinkVolume("OpenXLR_mix_monitor"));
+            Assert.False(mixer.SyncMonitorVolumes());
+        }
+        pw.SetSinkVolume("OpenXLR_mix_monitor", 1.5);
+        Assert.True(mixer.SyncMonitorVolumes());
+        var excessive = ProcessRunner.Run("pactl", ["set-sink-volume", "OpenXLR_mix_monitor", "200%"]);
+        Assert.True(excessive.Ok, excessive.Stderr);
+        Assert.True(SpinWait.SpinUntil(() => { mixer.SyncMonitorVolumes(); return pw.GetSinkVolume("OpenXLR_mix_monitor") == 1.5; }, TimeSpan.FromSeconds(3)));
+        mixer.SetMixVolume("monitor", -1);
+        Assert.Equal(0, pw.GetSinkVolume("OpenXLR_mix_monitor"));
+        mixer.SetMixVolume("monitor", 2);
+        Assert.Equal(1.5, pw.GetSinkVolume("OpenXLR_mix_monitor"));
+        mixer.SetMixMuted("monitor", true);
+        // A cached graph from the preceding read cannot undo a UI write.
+        Assert.False(mixer.SyncMonitorVolumes());
+        Assert.Equal(1.5, pw.GetSinkVolume("OpenXLR_mix_monitor"));
+        Assert.True(pw.OwnSinkLevels().Single(s => s.Name == "OpenXLR_mix_monitor").Muted);
+        pw.SetSinkMuted("OpenXLR_mix_monitor", false);
+        Assert.True(mixer.SyncMonitorVolumes());
+        Assert.False(mixer.Snapshot().Mixes.Single(m => m.Id == "monitor").Muted);
+
+        pw.SetDefaultSink("OpenXLR_mix_monitor2");
+        Assert.True(SpinWait.SpinUntil(() => pw.GetDefaultSink() == "OpenXLR_mix_monitor2", TimeSpan.FromSeconds(3)));
+        var command = ProcessRunner.Run("wpctl", ["set-volume", "@DEFAULT_AUDIO_SINK@", "1.2"]);
+        Assert.True(command.Ok, command.Stderr);
+        Assert.True(SpinWait.SpinUntil(() => { mixer.SyncMonitorVolumes(); return mixer.Snapshot().Mixes.Single(m => m.Id == "monitor2").Volume == 1.2; }, TimeSpan.FromSeconds(3)));
+        Assert.Equal(1.5, mixer.Snapshot().Mixes.Single(m => m.Id == "monitor").Volume);
+        pw.SetSinkMuted("OpenXLR_mix_monitor2", true);
+        Assert.True(mixer.SyncMonitorVolumes());
+        Assert.True(mixer.Snapshot().Mixes.Single(m => m.Id == "monitor2").Muted);
+        Assert.False(mixer.Snapshot().Mixes.Single(m => m.Id == "monitor").Muted);
+
+        var scene = mixer.ExportScene();
+        var settings = mixer.ExportSettings();
+        mixer.SetMixVolume("monitor", 0.1);
+        mixer.SetMixMuted("monitor2", false);
+        mixer.ApplyScene(scene);
+        Assert.Equal(1.5, pw.GetSinkVolume("OpenXLR_mix_monitor"));
+        Assert.True(pw.OwnSinkLevels().Single(s => s.Name == "OpenXLR_mix_monitor2").Muted);
+        mixer.Build(MonitorConfig());
+        mixer.ApplySettings(settings);
+        Assert.Equal(1.5, pw.GetSinkVolume("OpenXLR_mix_monitor"));
+        Assert.Equal(1.2, pw.GetSinkVolume("OpenXLR_mix_monitor2"));
+        Assert.True(pw.OwnSinkLevels().Single(s => s.Name == "OpenXLR_mix_monitor2").Muted);
+        Assert.False(mixer.SyncMonitorVolumes());
+
+        // Internal channel and virtual-microphone sinks still recover from
+        // desktop changes, and non-monitor masters keep their previous range.
+        mixer.SetMixVolume("chat", 1.5);
+        Assert.Equal(1, mixer.Snapshot().Mixes.Single(m => m.Id == "chat").Volume);
+        pw.SetSinkVolume("OpenXLR_ch_test", 0.5);
+        pw.SetSinkMuted("OpenXLR_mix_chat", true);
+        Assert.Contains("OpenXLR_ch_test", mixer.EnsureOwnSinkLevels());
+        Assert.Equal(1, pw.GetSinkVolume("OpenXLR_ch_test"));
+        Assert.False(pw.OwnSinkLevels().Single(s => s.Name == "OpenXLR_mix_chat").Muted);
+    }
+
+    [MonitorPipeWireFact]
+    public void MonitorMasterChangesTheRecordedAudioExactlyOnce()
+    {
+        var pw = new PipeWireAdapter();
+        using var mixer = new Mixer(pw);
+        pw.CreateNullSink("test_master_output", "Test master output");
+        mixer.Build(MonitorConfig());
+        mixer.SetMonitorOutputs(["test_master_output"]);
+        // Wait for late combine legs and their initial channel sends.
+        Assert.True(SpinWait.SpinUntil(() => { mixer.EnsureCellLevels(); return pw.FindNodeId("OpenXLR_ch_test") is not null; }, TimeSpan.FromSeconds(3)));
+        foreach (var (feed, a, b, muteA, muteB, direct) in new[]
+        {
+            ("monitor", 1.0, 1.0, false, false, false),
+            ("monitor", 0.5, 1.0, false, false, false),
+            ("monitor", 1.5, 1.0, false, false, false),
+            ("monitor", 0.0, 1.0, false, false, false),
+            ("monitor", 0.8, 1.0, true, false, false),
+            ("monitor2", 0.2, 1.5, false, false, false),
+            ("monitor+monitor2", 0.5, 1.2, false, false, false),
+            ("monitor+monitor2", 0.5, 0.7, true, false, false),
+            ("monitor", 1.2, 1.0, false, false, true),
+        })
+        {
+            mixer.SetMixVolume("monitor", a);
+            mixer.SetMixVolume("monitor2", b);
+            mixer.SetMixMuted("monitor", muteA);
+            mixer.SetMixMuted("monitor2", muteB);
+            Assert.Null(mixer.SetMonitorFeed("test_master_output", feed));
+            double expected = direct ? 0.1 * Math.Pow(a, 3) :
+                (feed.Split('+').Contains("monitor") && !muteA ? 0.1 * Math.Pow(0.8 * a, 3) : 0) +
+                (feed.Split('+').Contains("monitor2") && !muteB ? 0.1 * Math.Pow(0.6 * b, 3) : 0);
+            var result = ProcessRunner.Run("python3", ["-c", """
+                import math, struct, subprocess, sys, tempfile
+                rate = 48000
+                samples = b''.join(struct.pack('<ff', *([0.1 * math.sin(2 * math.pi * 1000 * i / rate)] * 2)) for i in range(rate * 2))
+                args = ['--raw', '--format=f32', '--rate=48000', '--channels=2']
+                capture = tempfile.TemporaryFile()
+                record = subprocess.Popen(['pw-cat', '--record', *args, '--target', 'test_master_output', '--properties={ stream.capture.sink = true }', '-'], stdout=capture, stderr=subprocess.PIPE)
+                play = None
+                try:
+                    play = subprocess.Popen(['pw-cat', '--playback', *args, '--target', sys.argv[2], '-'], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                    play.communicate(samples, timeout=10)
+                    assert play.returncode == 0, 'Playback failed'
+                    record.terminate()
+                    record.communicate(timeout=5)
+                    capture.seek(0)
+                    audio = capture.read()
+                    values = struct.unpack('<' + 'f' * (len(audio) // 4), audio)
+                    assert len(values) > rate, 'Capture did not run'
+                    peak = max(map(abs, values), default=0)
+                    expected = float(sys.argv[1])
+                    assert abs(peak - expected) < 0.002, f'Wrong master gain: peak={peak}, expected={expected}; links=' + subprocess.check_output(['pw-link', '-l'], text=True)
+                    print(f'Expected {expected:.5f}: peak={peak:.5f}')
+                finally:
+                    for process in (play, record):
+                        if process is None: continue
+                        if process.poll() is None: process.kill()
+                        process.wait()
+                    capture.close()
+                """, expected.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                direct ? "OpenXLR_mix_monitor" : "OpenXLR_ch_test"], TimeSpan.FromSeconds(20));
+            Assert.True(result.Ok, result.StdoutText + result.Stderr);
+        }
+    }
+
 }
 
 internal sealed class MonitorPipeWireFactAttribute : FactAttribute

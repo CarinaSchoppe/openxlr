@@ -106,7 +106,7 @@ public sealed class MeterReader : IDisposable
         {
             double l = BitConverter.ToSingle(buf, i);
             double r = BitConverter.ToSingle(buf, i + 4);
-            // One invalid plugin sample must not poison the smoothing state
+            // One non-finite sample from upstream must not poison the smoothing state
             // or the JSON meter message. Square finite samples as doubles so
             // even a finite float outside the normal audio range stays finite.
             if (double.IsFinite(l)) sumL += l * l;

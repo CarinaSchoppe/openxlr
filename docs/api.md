@@ -47,11 +47,6 @@ resolve a plugin against everything installed. A plugin missing from
 `plugins` can still be named by an insert that already holds it; it
 cannot be picked from the list, which is the only place its absence shows.
 
-Meter readings stay finite when an audio source emits NaN or infinity: an
-invalid sample contributes silence to its channel's RMS calculation, without
-changing the other channel or later valid frames. This protects metering and
-its JSON messages; it does not modify the audio signal sent to outputs.
-
 Messages from the daemon, each a JSON object with a `type` field:
 
 | Type | When | Content |
@@ -68,6 +63,11 @@ Messages from the daemon, each a JSON object with a `type` field:
 | `pluginInstall` | in answer to `installPlugin`, `addWindowsPluginFolder`, `removeWindowsPluginFolder`, `removeWindowsPluginInserts`, `setWindowsPluginEnabled`, `deleteWindowsPlugin`, `syncWindowsPlugins` and `rescanPlugins` | `ok`, `message` (a sentence or two for the user, ending with the bundles the scan that followed could not read, up to three by name and the rest as a count), `installed` (the bundles or folders put in place), `added` (plugins in the catalogue that were not before) and `total` |
 | `error` | when a command without a `requestId` is rejected | `message` |
 | `commandResult` | in answer to a command that carried a `requestId` | `requestId`, `error` (null on success); preceded by the state the result refers to |
+
+Meter readings stay finite when an audio source emits NaN or infinity: an
+invalid sample contributes silence to its channel's RMS calculation, without
+changing the other channel or later valid frames. This protects metering and
+its JSON messages; it does not modify the audio signal sent to outputs.
 
 Commands are single JSON objects with a `cmd` field. The layout commands
 (`createChannel` through `setLayoutOrder` below) succeed only after the

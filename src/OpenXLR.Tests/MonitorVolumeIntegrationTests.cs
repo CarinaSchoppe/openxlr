@@ -274,9 +274,12 @@ public sealed class MonitorVolumeIntegrationTests
                 (feed.Split('+').Contains("monitor") && !muteA ? 0.1 * Math.Pow(0.8 * a, 3) : 0) +
                 (feed.Split('+').Contains("monitor2") && !muteB ? 0.1 * Math.Pow(0.6 * b, 3) : 0);
             var result = ProcessRunner.Run("python3", ["-c", """
-                import math, struct, subprocess, sys, tempfile
+                import statistics, struct, subprocess, sys, tempfile
                 rate = 48000
-                samples = b''.join(struct.pack('<ff', *([0.1 * math.sin(2 * math.pi * 1000 * i / rate)] * 2)) for i in range(rate * 2))
+                # Separate combine streams can acquire different latencies. A sine
+                # can cancel itself when Monitor A and B are summed, although both
+                # gains are correct. DC tests the gain independently of that phase.
+                samples = struct.pack('<ff', 0.1, 0.1) * (rate * 2)
                 args = ['--format=f32', '--rate=48000', '--channels=2']
                 # Older pw-cat versions use raw audio on stdin/stdout implicitly.
                 if '--raw' in subprocess.check_output(['pw-cat', '--help'], text=True):
@@ -294,10 +297,15 @@ public sealed class MonitorVolumeIntegrationTests
                     audio = capture.read()
                     values = struct.unpack('<' + 'f' * (len(audio) // 4), audio)
                     assert len(values) > rate, 'Capture did not run'
-                    peak = max(map(abs, values), default=0)
+                    # Discard startup/drain quarters, then reject dropouts as well
+                    # as a wrong steady gain. Short resampler edge transients are
+                    # outside this window and must not set the measured level.
+                    steady = values[len(values) // 4 : 3 * len(values) // 4]
+                    level = statistics.median(steady)
                     expected = float(sys.argv[1])
-                    assert abs(peak - expected) < 0.002, f'Wrong master gain: peak={peak}, expected={expected}; links=' + subprocess.check_output(['pw-link', '-l'], text=True)
-                    print(f'Expected {expected:.5f}: peak={peak:.5f}')
+                    matching = sum(abs(value - expected) < 0.002 for value in steady) / len(steady)
+                    assert matching > 0.95, f'Wrong master gain: level={level}, expected={expected}, matching={matching}; links=' + subprocess.check_output(['pw-link', '-l'], text=True)
+                    print(f'Expected {expected:.5f}: level={level:.5f}, matching={matching:.1%}')
                 finally:
                     for process in (play, record):
                         if process is None: continue

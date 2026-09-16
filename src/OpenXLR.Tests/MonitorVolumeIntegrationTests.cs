@@ -277,14 +277,17 @@ public sealed class MonitorVolumeIntegrationTests
                 import math, struct, subprocess, sys, tempfile
                 rate = 48000
                 samples = b''.join(struct.pack('<ff', *([0.1 * math.sin(2 * math.pi * 1000 * i / rate)] * 2)) for i in range(rate * 2))
-                args = ['--raw', '--format=f32', '--rate=48000', '--channels=2']
+                args = ['--format=f32', '--rate=48000', '--channels=2']
+                # Older pw-cat versions use raw audio on stdin/stdout implicitly.
+                if '--raw' in subprocess.check_output(['pw-cat', '--help'], text=True):
+                    args.append('--raw')
                 capture = tempfile.TemporaryFile()
                 record = subprocess.Popen(['pw-cat', '--record', *args, '--target', 'test_master_output', '--properties={ stream.capture.sink = true }', '-'], stdout=capture, stderr=subprocess.PIPE)
                 play = None
                 try:
                     play = subprocess.Popen(['pw-cat', '--playback', *args, '--target', sys.argv[2], '-'], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-                    play.communicate(samples, timeout=10)
-                    assert play.returncode == 0, 'Playback failed'
+                    _, playback_errors = play.communicate(samples, timeout=10)
+                    assert play.returncode == 0, playback_errors.decode()
                     record.terminate()
                     record.communicate(timeout=5)
                     capture.seek(0)

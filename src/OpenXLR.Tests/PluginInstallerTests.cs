@@ -100,6 +100,41 @@ public sealed class PluginInstallerTests : IDisposable
         Assert.Contains(items, i => i.Kind == PluginItemKind.ClapBundle && i.Path.EndsWith("B.clap"));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnOversizedFolderIsRejectedBeforeAnyPluginIsCopied(bool nested)
+    {
+        for (int i = 0; i < 201; i++)
+            File_(Path.Combine(nested ? $"group-{i / 100}" : "set", $"p{i:D3}.clap"), Elf);
+        InstallOutcome result = Installer().Install(_picked);
+        Assert.False(result.Ok);
+        Assert.Contains("200 plugins", result.Message);
+        Assert.Empty(result.Installed);
+        Assert.False(Directory.Exists(_clap));
+    }
+
+    [Fact]
+    public void ThePluginLimitStillAllowsACompleteDeterministicSelection()
+    {
+        for (int i = 199; i >= 0; i--) File_($"p{i:D3}.clap", Elf);
+        var items = PluginInstaller.Items(_picked);
+        Assert.Equal(200, items.Count);
+        Assert.Equal(Enumerable.Range(0, 200).Select(i => $"p{i:D3}.clap"), items.Select(i => Path.GetFileName(i.Path)));
+    }
+
+    [Fact]
+    public void UnrelatedFilesAlsoConsumeTheSharedDiscoveryBudget()
+    {
+        Directory.CreateDirectory(Path.Combine(_picked, "nested"));
+        for (int i = 0; i < 10_000; i++)
+            File_(i < 6_000 ? $"f{i}.txt" : Path.Combine("nested", $"f{i}.txt"), []);
+        InstallOutcome result = Installer().Install(_picked);
+        Assert.False(result.Ok);
+        Assert.Contains("10000 directory entries", result.Message);
+        Assert.False(Directory.Exists(_clap));
+    }
+
     [Fact]
     public void LinuxBundlesAreCopiedIntoTheHomeDirectories()
     {

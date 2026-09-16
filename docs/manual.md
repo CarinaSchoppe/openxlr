@@ -344,7 +344,13 @@ the picker offers only plugins compatible with the selected slot.
 For a plugin you downloaded, press "Install file" or "Install folder" in the picker or in Options and pick it; OpenXLR puts it where
 it looks and the picker lists it a moment later. A file is a `.clap` or a
 single-file `.vst3`; a folder is a `.vst3` or `.lv2` bundle, or a folder
-holding several of them, such as an extracted download. Linux plugins are
+holding several of them, such as an extracted download. Folder selections
+look up to three subfolder levels deep. Discovery accepts up to 200 plugins
+and examines at most 10,000 directory entries across that selection. A larger
+selection is refused with a request to choose a smaller folder before any
+plugins are installed; it is not silently installed in part. These bounds
+also apply when listing plugins in a registered Windows folder.
+Linux plugins are
 copied into `~/.clap`, `~/.vst3` or `~/.lv2`, so the download can go
 afterwards. Installing over a plugin that is already there builds the new
 copy beside it and swaps the two only once the copy is complete, so a

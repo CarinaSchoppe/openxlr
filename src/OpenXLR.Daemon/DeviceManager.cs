@@ -693,8 +693,8 @@ public sealed class DeviceManager : BackgroundService
     /// connect, which includes its gain even when the gain lock is set: the
     /// lock is there to keep the gain where the user put it, and refusing to
     /// restore it leaves the hardware at whatever its firmware powers up
-    /// with, which is the one outcome the lock exists to prevent. A profile
-    /// loaded by hand is a change like any other and the lock still refuses.
+    /// with, which is the one outcome the lock exists to prevent. Named profile
+    /// recall also restores gain; ordinary control commands still respect the lock.
     /// </summary>
     public string? ApplyProfile(DeviceState p, bool restoring = false)
     {

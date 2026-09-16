@@ -55,6 +55,9 @@ public sealed class MixerService : IHostedService, IDisposable
     {
         _log = log;
         _config = config;
+        bool launchDefault = config.GetValue("mixer", false) ||
+                             Environment.GetEnvironmentVariable("OPENXLR_BUILD_MIXER") == "1";
+        SubmixerEnabled = DaemonSettings.SubmixerEnabled(launchDefault);
         _devices = devices;
         _lifetime = lifetime;
         EditorPolicy = editorPolicy ?? new NativeEditorPolicy();
@@ -187,19 +190,21 @@ public sealed class MixerService : IHostedService, IDisposable
     public event Action? MetersUpdated;
 
     /// <summary>Whether this run builds the submixer at all.</summary>
-    public bool SubmixerEnabled { get; private set; }
+    public bool SubmixerEnabled { get; }
+
+    // A built graph is not ready for profile recall until ApplySettings and
+    // output routing have finished. Device arrival can precede StartAsync.
+    private readonly TaskCompletionSource _initialized = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal Task Initialized => _initialized.Task;
 
     /// <summary>Whether the submix graph is up (built a few seconds after start).</summary>
     public bool Built => _mixer.Built;
 
     public Task StartAsync(CancellationToken ct)
     {
-        bool launchDefault = _config.GetValue("mixer", false) ||
-                             Environment.GetEnvironmentVariable("OPENXLR_BUILD_MIXER") == "1";
-        bool wanted = OpenXLR.Core.DaemonSettings.SubmixerEnabled(launchDefault);
-        SubmixerEnabled = wanted;
-        if (!wanted)
+        if (!SubmixerEnabled)
         {
+            _initialized.TrySetResult();
             _log.LogInformation("submixer off (daemon.json, --mixer, or OPENXLR_BUILD_MIXER=1 turn it on); hardware control only");
             return Task.CompletedTask;
         }
@@ -346,6 +351,7 @@ public sealed class MixerService : IHostedService, IDisposable
             // No audio server is a degraded operating mode, not a deadlock.
             _checkingProgress = false;
         }
+        finally { _initialized.TrySetResult(); }
         return Task.CompletedTask;
     }
 

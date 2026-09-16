@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run monitor controls on private PipeWire sockets with policy but no hardware.
+"""Run monitor controls, DSP audio and profile startup on private PipeWire sockets.
 
 Arguments are passed on to `dotnet test`, so a build that lives somewhere
 other than the default output can be tested with `--artifacts-path <dir>`.
@@ -16,6 +16,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="openxlr-monitor-test-") as runtime:
         env = dict(os.environ, XDG_RUNTIME_DIR=runtime, PIPEWIRE_RUNTIME_DIR=runtime,
                    XDG_CONFIG_HOME=runtime + "/config", XDG_STATE_HOME=runtime + "/state",
+                   XDG_DATA_HOME=runtime + "/data",
+                   CLAP_PATH=runtime + "/plugins", VST3_PATH=runtime + "/plugins",
                    PULSE_SERVER="unix:" + runtime + "/pulse/native",
                    PIPEWIRE_REMOTE="pipewire-0", OPENXLR_TEST_MONITOR_VOLUME="1")
         processes = []
@@ -51,7 +53,7 @@ def main():
                     processes.append(subprocess.Popen(["wireplumber", *policy], env=env, stdout=log, stderr=log))
                 subprocess.run(["dotnet", "test", "src/OpenXLR.Tests/OpenXLR.Tests.csproj",
                                 "-c", "Release", "--no-build", "--filter",
-                                "FullyQualifiedName~MonitorVolumeIntegrationTests", *sys.argv[1:]],
+                                "FullyQualifiedName~MonitorVolumeIntegrationTests|FullyQualifiedName~ProfileStartupTests|FullyQualifiedName~DspAudioIntegrationTests", *sys.argv[1:]],
                                env=env, check=True, timeout=180,
                                cwd=Path(__file__).resolve().parent.parent)
             except Exception:

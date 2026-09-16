@@ -92,7 +92,7 @@ public sealed class GainLockRestoreTests
     }
 
     [Fact]
-    public void AProfileLoadedByHandStillLeavesALockedGainAlone()
+    public void AnUnmarkedDeviceRestoreStillLeavesALockedGainAlone()
     {
         WithConfigDir(_ =>
         {

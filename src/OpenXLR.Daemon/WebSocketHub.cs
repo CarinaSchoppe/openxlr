@@ -45,7 +45,7 @@ public sealed class WebSocketHub
             if (!_clients.IsEmpty) Broadcast(Snapshot());
         }, _log);
         _devices.StateChanged += ignored => _stateBroadcasts.Signal();
-        _devices.DeviceArrived += devId => _ = RecallOnArrivalAsync(devId);
+        _devices.DeviceArrived += devId => _ = Task.Run(() => RecallOnArrivalAsync(devId));
         _mixer.Changed += _stateBroadcasts.Signal;
         _ = _stateBroadcasts.RunAsync(_stopping);
         _mixer.MetersUpdated += () =>
@@ -348,16 +348,16 @@ public sealed class WebSocketHub
     /// block the mixer scene (and the other way round). The mixer half is
     /// skipped when this run has no submixer. Null on success.
     /// </summary>
-    private string? ApplyNamedProfile(string devId, string name, bool restoring = false)
+    private string? ApplyNamedProfile(string devId, string name)
     {
-        lock (_installGate) return ApplyNamedProfileLocked(devId, name, restoring);
+        lock (_installGate) return ApplyNamedProfileLocked(devId, name);
     }
 
-    private string? ApplyNamedProfileLocked(string devId, string name, bool restoring)
+    private string? ApplyNamedProfileLocked(string devId, string name)
     {
         OpenXLR.Core.Profile? p = OpenXLR.Core.ProfileStore.Load(devId, name);
         if (p is null) return $"no profile named '{name}'";
-        string? devErr = p.Device is null ? null : _devices.ApplyProfile(p.Device, restoring);
+        string? devErr = p.Device is null ? null : _devices.ApplyProfile(p.Device, restoring: true);
         string? mixErr = p.Mixer is null || !_mixer.SubmixerEnabled ? null : _mixer.ApplyScene(p.Mixer);
         if (devErr is null && mixErr is null) _activeProfile[devId] = name;
         return devErr ?? mixErr;
@@ -392,7 +392,7 @@ public sealed class WebSocketHub
     /// half lands too (at daemon start the graph follows the device by a few
     /// seconds).
     /// </summary>
-    private async Task RecallOnArrivalAsync(string devId)
+    internal async Task RecallOnArrivalAsync(string devId)
     {
         string? name;
         try { name = OpenXLR.Core.ProfileStore.RecallOnConnect(devId); }
@@ -410,17 +410,22 @@ public sealed class WebSocketHub
             }
             return;
         }
-        long deadline = Environment.TickCount64 + 60_000;
-        while (_mixer.SubmixerEnabled && !_mixer.Built && Environment.TickCount64 < deadline && !_stopping.IsCancellationRequested)
-            await Task.Delay(250, _stopping).ContinueWith(_ => { }, TaskScheduler.Default);
-        if (_stopping.IsCancellationRequested || ActiveDeviceId() != devId) { _devices.MarkRestored(); return; }
-        // The device just connected and is being given its settings back,
-        // gain included: see ApplyProfile.
-        string? err = ApplyNamedProfile(devId, name, restoring: true);
-        _devices.MarkRestored();
-        if (err is null) _log.LogInformation("recalled profile '{name}' on connect of {dev}", name, devId);
-        else _log.LogWarning("recall of profile '{name}' on connect of {dev}: {err}", name, devId, err);
-        Broadcast(Snapshot());
+        try
+        {
+            await _mixer.Initialized.WaitAsync(_stopping);
+            if (_stopping.IsCancellationRequested || ActiveDeviceId() != devId) return;
+            // Connect-time restoration includes gain even while locked.
+            string? err = ApplyNamedProfile(devId, name);
+            if (err is null) _log.LogInformation("recalled profile '{name}' on connect of {dev}", name, devId);
+            else _log.LogWarning("recall of profile '{name}' on connect of {dev}: {err}", name, devId, err);
+            Broadcast(Snapshot());
+        }
+        catch (OperationCanceledException) when (_stopping.IsCancellationRequested) { }
+        catch (Exception ex) { _log.LogWarning("recall of profile '{name}': {msg}", name, ex.Message); }
+        finally
+        {
+            if (!_stopping.IsCancellationRequested && ActiveDeviceId() == devId) _devices.MarkRestored();
+        }
     }
 
     /// <summary>The active device's usb id, or null while disconnected.</summary>

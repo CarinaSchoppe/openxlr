@@ -737,7 +737,14 @@ fresh: at daemon start (so at login), after a replug or a power cycle,
 and when you switch to it in the device picker. Use it to land on a
 known scene at every login. The reconnect after a passing USB error
 does not count, so the recall never undoes changes you made since.
-Pick "(none)" to stop.
+Pick "(none)" to stop. Recall waits until the mixer has finished restoring
+its settings, so those settings cannot overwrite the chosen profile.
+
+Loading a named profile, by clicking it or on connect, restores its saved
+gain even when the gain lock is on. The lock remains on and still blocks
+ordinary gain changes. A profile is a saved snapshot: changing a control
+does not update it. Press Save with the same name to keep those changes
+for the next recall.
 
 A profile only sets the sends and mixes it names. Add a channel or a
 virtual microphone after saving a profile, and recalling that profile

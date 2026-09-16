@@ -27,14 +27,17 @@ public sealed class DspAudioIntegrationTests
                         import math, struct, subprocess, sys, tempfile
                         rate = 48000
                         samples = b''.join(struct.pack('<f', 0.95 * math.sin(2 * math.pi * 1000 * i / rate)) for i in range(rate * 4))
-                        args = ['--raw', '--format=f32', '--rate=48000', '--channels=1']
+                        args = ['--format=f32', '--rate=48000', '--channels=1']
+                        # Older pw-cat versions use raw audio on stdin/stdout implicitly.
+                        if '--raw' in subprocess.check_output(['pw-cat', '--help'], text=True):
+                            args.append('--raw')
                         capture = tempfile.TemporaryFile()
                         record = subprocess.Popen(['pw-cat', '--record', *args, '--target', sys.argv[2], '-'], stdout=capture, stderr=subprocess.PIPE)
                         play = None
                         try:
                             play = subprocess.Popen(['pw-cat', '--playback', *args, '--target', sys.argv[1], '-'], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-                            play.communicate(samples, timeout=10)
-                            assert play.returncode == 0, "Playback failed"
+                            _, playback_errors = play.communicate(samples, timeout=10)
+                            assert play.returncode == 0, playback_errors.decode()
                             record.terminate()
                             _, errors = record.communicate(timeout=5)
                             capture.seek(0)

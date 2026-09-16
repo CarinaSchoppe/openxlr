@@ -272,7 +272,8 @@ public sealed class MixerService : IHostedService, IDisposable
                     // Collect what the plugins' own editors changed before the
                     // healing pass below, so a chain that is about to be rebuilt
                     // comes back with the values its editor last showed.
-                    if (_mixer.SyncPluginControls())
+                    // Desktop volume and mute changes are user settings too.
+                    if (_mixer.SyncPluginControls() | _mixer.SyncMonitorVolumes() | _mixer.SyncDeviceVolumes())
                     {
                         ScheduleSave();
                         Changed?.Invoke();
@@ -281,7 +282,7 @@ public sealed class MixerService : IHostedService, IDisposable
                     // sits at PipeWire's defaults, full level and unmuted,
                     // until the stored fader is pushed onto it.
                     _mixer.EnsureCellLevels();
-                    if (_mixer.SyncStreams() | _mixer.SyncDeviceVolumes() | _mixer.EnforceDefaults()
+                    if (_mixer.SyncStreams() | _mixer.EnforceDefaults()
                         | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()
                         | _mixer.EnsureFilterRoutes()
                         | _mixer.EnsureMonitorRoutes()) Changed?.Invoke();

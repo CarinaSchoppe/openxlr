@@ -32,4 +32,17 @@ public sealed class OwnSinkLevelsTests
     [Fact]
     public void ABrokenDumpYieldsNothing()
         => Assert.Empty(PipeWireAdapter.OwnSinkLevels(Encoding.UTF8.GetBytes("[{\"type\": \"PipeWire:Interface:Node\"")));
+    [Theory]
+    [InlineData("0, 0", 0)]
+    [InlineData("0.125, 0.125", 0.5)]
+    [InlineData("1, 1", 1)]
+    [InlineData("1.728, 1.728", 1.2)]
+    [InlineData("3.375, 3.375", 1.5)]
+    [InlineData("0.125, 1", 1)]
+    public void DesktopPercentagesUseTheCubeRootOfTheLoudestChannel(string channels, double expected)
+    {
+        var sink = Assert.Single(PipeWireAdapter.OwnSinkLevels(Dump(Node("OpenXLR_mix_monitor", "Audio/Sink", channels, false))));
+        Assert.Equal(expected, sink.DesktopVolume);
+    }
+
 }

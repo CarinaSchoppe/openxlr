@@ -78,6 +78,41 @@ public sealed class WindowLayoutTests
                 {
                     Layout(main, width, 900);
                     Assert.Equal(width, main.ClientSize.Width);
+                    if (width == 640)
+                    {
+                        var output = main.FindControl<Slider>("OutputVolumeSlider")!;
+                        Assert.Equal(1, output.Maximum);
+                        // Desktop state beyond unity must expand the actual
+                        // bound slider before it can clamp the incoming value.
+                        vm.OutputVolume = 1.5;
+                        Dispatcher.UIThread.RunJobs();
+                        Assert.Equal(1.5, output.Maximum);
+                        Assert.Equal(1.5, output.Value);
+                        Assert.Equal("150%", vm.OutputVolumeText);
+                        var boost = main.FindControl<Avalonia.Controls.Primitives.ToggleButton>("OutputBoost")!;
+                        Assert.True(boost.IsChecked);
+                        boost.IsChecked = false;
+                        Dispatcher.UIThread.RunJobs();
+                        Assert.Equal(1, output.Maximum);
+                        Assert.Equal(1, output.Value);
+                        Assert.Equal("100%", vm.OutputVolumeText);
+                        boost.IsChecked = true;
+                        output.Value = 0.66;
+                        Assert.Equal("66%", vm.OutputVolumeText);
+                        Assert.Equal(0.66, vm.OutputVolume);
+
+                        var mix = vm.Mixes[0];
+                        var master = main.GetVisualDescendants().OfType<Slider>().Single(c => c.DataContext == mix);
+                        mix.ApplyFromDaemon(JsonNode.Parse("""{"volume":1.2,"muted":false,"kind":"monitor"}""")!);
+                        Dispatcher.UIThread.RunJobs();
+                        Assert.Equal(1.5, master.Maximum);
+                        Assert.Equal(1.2, master.Value);
+                        Assert.Equal("120%", mix.VolumeText);
+                        mix.VolumeRange.Boost = false;
+                        Dispatcher.UIThread.RunJobs();
+                        Assert.Equal(1, master.Value);
+                        Assert.Equal(1, mix.Volume);
+                    }
                     var content = main.FindControl<StackPanel>("MixerContent")!;
                     string where = $"Requested {width}, window {main.Width}/{main.Bounds.Width}, "
                         + $"client {main.ClientSize.Width}, content {content.Bounds.Width}";

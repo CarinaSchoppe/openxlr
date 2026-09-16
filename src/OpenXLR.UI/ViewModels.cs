@@ -42,6 +42,7 @@ public sealed class MainViewModel : ViewModelBase
     public MainViewModel(DaemonClient client)
     {
         _client = client;
+        OutputVolumeRange = new VolumeRangeViewModel(() => OutputVolume = Math.Min(OutputVolume, 1));
         Inserts = new InsertsViewModel(client, "xlr1", 1, "XLR 1");
         Inserts2 = new InsertsViewModel(client, "xlr2", 1, "XLR 2");
         _client.StateReceived += node => Dispatcher.UIThread.Post(() => Apply(node));
@@ -510,12 +511,15 @@ public sealed class MainViewModel : ViewModelBase
     public bool MinimizeToTray { get; set; } = UiSettings.Load().MinimizeToTray;
 
 
+    public VolumeRangeViewModel OutputVolumeRange { get; }
+
     private double _outputVolume;
     public double OutputVolume
     {
         get => _outputVolume;
         set
         {
+            OutputVolumeRange.Include(value);
             if (Set(ref _outputVolume, value) && !_applying)
             {
                 double v = value;
@@ -1229,6 +1233,7 @@ public sealed class MixViewModel : ViewModelBase, IHasId
     public MixViewModel(DaemonClient client, string id, string name)
     {
         _client = client; Id = id; _name = name;
+        VolumeRange = new VolumeRangeViewModel(() => Volume = Math.Min(Volume, 1));
         Inserts = new InsertsViewModel(client, $"mix:{id}", channels: 2, title: $"{name} mix");
     }
 
@@ -1252,7 +1257,9 @@ public sealed class MixViewModel : ViewModelBase, IHasId
 
     private string _kind = "monitor";
     /// <summary>"monitor", "virtualMic" or "auxPort", as the daemon reports it.</summary>
-    public string Kind { get => _kind; set { if (Set(ref _kind, value)) { Raise(nameof(IsEditable)); Raise(nameof(KindLabel)); } } }
+    public string Kind { get => _kind; set { if (Set(ref _kind, value)) { Raise(nameof(IsEditable)); Raise(nameof(KindLabel)); Raise(nameof(IsMonitor)); } } }
+    public bool IsMonitor => Kind == "monitor";
+    public VolumeRangeViewModel VolumeRange { get; }
 
     private double _volume = 1.0;
     public double Volume
@@ -1260,6 +1267,7 @@ public sealed class MixViewModel : ViewModelBase, IHasId
         get => _volume;
         set
         {
+            VolumeRange.Include(value);
             if (Set(ref _volume, value) && !_applying)
             {
                 double v = value;

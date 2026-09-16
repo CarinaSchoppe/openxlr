@@ -145,7 +145,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             foreach (MixDefinition mix in config.Mixes)
             {
                 _mixModules[mix.Id] = _pw.CreateNullSink(mix.SinkName, $"OpenXLR {mix.Name}");
-                _mixVolume[mix.Id] = mix.Volume;
+                _mixVolume[mix.Id] = Math.Clamp(mix.Volume, 0, MixVolumeMaximumLocked(mix.Id));
                 if (mix.Muted) _mixMuted.Add(mix.Id);
             }
 
@@ -1050,7 +1050,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             if (!_built) return;
 
             foreach ((string mixId, double vol) in s.MixVolumes)
-                if (_mixVolume.ContainsKey(mixId)) _mixVolume[mixId] = Math.Clamp(vol, 0, 1);
+                if (_mixVolume.ContainsKey(mixId)) _mixVolume[mixId] = Math.Clamp(vol, 0, MixVolumeMaximumLocked(mixId));
             RecallMutes(_mixMuted, _config.Mixes.Select(m => m.Id), s.MixVolumes.Keys, s.MixMuted);
 
             foreach ((string cell, double lvl) in s.Levels)
@@ -1159,7 +1159,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             if (!_built) return;
 
             foreach ((string mixId, double vol) in s.MixVolumes)
-                if (_mixVolume.ContainsKey(mixId)) _mixVolume[mixId] = Math.Clamp(vol, 0, 1);
+                if (_mixVolume.ContainsKey(mixId)) _mixVolume[mixId] = Math.Clamp(vol, 0, MixVolumeMaximumLocked(mixId));
             // A profile saved before a channel or a mix existed says nothing
             // about its sends, and those sends sit at unity behind a mute.
             // Recalling it must not open them.
@@ -1343,11 +1343,9 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     }
 
     /// <summary>
-    /// Hold every OpenXLR sink at unity and unmuted. The faders are the
-    /// combine legs and the mix masters; a sink's own volume is never a
-    /// control here, so anything that turned one down (the session manager
-    /// restoring a stored level, a desktop applet) only cuts audio. Returns
-    /// the sinks put back.
+    /// Hold internal channel, DSP and non-monitor mix sinks at unity and
+    /// unmuted. Monitor sinks carry their own masters and belong to the
+    /// desktop controls too. Returns the internal sinks put back.
     /// </summary>
     public IReadOnlyList<string> EnsureOwnSinkLevels()
     {
@@ -1357,6 +1355,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             var restored = new List<string>();
             foreach (OwnSinkLevel sink in _pw.OwnSinkLevels())
             {
+                if (_config.Mixes.Any(m => m.Kind == MixKind.Monitor && m.SinkName == sink.Name)) continue;
                 bool off = Math.Abs(sink.Volume - 1.0) > 0.01;
                 if (!off && !sink.Muted) continue;
                 try
@@ -1368,6 +1367,31 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 catch (InvalidOperationException) { /* the sink went away; the next sweep sees the rest */ }
             }
             return restored;
+        }
+    }
+
+    /// <summary>Read desktop monitor masters without touching the other mixes or channel sends.</summary>
+    public bool SyncMonitorVolumes()
+    {
+        lock (_gate)
+        {
+            if (!_built) return false;
+            bool changed = false;
+            foreach (OwnSinkLevel sink in _pw.OwnSinkLevels())
+            {
+                MixDefinition? mix = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor && m.SinkName == sink.Name);
+                if (mix is null) continue;
+                double volume = Math.Min(sink.DesktopVolume, PipeWireAdapter.MaxSinkVolume);
+                if (sink.DesktopVolume > PipeWireAdapter.MaxSinkVolume)
+                    _pw.SetSinkVolume(sink.Name, volume);
+                if (Math.Abs(volume - _mixVolume.GetValueOrDefault(mix.Id, 1)) > 0.005)
+                {
+                    _mixVolume[mix.Id] = volume;
+                    changed = true;
+                }
+                changed |= sink.Muted ? _mixMuted.Add(mix.Id) : _mixMuted.Remove(mix.Id);
+            }
+            return changed;
         }
     }
 
@@ -1642,8 +1666,11 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     {
         lock (_gate)
         {
-            _mixVolume[mixId] = Math.Clamp(volume, 0.0, 1.0);
-            ReapplyMixLocked(mixId);
+            MixDefinition? monitor = MonitorMixLocked(mixId);
+            volume = Math.Clamp(volume, 0, monitor is not null ? PipeWireAdapter.MaxSinkVolume : 1);
+            if (monitor is not null) _pw.SetSinkVolume(monitor.SinkName, volume);
+            _mixVolume[mixId] = volume;
+            if (monitor is null) ReapplyMixLocked(mixId);
         }
     }
 
@@ -1651,8 +1678,10 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     {
         lock (_gate)
         {
+            MixDefinition? monitor = MonitorMixLocked(mixId);
+            if (monitor is not null) _pw.SetSinkMuted(monitor.SinkName, muted);
             if (muted) _mixMuted.Add(mixId); else _mixMuted.Remove(mixId);
-            ReapplyMixLocked(mixId);
+            if (monitor is null) ReapplyMixLocked(mixId);
         }
     }
 
@@ -1936,12 +1965,13 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         _ => "auxPort",
     };
 
-    /// <summary>Cell level x mix master, applied to the combine leg's stream.</summary>
+    /// <summary>Channel send, including the master only when the mix has no desktop master.</summary>
     private void ApplyCellLocked(string channelId, string mixId)
     {
         string cell = Cell(channelId, mixId);
-        double level = _levels.GetValueOrDefault(cell, 0.0) * _mixVolume.GetValueOrDefault(mixId, 1.0);
-        bool muted = _muted.Contains(cell) || _mixMuted.Contains(mixId);
+        bool monitor = MonitorMixLocked(mixId) is not null;
+        double level = _levels.GetValueOrDefault(cell, 0.0) * (monitor ? 1 : _mixVolume.GetValueOrDefault(mixId, 1.0));
+        bool muted = _muted.Contains(cell) || (!monitor && _mixMuted.Contains(mixId));
         if (_hardwareMicMonitor && channelId == "xlr1" && MonitorFeed.Includes(JackFeedLocked(), mixId))
             muted = true;   // the hardware direct path carries it to the jacks
 
@@ -2041,8 +2071,19 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         }
     }
 
+    private MixDefinition? MonitorMixLocked(string mixId)
+        => _config.Mixes.FirstOrDefault(m => m.Id == mixId && m.Kind == MixKind.Monitor);
+
+    private double MixVolumeMaximumLocked(string mixId)
+        => MonitorMixLocked(mixId) is not null ? PipeWireAdapter.MaxSinkVolume : 1;
+
     private void ReapplyMixLocked(string mixId)
     {
+        if (MonitorMixLocked(mixId) is { } monitor)
+        {
+            _pw.SetSinkVolume(monitor.SinkName, _mixVolume.GetValueOrDefault(mixId, 1));
+            _pw.SetSinkMuted(monitor.SinkName, _mixMuted.Contains(mixId));
+        }
         foreach (ChannelDefinition ch in _config.Channels)
             ApplyCellLocked(ch.Id, mixId);
     }

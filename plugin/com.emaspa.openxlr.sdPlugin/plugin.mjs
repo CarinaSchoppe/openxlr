@@ -606,13 +606,13 @@ function onDialRotate(context, inst, ticks) {
       cmd({ cmd: "setLevel", channel: ch, mix: m, value: clamp(levels[m] + ticks * 0.01, 0, 1) });
     }
   } else if (t.startsWith("mixvol:")) {
-    const mix = t.slice(7), v = mixOf(mix)?.volume;
+    const mix = t.slice(7), state = mixOf(mix), v = state?.volume;
     if (v == null) return;
-    cmd({ cmd: "setMixVolume", mix, value: clamp(v + ticks * 0.01, 0, 1) });
+    cmd({ cmd: "setMixVolume", mix, value: clamp(v + ticks * 0.01, 0, state.kind === "monitor" ? 1.5 : 1) });
   } else if (t === "outputVolume") {
     const v = mixer()?.outputVolume;
     if (v == null) return;
-    cmd({ cmd: "setOutputVolume", value: clamp(v + ticks * 0.01, 0, 1) });
+    cmd({ cmd: "setOutputVolume", value: clamp(v + ticks * 0.01, 0, 1.5) });
   } else if (t === "gain" || t === "gain2") {
     const db = t === "gain" ? dev()?.gainDb : dev()?.gain2Db;
     if (db == null) return;

@@ -88,6 +88,8 @@ Built from PipeWire nodes, no kernel modules or custom drivers:
   in OBS or Discord like a microphone), and Aux (what a second computer
   on the USB Aux port receives)
 - Per-channel, per-mix send levels and mutes; per-mix masters
+- Bidirectional Linux volume and mute controls for Monitor A and Monitor B,
+  with an explicit 150% boost button for monitor masters and output volume
 - An editable layout: Edit layout in the SUBMIXER card adds, renames,
   reorders and removes application channels and virtual microphones
   while audio plays, as does the API, with stable ids so profiles and

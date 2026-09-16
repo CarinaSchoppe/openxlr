@@ -87,7 +87,7 @@ a bare `error` message, so an editor can wait for the acknowledgement:
 | `deleteMix` | `mix` | remove a virtual microphone with its sends, inserts and capture device |
 | `setLayoutOrder` | `channels[]`, `mixes[]` | complete ordered lists of application-channel and virtual-microphone ids; structural nodes stay fixed |
 | `setChannelMuted` | `channel`, `mix`, `value` | one send mute |
-| `setMixVolume` / `setMixMuted` | `mix`, `value` | mix masters |
+| `setMixVolume` / `setMixMuted` | `mix`, `value` | mix masters; monitor volume range 0 to 1.5, other mixes 0 to 1; values outside the range are clamped |
 | `setMonitorOutputs` | `devices[]` | every sink the monitor mixes feed; a newly listed output is fed by the first monitor mix |
 | `setMonitorOutput` | `device` | a single monitor sink; `null` disconnects the route |
 | `setMonitorFeed` | `device`, `mix` | what feeds one selected output: `monitor` (Monitor A), `monitor2` (Monitor B), or both summed as `monitor+monitor2` (Monitor A+B); the Pro's own jacks follow one feed together. The state's `monitorFeeds` lists the exceptions from the first mix in the same form. An error when the feed names anything but distinct monitor mixes, or the output is not selected |
@@ -134,6 +134,17 @@ rebuilt, so it does not stay behind until the desktop volume happens to
 move again. Choosing a different first output starts a fresh baseline and
 drops what the previous selection was owed. A fixed sink name and `null`
 (no enforcement) keep their existing meanings.
+
+
+Monitor mix sinks (`OpenXLR_mix_monitor` and `OpenXLR_mix_monitor2` in the
+standard layout) expose the same volume and mute as their mix masters.
+Desktop changes update `mixer.mixes[].volume` and `muted` on the next sweep
+and are persisted with mixer settings. Values are desktop percentages
+scaled by 100 (1.0 = 100%, 1.5 = 150%), not PipeWire's raw linear amplitude.
+`setMixVolume` and `setMixMuted` update those sinks directly, leaving channel
+sends and other mixes unchanged. Monitor gain is applied once, at the mix
+sink before its inserts. Non-monitor masters still apply to the channel
+sends and retain their 0 to 1 range.
 
 
 Application identities use playback-node metadata, falling back to the

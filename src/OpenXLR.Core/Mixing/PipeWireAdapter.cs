@@ -275,13 +275,22 @@ public sealed class PipeWireAdapter
                 foreach (JsonElement p in list.EnumerateArray())
                 {
                     if (!p.TryGetProperty("channelVolumes", out JsonElement cv) || cv.ValueKind != JsonValueKind.Array) continue;
-                    double volume = 1.0;
+                    double volume = 1.0, maximum = 0.0;
                     bool any = false;
                     foreach (JsonElement v in cv.EnumerateArray())
-                        if (v.TryGetDouble(out double d)) { volume = any ? Math.Min(volume, d) : d; any = true; }
+                        if (v.ValueKind == JsonValueKind.Number && v.TryGetDouble(out double d) && double.IsFinite(d) && d >= 0)
+                        {
+                            volume = any ? Math.Min(volume, d) : d;
+                            maximum = Math.Max(maximum, d);
+                            any = true;
+                        }
                     if (!any) continue;
                     bool muted = p.TryGetProperty("mute", out JsonElement mu) && mu.ValueKind == JsonValueKind.True;
-                    found.Add(new OwnSinkLevel(name, volume, muted));
+                    // PipeWire stores linear amplitude; Pulse desktop percentages
+                    // use its cube root. Keep the loudest channel, as desktop
+                    // master controls do, without flattening channel balance.
+                    found.Add(new OwnSinkLevel(name, volume, muted)
+                    { DesktopVolume = Math.Round(Math.Cbrt(maximum) * 100) / 100 });
                     break;
                 }
             }
@@ -294,9 +303,9 @@ public sealed class PipeWireAdapter
     /// of one reports. PipeWire and every desktop applet allow a boost past
     /// unity, so a device found at 120% has to be writable at 120% as well:
     /// a mixer that reads a range it cannot write lets the outputs it holds
-    /// together drift apart with nothing to say so. The faders (combine legs,
-    /// mix masters) and the microphone keep their own 0 to 1 range, which is
-    /// what their controls mean.
+    /// together drift apart with nothing to say so. Monitor mix masters share
+    /// this range. Channel sends,
+    /// other mix masters and the microphone keep their own 0 to 1 range.
     /// </summary>
     public const double MaxSinkVolume = 1.5;
 
@@ -306,11 +315,17 @@ public sealed class PipeWireAdapter
 
     /// <summary>Set a sink's volume (0 to <see cref="MaxSinkVolume"/>).</summary>
     public void SetSinkVolume(string sinkName, double volume)
-        => Run("pactl", "set-sink-volume", BareSink(sinkName), VolumePercent(volume));
+    {
+        Run("pactl", "set-sink-volume", BareSink(sinkName), VolumePercent(volume));
+        InvalidateDump();
+    }
 
     /// <summary>Mute or unmute a sink.</summary>
     public void SetSinkMuted(string sinkName, bool muted)
-        => Run("pactl", "set-sink-mute", BareSink(sinkName), muted ? "1" : "0");
+    {
+        Run("pactl", "set-sink-mute", BareSink(sinkName), muted ? "1" : "0");
+        InvalidateDump();
+    }
 
     /// <summary>Set one sink-input's volume (used for the combine fader legs).</summary>
     public void SetSinkInputVolume(int index, double volume)
@@ -1446,6 +1461,11 @@ public sealed class PipeWireAdapter
     private static long _dumpAt;   // monotonic ms
     private static readonly TimeSpan DumpWindow = TimeSpan.FromMilliseconds(400);
 
+    private static void InvalidateDump()
+    {
+        lock (DumpGate) _dumpJson = null;
+    }
+
     // Kept as UTF-8 bytes and parsed from them: the string form is twice
     // the size and was the bulk of the daemon's large-object garbage.
     private byte[] DumpJson()
@@ -1538,4 +1558,8 @@ public sealed record AudioNode(string Name, string Description, AudioNodeKind Ki
     bool IsPhysical = false);
 
 /// <summary>One of the daemon's own sinks: its linear volume (1.0 = unity) and mute.</summary>
-public sealed record OwnSinkLevel(string Name, double Volume, bool Muted);
+public sealed record OwnSinkLevel(string Name, double Volume, bool Muted)
+{
+    /// <summary>Desktop volume, where 1.0 means 100%; separate from raw amplitude.</summary>
+    public double DesktopVolume { get; init; }
+}

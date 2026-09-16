@@ -47,6 +47,11 @@ resolve a plugin against everything installed. A plugin missing from
 `plugins` can still be named by an insert that already holds it; it
 cannot be picked from the list, which is the only place its absence shows.
 
+Meter readings stay finite when an audio source emits NaN or infinity: an
+invalid sample contributes silence to its channel's RMS calculation, without
+changing the other channel or later valid frames. This protects metering and
+its JSON messages; it does not modify the audio signal sent to outputs.
+
 Messages from the daemon, each a JSON object with a `type` field:
 
 | Type | When | Content |

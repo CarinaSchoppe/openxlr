@@ -128,7 +128,9 @@ that final acknowledgement (or an `error` without a request id):
 | `getDiagnostics` | none | vendor block dump for bug reports |
 
 When `loadProfile` writes the device settings but the mixer settings fail, the
-error says the device settings were applied and gives the mixer error.
+error says the device settings were applied and gives the mixer error. A
+profile file that fails validation is refused before anything is applied; the
+error starts with `profile '<name>':` and names the offending field.
 
 `setEnforcedDefaults` accepts `sink: "@monitor"` to follow the first selected
 monitor output as the system playback device. The state and saved settings

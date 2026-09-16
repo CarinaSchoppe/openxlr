@@ -59,10 +59,21 @@ public static class DeviceStateStore
 
     private static DeviceState? Load(string path)
     {
-        try { return JsonSerializer.Deserialize<DeviceState>(File.ReadAllText(path), Json); }
+        try
+        {
+            DeviceState? state = JsonSerializer.Deserialize<DeviceState>(File.ReadAllText(path), Json);
+            if (state is not null) Validate(state);
+            return state;
+        }
         catch (FileNotFoundException) { return null; }
         catch (DirectoryNotFoundException) { return null; }
         catch (JsonException) { return null; }
+    }
+
+    internal static void Validate(DeviceState state)
+    {
+        if (!double.IsFinite(state.HpVolumeDb) || !double.IsFinite(state.Hp2VolumeDb) || !double.IsFinite(state.AuxLevelDb))
+            throw new JsonException("Saved device levels must be finite numbers.");
     }
 
     private static void Save(string deviceId, string path, DeviceState state)

@@ -137,7 +137,9 @@ public sealed class DaemonClient : IAsyncDisposable
         bool send;
         lock (_lifecycle)
         {
-            if (_disposed) return null;
+            // A disconnected request cannot receive an acknowledgement. Do not
+            // retain a reply slot that no commandResult can ever release.
+            if (_disposed || _socket?.State != WebSocketState.Open) return null;
             send = !_queries.TryGetValue(type, out query!);
             if (send) { query = new PendingQuery { Type = type }; _queries[type] = query; _queriesById[query.Id] = query; }
             query.Callers++;

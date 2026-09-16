@@ -5,6 +5,21 @@ namespace OpenXLR.Tests;
 public sealed class DaemonClientTests
 {
     [Fact]
+    public async Task DisconnectedQueriesDoNotRetainUnsentReplySlots()
+    {
+        await using var client = new DaemonClient();
+        for (int i = 0; i < 100; i++)
+            Assert.Null(await client.RequestPluginsAsync(TimeSpan.FromSeconds(5)));
+        // Inspect retention without adding a diagnostics-only API to the client.
+        foreach (string field in new[] { "_queries", "_queriesById", "_lastReply" })
+        {
+            var retained = (System.Collections.IDictionary)typeof(DaemonClient).GetField(field,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(client)!;
+            Assert.Empty(retained);
+        }
+    }
+
+    [Fact]
     public async Task ConcurrentQueriesShareReplyEvenWhenOneCallerTimesOut()
     {
         int connections = 0, requests = 0;

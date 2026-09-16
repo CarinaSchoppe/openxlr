@@ -574,7 +574,9 @@ public sealed class WebSocketHub
         }
         catch (Exception ex)
         {
-            return ex.Message;
+            // A rejected file names the profile, so the client knows which
+            // one to fix when the message goes to a log or a notification.
+            return $"profile '{name}': {ex.Message}";
         }
     }
 

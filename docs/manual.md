@@ -1342,13 +1342,26 @@ Review plugin names, paths and scanner output before sharing the archive.
 | `/usr/lib/systemd/user/pipewire-pulse.service.d/openxlr.conf` | installed by the packages: raises pipewire-pulse's open-file limit ([section 5.8](#open-files)) |
 | `ws://127.0.0.1:37890/ws` | the daemon's API, documented in [api.md](api.md); the same commands over HTTP at `/api/v1` ([http-api.md](http-api.md)) |
 
-Saved mixer and hardware data are checked before restoration. Explicit null
-entries in required collections and non-finite levels are treated as corrupt
-data. An invalid `mixer.json` or hardware snapshot follows the existing
-unreadable-file fallback; an invalid profile is rejected before either its
-hardware or mixer settings are applied. Reading a rejected file does not
-rewrite it. Missing optional fields in older profiles retain their legacy
-meaning, and an unavailable plugin can still be remembered for later use.
+Saved mixer and hardware data are checked before restoration. A null entry
+or a number that is not finite (`1e999`) counts as a bad entry. What happens
+next depends on the file:
+
+- `mixer.json` with a bad entry: the entry is dropped, the rest of the file
+  is used, and the daemon log names the field. The next save writes the file
+  without the entry.
+- `mixer.json` that cannot be parsed: the daemon logs the path and the
+  reason, keeps a copy as `mixer.json.corrupt`, and starts with default
+  settings. The next save replaces the original.
+- a hardware snapshot (`last-state.json`, `defaults.json`) with a bad entry:
+  treated as unreadable, nothing from it is applied.
+- a profile with a bad entry: refused before any of its hardware or mixer
+  settings are applied. `loadProfile` returns the profile name and the
+  field; a profile recalled on connect is skipped and the last settings are
+  restored instead.
+
+Reading a rejected file never rewrites it. Missing optional fields in older
+files keep their legacy meaning, and an unavailable plugin can still be
+remembered for later use.
 
 Configuration paths honor `XDG_CONFIG_HOME`; the private wrapper root honors
 `XDG_DATA_HOME`. Without `XDG_RUNTIME_DIR`, runtime files use the private

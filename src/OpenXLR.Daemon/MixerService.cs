@@ -232,7 +232,9 @@ public sealed class MixerService : IHostedService, IDisposable
 
         try
         {
-            MixerSettings? saved = MixerSettings.Load();
+            MixerSettings? saved = MixerSettings.Load(MixerSettings.DefaultPath, out string? settingsWarning);
+            if (settingsWarning is not null)
+                _log.LogWarning("mixer settings: {warning}{fallback}", settingsWarning, saved is null ? "; starting with defaults" : "");
             _mixer.Build(MixerConfig.FromSettings(saved), output);
 
             // Restore the user's saved levels, mutes, device picks, and per-app

@@ -45,6 +45,7 @@ public sealed class ProfileStartupTests
     [InlineData("none")]
     [InlineData("missing")]
     [InlineData("corrupt")]
+    [InlineData("invalid")]
     public async Task LastSettingsRestoreDoesNotWaitForAPluginScan(string scenario)
     {
         string dir = Directory.CreateTempSubdirectory("openxlr-profile-").FullName;
@@ -59,8 +60,8 @@ public sealed class ProfileStartupTests
             devices.SweepOnce();
             DeviceStateStore.SaveLast("0fd9:00a6", new() { GainDb = 55 });
             if (scenario != "none") ProfileStore.SetRecallOnConnect("0fd9:00a6", "Broken");
-            if (scenario == "corrupt")
-                OpenXlrPaths.WriteAtomic(Path.Combine(OpenXlrPaths.ConfigDir, "profiles", "0fd9-00a6", "Broken.json"), "{");
+            if (scenario is "corrupt" or "invalid")
+                OpenXlrPaths.WriteAtomic(Path.Combine(OpenXlrPaths.ConfigDir, "profiles", "0fd9-00a6", "Broken.json"), BrokenProfile(scenario));
             using var lifetime = new Lifetime();
             using var mixer = new MixerService(NullLogger<MixerService>.Instance, config, devices);
             var hub = new WebSocketHub(devices, mixer, NullLogger<WebSocketHub>.Instance, lifetime);
@@ -131,8 +132,46 @@ public sealed class ProfileStartupTests
         }
     }
 
+    /// <summary>"corrupt" does not parse; "invalid" parses but fails validation.</summary>
+    private static string BrokenProfile(string scenario)
+        => scenario == "corrupt" ? "{" : """{"device":{"gainDb":40},"mixer":{"mixVolumes":{"monitor":1e999}}}""";
+
+    [Fact]
+    public async Task ManualRecallOfAnInvalidProfileNamesItAndAppliesNothing()
+    {
+        string dir = Directory.CreateTempSubdirectory("openxlr-profile-").FullName;
+        string? previous = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", dir);
+        try
+        {
+            new DaemonSettings { Submixer = false }.Save();
+            var config = new ConfigurationBuilder().Build();
+            var dock = new Dock();
+            using var devices = new DeviceManager(NullLogger<DeviceManager>.Instance, config, () => [dock]);
+            devices.SweepOnce();
+            OpenXlrPaths.WriteAtomic(Path.Combine(OpenXlrPaths.ConfigDir, "profiles", "0fd9-00a6", "Broken.json"), BrokenProfile("invalid"));
+            using var lifetime = new Lifetime();
+            using var mixer = new MixerService(NullLogger<MixerService>.Instance, config, devices);
+            var hub = new WebSocketHub(devices, mixer, NullLogger<WebSocketHub>.Instance, lifetime);
+
+            var result = await hub.ExecuteForApiAsync("""{"cmd":"loadProfile","name":"Broken"}""");
+
+            Assert.False(result.Ok);
+            Assert.Equal("profile 'Broken': Invalid saved mixer field 'mixVolumes': non-finite number.",
+                Assert.Single(result.Messages.OfType<ErrorMessage>()).Message);
+            Assert.Equal(75, dock.Gain);
+            Assert.Null(hub.Snapshot().ActiveProfile);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", previous);
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("corrupt")]
+    [InlineData("invalid")]
     [InlineData("missing")]
     [InlineData("switched")]
     [InlineData("replugged")]
@@ -167,12 +206,12 @@ public sealed class ProfileStartupTests
             using var mixer = new MixerService(NullLogger<MixerService>.Instance, config, devices);
             var hub = new WebSocketHub(devices, mixer, NullLogger<WebSocketHub>.Instance, lifetime);
             await mixer.StartAsync(CancellationToken.None);
-            bool invalidProfile = scenario is "corrupt" or "missing";
+            bool invalidProfile = scenario is "corrupt" or "invalid" or "missing";
             if (invalidProfile)
             {
                 ProfileStore.SetRecallOnConnect(deviceId, "Broken");
-                if (scenario == "corrupt")
-                    OpenXlrPaths.WriteAtomic(Path.Combine(OpenXlrPaths.ConfigDir, "profiles", "0fd9-00a6", "Broken.json"), "{");
+                if (scenario != "missing")
+                    OpenXlrPaths.WriteAtomic(Path.Combine(OpenXlrPaths.ConfigDir, "profiles", "0fd9-00a6", "Broken.json"), BrokenProfile(scenario));
             }
             if (scenario == "stopping") lifetime.StopApplication();
             await hub.RecallOnArrivalAsync(arrival);

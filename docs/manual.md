@@ -1286,7 +1286,9 @@ catalogue, effective bridge setup and latest native scan results. The home path,
 and the serial numbers of attached USB devices are redacted, in the
 text files and inside the hex dump of the vendor blocks (the XLR Dock
 stores its serial in one); review the archive anyway before attaching
-it to a public issue. Nothing is uploaded automatically.
+it to a public issue. Nothing is uploaded automatically. An archive is
+created as a new private file; an existing file or symbolic link at its
+path is refused without overwriting its contents.
 
 For a Windows plugin missing from the picker, collect diagnostics after the
 scan finishes and name the plugin and intended insert slot in the report.
@@ -1341,6 +1343,10 @@ Review plugin names, paths and scanner output before sharing the archive.
 Configuration paths honor `XDG_CONFIG_HOME`; the private wrapper root honors
 `XDG_DATA_HOME`. Without `XDG_RUNTIME_DIR`, runtime files use the private
 OpenXLR configuration directory.
+
+Configuration and profile writes publish a complete private file atomically.
+Concurrent writers use separate temporary files; a failed publish keeps the
+previous file and cleans up its temporary file.
 
 Uninstalling a package leaves `~/.config/openxlr` in place; remove it
 by hand if you want a clean slate.

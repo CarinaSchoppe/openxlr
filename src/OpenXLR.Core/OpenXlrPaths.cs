@@ -103,12 +103,28 @@ public static class OpenXlrPaths
     {
         string dir = Path.GetDirectoryName(path)!;
         EnsurePrivateDir(dir);
-        string tmp = path + ".tmp";
-        var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write, Share = FileShare.None };
-        if (!OperatingSystem.IsWindows()) options.UnixCreateMode = PrivateFile;
-        using (var writer = new StreamWriter(tmp, options)) writer.Write(text);
-        if (!OperatingSystem.IsWindows() && File.GetUnixFileMode(tmp) != PrivateFile) File.SetUnixFileMode(tmp, PrivateFile);
-        File.Move(tmp, path, overwrite: true);
+        // Each writer owns its staging file. Reusing path + ".tmp" lets
+        // concurrent writers collide and follows a leftover symbolic link.
+        string tmp = Path.Combine(dir, ".openxlr-" + Guid.NewGuid().ToString("N") + ".tmp");
+        bool created = false;
+        try
+        {
+            using (FileStream stream = CreatePrivate(tmp))
+            {
+                created = true;
+                using var writer = new StreamWriter(stream);
+                writer.Write(text);
+            }
+            File.Move(tmp, path, overwrite: true);
+        }
+        finally
+        {
+            if (created)
+            {
+                try { File.Delete(tmp); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* preserve the write failure */ }
+            }
+        }
     }
 
     /// <summary>Serialize a value and write it as a private file atomically.</summary>
@@ -117,11 +133,12 @@ public static class OpenXlrPaths
 
     /// <summary>
     /// Open a new private file for writing (0600 from the first byte), for
-    /// callers that stream into it, such as the diagnostics archive.
+    /// callers that stream into it, such as the diagnostics archive. Existing
+    /// files and symbolic links are refused without truncating their contents.
     /// </summary>
     public static FileStream CreatePrivate(string path)
     {
-        var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write, Share = FileShare.None };
+        var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None };
         if (!OperatingSystem.IsWindows()) options.UnixCreateMode = PrivateFile;
         return new FileStream(path, options);
     }

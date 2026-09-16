@@ -32,7 +32,10 @@ Limits. Commands are validated before the mixer sees them: unknown
 channel or mix ids, plugins that are not installed or need a host
 feature the PipeWire chain lacks, undeclared parameter symbols,
 non-finite numbers, and over-long strings or lists all come back as an
-`error` message instead of being silently ignored. A client may send
+`error` message instead of being silently ignored. Insert entries must be objects
+with a nonempty id, a supported kind and a plugin identifier. Omitted `params`
+defaults to an empty object; explicit `null` entries or parameters are rejected.
+A client may send
 bursts of up to 300 commands and a sustained 100 per second; beyond
 that it is disconnected with close code 1008. At most 32 clients can be
 connected at once. The `plugins` message is bounded too: a plugin with a
@@ -70,7 +73,10 @@ new layout is written to `mixer.json`; a failed write restores the previous
 layout and answers with an error. Any command may carry a `requestId` of up to 64 characters; the
 daemon then answers with a `commandResult {requestId, error}` message after
 the state that reflects the outcome (`error` is null on success) instead of
-a bare `error` message, so an editor can wait for the acknowledgement:
+a bare `error` message, so an editor can wait for the acknowledgement.
+Failed plugin operations retain their typed `pluginInstall` or
+`windowsPluginFiles` reply with `ok:false` and also report the failure in
+that final acknowledgement (or an `error` without a request id):
 
 | Command | Fields | Purpose |
 |---|---|---|

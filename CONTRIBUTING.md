@@ -48,6 +48,13 @@ OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/Op
 OPENXLR_TEST_TOOLTIP=1 xvfb-run -a -s '-screen 0 1600x1000x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~ToolTipInputTests
 ```
 
+The monitor gain test plays a constant 0.1 signal, not a sine. On PipeWire
+1.0.x the two combine legs of a summed monitor feed are not sample-aligned,
+so a 1 kHz sine summed from Monitor A and B reads below the expected level
+although each leg's gain is right. With DC the sum does not depend on that
+delay. The test measures the settled part of the capture and the peak of
+the whole capture; it does not measure frequency response.
+
 The private PipeWire runner also checks profile startup ordering. To exercise
 ClipGuard with recorded test audio, low cut and a native LSP gate, run
 `OPENXLR_TEST_DSP=1 python3 tools/test-monitor-volume.py` after a native-enabled

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -38,6 +39,96 @@ public sealed class ProfileStartupTests
         public CancellationToken ApplicationStopped => _stop.Token;
         public void StopApplication() => _stop.Cancel();
         public void Dispose() { _stop.Cancel(); _stop.Dispose(); }
+    }
+
+    [Theory]
+    [InlineData("none")]
+    [InlineData("missing")]
+    [InlineData("corrupt")]
+    public async Task LastSettingsRestoreDoesNotWaitForAPluginScan(string scenario)
+    {
+        string dir = Directory.CreateTempSubdirectory("openxlr-profile-").FullName;
+        string? previous = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", dir);
+        try
+        {
+            new DaemonSettings { Submixer = false }.Save();
+            var config = new ConfigurationBuilder().Build();
+            var dock = new Dock();
+            using var devices = new DeviceManager(NullLogger<DeviceManager>.Instance, config, () => [dock]);
+            devices.SweepOnce();
+            DeviceStateStore.SaveLast("0fd9:00a6", new() { GainDb = 55 });
+            if (scenario != "none") ProfileStore.SetRecallOnConnect("0fd9:00a6", "Broken");
+            if (scenario == "corrupt")
+                OpenXlrPaths.WriteAtomic(Path.Combine(OpenXlrPaths.ConfigDir, "profiles", "0fd9-00a6", "Broken.json"), "{");
+            using var lifetime = new Lifetime();
+            using var mixer = new MixerService(NullLogger<MixerService>.Instance, config, devices);
+            var hub = new WebSocketHub(devices, mixer, NullLogger<WebSocketHub>.Instance, lifetime);
+            await mixer.StartAsync(CancellationToken.None);
+            object gate = typeof(WebSocketHub).GetField("_installGate", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(hub)!;
+            using var entered = new ManualResetEventSlim();
+            using var release = new ManualResetEventSlim();
+            Task scan = Task.Run(() => { lock (gate) { entered.Set(); release.Wait(); } });
+            Task? recall = null;
+            try
+            {
+                Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
+                recall = Task.Run(() => hub.RecallOnArrivalAsync(devices.CurrentConnection!.Value));
+                await recall.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.Equal(55, dock.Gain);
+                using var gain = JsonDocument.Parse("60");
+                Assert.Null(devices.Apply("gain", gain.RootElement));
+                await Task.Delay(1100);
+                devices.SweepOnce();
+                Assert.Equal(60, DeviceStateStore.LoadLast("0fd9:00a6")!.GainDb);
+            }
+            finally
+            {
+                release.Set();
+                await scan;
+                if (recall is not null) await recall;
+            }
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", previous);
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ManualRecallReportsAppliedDeviceSettingsWhenTheMixerFails()
+    {
+        string dir = Directory.CreateTempSubdirectory("openxlr-profile-").FullName;
+        string? previous = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", dir);
+        try
+        {
+            new DaemonSettings { Submixer = true }.Save();
+            var config = new ConfigurationBuilder().Build();
+            var dock = new Dock();
+            using var devices = new DeviceManager(NullLogger<DeviceManager>.Instance, config, () => [dock]);
+            devices.SweepOnce();
+            ProfileStore.Save("0fd9:00a6", "Saved", new()
+            {
+                Device = new() { GainDb = 55 }, Mixer = new(),
+            });
+            using var lifetime = new Lifetime();
+            using var mixer = new MixerService(NullLogger<MixerService>.Instance, config, devices);
+            var hub = new WebSocketHub(devices, mixer, NullLogger<WebSocketHub>.Instance, lifetime);
+
+            var result = await hub.ExecuteForApiAsync("""{"cmd":"loadProfile","name":"Saved"}""");
+
+            Assert.False(result.Ok);
+            Assert.Equal("device settings were applied, but mixer settings failed: mixer not built (start the daemon with --mixer)", Assert.Single(result.Messages.OfType<ErrorMessage>()).Message);
+            Assert.Equal(55, dock.Gain);
+            Assert.Null(hub.Snapshot().ActiveProfile);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", previous);
+            Directory.Delete(dir, recursive: true);
+        }
     }
 
     [Theory]
@@ -98,8 +189,11 @@ public sealed class ProfileStartupTests
         }
     }
 
-    [Fact]
-    public async Task ManualRecallSupersedesAnArrivalWaitingForInitialization()
+    [Theory]
+    [InlineData("valid")]
+    [InlineData("missing")]
+    [InlineData("corrupt")]
+    public async Task ManualRecallSupersedesAnArrivalWaitingForInitialization(string scenario)
     {
         string dir = Directory.CreateTempSubdirectory("openxlr-profile-").FullName;
         string? previous = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
@@ -111,7 +205,11 @@ public sealed class ProfileStartupTests
             var dock = new Dock();
             using var devices = new DeviceManager(NullLogger<DeviceManager>.Instance, config, () => [dock]);
             devices.SweepOnce();
-            ProfileStore.Save("0fd9:00a6", "Automatic", new() { Device = new() { GainDb = 45 } });
+            if (scenario == "valid")
+                ProfileStore.Save("0fd9:00a6", "Automatic", new() { Device = new() { GainDb = 45 } });
+            if (scenario == "corrupt")
+                OpenXlrPaths.WriteAtomic(Path.Combine(OpenXlrPaths.ConfigDir, "profiles", "0fd9-00a6", "Automatic.json"), "{");
+            DeviceStateStore.SaveLast("0fd9:00a6", new() { GainDb = 35 });
             ProfileStore.Save("0fd9:00a6", "Manual", new() { Device = new() { GainDb = 55 } });
             ProfileStore.SetRecallOnConnect("0fd9:00a6", "Automatic");
             using var lifetime = new Lifetime();

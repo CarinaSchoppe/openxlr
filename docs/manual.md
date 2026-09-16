@@ -162,6 +162,7 @@ configuration.
    changing the other mix or its channel sends. Its **150%** button unlocks
    boost in OpenXLR too. OpenDeck's monitor and output dials also support
    0 to 150%, so a boosted desktop value changes smoothly with each tick.
+   Those needles sweep the full range; every other dial keeps its 0 to 100% scale.
    Desktop changes are saved with the mixer settings
    and recalled after a daemon restart; explicitly loading a profile restores
    the values saved in that profile. A physical device named simply
@@ -765,6 +766,9 @@ An arrival that belongs to a previous connection is ignored, including a
 replug of the same model. If the chosen profile is missing or unreadable,
 the daemon logs the failure and uses the last stored hardware settings
 instead of saving the device's boot values over them.
+
+If a profile's device settings apply but its mixer settings fail, the error
+says so and gives the mixer failure.
 
 Loading a named profile, by clicking it or on connect, restores its saved
 gain even when the gain lock is on. The lock remains on and still blocks

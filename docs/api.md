@@ -329,3 +329,9 @@ budget and the picker's channel-width/format filters. Compare them with
 does not invalidate scan caches or retry plugins. The API returns paths and
 scanner messages to authenticated clients; the UI redacts personal paths
 when writing the diagnostics archive.
+
+The desktop client does not queue catalogue or diagnostic queries while its
+daemon connection is down. Such a query returns null at once and retains no
+pending reply slot. Queries already sent keep their request identity until
+the acknowledgement or disconnect, so a late reply cannot answer a newer
+query.

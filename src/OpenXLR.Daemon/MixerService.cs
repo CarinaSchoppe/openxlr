@@ -265,7 +265,7 @@ public sealed class MixerService : IHostedService, IDisposable
                     // Software DSP only for devices without the hardware version.
                     _mixer.SetLowCutApplicable(!(_devices.ActiveCapabilities?.LowCut ?? false));
                     _mixer.SetClipGuardApplicable(!(_devices.ActiveCapabilities?.ClipGuard ?? false));
-                    IReadOnlyList<string> restoredSinks = _mixer.EnsureOwnSinkLevels();
+                    bool monitorChanged = _mixer.SyncOwnSinkLevels(out IReadOnlyList<string> restoredSinks);
                     if (restoredSinks.Count > 0)
                         _log.LogWarning("put {n} OpenXLR sink(s) back to full volume, unmuted ({names}); something outside OpenXLR had changed them",
                             restoredSinks.Count, string.Join(", ", restoredSinks));
@@ -273,7 +273,7 @@ public sealed class MixerService : IHostedService, IDisposable
                     // healing pass below, so a chain that is about to be rebuilt
                     // comes back with the values its editor last showed.
                     // Desktop volume and mute changes are user settings too.
-                    if (_mixer.SyncPluginControls() | _mixer.SyncMonitorVolumes() | _mixer.SyncDeviceVolumes())
+                    if (_mixer.SyncPluginControls() | monitorChanged | _mixer.SyncDeviceVolumes())
                     {
                         ScheduleSave();
                         Changed?.Invoke();

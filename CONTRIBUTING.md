@@ -48,6 +48,12 @@ OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/Op
 OPENXLR_TEST_TOOLTIP=1 xvfb-run -a -s '-screen 0 1600x1000x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~ToolTipInputTests
 ```
 
+The private PipeWire runner also checks profile startup ordering. To exercise
+ClipGuard with recorded test audio, low cut and a native LSP gate, run
+`OPENXLR_TEST_DSP=1 python3 tools/test-monitor-volume.py` after a native-enabled
+build, with swh-plugins and LSP LV2 plugins installed. The runner isolates
+plugin scans from user-installed CLAP and VST3 bundles.
+
 The window layout test runs in its own process using X11 and isolated
 configuration, runtime and session-bus settings. It checks narrow plugin
 windows and mixer widths from 640 to 2400 logical pixels. Set

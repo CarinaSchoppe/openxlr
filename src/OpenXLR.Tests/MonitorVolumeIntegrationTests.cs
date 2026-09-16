@@ -3,6 +3,7 @@ using OpenXLR.Core.Mixing;
 
 namespace OpenXLR.Tests;
 
+[Collection("xdg-config")]
 public sealed class MonitorVolumeIntegrationTests
 {
     [MonitorPipeWireFact]

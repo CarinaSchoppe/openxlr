@@ -167,6 +167,32 @@ public sealed class DeviceManager : BackgroundService
     /// Handlers run under the manager's lock and must only hand off work.
     /// </summary>
     public event Action<string>? DeviceArrived;
+    internal readonly record struct Connection(string DeviceId, long Generation);
+    private long _connectionGeneration;
+
+    internal Connection? CurrentConnection
+    {
+        get
+        {
+            lock (_gate) return _device is { Connected: true }
+                ? new(DevId(_device), _connectionGeneration) : null;
+        }
+    }
+
+    // A queued restoration belongs to one arrival, including when the same
+    // model leaves and returns. Keep the identity check and the restoration
+    // together so a device switch cannot redirect the hardware writes.
+    // Callers must do slow mixer graph work outside this device lock.
+    internal bool WithConnection(Connection connection, Action restore)
+    {
+        lock (_gate)
+        {
+            if (CurrentConnection != connection) return false;
+            restore();
+            return true;
+        }
+    }
+
     private bool _everConnected;
     private ushort _lastPid;
     // Every model this run has driven, and which of those have since been
@@ -365,7 +391,11 @@ public sealed class DeviceManager : BackgroundService
             _everConnected = true;
             _lastPid = dev.Info.ProductId;
             _driven.Add(dev.Info.ProductId);
-            if (fresh) DeviceArrived?.Invoke($"{dev.Info.VendorId:x4}:{dev.Info.ProductId:x4}");
+            if (fresh)
+            {
+                _connectionGeneration++;
+                DeviceArrived?.Invoke(DevId(dev));
+            }
         }
     }
 
@@ -693,8 +723,8 @@ public sealed class DeviceManager : BackgroundService
     /// connect, which includes its gain even when the gain lock is set: the
     /// lock is there to keep the gain where the user put it, and refusing to
     /// restore it leaves the hardware at whatever its firmware powers up
-    /// with, which is the one outcome the lock exists to prevent. A profile
-    /// loaded by hand is a change like any other and the lock still refuses.
+    /// with, which is the one outcome the lock exists to prevent. Named profile
+    /// recall also restores gain; ordinary control commands still respect the lock.
     /// </summary>
     public string? ApplyProfile(DeviceState p, bool restoring = false)
     {

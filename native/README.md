@@ -236,14 +236,3 @@ while the user is resizing the frame.
 
 State and presets, and VST2, are separate work. Changing an insert's host
 rebuilds its chain; nothing here swaps a plugin without a gap.
-
-## Monitor gain integration test
-
-`python3 tools/test-monitor-volume.py` starts a private PipeWire server and
-checks desktop volume synchronization and the recorded monitor output. The
-gain test uses a constant signal and measures its settled samples, so a
-different latency on Monitor A and B does not introduce phase cancellation
-into the expected sum. It covers unity, attenuation, boost, zero, mute,
-independent mixes, summed feeds and direct playback to a monitor sink.
-It does not measure frequency response or guarantee phase alignment between
-independent monitor paths.

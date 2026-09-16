@@ -104,7 +104,9 @@ public sealed record MixerSettings
         try
         {
             if (!File.Exists(path)) return null;
-            return JsonSerializer.Deserialize<MixerSettings>(File.ReadAllText(path), Json);
+            MixerSettings? settings = JsonSerializer.Deserialize<MixerSettings>(File.ReadAllText(path), Json);
+            if (settings is not null) SavedMixerValidation.Validate(settings);
+            return settings;
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {

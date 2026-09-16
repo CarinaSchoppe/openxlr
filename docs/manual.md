@@ -1342,5 +1342,13 @@ Configuration paths honor `XDG_CONFIG_HOME`; the private wrapper root honors
 `XDG_DATA_HOME`. Without `XDG_RUNTIME_DIR`, runtime files use the private
 OpenXLR configuration directory.
 
+Saved mixer and hardware data are checked before restoration. Explicit null
+entries in required collections and non-finite levels are treated as corrupt
+data. An invalid `mixer.json` or hardware snapshot follows the existing
+unreadable-file fallback; an invalid profile is rejected before either its
+hardware or mixer settings are applied. Reading a rejected file does not
+rewrite it. Missing optional fields in older profiles retain their legacy
+meaning, and an unavailable plugin can still be remembered for later use.
+
 Uninstalling a package leaves `~/.config/openxlr` in place; remove it
 by hand if you want a clean slate.

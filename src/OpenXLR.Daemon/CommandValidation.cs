@@ -103,7 +103,7 @@ public static class CommandValidation
                 return null;
             case "setInserts":
                 if (cmd.Channel is null || cmd.Inserts is null) return "setInserts: need 'channel' and 'inserts'";
-                if (cmd.Channel is not null && !layout.IsInsertKey(cmd.Channel)) return $"setInserts: '{Short(cmd.Channel)}' has no insert chain";
+                if (!layout.IsInsertKey(cmd.Channel)) return $"setInserts: '{Short(cmd.Channel)}' has no insert chain";
                 if (cmd.Inserts is { Count: > MaxInsertsPerChannel }) return $"setInserts: at most {MaxInsertsPerChannel} inserts per chain";
                 if (cmd.Inserts is not null)
                 {

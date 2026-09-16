@@ -486,8 +486,7 @@ public sealed class MixerService : IHostedService, IDisposable
                     _mixer.SetSoftClipGuard(cmd.Value.GetBoolean());
                     break;
                 case "setInserts":
-                    if (cmd.Channel is null || cmd.Inserts is null) return "setInserts: need 'channel' and 'inserts'";
-                    _mixer.SetInserts(cmd.Channel, cmd.Inserts);
+                    _mixer.SetInserts(cmd.Channel!, cmd.Inserts!);   // both checked by CommandValidation
                     break;
                 case "setInsertBypass":
                     if (cmd.Channel is null || cmd.InsertId is null) return "setInsertBypass: need 'channel' and 'insertId'";

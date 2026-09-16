@@ -31,7 +31,10 @@ current Monitor A/B feed commands. Both transports share the dispatcher,
 validation and broadcasts. HTTP returns
 `{"apiVersion":"1","ok":true,"messages":[]}` after a successful mutation.
 Read replies are in `messages`; rejected commands return HTTP 400, `ok:false`
-and an error message. Some rejected optimistic edits also include current state.
+and an error message. This includes failed plugin installation and Windows
+plugin file operations: their typed reply remains in `messages`, followed by
+the error or failed `commandResult` when a request id was supplied.
+Some rejected optimistic edits also include current state.
 This reports execution, not a new durability guarantee: saving follows each
 existing command's behavior. Never automatically retry a mutation after losing
 the connection; it may already have executed.

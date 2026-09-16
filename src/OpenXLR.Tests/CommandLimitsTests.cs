@@ -43,6 +43,11 @@ public sealed class CommandLimitsTests
     [InlineData("""{"cmd":"setInserts","channel":"xlr1","inserts":[{"id":"a","kind":"lv2","plugin":"urn:test:ui"}]}""", "instance-access")]
     [InlineData("""{"cmd":"setInserts","channel":"xlr1","inserts":[{"id":"a","kind":"lv2","plugin":"urn:test:comp"},{"id":"a","kind":"lv2","plugin":"urn:test:comp"}]}""", "duplicate")]
     [InlineData("""{"cmd":"setInserts","channel":"xlr1","inserts":[{"id":"bad id!","kind":"lv2","plugin":"urn:test:comp"}]}""", "letters, digits")]
+    [InlineData("""{"cmd":"setInserts","channel":"xlr1","inserts":[null]}""", "every insert")]
+    [InlineData("""{"cmd":"setInserts","channel":"xlr1","inserts":[{"id":"a","kind":"lv2","plugin":"urn:test:comp","params":null}]}""", "parameters")]
+    [InlineData("""{"cmd":"setInserts","channel":"xlr1","inserts":[{"id":null,"kind":"lv2","plugin":"urn:test:comp"}]}""", "every insert")]
+    [InlineData("""{"cmd":"setInserts","channel":"xlr1","inserts":[{"id":"a","kind":null,"plugin":"urn:test:comp"}]}""", "every insert")]
+    [InlineData("""{"cmd":"setInserts","channel":"xlr1","inserts":null}""", "need 'channel' and 'inserts'")]
     public void RejectsWhatTheMixerUsedToSwallow(string json, string? expectedFragment)
     {
         string? result = CommandValidation.Check(Cmd(json), new Layout(), Find);

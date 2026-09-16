@@ -173,6 +173,13 @@ public sealed class WebSocketHub
         return new("1", !messages.Any(message => message is ErrorMessage or CommandResultMessage { Error: not null }), messages);
     }
 
+    internal static string? OperationError(object message) => message switch
+    {
+        PluginInstallMessage { Ok: false } result => result.Message,
+        WindowsPluginFilesMessage { Ok: false } result => result.Message,
+        _ => null,
+    };
+
     private async Task DispatchAsync(Func<object, Task> reply, string text)
     {
         Command? cmd;
@@ -192,6 +199,11 @@ public sealed class WebSocketHub
         // for the optimistic mixer controls so a rejected change snaps back.
         string? error = null;
         bool stateOnError = false;
+        async Task ReplyOperationAsync(object message)
+        {
+            error = OperationError(message);
+            await reply(message);
+        }
         switch (cmd.Cmd)
         {
             case "auth":
@@ -236,13 +248,13 @@ public sealed class WebSocketHub
                 break;
             case "installPlugin":
                 if (string.IsNullOrWhiteSpace(cmd.Path)) { error = "installPlugin: missing 'path'"; break; }
-                await reply(await Task.Run(() => InstallPlugin(installer => installer.Install(cmd.Path))));
+                await ReplyOperationAsync(await Task.Run(() => InstallPlugin(installer => installer.Install(cmd.Path))));
                 break;
             case "addWindowsPluginFolder":
             case "removeWindowsPluginFolder":
                 error = CommandValidation.CheckPluginPath(cmd);
                 if (error is not null) break;
-                await reply(await Task.Run(() => InstallPlugin(installer =>
+                await ReplyOperationAsync(await Task.Run(() => InstallPlugin(installer =>
                     cmd.Cmd == "addWindowsPluginFolder"
                         ? installer.AddWindowsFolder(cmd.Path!)
                         : installer.RemoveWindowsFolder(cmd.Path!, InsertPluginPaths()))));
@@ -250,7 +262,7 @@ public sealed class WebSocketHub
             case "getWindowsPluginFiles":
                 error = CommandValidation.CheckPluginPath(cmd);
                 if (error is not null) break;
-                await reply(await Task.Run(() =>
+                await ReplyOperationAsync(await Task.Run(() =>
                 {
                     lock (_installGate)
                         return new WindowsPluginFilesMessage(new OpenXLR.Core.Mixing.PluginInstaller()
@@ -260,7 +272,7 @@ public sealed class WebSocketHub
             case "removeWindowsPluginInserts":
                 error = CommandValidation.CheckPluginPath(cmd);
                 if (error is not null) break;
-                await reply(await Task.Run(() => RemoveWindowsPluginInserts(cmd.Path!)));
+                await ReplyOperationAsync(await Task.Run(() => RemoveWindowsPluginInserts(cmd.Path!)));
                 break;
             case "setWindowsPluginEnabled":
             case "deleteWindowsPlugin":
@@ -271,16 +283,16 @@ public sealed class WebSocketHub
                     error = "setWindowsPluginEnabled: value must be a boolean";
                     break;
                 }
-                await reply(await Task.Run(() => InstallPlugin(installer =>
+                await ReplyOperationAsync(await Task.Run(() => InstallPlugin(installer =>
                     cmd.Cmd == "setWindowsPluginEnabled"
                         ? installer.SetWindowsPluginEnabled(cmd.Path!, cmd.Value.GetBoolean(), InsertPluginPaths())
                         : installer.DeleteWindowsPlugin(cmd.Path!, InsertPluginPaths()))));
                 break;
             case "syncWindowsPlugins":
-                await reply(await Task.Run(() => InstallPlugin(installer => installer.SyncWindows(InsertPluginPaths()))));
+                await ReplyOperationAsync(await Task.Run(() => InstallPlugin(installer => installer.SyncWindows(InsertPluginPaths()))));
                 break;
             case "rescanPlugins":
-                await reply(await Task.Run(() => InstallPlugin(_ => new OpenXLR.Core.Mixing.InstallOutcome(true, "", []))));
+                await ReplyOperationAsync(await Task.Run(() => InstallPlugin(_ => new OpenXLR.Core.Mixing.InstallOutcome(true, "", []))));
                 break;
             case "setInserts":
                 // A folder cannot be removed between checking its users and

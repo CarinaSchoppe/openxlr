@@ -90,7 +90,27 @@ public sealed class WindowAutostartTests : IDisposable
 
         Assert.Equal(directoryBefore, File.GetUnixFileMode(AutostartDir));
         Assert.Equal(umaskMode, File.GetUnixFileMode(Entry));
-        Assert.Empty(Directory.GetFiles(AutostartDir, "*.openxlr-tmp"));
+        Assert.Equal([Entry, reference], Directory.GetFiles(AutostartDir).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void ATemporarySymlinkCannotRedirectTheStartupWrite()
+    {
+        Directory.CreateDirectory(AutostartDir);
+        string unrelated = Path.Combine(_home, "unrelated.txt");
+        File.WriteAllText(unrelated, "keep this file");
+        File.CreateSymbolicLink(Entry + ".openxlr-tmp", unrelated);
+        Assert.True(StartupIntegration.SetWindowAtLogin(true, Executable));
+        Assert.Equal("keep this file", File.ReadAllText(unrelated));
+        Assert.Equal([StartupIntegration.DesktopExec(Executable)], ExecValues());
+    }
+
+    [Fact]
+    public void AFailedStartupPublishLeavesNoTemporaryFile()
+    {
+        Directory.CreateDirectory(Entry);
+        Assert.False(StartupIntegration.SetWindowAtLogin(true, Executable));
+        Assert.Empty(Directory.GetFiles(AutostartDir));
     }
 
     /// <summary>

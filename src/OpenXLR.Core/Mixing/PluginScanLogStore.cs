@@ -118,12 +118,7 @@ public sealed class PluginScanLogStore(string directory)
         {
             OpenXlrPaths.EnsurePrivateDir(Directory);
             string text = Compose(id, attempt, PreviousAttempts(path) + 1, stdout, stdoutCapped, stderr, stderrCapped);
-            // Named for this process, so two daemons or two scans never write
-            // the same temporary file and never delete each other's.
-            string temporary = $"{path}.{Environment.ProcessId}.tmp";
-            using (FileStream stream = OpenXlrPaths.CreatePrivate(temporary))
-                stream.Write(Encoding.UTF8.GetBytes(text));
-            File.Move(temporary, path, overwrite: true);
+            OpenXlrPaths.WriteAtomic(path, text);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException
                                       or ArgumentException or System.Security.SecurityException)

@@ -40,6 +40,42 @@ public sealed class ProcessRunnerTests
         Assert.InRange(sw.Elapsed, TimeSpan.FromMilliseconds(300), TimeSpan.FromSeconds(10));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InheritedOutputMustFinishWithinTheDeadline(bool cancel)
+    {
+        using var stop = new CancellationTokenSource();
+        if (cancel) stop.CancelAfter(TimeSpan.FromMilliseconds(400));
+        // The shell exits successfully, but a child retains its output pipes.
+        ProcessResult result = await ProcessRunner.RunAsync("sh", ["-c", "sleep 30 & echo $!"],
+            cancel ? TimeSpan.FromSeconds(10) : TimeSpan.FromMilliseconds(400), cancel: stop.Token);
+        try
+        {
+            Assert.False(result.Ok);
+            Assert.Equal(!cancel, result.TimedOut);
+            if (cancel) Assert.NotEqual(0, result.ExitCode);
+        }
+        finally
+        {
+            // The child is already reparented; only clean up the PID our helper returned.
+            if (int.TryParse(result.StdoutText.Trim(), out int pid))
+                try { using var child = Process.GetProcessById(pid); child.Kill(); }
+                catch (ArgumentException) { }
+        }
+    }
+
+    [Fact]
+    public async Task AnAlreadyCancelledRequestDoesNotStartAHelper()
+    {
+        using var stop = new CancellationTokenSource();
+        stop.Cancel();
+        // A nonexistent executable proves no launch was attempted.
+        ProcessResult result = await ProcessRunner.RunAsync("/openxlr-test-missing-helper", [], cancel: stop.Token);
+        Assert.False(result.Ok);
+        Assert.False(result.TimedOut);
+    }
+
     [Fact]
     public async Task InteractiveProgramsKeepArgumentsAndEnvironmentSeparate()
     {

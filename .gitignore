@@ -10,6 +10,7 @@ native/tests/*.o
 native/tests/editor
 native/tests/audio
 native/tests/clap
+native/tests/vst3
 native/tests/lifecycle
 # nix build output symlink
 result

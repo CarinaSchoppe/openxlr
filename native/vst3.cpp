@@ -17,6 +17,7 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include <map>
+#include <limits>
 #include <string>
 #include <sys/stat.h>
 #include <vector>
@@ -159,10 +160,14 @@ class AttributeList final : public IAttributeList {
     return left;
   }
   tresult PLUGIN_API setInt(AttrID id, int64 value) override {
+    if (!id)
+      return kInvalidArgument;
     values_[id] = Value{Value::Int, value, 0, {}, {}};
     return kResultOk;
   }
   tresult PLUGIN_API getInt(AttrID id, int64 &value) override {
+    if (!id)
+      return kInvalidArgument;
     auto it = values_.find(id);
     if (it == values_.end() || it->second.kind != Value::Int)
       return kResultFalse;
@@ -170,10 +175,14 @@ class AttributeList final : public IAttributeList {
     return kResultOk;
   }
   tresult PLUGIN_API setFloat(AttrID id, double value) override {
+    if (!id)
+      return kInvalidArgument;
     values_[id] = Value{Value::Float, 0, value, {}, {}};
     return kResultOk;
   }
   tresult PLUGIN_API getFloat(AttrID id, double &value) override {
+    if (!id)
+      return kInvalidArgument;
     auto it = values_.find(id);
     if (it == values_.end() || it->second.kind != Value::Float)
       return kResultFalse;
@@ -181,6 +190,8 @@ class AttributeList final : public IAttributeList {
     return kResultOk;
   }
   tresult PLUGIN_API setString(AttrID id, const TChar *string) override {
+    if (!id)
+      return kInvalidArgument;
     std::u16string text;
     for (; string && *string; ++string)
       text += *string;
@@ -189,6 +200,8 @@ class AttributeList final : public IAttributeList {
   }
   tresult PLUGIN_API getString(AttrID id, TChar *string,
                                uint32 sizeInBytes) override {
+    if (!id || !string)
+      return kInvalidArgument;
     auto it = values_.find(id);
     if (it == values_.end() || it->second.kind != Value::String)
       return kResultFalse;
@@ -202,13 +215,20 @@ class AttributeList final : public IAttributeList {
   }
   tresult PLUGIN_API setBinary(AttrID id, const void *data,
                                uint32 sizeInBytes) override {
-    const auto *bytes = static_cast<const uint8_t *>(data);
-    values_[id] = Value{Value::Binary, 0, 0, {},
-                        std::vector<uint8_t>(bytes, bytes + sizeInBytes)};
+    if (!id || (!data && sizeInBytes > 0))
+      return kInvalidArgument;
+    std::vector<uint8_t> copy;
+    if (sizeInBytes > 0) {
+      const auto *bytes = static_cast<const uint8_t *>(data);
+      copy.assign(bytes, bytes + sizeInBytes);
+    }
+    values_[id] = Value{Value::Binary, 0, 0, {}, std::move(copy)};
     return kResultOk;
   }
   tresult PLUGIN_API getBinary(AttrID id, const void *&data,
                                uint32 &sizeInBytes) override {
+    if (!id)
+      return kInvalidArgument;
     auto it = values_.find(id);
     if (it == values_.end() || it->second.kind != Value::Binary)
       return kResultFalse;
@@ -358,7 +378,7 @@ class ParameterChanges final : public IParameterChanges {
   HOST_OWNED_REFCOUNT()
   int32 PLUGIN_API getParameterCount() override { return used; }
   IParamValueQueue *PLUGIN_API getParameterData(int32 index) override {
-    return index < used ? &queues[index] : nullptr;
+    return index >= 0 && index < used ? &queues[index] : nullptr;
   }
   IParamValueQueue *PLUGIN_API addParameterData(const ParamID &id,
                                                 int32 &index) override {
@@ -392,33 +412,55 @@ class MemoryStream final : public IBStream {
   HOST_OWNED_REFCOUNT()
   tresult PLUGIN_API read(void *buffer, int32 numBytes,
                           int32 *numBytesRead) override {
-    int32 left = (int32)bytes.size() - (int32)position;
-    int32 count = numBytes < left ? numBytes : (left > 0 ? left : 0);
-    memcpy(buffer, bytes.data() + position, (size_t)count);
-    position += (size_t)count;
     if (numBytesRead)
-      *numBytesRead = count;
+      *numBytesRead = 0;
+    if (numBytes < 0 || (!buffer && numBytes > 0))
+      return kInvalidArgument;
+    size_t left = position < bytes.size() ? bytes.size() - position : 0;
+    size_t count = std::min(static_cast<size_t>(numBytes), left);
+    if (count > 0) {
+      memcpy(buffer, bytes.data() + position, count);
+      position += count;
+    }
+    if (numBytesRead)
+      *numBytesRead = static_cast<int32>(count);
     return kResultOk;
   }
   tresult PLUGIN_API write(void *buffer, int32 numBytes,
                            int32 *numBytesWritten) override {
-    if (numBytes < 0)
+    if (numBytesWritten)
+      *numBytesWritten = 0;
+    if (numBytes < 0 || (!buffer && numBytes > 0))
+      return kInvalidArgument;
+    if (numBytes == 0)
+      return kResultOk;
+    // Check before addition or allocation, including a seek beyond EOF.
+    size_t count = static_cast<size_t>(numBytes);
+    if (position > bytes.max_size() || count > bytes.max_size() - position)
       return kResultFalse;
-    if (position + (size_t)numBytes > bytes.size())
-      bytes.resize(position + (size_t)numBytes);
-    memcpy(bytes.data() + position, buffer, (size_t)numBytes);
-    position += (size_t)numBytes;
+    size_t end = position + count;
+    if (end > bytes.size())
+      bytes.resize(end);
+    memcpy(bytes.data() + position, buffer, count);
+    position = end;
     if (numBytesWritten)
       *numBytesWritten = numBytes;
     return kResultOk;
   }
   tresult PLUGIN_API seek(int64 pos, int32 mode, int64 *result) override {
-    int64 base = mode == kIBSeekSet ? 0 : mode == kIBSeekCur ? (int64)position
-                                                              : (int64)bytes.size();
-    int64 target = base + pos;
-    if (target < 0)
+    int64 base;
+    switch (mode) {
+      case kIBSeekSet: base = 0; break;
+      case kIBSeekCur: base = static_cast<int64>(position); break;
+      case kIBSeekEnd: base = static_cast<int64>(bytes.size()); break;
+      default: return kInvalidArgument;
+    }
+    if (pos < -base || pos > std::numeric_limits<int64>::max() - base)
       return kResultFalse;
-    position = (size_t)target;
+    int64 target = base + pos;
+    if (static_cast<uint64>(target) > bytes.max_size())
+      return kResultFalse;
+    position = static_cast<size_t>(target);
     if (result)
       *result = target;
     return kResultOk;

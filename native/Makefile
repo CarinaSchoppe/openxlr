@@ -42,6 +42,16 @@ tests/clap.o: tests/clap.c host.c clap.c $(HEADERS)
 tests/clap: tests/clap.o lv2.o vst3.o
 	$(CXX) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
+# The C++ test includes vst3.cpp to exercise host-owned SDK objects.
+tests/vst3.o: tests/vst3.cpp vst3.cpp $(HEADERS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
+tests/host.o: host.c $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -Dmain=host_program_main -c $< -o $@
+
+tests/vst3: tests/vst3.o tests/host.o lv2.o clap.o
+	$(CXX) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+
 # A plugin lifecycle check against a real plugin, run by hand (see README).
 tests/lifecycle.o: tests/lifecycle.c host.c $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
@@ -49,9 +59,9 @@ tests/lifecycle.o: tests/lifecycle.c host.c $(HEADERS)
 tests/lifecycle: tests/lifecycle.o lv2.o clap.o vst3.o
 	$(CXX) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
-.PHONY: test test-editor test-audio test-clap clean
+.PHONY: test test-editor test-audio test-clap test-vst3 clean
 # The editor tests need a display; the others need nothing.
-test: test-audio test-clap test-editor
+test: test-audio test-clap test-vst3 test-editor
 
 test-editor: tests/editor
 	./tests/editor
@@ -62,5 +72,8 @@ test-audio: tests/audio
 test-clap: tests/clap
 	./tests/clap
 
+test-vst3: tests/vst3
+	./tests/vst3
+
 clean:
-	rm -f openxlr-lv2-host $(OBJECTS) tests/editor tests/editor.o tests/audio tests/audio.o tests/clap tests/clap.o tests/lifecycle tests/lifecycle.o
+	rm -f openxlr-lv2-host $(OBJECTS) tests/editor tests/editor.o tests/audio tests/audio.o tests/clap tests/clap.o tests/lifecycle tests/lifecycle.o tests/vst3 tests/vst3.o tests/host.o

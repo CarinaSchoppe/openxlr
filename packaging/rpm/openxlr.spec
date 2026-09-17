@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.38
+Version:        0.1.39
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -152,6 +152,11 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Thu Sep 17 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.39-1
+- The original Wave XLR (MK.1) gets a WirePlumber rule that keeps its capture node running, so a playback stream opening first can no longer silence the microphone for the life of the capture stream. Same bug and same fix as the XLR Dock; the rule matches the MK.1 only.
+- The daemon reads the default sink and source before any of its services start, so the default it defends after building the graph is the one the user had, not one WirePlumber moved to the card while the daemon switched its profile.
+- The USB vendor interface is claimed before control transfers, which removes the kernel's "did not claim interface 3 before use" warning on the MK.1 and the XLR Dock.
+
 * Thu Sep 17 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.38-1
 - A channel or mix name holding an apostrophe or a double quote reaches PipeWire intact. The name was escaped for one of the two passes that parse a module argument, so an apostrophe ended the description there and dropped the properties after it: the sink lost its session priority, was flagged virtual and could suspend on idle. LV2 port symbols from a bundle's metadata are escaped in the filter chain like the plugin URI.
 - A device that opens but answers every read badly is reopened after 2 seconds, doubling to 32 while the failures go on, instead of ten times a second with a USB helper process forked and killed each time. The MK.2 backends refuse a block answer shorter than the fields they decode.

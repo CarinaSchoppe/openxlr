@@ -1,3 +1,4 @@
+using System.Text;
 using OpenXLR.Core;
 using OpenXLR.Core.Mixing;
 
@@ -19,7 +20,7 @@ public sealed class PluginDirectoryTests : IDisposable
         File.WriteAllText(bundle, "plugin");
         Directory.CreateSymbolicLink(Path.Combine(_root, "again"), ".");
         int calls = 0;
-        var plugins = HostScan.Run(Guid.NewGuid().ToString("N"), "unused", [_root], path => Bundles(path, kind),
+        var plugins = HostScan.Run(Guid.NewGuid().ToString("N"), "unused", [_root], (path, _) => Bundles(path, kind),
             _ => { calls++; return new ProcessResult(0, "{\"plugins\":[{\"id\":\"good\"}]}"u8.ToArray(), "", false, false); },
             new ScanCache(Path.Combine(_root, "cache")));
         Assert.Single(plugins);
@@ -53,7 +54,23 @@ public sealed class PluginDirectoryTests : IDisposable
         string plugin = Path.Combine(readable, "effect.clap");
         File.WriteAllText(plugin, "plugin");
         File.SetUnixFileMode(denied, UnixFileMode.None);
-        try { Assert.Equal(plugin, Assert.Single(ClapCatalog.Bundles(_root))); }
+        try
+        {
+            Assert.Equal(plugin, Assert.Single(ClapCatalog.Bundles(_root)));
+            // Through the whole scan, the plugin is listed and the folder
+            // that was passed over is named. A skip nobody hears of would
+            // send a diagnostics archive saying the folder was fine.
+            string kind = Guid.NewGuid().ToString("N");
+            var found = HostScan.Run(kind, "unused", [_root], ClapCatalog.Bundles,
+                _ => new(0, Encoding.UTF8.GetBytes("{\"plugins\":[{\"id\":\"fx\",\"name\":\"Fx\",\"audioIns\":2,\"audioOuts\":2}]}"), "", false, false),
+                new ScanCache(Path.Combine(_root, "cache")));
+            Assert.Single(found);
+            var report = PluginScanDiagnostics.Snapshot().Single(r => r.Kind == kind);
+            var error = Assert.Single(report.Entries, e => e.Outcome == "directory-error");
+            Assert.Equal(denied, error.Path);
+            Assert.Contains(report.Entries, e => e.Outcome == "ok" && e.Path == plugin);
+            Assert.Single(PluginScanDiagnostics.Failures([report]));
+        }
         finally { File.SetUnixFileMode(denied, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
     }
 

@@ -219,7 +219,7 @@ public sealed class NativeHostProtocolTests
             threading.Thread(target=beat, daemon=True).start()
             for line in sys.stdin:
                 pass
-            """, patience: TimeSpan.FromMilliseconds(500));
+            """, patience: TimeSpan.FromSeconds(5));
         using var stalled = Start("""
             import sys
             print('ready')
@@ -231,16 +231,21 @@ public sealed class NativeHostProtocolTests
         var live = new FilterHandle("live", "sink", "source", beating.Process) { NativeHost = beating };
         var stuck = new FilterHandle("stuck", "sink", "source", stalled.Process) { NativeHost = stalled };
 
+        // The beating helper gets five seconds of patience against its 50 ms
+        // beat, and the stalled one half a second. A loaded runner can pause a
+        // helper and its output reader together, and with the same short
+        // patience on both, the live stage read as dead for a sample now and
+        // then, which is not what this test is about. What it is about is that
+        // a beating stage is never rebuilt, so that holds on every sample.
         bool noticed = false;
         for (int attempt = 0; attempt < 40 && !noticed; attempt++)
         {
-            // A loaded runner can pause both helpers and their output readers.
-            // Observe the two expected states together after the live reader
-            // has caught up, rather than sampling it once at an arbitrary time.
-            noticed = !stuck.IsAlive && live.IsAlive;
+            Assert.True(live.IsAlive, "a stage whose helper is still beating must not be rebuilt");
+            noticed = !stuck.IsAlive;
             if (!noticed) await Task.Delay(100);
         }
-        Assert.True(noticed, "the stalled stage should read as dead while the beating stage remains alive");
+        Assert.True(noticed, "a stage whose helper stopped beating should read as dead");
+        Assert.True(live.IsAlive, "a stage whose helper is still beating must not be rebuilt");
         Assert.True(stalled.IsRunning, "and it is a live process, which is what made this invisible before");
     }
 

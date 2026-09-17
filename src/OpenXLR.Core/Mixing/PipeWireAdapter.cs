@@ -56,8 +56,17 @@ public sealed class PipeWireAdapter
     /// channels ran for months without priority.session, without
     /// suspend-on-idle=false, and flagged node.virtual, which KDE's audio
     /// applet hides. Verified on PipeWire 1.6 with all four properties.
+    ///
+    /// Each pass strips one layer of backslash escapes, so a character that
+    /// matters to the inner pass (a quote or a backslash in a user's name)
+    /// is escaped there by <see cref="PropValue"/> and the result escaped
+    /// again here for the outer pass. One layer, the earlier form, let a
+    /// name with an apostrophe end the description at the apostrophe and
+    /// drop the properties after it. Verified on PipeWire 1.6.8 with a
+    /// name holding both quotes, a backslash and '#'.
     /// </summary>
-    private static string PropList(string props) => '"' + props + '"';
+    internal static string PropList(string props)
+        => '"' + props.Replace("\\", "\\\\").Replace("\"", "\\\"") + '"';
 
     /// <summary>
     /// A string inside a filter-chain (SPA JSON) argument. PipeWire's
@@ -70,7 +79,8 @@ public sealed class PipeWireAdapter
     /// </summary>
     internal static string SpaString(string value)
         => value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("#", "\\u0023");
-    private static string PropValue(string value) => "'" + value.Replace("\\", "\\\\").Replace("'", "\\'") + "'";
+    /// <summary>A value inside a <see cref="PropList"/>: single-quoted for the inner pass.</summary>
+    internal static string PropValue(string value) => "'" + value.Replace("\\", "\\\\").Replace("'", "\\'") + "'";
 
     /// <summary>
     /// Check the optional LADSPA dependency before changing a live graph. PipeWire
@@ -638,9 +648,11 @@ public sealed class PipeWireAdapter
             string name = $"i{k++}";
             string controls = ins.Params.Count == 0 ? "" :
                 " control = { " + string.Join(' ', ins.Params.Select(p => $"\"{SpaString(p.Key)}\" = {p.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}")) + " }";
+            // The port symbols come from the bundle's metadata, quoted below
+            // in the links and the inputs and outputs lists.
             stages.Add(($"{{ type = lv2 name = {name} plugin = \"{SpaString(ins.Plugin)}\"{controls} }}",
-                [.. info.InputSymbols.Take(channels).Select(s => $"{name}:{s}")],
-                [.. info.OutputSymbols.Take(channels).Select(s => $"{name}:{s}")]));
+                [.. info.InputSymbols.Take(channels).Select(s => $"{name}:{SpaString(s)}")],
+                [.. info.OutputSymbols.Take(channels).Select(s => $"{name}:{SpaString(s)}")]));
         }
         if (stages.Count == 0)
             throw new ArgumentException("filter chain needs at least one stage");

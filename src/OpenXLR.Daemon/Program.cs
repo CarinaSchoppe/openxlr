@@ -9,7 +9,15 @@ const int ApiPort = 37890;
 // host below runs in that mode.
 if (args.Length == 1 && args[0] == "--usb-helper") return UsbHelperMain.Run();
 
-var builder = WebApplication.CreateBuilder(args);
+// The content root is where the host looks for appsettings.json, and it
+// defaults to the working directory: the home directory under the user
+// unit. A Kestrel endpoint section in a file there would replace the
+// loopback address below, so the root is pinned to the install directory.
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory,
+});
 
 // Start the notifier before graph construction so progressing startup work
 // can extend systemd's deadline. Readiness still waits for ApplicationStarted.
@@ -84,8 +92,8 @@ if (instanceLock is null)
 // fail to bind, abort with a core dump, get restarted by systemd, repeat.
 // Every cycle tore the user's sinks down and back up. 37890 sits inside the
 // kernel's ephemeral range, so any local program's outgoing connection can
-// hold it for a while (the packages reserve it via sysctl; source installs
-// may not). Wait for the port first, before anything touches PipeWire.
+// hold it for a while. Wait for the port first, before anything touches
+// PipeWire.
 long deadline = Environment.TickCount64 + 60_000;
 for (int attempt = 0; ; attempt++)
 {

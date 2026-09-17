@@ -59,9 +59,15 @@ tests/lifecycle.o: tests/lifecycle.c host.c $(HEADERS)
 tests/lifecycle: tests/lifecycle.o lv2.o clap.o vst3.o
 	$(CXX) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
-.PHONY: test test-editor test-audio test-clap test-vst3 clean
+.PHONY: test test-editor test-audio test-clap test-vst3 test-scan clean
 # The editor tests need a display; the others need nothing.
-test: test-audio test-clap test-vst3 test-editor
+test: test-audio test-clap test-vst3 test-scan test-editor
+
+tests/scan-plugin.so: tests/scan-plugin.cpp $(HEADERS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++20 -shared -fPIC $< -o $@
+
+test-scan: openxlr-lv2-host tests/scan-plugin.so
+	python3 tests/scan.py
 
 test-editor: tests/editor
 	./tests/editor
@@ -76,4 +82,4 @@ test-vst3: tests/vst3
 	./tests/vst3
 
 clean:
-	rm -f openxlr-lv2-host $(OBJECTS) tests/editor tests/editor.o tests/audio tests/audio.o tests/clap tests/clap.o tests/lifecycle tests/lifecycle.o tests/vst3 tests/vst3.o tests/host.o
+	rm -f openxlr-lv2-host $(OBJECTS) tests/editor tests/editor.o tests/audio tests/audio.o tests/clap tests/clap.o tests/lifecycle tests/lifecycle.o tests/vst3 tests/vst3.o tests/host.o tests/scan-plugin.so

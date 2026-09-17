@@ -422,6 +422,7 @@ public static class StartupIntegration
                     Environment=OPENXLR_BUILD_MIXER=1
                     TimeoutStopSec=45
                     KillMode=mixed
+                    LimitMEMLOCK=infinity
                     Restart=on-failure
                     RestartSec=3
                     NoNewPrivileges=true

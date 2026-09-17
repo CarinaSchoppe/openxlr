@@ -60,8 +60,9 @@ public static class ProcessRunner
     /// <summary>Run to completion on the calling thread. See <see cref="RunAsync"/>.</summary>
     public static ProcessResult Run(string exe, IReadOnlyList<string> args, TimeSpan? timeout = null,
         int stdoutCap = DefaultStdoutCap, int stderrCap = DefaultStderrCap, bool cLocale = true,
-        CancellationToken cancel = default, IReadOnlyDictionary<string, string>? environment = null)
-        => RunAsync(exe, args, timeout, stdoutCap, stderrCap, cLocale, cancel, environment).GetAwaiter().GetResult();
+        CancellationToken cancel = default, IReadOnlyDictionary<string, string>? environment = null,
+        IReadOnlyCollection<string>? removeEnvironment = null)
+        => RunAsync(exe, args, timeout, stdoutCap, stderrCap, cLocale, cancel, environment, removeEnvironment).GetAwaiter().GetResult();
 
     /// <summary>
     /// Run a helper with a deadline and output caps. Throws only when the
@@ -74,7 +75,8 @@ public static class ProcessRunner
     /// </summary>
     public static async Task<ProcessResult> RunAsync(string exe, IReadOnlyList<string> args, TimeSpan? timeout = null,
         int stdoutCap = DefaultStdoutCap, int stderrCap = DefaultStderrCap, bool cLocale = true,
-        CancellationToken cancel = default, IReadOnlyDictionary<string, string>? environment = null)
+        CancellationToken cancel = default, IReadOnlyDictionary<string, string>? environment = null,
+        IReadOnlyCollection<string>? removeEnvironment = null)
     {
         if (cancel.IsCancellationRequested) return new ProcessResult(-1, [], "", false, false, Cancelled: true);
         var psi = new ProcessStartInfo(exe)
@@ -84,8 +86,7 @@ public static class ProcessRunner
             RedirectStandardInput = false,
             UseShellExecute = false,
         };
-        if (environment is not null)
-            foreach ((string name, string value) in environment) psi.Environment[name] = value;
+        ApplyEnvironment(psi, environment, removeEnvironment);
         if (cLocale)
         {
             psi.Environment["LC_ALL"] = "C";
@@ -136,15 +137,24 @@ public static class ProcessRunner
     /// lifetime belongs to the user: never kill an installer halfway through.
     /// </summary>
     public static async Task<int> RunInteractiveAsync(string exe, IReadOnlyList<string> args,
-        IReadOnlyDictionary<string, string>? environment = null)
+        IReadOnlyDictionary<string, string>? environment = null, IReadOnlyCollection<string>? removeEnvironment = null)
     {
         var start = new ProcessStartInfo(exe) { UseShellExecute = false };
         foreach (string argument in args) start.ArgumentList.Add(argument);
-        if (environment is not null)
-            foreach ((string name, string value) in environment) start.Environment[name] = value;
+        ApplyEnvironment(start, environment, removeEnvironment);
         using Process process = Process.Start(start) ?? throw new InvalidOperationException($"failed to start {exe}");
         await process.WaitForExitAsync().ConfigureAwait(false);
         return process.ExitCode;
+    }
+
+    /// <summary>Overlay inherited values, then remove only the names the caller chose.</summary>
+    internal static void ApplyEnvironment(ProcessStartInfo start, IReadOnlyDictionary<string, string>? environment,
+        IReadOnlyCollection<string>? removeEnvironment = null)
+    {
+        if (environment is not null)
+            foreach ((string name, string value) in environment) start.Environment[name] = value;
+        if (removeEnvironment is not null)
+            foreach (string name in removeEnvironment) start.Environment.Remove(name);
     }
 
     private static async Task<(byte[] Data, bool Truncated, bool Incomplete)> ReadCappedAsync(Stream pipe, int cap, CancellationTokenSource breach)

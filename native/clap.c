@@ -784,11 +784,16 @@ static void scan_nothing(const clap_host_t *host) {}
 // be read; a plugin that crashes takes this process, and only this bundle,
 // with it.
 int clap_scan(const char *file) {
+  // Like the VST3 scanner, phases are always visible in a failed log.
+  // Port, editor support and parameter queries share one bounded marker.
+  fputs("trace: scan CLAP: module load\n", stderr);
   Clap c = {0};
   if (!open_bundle(&c, file))
     return 1;
+  fputs("trace: scan CLAP: factory plugins\n", stderr);
   const clap_plugin_factory_t *factory = factory_of(&c);
   if (!factory) {
+    fputs("trace: scan CLAP: module release\n", stderr);
     c.entry->deinit();
     return 1;
   }
@@ -810,13 +815,16 @@ int clap_scan(const char *file) {
   uint32_t count = factory->get_plugin_count(factory);
   bool first = true;
   for (uint32_t i = 0; i < count; ++i) {
+    fprintf(stderr, "trace: scan CLAP plugin %u: descriptor and create\n", i);
     const clap_plugin_descriptor_t *d = factory->get_plugin_descriptor(factory, i);
     if (!d || !d->id)
       continue;
     const clap_plugin_t *plugin = factory->create_plugin(factory, &host, d->id);
     if (!plugin)
       continue;
+    fprintf(stderr, "trace: scan CLAP plugin %u: initialize\n", i);
     if (!plugin->init(plugin)) {
+      fprintf(stderr, "trace: scan CLAP plugin %u: destroy\n", i);
       plugin->destroy(plugin);
       continue;
     }
@@ -833,6 +841,7 @@ int clap_scan(const char *file) {
         putchar(',');
       json_string(*f);
     }
+    fprintf(stderr, "trace: scan CLAP plugin %u: ports, GUI support and parameters\n", i);
     const clap_plugin_audio_ports_t *ports =
         plugin->get_extension(plugin, CLAP_EXT_AUDIO_PORTS);
     // The catalogue shows the main ports' widths, and says so when the whole
@@ -882,10 +891,13 @@ int clap_scan(const char *file) {
              (info.flags & CLAP_PARAM_IS_ENUM) ? "true" : "false");
     }
     printf("]}");
+    fprintf(stderr, "trace: scan CLAP plugin %u: destroy\n", i);
     plugin->destroy(plugin);
   }
   puts("]}");
+  fputs("trace: scan CLAP: module release\n", stderr);
   c.entry->deinit();
   dlclose(c.library);
+  fputs("trace: scan CLAP: complete\n", stderr);
   return 0;
 }

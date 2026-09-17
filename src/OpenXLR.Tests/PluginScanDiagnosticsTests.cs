@@ -67,7 +67,10 @@ public sealed class PluginScanDiagnosticsTests
             Assert.Equal(2, goodCalls); // reading evidence does not invalidate the cache
             report = PluginScanDiagnostics.Snapshot().Single(r => r.Kind == kind);
             Assert.Equal(2, report.Entries.Count(e => e.Outcome == "ok" && e.Cached));
-            Assert.Contains(report.Entries, e => e.Outcome == "invalid-description" && e.Cached);
+            Assert.Contains(report.Entries, e => e.Path.EndsWith("invalid.vst3", StringComparison.Ordinal)
+                && e.Outcome == "skipped-failed" && e.Cached);
+            Assert.Equal(4, report.SkippedFailedCount);
+            Assert.Contains(report.SkippedFailedBundles, e => e.Outcome == "invalid-description");
 
             // A cache filled by an older helper answers nothing: whatever the
             // scanner has learnt since reaches bundles that never changed.
@@ -146,14 +149,14 @@ public sealed class PluginScanDiagnosticsTests
 
             // Rescan retries a timeout, including through a reloaded disk cache.
             Assert.Empty(HostScan.Run(kind, "unused", [dir], Vst3Catalog.Bundles, Describe,
-                new ScanCache(Path.Combine(dir, "cache"))));
+                new ScanCache(Path.Combine(dir, "cache")), retryFailures: true));
             Assert.Equal(2, calls);
 
             // When the same bundle answers, the old warning disappears and
             // the successful description can be cached without another launch.
             ProcessResult Recovered(string _) => new(0, Encoding.UTF8.GetBytes(
                 "{\"plugins\":[{\"id\":\"recovered\",\"name\":\"Recovered\",\"audioIns\":2,\"audioOuts\":2}]}"), "", false, false);
-            Assert.Single(HostScan.Run(kind, "unused", [dir], Vst3Catalog.Bundles, Recovered, cache));
+            Assert.Single(HostScan.Run(kind, "unused", [dir], Vst3Catalog.Bundles, Recovered, cache, retryFailures: true));
             Assert.Single(HostScan.Run(kind, "unused", [dir], Vst3Catalog.Bundles, Describe, cache));
             Assert.Equal(2, calls);
             report = PluginScanDiagnostics.Snapshot().Single(r => r.Kind == kind);

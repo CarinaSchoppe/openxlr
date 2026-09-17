@@ -37,8 +37,31 @@ public sealed class DiagnosticsTests
                 object reply = cmd switch
                 {
                     "listPlugins" => new { type = "plugins", plugins = new[] { new { name = "Windows EQ", path = home + "/.vst3/EQ.vst3", audioIns = 2 } } },
-                    "getPluginSetup" => new { type = "pluginSetup", bridgeProvider = "openxlr", wineVersion = "wine-11.0", windowsDirectories = new[] { home + "/.wine/VST3" } },
-                    "getPluginDiagnostics" => new { type = "pluginDiagnostics", scans = new[] { new { path = home + "/.vst3/Missing.vst3", error = "module not found" } } },
+                    "getPluginSetup" => new { type = "pluginSetup", bridgeProvider = "openxlr", wineVersion = "wine-11.0", windowsDirectories = new[] { home + "/.wine/VST3" }, memoryLockLimitBytes = 8388608L, memoryLockHardLimitBytes = -1L },
+                    "getPluginDiagnostics" => new
+                    {
+                        type = "pluginDiagnostics",
+                        discovery = new
+                        {
+                            memoryLockLimitBytes = 8388608L, memoryLockHardLimitBytes = -1L,
+                            hostEnvironment = new
+                            {
+                                cleanLaunch = true,
+                                wineRunner = home + "/runners/wine",
+                                wineLoader = home + "/runners/wine",
+                                loaderEnvironment = new Dictionary<string, string?> { ["LD_LIBRARY_PATH"] = null, ["LD_PRELOAD"] = null, ["LD_AUDIT"] = null },
+                                removedLoaderEnvironment = new Dictionary<string, string>
+                                {
+                                    ["LD_LIBRARY_PATH"] = home + "/cuda:/usr/lib",
+                                    ["LD_PRELOAD"] = home + "/overlays/capture.so",
+                                    ["LD_AUDIT"] = home + "/audit.so",
+                                },
+                            },
+                            skippedFailedCount = 1,
+                            skippedFailedBundles = new[] { new { path = home + "/.vst3/Missing.vst3", reason = "timed out", failedAt = "2026-09-17T10:00:00Z" } },
+                            scans = new[] { new { path = home + "/.vst3/Missing.vst3", error = "module not found" } },
+                        },
+                    },
                     _ => new { type = "diagnostics", blocks = new { } }
                 };
                 await SocketTestServer.Send(socket, reply, stop);
@@ -66,6 +89,17 @@ public sealed class DiagnosticsTests
             Assert.Contains("Windows EQ", entries["plugins.json"]);
             Assert.Contains("openxlr", entries["plugin-setup.json"]);
             Assert.Contains("module not found", entries["plugin-discovery.json"]);
+            using var discovery = System.Text.Json.JsonDocument.Parse(entries["plugin-discovery.json"]);
+            var discoveryData = discovery.RootElement.GetProperty("discovery");
+            Assert.Equal(-1, discoveryData.GetProperty("memoryLockHardLimitBytes").GetInt64());
+            Assert.Equal(8388608, discoveryData.GetProperty("memoryLockLimitBytes").GetInt64());
+            var environment = discoveryData.GetProperty("hostEnvironment");
+            Assert.True(environment.GetProperty("cleanLaunch").GetBoolean());
+            Assert.Equal("<redacted>/runners/wine", environment.GetProperty("wineRunner").GetString());
+            Assert.Equal("<redacted>/runners/wine", environment.GetProperty("wineLoader").GetString());
+            foreach (var value in environment.GetProperty("removedLoaderEnvironment").EnumerateObject())
+                Assert.StartsWith("<redacted>/", value.Value.GetString());
+            Assert.Equal("<redacted>/.vst3/Missing.vst3", discoveryData.GetProperty("skippedFailedBundles")[0].GetProperty("path").GetString());
             foreach (string name in new[] { "plugins.json", "plugin-setup.json", "plugin-discovery.json" })
             {
                 Assert.DoesNotContain(home, entries[name]);

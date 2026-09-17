@@ -88,6 +88,7 @@ in
         TimeoutStartSec = 120;
         ExecStart = "${cfg.package}/bin/openxlr-daemon";
         TimeoutStopSec = 45;
+        LimitMEMLOCK = "infinity";
         KillMode = "mixed";
         Restart = "on-failure";
         RestartSec = 3;

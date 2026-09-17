@@ -13,6 +13,15 @@ internal sealed class NativePluginHost : IDisposable
 {
     private readonly ConcurrentDictionary<string, double> _changes = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, double> _meters = new(StringComparer.Ordinal);
+    // The meter symbols the catalogue declares for this plugin, or null to
+    // take any. Controls are checked against the catalogue downstream, when
+    // the mixer drains them, and the drain also empties the table; meters
+    // are never drained, so a check there would come too late. A library
+    // that writes to the shared stdout while it loads can otherwise fill
+    // every slot with names of its own, after which each real meter the
+    // host reports is refused for the life of the process, and the junk is
+    // copied into every state snapshot sent to every client.
+    private readonly IReadOnlySet<string>? _meterSymbols;
     private readonly SemaphoreSlim _writes = new(1, 1);
     private readonly CancellationTokenSource _stop = new();
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -135,13 +144,16 @@ internal sealed class NativePluginHost : IDisposable
             or "http://lv2plug.in/ns/extensions/ui#idleInterface");
 
     public NativePluginHost(InsertDefinition insert, string node, int channels, int sampleRate, string? bundle = null)
-        : this(insert, node, channels, sampleRate, Executable, [], bundle: bundle) { }
+        : this(insert, node, channels, sampleRate, Executable, [], bundle: bundle,
+            meterSymbols: PluginCatalog.Find(insert)?.Params.Select(p => p.Symbol).ToHashSet(StringComparer.Ordinal)
+                ?? new HashSet<string>(StringComparer.Ordinal)) { }
 
     internal NativePluginHost(InsertDefinition insert, string node, int channels, int sampleRate,
         string executable, IReadOnlyList<string> prefixArguments, TimeSpan? startupTimeout = null,
-        TimeSpan? patience = null, string? bundle = null)
+        TimeSpan? patience = null, string? bundle = null, IReadOnlySet<string>? meterSymbols = null)
     {
         if (patience is { } chosen) _patience = chosen;
+        _meterSymbols = meterSymbols;
         Bridged = WineSession.Bridged(bundle);
         if (!File.Exists(executable))
             throw new InvalidOperationException(
@@ -247,7 +259,8 @@ internal sealed class NativePluginHost : IDisposable
                 || !double.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
                 || !double.IsFinite(value)) return;
             if (parts[0] == "control") StoreValue(_changes, parts[1], value);
-            else if (parts[0] == "meter") StoreValue(_meters, parts[1], value);
+            else if (parts[0] == "meter" && (_meterSymbols is null || _meterSymbols.Contains(parts[1])))
+                StoreValue(_meters, parts[1], value);
         }
     }
 

@@ -6,9 +6,10 @@ namespace OpenXLR.Tests;
 public sealed class NativeHostProtocolTests
 {
     private static NativePluginHost Start(string script, TimeSpan? startupTimeout = null,
-        TimeSpan? patience = null)
+        TimeSpan? patience = null, IReadOnlySet<string>? meters = null)
         => new(new InsertDefinition { Id = "test", Kind = "lv2", Plugin = "urn:test" },
-            "test", 2, 48000, "/usr/bin/python3", ["-u", "-c", script], startupTimeout, patience);
+            "test", 2, 48000, "/usr/bin/python3", ["-u", "-c", script], startupTimeout, patience,
+            meterSymbols: meters);
 
     [Fact]
     public void FakeHelperCoversReadyControlMeterAndUiReplies()
@@ -70,6 +71,7 @@ public sealed class NativeHostProtocolTests
             for i in range(5000):
                 print('control c%d 0.5' % i)
                 print('meter m%d 0.5' % i)
+            print('meter rms 0.5')
             for line in sys.stdin:
                 if line.strip() == 'show':
                     print('control gain 0.75')
@@ -78,10 +80,14 @@ public sealed class NativeHostProtocolTests
                 elif line.startswith('set '):
                     _, symbol, value = line.split()
                     print('control', symbol, value)
-            """);
+            """, meters: new HashSet<string>(["peak", "rms"], StringComparer.Ordinal));
         host.ShowUi();
-        Assert.Equal(4096, host.Meters.Count);
+        // Five thousand names the catalogue never declared take no slot, so
+        // a meter first reported after the flood still lands. Without the
+        // filter, "rms" arrives at a full table and is refused.
+        Assert.Equal(2, host.Meters.Count);
         Assert.Equal(0.75, host.Meters["peak"]);
+        Assert.Equal(0.5, host.Meters["rms"]);
         var changes = host.DrainChanges().ToArray();
         Assert.Equal(4096, changes.Length);
         Assert.Equal(0.75, changes.Single(pair => pair.Key == "gain").Value);

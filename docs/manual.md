@@ -1050,7 +1050,10 @@ and Aux are listed but fixed.
   channel. Deleting a mix removes its virtual microphone, and anything
   recording from it loses the device.
 
-Every change is saved before the editor confirms it. If the settings
+Every change is saved before the editor confirms it. Once the daemon has
+finished its final save during shutdown or restart, late layout changes are
+refused before they alter the mixer or write settings. Retry them after the
+daemon starts again. If the settings
 file cannot be written the change is undone and the editor says why. The
 same happens when pipewire-pulse has no room for more streams
 ([section 5.8](#open-files) explains the limit and the drop-in that raises

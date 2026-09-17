@@ -246,6 +246,23 @@ public sealed class WebSocketHub
             case "getPluginSetup":
                 await reply(new PluginSetupMessage(await Task.Run(() => new OpenXLR.Core.Mixing.PluginInstaller().Setup())));
                 break;
+            case "setPluginWineTrace":
+                error = CommandValidation.CheckPluginWineTrace(cmd);
+                if (error is not null) break;
+                await reply(await Task.Run(() =>
+                {
+                    lock (_installGate)
+                    {
+                        // Keep this in the daemon's environment, never its settings:
+                        // slow, large traces must not survive a restart by accident.
+                        // A startup environment value still works, and WINEDEBUG
+                        // remains the user's override. Rescan retries failed bundles;
+                        // changing this switch neither scans nor clears good cache entries.
+                        Environment.SetEnvironmentVariable("OPENXLR_PLUGIN_WINE_TRACE", cmd.Value.GetBoolean() ? "1" : null);
+                        return new PluginSetupMessage(new OpenXLR.Core.Mixing.PluginInstaller().Setup());
+                    }
+                }));
+                break;
             case "installPlugin":
                 if (string.IsNullOrWhiteSpace(cmd.Path)) { error = "installPlugin: missing 'path'"; break; }
                 await ReplyOperationAsync(await Task.Run(() => InstallPlugin(installer => installer.Install(cmd.Path))));

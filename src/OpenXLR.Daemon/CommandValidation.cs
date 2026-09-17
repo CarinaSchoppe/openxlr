@@ -32,6 +32,8 @@ public static class CommandValidation
                 return null;
             case "setNativeEditorRule":
                 return CheckEditorRule(cmd);
+            case "setPluginWineTrace":
+                return CheckPluginWineTrace(cmd);
             case "addWindowsPluginFolder":
             case "removeWindowsPluginFolder":
             case "getWindowsPluginFiles":
@@ -171,6 +173,10 @@ public static class CommandValidation
            || cmd.Name is { Length: > 200 } || cmd.Name?.Any(char.IsControl) == true
             ? "setNativeEditorRule: need a valid kind, plugin id and optional name"
             : null;
+
+    internal static string? CheckPluginWineTrace(Command cmd)
+        => cmd.Value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? null : "setPluginWineTrace: value must be a boolean";
 
     internal static string? CheckPluginPath(Command cmd)
         => string.IsNullOrWhiteSpace(cmd.Path) || cmd.Path.Length > 4096

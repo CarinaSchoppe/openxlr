@@ -115,6 +115,32 @@ public sealed class OptionsViewModel : ViewModelBase
     /// </summary>
     public bool CanBridgeWine { get => _canBridgeWine; private set => Set(ref _canBridgeWine, value); }
 
+    private bool? _pluginWineTrace;
+    /// <summary>Null until a daemon that supports the switch has answered.</summary>
+    public bool? PluginWineTrace => _pluginWineTrace;
+    private bool _settingPluginWineTrace;
+    public bool CanSetPluginWineTrace => _pluginWineTrace is not null && !_settingPluginWineTrace;
+    private string? _pluginWineTraceStatus = "Wine trace: checking the daemon…";
+    public string? PluginWineTraceStatus { get => _pluginWineTraceStatus; private set => Set(ref _pluginWineTraceStatus, value); }
+
+    public async System.Threading.Tasks.Task SetPluginWineTraceAsync(bool enabled)
+    {
+        if (!CanSetPluginWineTrace) return;
+        _settingPluginWineTrace = true;
+        Raise(nameof(CanSetPluginWineTrace));
+        PluginWineTraceStatus = "Updating Wine trace…";
+        try
+        {
+            var setup = await _client.SetPluginWineTraceAsync(enabled, TimeSpan.FromSeconds(30));
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => ApplyPluginSetup(setup));
+        }
+        finally
+        {
+            _settingPluginWineTrace = false;
+            Raise(nameof(CanSetPluginWineTrace));
+        }
+    }
+
     /// <summary>Ask the daemon where plugins go and what is there to bridge Windows ones.</summary>
     public async System.Threading.Tasks.Task LoadPluginSetupAsync()
     {
@@ -124,6 +150,13 @@ public sealed class OptionsViewModel : ViewModelBase
 
     internal void ApplyPluginSetup(System.Text.Json.Nodes.JsonNode? setup)
     {
+        // Only the reply sets the value. Raise even when it stayed the same,
+        // so a refused change puts the checkbox back where the daemon has it.
+        _pluginWineTrace = setup?["wineTrace"]?.GetValue<bool>();
+        Raise(nameof(PluginWineTrace));
+        Raise(nameof(CanSetPluginWineTrace));
+        PluginWineTraceStatus = _pluginWineTrace is null
+            ? "Wine trace unavailable. The daemon must be connected and support this switch." : null;
         SkippedPluginDetails.Clear();
         int? skipped = setup?["skippedFailedCount"]?.GetValue<int>();
         SkippedPlugins = skipped is null ? "Skipped bundles: unavailable" : $"Skipped after a failed scan: {skipped}";

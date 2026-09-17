@@ -238,6 +238,15 @@
     <Border Classes="card">
       <StackPanel Spacing="6">
         <TextBlock Text="SUPPORT" Classes="h"/>
+        <CheckBox Name="WineTrace" Content="Deep Wine trace for plugin scans"
+                  IsChecked="{Binding PluginWineTrace, Mode=OneWay}"
+                  IsEnabled="{Binding CanSetPluginWineTrace}" Click="OnPluginWineTrace"/>
+        <TextBlock Text="For reproducing a bridged-plugin failure for a bug report. Scans get much slower and produce large logs. Turn this on, press Rescan in PLUGINS, wait for it to finish, collect diagnostics, then turn this off. Rescan retries failed bundles; successful unchanged bundles stay cached."
+                   FontSize="11" Foreground="{DynamicResource Ox.Text.Muted}" TextWrapping="Wrap"/>
+        <TextBlock Text="Do not leave this on. The switch is not saved across daemon restarts; a trace enabled in the daemon's startup environment still applies. An explicit WINEDEBUG keeps its own channels."
+                   FontSize="11" Foreground="{DynamicResource Ox.Text.Muted}" TextWrapping="Wrap"/>
+        <TextBlock Text="{Binding PluginWineTraceStatus}" FontSize="11"
+                   Foreground="{DynamicResource Ox.Text.Secondary}" TextWrapping="Wrap"/>
         <TextBlock Text="Collect diagnostics gathers app and device state, the PipeWire graph, daemon logs and configs into one archive in your home folder, ready to attach to a bug report. Nothing is uploaded."
                    FontSize="11" Foreground="{DynamicResource Ox.Text.Muted}" TextWrapping="Wrap"/>
         <Grid ColumnDefinitions="Auto,10,*">

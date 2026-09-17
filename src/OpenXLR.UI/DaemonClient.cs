@@ -77,7 +77,13 @@ public sealed class DaemonClient : IAsyncDisposable
 
     /// <summary>Where plugins go and what bridges Windows ones (a "pluginSetup" message); null on timeout.</summary>
     public Task<JsonNode?> RequestPluginSetupAsync(TimeSpan timeout)
-        => QueryAsync("pluginSetup", "getPluginSetup", timeout);
+        => PluginOperationAsync("getPluginSetup", timeout, replyType: "pluginSetup");
+
+    // Setup reads share the change queue so a pending read cannot swallow a
+    // trace command just because both commands answer with pluginSetup.
+    public Task<JsonNode?> SetPluginWineTraceAsync(bool enabled, TimeSpan timeout)
+        => PluginOperationAsync("setPluginWineTrace", timeout,
+            new Dictionary<string, object> { ["value"] = enabled }, "pluginSetup");
 
     /// <summary>
     /// Ask the daemon to install the plugin at a path the user picked. The

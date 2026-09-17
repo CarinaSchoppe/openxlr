@@ -279,6 +279,49 @@ public sealed class DaemonClientTests
         Assert.Equal(2, changed);
     }
 
+    [Fact]
+    public async Task SetupReadCannotSwallowATraceChangeAndEachChangeGetsItsOwnReply()
+    {
+        var reading = Completion();
+        var release = Completion();
+        await using var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            int step = 0;
+            while (!stop.IsCancellationRequested)
+            {
+                var command = await SocketTestServer.Receive(socket, stop);
+                if (command["cmd"]!.GetValue<string>() == "auth") continue;
+                if (step == 0)
+                {
+                    Assert.Equal("getPluginSetup", command["cmd"]!.GetValue<string>());
+                    reading.TrySetResult();
+                    await release.Task.WaitAsync(stop);
+                }
+                else
+                {
+                    Assert.Equal("setPluginWineTrace", command["cmd"]!.GetValue<string>());
+                    Assert.Equal(step == 1, command["value"]!.GetValue<bool>());
+                }
+                await SocketTestServer.Send(socket, new { type = "pluginSetup", wineTrace = step == 1 }, stop);
+                await SocketTestServer.Send(socket, new { type = "commandResult", requestId = command["requestId"]!.GetValue<string>() }, stop);
+                step++;
+            }
+        });
+        await using var client = new DaemonClient(server.Url);
+        var connected = Completion();
+        client.ConnectionChanged += up => { if (up) connected.TrySetResult(); };
+        client.Start();
+        await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var read = client.RequestPluginSetupAsync(TimeSpan.FromSeconds(5));
+        await reading.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var enable = client.SetPluginWineTraceAsync(true, TimeSpan.FromSeconds(5));
+        var disable = client.SetPluginWineTraceAsync(false, TimeSpan.FromSeconds(5));
+        release.TrySetResult();
+        Assert.False((await read)!["wineTrace"]!.GetValue<bool>());
+        Assert.True((await enable)!["wineTrace"]!.GetValue<bool>());
+        Assert.False((await disable)!["wineTrace"]!.GetValue<bool>());
+    }
+
     private static TaskCompletionSource Completion()
         => new(TaskCreationOptions.RunContinuationsAsynchronously);
 }

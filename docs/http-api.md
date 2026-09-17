@@ -66,6 +66,12 @@ soft limit is at least 256 MiB or unlimited.
 `skippedFailedCount` and `skippedFailedBundles` quietly expose bundles
 skipped after a failed scan, including their reason and original failure
 time. The list is capped at 128; the count includes omitted bundles.
+`wineTrace` reports the running daemon's deep Wine trace setting.
+`setPluginWineTrace` through `POST /api/v1/commands` requires a boolean
+`value` and replies with `pluginSetup`. It changes only the daemon's process
+environment, without a restart or a saved preference. Enable it, send
+`rescanPlugins`, collect diagnostics after the scan, then disable it.
+Failed bundles are retried; successful unchanged bundles stay cached.
 `getPluginDiagnostics` reads bridge status and the latest completed native
 scan evidence without syncing or changing inserts. It also reports both
 memory-lock limits, the skipped bundles and `hostEnvironment`: the effective

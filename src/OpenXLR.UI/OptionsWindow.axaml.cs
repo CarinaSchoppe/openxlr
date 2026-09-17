@@ -72,6 +72,12 @@ public partial class OptionsWindow : Window
             await vm.Client.RescanPluginsAsync(TimeSpan.FromMinutes(4)), "the scan"), "Scanning…", vm);
     }
 
+    private async void OnPluginWineTrace(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is OptionsViewModel vm && sender is CheckBox check)
+            await vm.SetPluginWineTraceAsync(check.IsChecked == true);
+    }
+
     private async System.Threading.Tasks.Task PluginStepAsync(Func<System.Threading.Tasks.Task<string>> step, string busy, OptionsViewModel vm)
     {
         InstallFile.IsEnabled = InstallFolder.IsEnabled = Rescan.IsEnabled = ManageFolders.IsEnabled = false;

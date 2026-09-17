@@ -58,7 +58,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 | `diagnostics` | in answer to `getDiagnostics` | `blocks`, mapping vendor block names to hex strings or read errors |
 | `meters` | 15 Hz while the mixer is built | live stereo levels per channel and mix |
 | `plugins` | in answer to `listPlugins` | the installed LV2, CLAP and VST3 plugins with their controls, within the message size limit above and always including the plugins the saved chains use; `supported` is false, with `unsupportedFeatures` listed, for a plugin that needs a host feature the PipeWire chain lacks. `audioIns` and `audioOuts` are the plugin's own port counts, or for VST3 its main buses' default width; a VST3 entry also carries `widths`, the chain widths in channels (1 and 2 are the ones the host carries) its main buses accepted when the helper asked the way the host asks at load, so a plugin that reports 2 and lists 1 in `widths` can be inserted on a mono input. An entry without `widths` (LV2, CLAP, or a description an older helper wrote) fits a mono input with one port each way and a stereo mix with two or more |
-| `pluginSetup` | in answer to `getPluginSetup` | where installs go (`lv2Directory`, `clapDirectory`, `vst3Directory`), `hostInstalled`, `yabridge` (its version, or null when not installed), `wine`, `windowsDirectories` (the folders yabridge bridges) and `wineFolders` (Wine's own plugin folders that hold a plugin and are not bridged yet, offered as one press since a file dialog hides them), `memoryLockLimitBytes` (the running daemon's soft limit in bytes; -1 means unlimited, null means unknown) and `memoryLockNote` (recovery advice when Windows plugin support is available and the limit is below 256 MiB, otherwise null) |
+| `pluginSetup` | in answer to `getPluginSetup` or `setPluginWineTrace` | where installs go (`lv2Directory`, `clapDirectory`, `vst3Directory`), `hostInstalled`, `wineTrace` (deep tracing enabled in the running daemon), `yabridge` (its version, or null when not installed), `wine`, `windowsDirectories` (the folders yabridge bridges) and `wineFolders` (Wine's own plugin folders that hold a plugin and are not bridged yet, offered as one press since a file dialog hides them), `memoryLockLimitBytes` (the running daemon's soft limit in bytes; -1 means unlimited, null means unknown) and `memoryLockNote` (recovery advice when Windows plugin support is available and the limit is below 256 MiB, otherwise null) |
 | `windowsPluginFiles` | in answer to `getWindowsPluginFiles` | `ok`, `message` and `plugins`; each plugin file carries `path`, `name`, `format`, `enabled`, `canDelete`, `winePrefix` and `inUse`. Excluded files remain listed |
 | `nativeEditorRules` | in answer to `getNativeEditorRules` or `setNativeEditorRule` | `rules` with `kind`, `plugin`, `name`, `reason`, `defaultBlocked`, `override` and effective `blocked`; `error` describes a refused change or unreadable configuration |
 | `nativeEditorRulesChanged` | after a successful rule change | notification to refresh the catalogue and editor availability; no plugin rescan is needed |
@@ -107,6 +107,7 @@ that final acknowledgement (or an `error` without a request id):
 | `listPlugins` | none | the installed LV2, CLAP and VST3 plugins, answered with a `plugins` message |
 | `getPluginDiagnostics` | none | read bridge status and existing native scan evidence without syncing, rescanning or changing inserts; answered with `pluginDiagnostics` |
 | `getPluginSetup` | none | where plugins are installed and what bridges Windows ones, answered with a `pluginSetup` message |
+| `setPluginWineTrace` | `value` | boolean only; set or clear deep Wine tracing for future plugin scans in the running daemon, answered with `pluginSetup` carrying the current `wineTrace`. No restart, persistence, rescan or cache deletion |
 | `installPlugin` | `path` | install what is at an absolute path the user picked: a `.clap` or single-file `.vst3` is copied into `~/.clap` or `~/.vst3`, a `.vst3` or `.lv2` directory into `~/.vst3` or `~/.lv2`, a plain directory installs every plugin inside it. A single Windows VST3/CLAP file or VST3 bundle is copied into its own folder under `windowsImportDirectory`, and only that folder is registered and synced; a plugin already installed inside a Wine prefix is linked from the managed folder instead, preserving its original location and prefix. An explicit Windows plugin folder is registered in place. Archives, installers and VST2 files are refused with a message that says what to do. The catalogues are read again before the `pluginInstall` answer |
 | `addWindowsPluginFolder` | `path` | register an existing folder holding Windows VST3 or CLAP plugins and sync it, without copying source files or installing any native plugins alongside them; answered with `pluginInstall` |
 | `removeWindowsPluginFolder` | `path` | unregister a folder from `windowsDirectories`, sync retained folders and remove only its unused generated VST3/CLAP wrappers. Original files are kept. Refused while affected plugins remain in the mixer's insert chains. A missing source folder can still be removed from the list; answered with `pluginInstall` |
@@ -309,7 +310,18 @@ so a missing runner can be diagnosed. These strings keep at most 4096
 characters each, including the truncation marker. The diagnostics archive
 redacts paths in all of them with the same rules as the other plugin data.
 
-`hostEnvironment.wineTrace` is true for `OPENXLR_PLUGIN_WINE_TRACE=1`.
+`pluginSetup.wineTrace` and `hostEnvironment.wineTrace` are true when the
+running daemon has `OPENXLR_PLUGIN_WINE_TRACE=1`. `setPluginWineTrace` sets
+that process variable to `1` for `value:true` and clears it for `value:false`.
+It replies with `pluginSetup`, followed by `commandResult` when a `requestId`
+was supplied. A missing, null or non-boolean value is refused. The switch
+is not persisted, since tracing is slow and produces large logs. A value
+inherited at daemon startup still applies, including after a later restart.
+The command does not change `WINEDEBUG`, start a scan or clear the cache.
+Enable it, call `rescanPlugins`, collect diagnostics after the scan finishes,
+then disable it. Rescan retries failed bundles; successful unchanged bundles
+remain cached and produce no new trace.
+
 `scannerWineDebug` is the effective scanner `WINEDEBUG`, bounded to 4096
 characters, or null for Wine's default. The opt-in supplies
 `+seh,+unwind,+loaddll` only when `WINEDEBUG` is absent. Explicit values,

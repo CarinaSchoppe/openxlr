@@ -14,6 +14,11 @@ TimeoutStartSec=120
 ExecStart=%h/openxlr/src/OpenXLR.Daemon/bin/Release/net10.0/OpenXLR.Daemon
 Environment=OPENXLR_BUILD_MIXER=1
 TimeoutStopSec=45
+# Bridged Windows plugins lock their shared audio buffers into memory, and
+# they inherit this allowance from the daemon. The 8 MiB most sessions
+# default to is below what yabridge asks for, which costs a warning on every
+# plugin load and dropouts while one runs.
+LimitMEMLOCK=infinity
 # SIGTERM goes to the daemon alone, so it can end the Wine session a bridged
 # plugin leaves behind before the rest of the group is killed. Sending it to
 # the whole group would take wineserver down first and leave winedevice.exe

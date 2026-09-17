@@ -62,7 +62,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 | `windowsPluginFiles` | in answer to `getWindowsPluginFiles` | `ok`, `message` and `plugins`; each plugin file carries `path`, `name`, `format`, `enabled`, `canDelete`, `winePrefix` and `inUse`. Excluded files remain listed |
 | `nativeEditorRules` | in answer to `getNativeEditorRules` or `setNativeEditorRule` | `rules` with `kind`, `plugin`, `name`, `reason`, `defaultBlocked`, `override` and effective `blocked`; `error` describes a refused change or unreadable configuration |
 | `nativeEditorRulesChanged` | after a successful rule change | notification to refresh the catalogue and editor availability; no plugin rescan is needed |
-| `pluginDiagnostics` | in answer to `getPluginDiagnostics` | `discovery`: daemon host/controller paths, Wine prefix, architecture, effective search paths, bounded `yabridgectl status` output and latest completed CLAP/VST3 scan reports. A scan entry that failed carries `logId`, the name of the file holding that attempt's whole scanner output, or `logNote` saying why there is none; both are absent from an entry that did not fail and from one an older daemon recorded. `scanLogs` gives the `directory` those files are in and the bounds they are kept under (`stderrCapBytes`, `stdoutCapBytes`, `maxFiles`, `maxTotalBytes`). Reading the reply or the directory scans nothing and starts no process |
+| `pluginDiagnostics` | in answer to `getPluginDiagnostics` | `discovery`: daemon host/controller paths, Wine prefix, architecture, effective search paths, bounded `yabridgectl status` output and latest completed CLAP/VST3 scan reports. A scan entry that failed carries `logId`, the name of the file holding that attempt's bounded scanner output, or `logNote` saying why there is none; both are absent from an entry that did not fail and from one an older daemon recorded. `scanLogs` gives the `directory` those files are in and the bounds they are kept under (`stderrCapBytes`, `traceStderrCapBytes`, `traceCaptureBytes`, `stdoutCapBytes`, `maxFiles`, `maxTotalBytes`). Reading the reply or the directory scans nothing and starts no process |
 | `pluginInstall` | in answer to `installPlugin`, `addWindowsPluginFolder`, `removeWindowsPluginFolder`, `removeWindowsPluginInserts`, `setWindowsPluginEnabled`, `deleteWindowsPlugin`, `syncWindowsPlugins` and `rescanPlugins` | `ok`, `message` (a sentence or two for the user, ending with the bundles the scan that followed could not read, up to three by name and the rest as a count), `installed` (the bundles or folders put in place), `added` (plugins in the catalogue that were not before) and `total` |
 | `error` | when a command without a `requestId` is rejected | `message`; for the mixer commands a `state` follows, so an optimistic edit can be reverted |
 | `commandResult` | in answer to a command that carried a `requestId` | `requestId`, `error` (null on success); preceded by the state the result refers to |
@@ -289,6 +289,48 @@ All under `~/.config/openxlr/` (or `$XDG_CONFIG_HOME/openxlr/`):
 is the explicit `LV2_PATH` or null for lilv defaults; `clap` and `vst3`
 contain up to 64 effective search directories, including private wrappers.
 
+Both `pluginSetup` and `discovery` include `memoryLockHardLimitBytes`, the
+daemon's hard memory-lock limit. The existing `memoryLockLimitBytes` stays
+the effective soft allowance. Both use bytes, -1 for unlimited and null
+when unreadable. Setup's `memoryLockNote` recommends the unit setting when
+the hard limit has enough room, or checking the user manager's ceiling
+when the daemon's hard limit is also low. A low daemon hard limit alone
+does not prove that the user manager has the same ceiling.
+
+`discovery.hostEnvironment` describes the scanner and live host policy for
+both managed and system bridges. `loaderEnvironment` holds `LD_LIBRARY_PATH`,
+`LD_PRELOAD` and `LD_AUDIT`, with null for absent or removed values.
+`cleanLaunch` is true only for `OPENXLR_PLUGIN_CLEAN_ENV=1`.
+`removedLoaderEnvironment` maps the variables actually removed to their
+inherited values, and is empty on a normal launch. `wineLoader` records
+`WINELOADER`, or null; `wineRunner` resolves that runner, or `wine` when unset,
+against the host's effective PATH. An unresolved name or path is retained
+so a missing runner can be diagnosed. These strings keep at most 4096
+characters each, including the truncation marker. The diagnostics archive
+redacts paths in all of them with the same rules as the other plugin data.
+
+`hostEnvironment.wineTrace` is true for `OPENXLR_PLUGIN_WINE_TRACE=1`.
+`scannerWineDebug` is the effective scanner `WINEDEBUG`, bounded to 4096
+characters, or null for Wine's default. The opt-in supplies
+`+seh,+unwind,+loaddll` only when `WINEDEBUG` is absent. Explicit values,
+including an empty string, win. Live hosts do not receive this added trace.
+`scanLogs.traceCaptureBytes` is 8 MiB of raw scanner stderr;
+`traceStderrCapBytes` is 1 MiB saved after collapsing consecutive repeats.
+Normal stderr stays at 256 KiB, stdout at 64 KiB, retention at 24 files and
+4 MiB total. Headers have at most 2048 UTF-8 bytes per string value. Logs
+keep three copies of repeated lines and count the rest, ignoring timestamps
+and Wine process/thread prefixes while comparing the remaining text.
+The archive reads up to 1152 KiB per log within its 4 MiB input budget.
+
+`pluginSetup` and `discovery` also expose `skippedFailedCount` and
+`skippedFailedBundles`. Each bundle has `kind`, `path`, `outcome`, a readable
+`reason` and `failedAt`, the UTC time the failed attempt began. Older cache
+entries have outcome `unknown` and a null time. The list holds at most 128
+bundles; the count includes every skipped bundle in the latest completed
+scans. Each scan report carries the same fields for its own format. These
+omissions do not produce repeated warnings. Options shows the count and
+list under PLUGINS, and Rescan retries the failures.
+
 `status` is null without a controller. Otherwise it contains `exitCode`,
 `timedOut`, `truncated`, `output` and `error`, or just `error` when the
 controller cannot start. The status command has a five-second deadline,
@@ -300,12 +342,13 @@ means no native scan has completed yet. Entries carry `path`, `outcome`,
 `cached`, `plugins`, `duplicates`, `exitCode` and `detail`. Outcomes include
 `host-missing`, `directory`, `directory-missing`, `directory-error`,
 `start-error`, `scan-failed`, `source-missing`, `windows-module-missing`, `timeout`, `output-limit`, `output-incomplete`, `invalid-description`,
-`no-plugins`, `ok` and `scan-error`. A cached description is reused only
+`no-plugins`, `ok`, `skipped-failed` and `scan-error`. A cached description is reused only
 while the native helper that wrote it is the one asking, so `cached` is
 false everywhere in the first scan after the helper changes. Reports retain
 at most 128 entries per format, preferring failures over successful entries
 when full. Paths keep the first 4096 characters plus a truncation marker.
-Details use at most 2048 characters including the marker, with a quarter of
+Deep trace details keep the first 16384 characters including the truncation
+marker. Ordinary details use at most 2048 characters including the marker, with a quarter of
 the remaining space for the start and three quarters for the end. This
 keeps later errors from being hidden by a bridge's startup banner.
 
@@ -316,8 +359,9 @@ changing `ok`, `installed`, `added` or `total`. `ok` still describes the
 install or sync step, not whether every bundle could be scanned. Missing
 optional directories, an absent native helper and bundles reporting no
 plugins are not counted as scan failures. The summary uses the retained
-entries, so check `omitted` for larger scans. A timed-out scan is not cached
-and will be retried on the next rescan. `source-missing` identifies a missing
+entries, so check `omitted` for larger scans. A timed-out scan is remembered
+as a failure and is retried on an explicit rescan. Automatic scans skip
+unchanged failures without repeating the warning. `source-missing` identifies a missing
 plugin path or dangling bundle link. `windows-module-missing` identifies a
 yabridge wrapper that cannot find its original Windows module; its detail
 includes the broken Windows link target when available. Both are scan
@@ -330,7 +374,11 @@ stamp rather than a bundle the cache refuses to keep: a bundle also holds
 files the host never loads, a wrapper for another architecture among them,
 and one of those pointing nowhere does not stop the rest being remembered.
 Whether the files the host does need are usable stays the scanner's answer,
-and a failed scan is never cached.
+and a failed scan is cached as a failure rather than a usable description.
+Fresh malformed descriptions are failures too. An unreadable cached
+description is invalidated so the next scan reads the bundle again.
+Scanner start errors are not cached because a helper or resource problem
+can disappear before the next launch.
 
 These reports describe scanner output before the `plugins` message's size
 budget and the picker's channel-width/format filters. Compare them with

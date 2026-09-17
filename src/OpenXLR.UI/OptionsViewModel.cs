@@ -99,6 +99,14 @@ public sealed class OptionsViewModel : ViewModelBase
     public string? MemoryLockNote { get => _memoryLockNote; private set { if (Set(ref _memoryLockNote, value)) Raise(nameof(HasMemoryLockNote)); } }
     public bool HasMemoryLockNote => !string.IsNullOrEmpty(_memoryLockNote);
 
+    private string _skippedPlugins = "Skipped bundles: checking…";
+    public string SkippedPlugins { get => _skippedPlugins; private set => Set(ref _skippedPlugins, value); }
+    public ObservableCollection<string> SkippedPluginDetails { get; } = [];
+
+    private bool _hasSkippedPlugins;
+    /// <summary>Whether any bundle is being passed over, and the list is worth the room.</summary>
+    public bool HasSkippedPlugins { get => _hasSkippedPlugins; private set => Set(ref _hasSkippedPlugins, value); }
+
     private bool _canBridgeWine;
     /// <summary>
     /// Whether Wine holds plugins nobody has bridged yet. The button spares
@@ -116,6 +124,19 @@ public sealed class OptionsViewModel : ViewModelBase
 
     internal void ApplyPluginSetup(System.Text.Json.Nodes.JsonNode? setup)
     {
+        SkippedPluginDetails.Clear();
+        int? skipped = setup?["skippedFailedCount"]?.GetValue<int>();
+        SkippedPlugins = skipped is null ? "Skipped bundles: unavailable" : $"Skipped after a failed scan: {skipped}";
+        foreach (var bundle in setup?["skippedFailedBundles"] as System.Text.Json.Nodes.JsonArray ?? [])
+        {
+            string? when = bundle?["failedAt"]?.GetValue<string>();
+            string time = DateTimeOffset.TryParse(when, out var failedAt)
+                ? failedAt.ToLocalTime().ToString("g") : "time not recorded";
+            SkippedPluginDetails.Add($"{bundle?["path"]?.GetValue<string>()}\n{bundle?["reason"]?.GetValue<string>()}, {time}");
+        }
+        if (skipped > SkippedPluginDetails.Count)
+            SkippedPluginDetails.Add($"{skipped - SkippedPluginDetails.Count} more bundles omitted from this list.");
+        HasSkippedPlugins = SkippedPluginDetails.Count > 0;
         if (setup is null)
         {
             WindowsEditorNote = null;

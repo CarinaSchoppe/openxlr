@@ -254,9 +254,21 @@ public sealed class DeviceManager : BackgroundService
             else _log.LogDebug("device loop: {msg}", ex.Message);
             _lastLoopError = ex.Message;
             Drop();
+            // A device that opens but answers every read badly would otherwise
+            // be dropped and reopened on the next tick, ten times a second,
+            // a USB helper process forked and killed each time. Wait, and
+            // wait longer while the failures go on.
+            _pollFailures = Math.Min(_pollFailures + 1, PollRetryDoublings + 1);
+            long delay = (long)PollRetryDelay.TotalMilliseconds << (_pollFailures - 1);
+            _reconnectNotBefore = Environment.TickCount64 + delay;
         }
         Progress.Mark(); // a completed failed poll is responsive too
     }
+
+    /// <summary>After a failed poll: the first wait before the device is reopened, doubled on each failure that follows. Tests shorten it.</summary>
+    internal static TimeSpan PollRetryDelay = TimeSpan.FromSeconds(2);
+    private const int PollRetryDoublings = 4;   // 2, 4, 8, 16, 32 s
+    private int _pollFailures;
 
     // After a transfer that never returned the helper process was killed;
     // a device that hangs at once again is not worth a tight loop, so wait
@@ -583,6 +595,7 @@ public sealed class DeviceManager : BackgroundService
         {
             if (_device is null || !_device.Connected) return;
             DeviceState now = Stamp(_device.ReadState());
+            _pollFailures = 0;
             if (_last is null || now != _last)
             {
                 _last = now;

@@ -1320,6 +1320,11 @@ killed straight away and the daemon tries again two seconds later.
 Collect diagnostics afterwards ([section 5.10](#reporting)): the archive contains the
 exact transfer, and that is what makes the report actionable.
 
+The USB deadline covers both sending a request and receiving its reply, so
+a helper that stops reading commands cannot block a large transfer indefinitely.
+Malformed replies also discard the helper; the next connection starts a fresh
+process instead of reusing a broken protocol stream.
+
 <a name="open-files"></a>
 ### 5.8 Channels or mixes vanish after adding one
 

@@ -104,6 +104,59 @@ public sealed class UsbHelperTests
     }
 
     [Fact]
+    public void AMalformedReplyKillsTheHelperAndAllowsAFreshOpen()
+    {
+        const string script = """
+            import sys, struct
+            def rd(n):
+                b = b''
+                while len(b) < n:
+                    c = sys.stdin.buffer.read(n - len(b))
+                    if not c: sys.exit(0)
+                    b += c
+                return b
+            n = struct.unpack('<I', rd(4))[0]; rd(n)
+            sys.stdout.buffer.write(struct.pack('<Ii', 4, 0)); sys.stdout.buffer.flush()
+            n = struct.unpack('<I', rd(4))[0]; rd(n)
+            sys.stdout.buffer.write(struct.pack('<I', 81921)); sys.stdout.buffer.flush()
+            for line in sys.stdin:
+                pass
+            """;
+        using var usb = new HelperUsbTransport("python3", ["-c", script]);
+        Assert.True(usb.Open(0x0fd9, 0x00b4));
+        Assert.Throws<IOException>(() => usb.ControlTransfer(0xC1, 2, 4, 0x0103, new byte[8], 8, 300));
+        Assert.False(usb.IsOpen);
+        Assert.False(usb.HelperAlive);
+        Assert.True(usb.Open(0x0fd9, 0x00b4));
+    }
+
+    [Fact]
+    public void AHelperThatStopsReadingCannotBlockALargeWritePastTheDeadline()
+    {
+        const string script = """
+            import sys, struct, time
+            def rd(n):
+                b = b''
+                while len(b) < n:
+                    c = sys.stdin.buffer.read(n - len(b))
+                    if not c: sys.exit(0)
+                    b += c
+                return b
+            n = struct.unpack('<I', rd(4))[0]; rd(n)
+            sys.stdout.buffer.write(struct.pack('<Ii', 4, 0)); sys.stdout.buffer.flush()
+            time.sleep(8)
+            """;
+        using var usb = new HelperUsbTransport("python3", ["-c", script]);
+        Assert.True(usb.Open(0x0fd9, 0x00b4));
+        var elapsed = Stopwatch.StartNew();
+        Assert.Throws<UsbHungException>(() => usb.ControlTransfer(0x41, 1, 4, 0x0103,
+            new byte[ushort.MaxValue], ushort.MaxValue, 300));
+        Assert.InRange(elapsed.Elapsed, TimeSpan.Zero, HelperUsbTransport.Guard + TimeSpan.FromSeconds(3));
+        Assert.False(usb.HelperAlive);
+        Assert.False(usb.IsOpen);
+    }
+
+    [Fact]
     public void AHelperThatStopsAnsweringIsKilledAndTheTransferReportsAHang()
     {
         // A helper that answers the open, then never again: it swallows the

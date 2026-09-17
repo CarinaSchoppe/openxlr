@@ -312,6 +312,7 @@ public sealed class WindowLayoutTests
                 {
                     ["yabridge"] = "5.1.1",
                     ["wine"] = true,
+                    ["wineTrace"] = true,
                     ["windowsEditorNote"] = "The companion package fixes Windows editor input.",
                     ["memoryLockNote"] = OpenXLR.Core.Mixing.PluginMemoryLock.Note(8388608, 8388608, true),
                     ["skippedFailedCount"] = 1,
@@ -335,9 +336,26 @@ public sealed class WindowLayoutTests
                 memoryWarning.BringIntoView();
                 Layout(options, 980, 800);
                 Capture(options, "options-plugin-runtime");
+                var trace = options.FindControl<CheckBox>("WineTrace")!;
+                Assert.True(trace.IsChecked);
+                Assert.True(trace.IsEnabled);
+                trace.BringIntoView();
+                Layout(options, 980, 800);
+                AssertInside(trace, (Control)trace.Parent!);
+                optionsVm.ApplyPluginSetup(JsonNode.Parse("""{"wineTrace":false}"""));
+                Assert.False(trace.IsChecked);
+                // A click with an unavailable daemon must clear the optimistic
+                // tick and disable the switch, rather than claim tracing is on.
+                trace.SetCurrentValue(Avalonia.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
+                trace.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                Dispatcher.UIThread.RunJobs();
+                Assert.Null(trace.IsChecked);
+                Assert.False(trace.IsEnabled);
                 optionsVm.ApplyPluginSetup(JsonNode.Parse("{}"));
                 Layout(options, 980, 800);
                 Assert.False(memoryWarning.IsEffectivelyVisible);
+                Assert.Null(trace.IsChecked);
+                Assert.False(trace.IsEnabled);
 
                 var focusedRules = new NativeEditorRulesWindow(new DaemonClient(), "vst3", "ABCDEF019182FAEB4D616E75466C7665");
                 windows.Add(focusedRules);

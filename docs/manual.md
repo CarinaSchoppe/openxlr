@@ -597,18 +597,22 @@ or the host's PATH. Values are bounded and paths receive the archive's
 usual redaction.
 
 **Capture a deep Wine trace.** If a Windows plugin hangs during scan,
-`OPENXLR_PLUGIN_WINE_TRACE=1` adds exception, unwind and module-load output
-for a bug report. It slows scanning and is off by default. Only scanners
+the **Deep Wine trace for plugin scans** checkbox in Options, SUPPORT adds
+exception, unwind and module-load output for a bug report. Scans get much
+slower and produce large logs. It is off by default and is not meant to be
+left on. Only scanners
 receive `WINEDEBUG=+seh,+unwind,+loaddll`; live hosts keep their environment.
 An existing `WINEDEBUG`, including an empty value, takes precedence.
 
-```sh
-systemctl --user set-environment OPENXLR_PLUGIN_WINE_TRACE=1
-systemctl --user restart openxlr-daemon
-```
+1. In Options, SUPPORT, turn on **Deep Wine trace for plugin scans**.
+   The checkbox reads the daemon's current setting. No restart is needed.
+2. In Options, PLUGINS, choose **Rescan** and wait for it to finish.
+   Failed bundles are retried even when unchanged. Successful unchanged
+   bundles stay cached, so they produce no new trace. The switch does not
+   clear the scan cache or start a scan by itself.
+3. Choose **Collect diagnostics** in SUPPORT, then turn tracing off.
 
-In Options, PLUGINS, choose Rescan, wait for it to finish, then collect
-[diagnostics](#reporting). In `plugin-discovery.json`, check
+In the [diagnostics archive](#reporting), open `plugin-discovery.json`. Check
 `discovery.hostEnvironment.wineTrace` is true and `scannerWineDebug` names
 the effective channels. The failed log under `plugin-scan-logs/` also
 records `wineTrace: true` and `wineDebug`. Ordinary scans already include
@@ -617,7 +621,25 @@ A deep trace captures the first 8 MiB of stderr and saves up to 1 MiB after
 collapsing repeated lines. Three copies remain, followed by the omitted
 count. The 60 second deadline and 4 MiB total log budget still apply.
 
-After collecting the archive, turn tracing off:
+The switch changes only the running daemon's environment. It is not saved
+across restarts. If the daemon's startup environment already contains
+`OPENXLR_PLUGIN_WINE_TRACE=1`, tracing starts on and the checkbox shows it.
+Turning it off in Options clears the running process's value, but a later
+restart inherits the startup environment again.
+
+For a headless or scripted setup, the control API accepts
+`{"cmd":"setPluginWineTrace","value":true}`, then
+`{"cmd":"rescanPlugins"}`. Collect the evidence before sending
+`{"cmd":"setPluginWineTrace","value":false}`. See [api.md](api.md) for
+authentication and replies. Alternatively, set the startup environment:
+
+```sh
+systemctl --user set-environment OPENXLR_PLUGIN_WINE_TRACE=1
+systemctl --user restart openxlr-daemon
+```
+
+Rescan, wait, collect diagnostics and check the same fields above. Remove
+that startup setting afterward so a restart cannot turn tracing on again:
 
 ```sh
 systemctl --user unset-environment OPENXLR_PLUGIN_WINE_TRACE

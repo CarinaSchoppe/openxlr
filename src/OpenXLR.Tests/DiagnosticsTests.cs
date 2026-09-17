@@ -2,8 +2,43 @@ using OpenXLR.UI;
 
 namespace OpenXLR.Tests;
 
+[Collection("xdg-config")]
 public sealed class DiagnosticsTests
 {
+    [Fact]
+    public async Task ArchiveRecordsWineTraceEnabledThroughTheDaemonCommand()
+    {
+        await using var fixture = new PluginWineTraceFixture();
+        await using var server = await fixture.StartServerAsync();
+        await using var client = new DaemonClient(server.Url);
+        var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.ConnectionChanged += up => { if (up) connected.TrySetResult(); };
+        client.Start();
+        await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var setup = await client.SetPluginWineTraceAsync(true, TimeSpan.FromSeconds(30));
+        Assert.True(setup!["wineTrace"]!.GetValue<bool>());
+        string archive = await Diagnostics.CollectAsync(client);
+        try
+        {
+            using var file = File.OpenRead(archive);
+            using var gzip = new System.IO.Compression.GZipStream(file, System.IO.Compression.CompressionMode.Decompress);
+            using var tar = new System.Formats.Tar.TarReader(gzip);
+            var entries = new Dictionary<string, string>();
+            while (tar.GetNextEntry() is { } entry)
+                if (entry.DataStream is { } data)
+                    entries[entry.Name.TrimStart('.', '/')] = new StreamReader(data).ReadToEnd();
+            using var discovery = System.Text.Json.JsonDocument.Parse(entries["plugin-discovery.json"]);
+            var environment = discovery.RootElement.GetProperty("discovery").GetProperty("hostEnvironment");
+            Assert.True(environment.GetProperty("wineTrace").GetBoolean());
+            Assert.Equal("+seh,+unwind,+loaddll", environment.GetProperty("scannerWineDebug").GetString());
+            using var savedSetup = System.Text.Json.JsonDocument.Parse(entries["plugin-setup.json"]);
+            Assert.True(savedSetup.RootElement.GetProperty("wineTrace").GetBoolean());
+            setup = await client.SetPluginWineTraceAsync(false, TimeSpan.FromSeconds(30));
+            Assert.False(setup!["wineTrace"]!.GetValue<bool>());
+        }
+        finally { File.Delete(archive); }
+    }
+
     [Fact]
     public async Task UnavailableDaemonStillProducesValidPluginReports()
     {

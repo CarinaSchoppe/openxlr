@@ -38,6 +38,7 @@ public sealed record PluginSetup(
 {
     /// <summary>Wine's version as it reports it, or null when Wine is not installed.</summary>
     public string? WineVersion { get; init; }
+    public bool WineTrace { get; init; }
 
     /// <summary>
     /// What a user should know before opening a bridged plugin's own editor
@@ -972,6 +973,7 @@ public sealed class PluginInstaller
             MemoryLockNote = PluginMemoryLock.Note(memoryLock.Soft, memoryLock.Hard, _hostInstalled && _yabridgectl is not null && _wine is not null),
             SkippedScans = PluginScanDiagnostics.SkippedFailures(),
             WineVersion = wineVersion,
+            WineTrace = Environment.GetEnvironmentVariable(PluginHostEnvironment.WineTraceVariable) == "1",
             BridgeProvider = _managed is null ? "system" : "openxlr",
             BridgeDirectory = _managed is null ? null : Shorten(_managed.Directory),
             WindowsPluginDirectory = _managed is null ? null : Shorten(ManagedYabridge.PluginHome),

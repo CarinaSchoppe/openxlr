@@ -102,7 +102,7 @@ public sealed record NativeEditorRulesChangedMessage
     [JsonPropertyName("type")] public string Type => "nativeEditorRulesChanged";
 }
 
-/// <summary>Reply to "getPluginSetup": where plugins go and what bridges Windows ones.</summary>
+/// <summary>Reply to "getPluginSetup" or "setPluginWineTrace": installation and scanner settings.</summary>
 public sealed record PluginSetupMessage(PluginSetup Setup)
 {
     [JsonPropertyName("type")] public string Type => "pluginSetup";
@@ -117,6 +117,7 @@ public sealed record PluginSetupMessage(PluginSetup Setup)
     /// <summary>Wine's own plugin folders that hold a plugin and are not bridged yet.</summary>
     [JsonPropertyName("wineFolders")] public IReadOnlyList<string> WineFolders => Setup.WineFolders;
     [JsonPropertyName("wineVersion")] public string? WineVersion => Setup.WineVersion;
+    [JsonPropertyName("wineTrace")] public bool WineTrace => Setup.WineTrace;
     /// <summary>What to know before opening a bridged plugin's own editor, or null.</summary>
     [JsonPropertyName("windowsEditorNote")] public string? WindowsEditorNote => Setup.WindowsEditorNote;
     [JsonPropertyName("memoryLockLimitBytes")] public long? MemoryLockLimitBytes => Setup.MemoryLockLimitBytes;

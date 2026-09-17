@@ -837,6 +837,10 @@ the other formats in the room that is left, with copies of a plugin
 already listed going last; a set installed in two formats shows once
 rather than pushing anything out. Only the list is cut. A chain keeps
 loading, and keeps its controls, whether or not its plugin fits in it.
+Changing the plugins used by your chains refreshes the offered list even
+when their identifiers contain unusual characters. Copies are recognized by
+name, with an optional vendor prefix, and matching input and output widths.
+Two different names sharing only their last word remain separate plugins.
 
 <a name="profiles"></a>
 ### 3.6 Save and recall a scene

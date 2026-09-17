@@ -104,4 +104,51 @@ public sealed class PluginCatalogTests
         Assert.Equal(lv2.Select(p => p.Plugin), sent.Where(p => p.Kind == "lv2").Select(p => p.Plugin));
         Assert.Equal(lv2.Count + 1, sent.Count);
     }
+
+    [Fact]
+    public void DifferentPluginIdentitiesCannotShareACachedSelection()
+    {
+        PluginInfo combined = Plugin("vst3", "Combined", Lv2Catalog.MaxControls) with { Plugin = "alpha\nvst3 beta" };
+        PluginInfo first = Plugin("vst3", "First", Lv2Catalog.MaxControls) with { Plugin = "alpha" };
+        PluginInfo second = Plugin("vst3", "Second", Lv2Catalog.MaxControls) with { Plugin = "beta" };
+        IReadOnlyList<PluginInfo> all = [.. FullOfLv2(), combined, first, second];
+        IReadOnlyList<PluginInfo> previous = ClientCatalog.ForClient(all, [("vst3", combined.Plugin)]);
+        Assert.Contains(combined, previous);
+
+        IReadOnlyList<PluginInfo> current = ClientCatalog.ForClient(all, [("vst3", first.Plugin), ("vst3", second.Plugin)]);
+        Assert.Contains(first, current);
+        Assert.Contains(second, current);
+        Assert.DoesNotContain(combined, current);
+        Assert.Same(current, ClientCatalog.ForClient(all, [("vst3", second.Plugin), ("vst3", first.Plugin), ("vst3", first.Plugin)]));
+    }
+
+    [Theory]
+    [InlineData("LSP Compressor Mono", "Compressor Mono", true)]
+    [InlineData("Compressor Mono", "LSP Compressor Mono", true)]
+    [InlineData("x42 - IR Convolver", "ir_convolver", true)]
+    [InlineData("Acme:  Compressor", "COMPRESSOR", true)]
+    [InlineData("Vendor A Reverb", "Vendor B Reverb", false)]
+    [InlineData("StereoCompressor", "Compressor", false)]
+    [InlineData("Compressor Mono", "Compressor Stereo", false)]
+    [InlineData(" - _ : ", "", false)]
+    public void DuplicateNamesKeepVendorBoundariesAndNormalization(string listed, string candidate, bool matches)
+    {
+        var index = new ClientCatalog.PluginNames([Plugin("lv2", listed, 0)]);
+        Assert.Equal(matches, index.Contains(Plugin("vst3", candidate, 0)));
+        Assert.False(index.Contains(Plugin("vst3", candidate, 0, width: 2)));
+        Assert.False(index.Contains(Plugin("vst3", candidate, 0) with { AudioOuts = 2 }));
+    }
+
+    [Fact]
+    public void LongNativeNamesKeepExactMatchingWithoutExpandingEverySuffix()
+    {
+        string longName = string.Concat(Enumerable.Repeat("vendor ", 10000)) + "Effect";
+        var index = new ClientCatalog.PluginNames([Plugin("clap", longName, 0)]);
+        Assert.True(index.Contains(Plugin("vst3", "Effect", 0)));
+        Assert.True(index.Contains(Plugin("vst3", longName, 0)));
+        Assert.True(index.Contains(Plugin("vst3", "Prefix " + longName, 0)));
+        Assert.False(index.Contains(Plugin("vst3", longName + " Extra", 0)));
+        var shortIndex = new ClientCatalog.PluginNames([Plugin("lv2", "Effect", 0)]);
+        Assert.True(shortIndex.Contains(Plugin("clap", longName, 0)));
+    }
 }

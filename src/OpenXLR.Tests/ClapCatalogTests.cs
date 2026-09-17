@@ -360,9 +360,6 @@ public sealed class ClapCatalogTests
         Assert.Contains(merged, p => p.Name == "Something Else");      // the distinct one got in
         Assert.DoesNotContain(merged, p => p.Kind == "vst3" && p.Name == "Plugin 0");
 
-        Assert.True(ClientCatalog.SamePlugin(plugin("lv2", "LSP Compressor Mono", 1, 1), plugin("vst3", "Compressor Mono", 1, 1)));
-        Assert.True(ClientCatalog.SamePlugin(plugin("lv2", "x42 - IR Convolver", 2, 1), plugin("vst3", "IR Convolver", 2, 1)));
-        Assert.False(ClientCatalog.SamePlugin(plugin("lv2", "Compressor Mono", 1, 1), plugin("vst3", "Compressor Stereo", 2, 1)));
     }
 
     private sealed class Layout : ILayoutInfo

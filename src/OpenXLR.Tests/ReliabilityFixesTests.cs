@@ -164,6 +164,44 @@ public sealed class ReliabilityFixesTests
     }
 
     [Fact]
+    public void ALayoutSaveCannotRunAfterTheFinalSave()
+    {
+        var written = new List<string>();
+        using var saver = new SettingsSaver(() => { written.Add("final mixer"); return null; }, _ => { });
+        saver.Close(write: true);
+        Assert.Throws<InvalidOperationException>(() => saver.RunSaved(() => written.Add("torn-down mixer")));
+        Assert.Equal(["final mixer"], written);
+        Assert.True(saver.Closed);
+        Assert.False(saver.Pending);
+    }
+
+    [Fact]
+    public async Task ALayoutSaveWaitingBehindShutdownCannotWriteAfterIt()
+    {
+        var closing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var finish = new ManualResetEventSlim();
+        using var saver = new SettingsSaver(() =>
+        {
+            closing.TrySetResult();
+            if (!finish.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("test did not release final save");
+            return null;
+        }, _ => { });
+        Task finalSave = Task.Run(() => saver.Close(write: true));
+        await closing.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var requested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool changed = false;
+        Task lateSave = Task.Run(() =>
+        {
+            requested.TrySetResult();
+            Assert.Throws<InvalidOperationException>(() => saver.RunSaved(() => changed = true));
+        });
+        try { await requested.Task.WaitAsync(TimeSpan.FromSeconds(5)); }
+        finally { finish.Set(); }
+        await Task.WhenAll(finalSave, lateSave).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(changed);
+    }
+
+    [Fact]
     public void APendingChangeIsStillWrittenAtTheLastMoment()
     {
         var written = new List<string>();

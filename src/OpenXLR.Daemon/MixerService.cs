@@ -525,7 +525,7 @@ public sealed class MixerService : IHostedService, IDisposable
         {
             _saves.RunSaved(() =>
             {
-                if (_stopping.IsCancellationRequested || _saves.Closed)
+                if (_stopping.IsCancellationRequested)
                     throw new InvalidOperationException("The mixer is stopping.");
                 result = _mixer.RemovePluginInserts(plugins, settings => settings.Save());
             });

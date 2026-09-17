@@ -71,6 +71,7 @@ internal sealed class SettingsSaver : IDisposable
         bool cleared = false;
         lock (_gate)
         {
+            if (_closed) throw new InvalidOperationException("The mixer is stopping; settings are closed.");
             change();
             _dirty = false;
             _retry = SaveDelay;

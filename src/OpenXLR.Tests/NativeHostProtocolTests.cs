@@ -6,9 +6,10 @@ namespace OpenXLR.Tests;
 public sealed class NativeHostProtocolTests
 {
     private static NativePluginHost Start(string script, TimeSpan? startupTimeout = null,
-        TimeSpan? patience = null)
+        TimeSpan? patience = null, IReadOnlySet<string>? meters = null)
         => new(new InsertDefinition { Id = "test", Kind = "lv2", Plugin = "urn:test" },
-            "test", 2, 48000, "/usr/bin/python3", ["-u", "-c", script], startupTimeout, patience);
+            "test", 2, 48000, "/usr/bin/python3", ["-u", "-c", script], startupTimeout, patience,
+            meterSymbols: meters);
 
     [Fact]
     public void FakeHelperCoversReadyControlMeterAndUiReplies()
@@ -32,6 +33,117 @@ public sealed class NativeHostProtocolTests
         Assert.Equal(0.25, host.Meters["peak"]);
         Assert.Equal(0.37, host.DrainChanges().Single().Value);
         Assert.Empty(host.DrainChanges());
+    }
+
+    [Fact]
+    public void APartialProtocolLineHasAFixedBoundAndRecoversAtTheNextNewline()
+    {
+        var line = new System.Text.StringBuilder();
+        bool discard = false;
+        var received = new List<string>();
+        string block = new('x', 4096);
+        NativePluginHost.FoldOutputBlock(line, block, ref discard, received.Add);
+        Assert.Equal(4096, line.Length);
+        NativePluginHost.FoldOutputBlock(line, "\n", ref discard, received.Add);
+        Assert.Equal(block, Assert.Single(received));
+        received.Clear();
+        for (int i = 0; i < 100; i++)
+        {
+            NativePluginHost.FoldOutputBlock(line, block, ref discard, received.Add);
+            Assert.InRange(line.Length, 0, 4096);
+        }
+        Assert.True(discard);
+        NativePluginHost.FoldOutputBlock(line, "\nready\r", ref discard, received.Add);
+        NativePluginHost.FoldOutputBlock(line, "\nheartbeat\nui opened\n", ref discard, received.Add);
+        Assert.Equal(["ready", "heartbeat", "ui opened"], received);
+        Assert.False(discard);
+        Assert.Empty(line.ToString());
+    }
+
+    [Fact]
+    public void PluginOutputCannotGrowTheControlAndMeterTablesWithoutBound()
+    {
+        using var host = Start("""
+            import sys
+            print('ready')
+            print('control gain 0.25')
+            print('meter peak 0.25')
+            for i in range(5000):
+                print('control c%d 0.5' % i)
+                print('meter m%d 0.5' % i)
+            print('meter rms 0.5')
+            for line in sys.stdin:
+                if line.strip() == 'show':
+                    print('control gain 0.75')
+                    print('meter peak 0.75')
+                    print('ui opened')
+                elif line.startswith('set '):
+                    _, symbol, value = line.split()
+                    print('control', symbol, value)
+            """, meters: new HashSet<string>(["peak", "rms"], StringComparer.Ordinal));
+        host.ShowUi();
+        // Five thousand names the catalogue never declared take no slot, so
+        // a meter first reported after the flood still lands. Without the
+        // filter, "rms" arrives at a full table and is refused.
+        Assert.Equal(2, host.Meters.Count);
+        Assert.Equal(0.75, host.Meters["peak"]);
+        Assert.Equal(0.5, host.Meters["rms"]);
+        var changes = host.DrainChanges().ToArray();
+        Assert.Equal(4096, changes.Length);
+        Assert.Equal(0.75, changes.Single(pair => pair.Key == "gain").Value);
+        host.SetControl("after-drain", 0.9);
+        host.ShowUi();
+        Assert.Equal(0.9, host.DrainChanges().Single(pair => pair.Key == "after-drain").Value);
+    }
+
+    [Fact]
+    public void MaximumLengthSymbolsWorkAndNonFiniteOrEmptyValuesAreIgnored()
+    {
+        using var host = Start("""
+            import sys
+            print('ready')
+            for line in sys.stdin:
+                if line.strip() == 'show':
+                    for kind in ['control', 'meter']:
+                        print(kind, 's' * 255, '0.75')
+                        for value in ['NaN', 'Infinity', '-Infinity', '1e999', '']:
+                            print(kind, 'invalid', value)
+                        print(kind + '  0.5')
+                    print('ui opened')
+            """);
+        host.ShowUi();
+        var control = Assert.Single(host.DrainChanges());
+        var meter = Assert.Single(host.Meters);
+        Assert.Equal(new string('s', 255), control.Key);
+        Assert.Equal(control, meter);
+        Assert.Equal(0.75, control.Value);
+    }
+
+    [Fact]
+    public void OversizedProtocolLinesAndSymbolsAreDiscardedWithoutLosingTheNextReply()
+    {
+        using var host = Start("""
+            import sys
+            print('ready')
+            print('control poisoned 0.5' + ' ' * 16384)
+            print('meter poisoned 0.5' + ' ' * 16384)
+            print('control ' + 's' * 256 + ' 0.5')
+            print('meter ' + 's' * 256 + ' 0.5')
+            print('x' * 16384, end='')
+            print('ready')
+            for line in sys.stdin:
+                if line.strip() == 'show':
+                    print('control gain 0.75')
+                    print('meter peak 0.5')
+                    print('heartbeat')
+                    print('ui-heartbeat')
+                    print('ui opened')
+            """);
+        host.ShowUi();
+        Assert.Equal("peak", Assert.Single(host.Meters).Key);
+        Assert.Equal("gain", Assert.Single(host.DrainChanges()).Key);
+        Assert.True(host.IsHealthy);
+        Assert.False(host.EditorStalled);
     }
 
     [Fact]
@@ -107,7 +219,7 @@ public sealed class NativeHostProtocolTests
             threading.Thread(target=beat, daemon=True).start()
             for line in sys.stdin:
                 pass
-            """, patience: TimeSpan.FromMilliseconds(500));
+            """, patience: TimeSpan.FromSeconds(5));
         using var stalled = Start("""
             import sys
             print('ready')
@@ -119,15 +231,22 @@ public sealed class NativeHostProtocolTests
         var live = new FilterHandle("live", "sink", "source", beating.Process) { NativeHost = beating };
         var stuck = new FilterHandle("stuck", "sink", "source", stalled.Process) { NativeHost = stalled };
 
+        // The beating helper gets five seconds of patience against its 50 ms
+        // beat, and the stalled one half a second. A loaded runner can pause a
+        // helper and its output reader together, and with the same short
+        // patience on both, the live stage read as dead for a sample now and
+        // then, which is not what this test is about. What it is about is that
+        // a beating stage is never rebuilt, so that holds on every sample.
         bool noticed = false;
         for (int attempt = 0; attempt < 40 && !noticed; attempt++)
         {
+            Assert.True(live.IsAlive, "a stage whose helper is still beating must not be rebuilt");
             noticed = !stuck.IsAlive;
             if (!noticed) await Task.Delay(100);
         }
         Assert.True(noticed, "a stage whose helper stopped beating should read as dead");
-        Assert.True(stalled.IsRunning, "and it is a live process, which is what made this invisible before");
         Assert.True(live.IsAlive, "a stage whose helper is still beating must not be rebuilt");
+        Assert.True(stalled.IsRunning, "and it is a live process, which is what made this invisible before");
     }
 
     [Fact]

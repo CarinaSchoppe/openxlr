@@ -40,8 +40,15 @@ public static class ClapCatalog
 
     internal static IReadOnlyList<PluginInfo> ScanNow(IEnumerable<string>? directories = null, bool retryFailures = false)
         => HostScan.Run("clap", "scan-clap", directories ?? SearchPath(),
-            directory => Directory.EnumerateFiles(directory, "*.clap", SearchOption.AllDirectories),
+            Bundles,
             logs: new PluginScanLogStore(PluginScanLogStore.DefaultDirectory), retryFailures: retryFailures);
+
+    internal static IEnumerable<string> Bundles(string directory)
+        => HostScan.FindBundles(directory, ".clap", directoryBundles: false);
+
+    /// <summary>The same walk, told about each directory it could not read.</summary>
+    internal static IEnumerable<string> Bundles(string directory, Action<string, Exception>? unreadable)
+        => HostScan.FindBundles(directory, ".clap", directoryBundles: false, unreadable: unreadable);
 
     internal static IReadOnlyList<PluginInfo> Parse(string json) => HostScan.Parse(json, "clap");
 }
@@ -81,23 +88,11 @@ public static class Vst3Catalog
 
     /// <summary>Bundles at any depth, since yabridge keeps its own directory under ~/.vst3, never descending into one.</summary>
     internal static IEnumerable<string> Bundles(string directory)
-    {
-        var found = new List<string>();
-        var pending = new Stack<string>([directory]);
-        while (pending.Count > 0)
-        {
-            string current = pending.Pop();
-            IEnumerable<string> entries;
-            try { entries = Directory.EnumerateFileSystemEntries(current); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; }
-            foreach (string entry in entries)
-            {
-                if (entry.EndsWith(".vst3", StringComparison.OrdinalIgnoreCase)) found.Add(entry);
-                else if (Directory.Exists(entry)) pending.Push(entry);
-            }
-        }
-        return found;
-    }
+        => HostScan.FindBundles(directory, ".vst3", directoryBundles: true, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The same walk, told about each directory it could not read.</summary>
+    internal static IEnumerable<string> Bundles(string directory, Action<string, Exception>? unreadable)
+        => HostScan.FindBundles(directory, ".vst3", directoryBundles: true, StringComparison.OrdinalIgnoreCase, unreadable);
 
     internal static IReadOnlyList<PluginInfo> ScanNow(IEnumerable<string>? directories = null, bool retryFailures = false)
         => HostScan.Run("vst3", "scan-vst3", directories ?? SearchPath(), Bundles,
@@ -109,6 +104,44 @@ public static class Vst3Catalog
 /// <summary>What the two scanners share: running the helper per bundle, and reading its JSON.</summary>
 internal static class HostScan
 {
+    /// <summary>
+    /// Follow linked plugin folders once, including linked search roots. Keep
+    /// the discovered paths for cache identity, but compare resolved directory
+    /// paths so aliases and parent links cannot multiply scans. A failed child
+    /// directory does not discard bundles already found in its siblings.
+    /// </summary>
+    /// <param name="unreadable">
+    /// Told of each directory the walk had to pass over. Skipping it is what
+    /// keeps one unreadable folder from costing the whole search root, but a
+    /// skip that nobody hears of leaves a plugin missing from the catalogue
+    /// with a diagnostics archive that says the folder was fine.
+    /// </param>
+    internal static IEnumerable<string> FindBundles(string directory, string extension,
+        bool directoryBundles, StringComparison comparison = StringComparison.Ordinal,
+        Action<string, Exception>? unreadable = null)
+    {
+        var found = new List<string>();
+        var pending = new Stack<string>([directory]);
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        while (pending.Count > 0)
+        {
+            string current = pending.Pop();
+            try
+            {
+                if (!visited.Add(WindowsPluginWrappers.Canonical(current))) continue;
+                // Enumeration itself is lazy and can fail during MoveNext.
+                foreach (string entry in Directory.EnumerateFileSystemEntries(current))
+                {
+                    bool isDirectory = Directory.Exists(entry);
+                    if (entry.EndsWith(extension, comparison) && (directoryBundles || !isDirectory)) found.Add(entry);
+                    else if (isDirectory) pending.Push(entry);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { unreadable?.Invoke(current, ex); }
+        }
+        return found;
+    }
+
     /// <summary>
     /// Scan one format. <paramref name="logs"/> is where the whole output of
     /// a failed attempt is kept; the two catalogues pass the daemon's store,
@@ -122,7 +155,7 @@ internal static class HostScan
     /// once rather than at every start.
     /// </param>
     internal static IReadOnlyList<PluginInfo> Run(string kind, string command, IEnumerable<string> directories,
-        Func<string, IEnumerable<string>> bundlesIn,
+        Func<string, Action<string, Exception>?, IEnumerable<string>> bundlesIn,
         Func<string, ProcessResult>? describe = null, ScanCache? scanCache = null,
         PluginScanLogStore? logs = null, bool retryFailures = false)
     {
@@ -156,7 +189,14 @@ internal static class HostScan
                     continue;
                 }
                 IEnumerable<string> bundles;
-                try { bundles = bundlesIn(directory).OrderBy(f => f, StringComparer.Ordinal).ToList(); }
+                // A folder the walk could not read is reported under its own
+                // path and the walk goes on; a root that fails outright is the
+                // catch below.
+                try
+                {
+                    bundles = bundlesIn(directory, (path, ex) => evidence.Add(path, "directory-error", detail: ex.Message))
+                        .OrderBy(f => f, StringComparer.Ordinal).ToList();
+                }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     evidence.Add(directory, "directory-error", detail: ex.Message);

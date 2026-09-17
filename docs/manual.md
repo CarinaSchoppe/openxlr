@@ -368,6 +368,19 @@ known. Updating OpenXLR reads every one of them again once, because the
 new version may see them differently, which makes the first scan after
 an update as slow as the first ever.
 
+CLAP and VST3 discovery follows linked folders, but visits each resolved
+directory only once per search root. Links back to a parent or another alias
+of the same folder do not repeatedly scan its plugins. An unreadable child
+folder does not discard plugins found in other folders. VST3 bundle contents
+are not searched for further bundles.
+
+The scan cache is disposable. Invalid index entries are ignored independently,
+so undamaged descriptions and records of failed scans remain usable. Cached
+descriptions must use the filename assigned to their bundle and must not be
+symbolic links; cache cleanup does not follow index paths to other files. A
+description larger than the live scanner's 64 MiB output limit is ignored and
+scanned again.
+
 <a name="windows-plugins"></a>
 **Windows VST3 and CLAP plugins.** They run through
 [yabridge](https://github.com/robbert-vdh/yabridge), which wraps them as
@@ -1065,7 +1078,10 @@ and Aux are listed but fixed.
   channel. Deleting a mix removes its virtual microphone, and anything
   recording from it loses the device.
 
-Every change is saved before the editor confirms it. If the settings
+Every change is saved before the editor confirms it. Once the daemon has
+finished its final save during shutdown or restart, late layout changes are
+refused before they alter the mixer or write settings. Retry them after the
+daemon starts again. If the settings
 file cannot be written the change is undone and the editor says why. The
 same happens when pipewire-pulse has no room for more streams
 ([section 5.8](#open-files) explains the limit and the drop-in that raises
@@ -1445,8 +1461,9 @@ next depends on the file:
   is used, and the daemon log names the field. The next save writes the file
   without the entry.
 - `mixer.json` that cannot be parsed: the daemon logs the path and the
-  reason, keeps a copy as `mixer.json.corrupt`, and starts with default
-  settings. The next save replaces the original.
+  reason, keeps a private copy as `mixer.json.corrupt`, and starts with default
+  settings. The copy is published atomically; an existing backup link is
+  replaced without writing through it. The next save replaces the original.
 - a hardware snapshot (`last-state.json`, `defaults.json`) with a bad entry:
   treated as unreadable, nothing from it is applied.
 - a profile with a bad entry: refused before any of its hardware or mixer

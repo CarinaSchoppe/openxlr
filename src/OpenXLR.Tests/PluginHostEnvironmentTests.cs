@@ -79,7 +79,7 @@ public sealed class PluginHostEnvironmentTests : IDisposable
             ExecutableScript.Write(scanner, "exec /usr/bin/python3 \"$OPENXLR_TEST_SCANNER_SCRIPT\"");
             string bundles = Directory.CreateDirectory(Path.Combine(_root, "bundles")).FullName;
             File.WriteAllText(Path.Combine(bundles, "Fixture.clap"), "fixture");
-            HostScan.Run("environment-test", "scan-clap", [bundles], d => Directory.GetFiles(d, "*.clap"),
+            HostScan.Run("environment-test", "scan-clap", [bundles], (d, _) => Directory.GetFiles(d, "*.clap"),
                 scanCache: new ScanCache(Path.Combine(_root, "cache")));
             Assert.Empty(PluginScanDiagnostics.Failures(PluginScanDiagnostics.Snapshot().Where(r => r.Kind == "environment-test")));
             JsonNode scanned = JsonNode.Parse(File.ReadAllText(output))!;

@@ -128,7 +128,7 @@ public sealed record MixerSettings
             string copy = path + ".corrupt";
             try
             {
-                File.Copy(path, copy, overwrite: true);
+                OpenXlrPaths.WriteAtomic(copy, File.ReadAllBytes(path));
                 warning += $"; copy kept as {copy}";
             }
             catch (Exception copyEx) when (copyEx is IOException or UnauthorizedAccessException)

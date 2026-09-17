@@ -89,7 +89,19 @@ public sealed class ScanCache
     public byte[]? Lookup(string bundle)
     {
         if (Current(bundle) is not { Failed: false } entry) return null;
-        try { return File.ReadAllBytes(Path.Combine(_directory, entry.File)); }
+        try
+        {
+            string path = Path.Combine(_directory, entry.File);
+            if (new FileInfo(path).LinkTarget is not null) return null;
+            using var stream = File.OpenRead(path);
+            // Cache reads have the same byte budget as a live scanner. Size
+            // changes during the read must not cause an unbounded allocation.
+            long length = stream.Length;
+            if (length > ProcessRunner.DefaultStdoutCap) return null;
+            byte[] description = new byte[(int)length];
+            stream.ReadExactly(description);
+            return stream.ReadByte() == -1 ? description : null;
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
 
@@ -116,7 +128,7 @@ public sealed class ScanCache
     public void Store(string bundle, byte[] description)
     {
         if (Stamp(bundle) is not { } stamp) return;
-        string file = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(bundle))) + ".json";
+        string file = FileName(bundle);
         try
         {
             OpenXlrPaths.WriteAtomic(Path.Combine(_directory, file), description);
@@ -259,14 +271,22 @@ public sealed class ScanCache
         try
         {
             if (!File.Exists(path)) return new(StringComparer.Ordinal);
-            return JsonSerializer.Deserialize<Dictionary<string, Entry>>(File.ReadAllText(path), Options)
+            var entries = JsonSerializer.Deserialize<Dictionary<string, Entry>>(File.ReadAllText(path), Options)
                 ?? new(StringComparer.Ordinal);
+            // The index is cache data, not permission to read or delete an
+            // arbitrary path. Failure markers have no description file.
+            foreach ((string bundle, Entry entry) in entries.ToArray())
+                if (entry is null || entry.File != (entry.Failed ? "" : FileName(bundle))) entries.Remove(bundle);
+            return entries;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             return new(StringComparer.Ordinal);   // a damaged cache is just a slow start
         }
     }
+
+    private static string FileName(string bundle)
+        => Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(bundle))) + ".json";
 
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 }

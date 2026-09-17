@@ -96,6 +96,10 @@ and [package checks](packaging/yabridge/README.md).
 
 ## Pull requests
 
+CI and CodeQL run for pull requests and for direct pushes to `main` and
+`development`, so changes integrated directly into development get the same
+checks as a pull request.
+
 - **Branch from `main`** and keep one topic per pull request. Split an
   independent part out into its own request when you can; small ones
   merge fast, large ones wait for a review slot.

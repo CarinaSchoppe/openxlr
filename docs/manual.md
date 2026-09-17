@@ -368,6 +368,13 @@ known. Updating OpenXLR reads every one of them again once, because the
 new version may see them differently, which makes the first scan after
 an update as slow as the first ever.
 
+The scan cache is disposable. Invalid index entries are ignored independently,
+so undamaged descriptions and records of failed scans remain usable. Cached
+descriptions must use the filename assigned to their bundle and must not be
+symbolic links; cache cleanup does not follow index paths to other files. A
+description larger than the live scanner's 64 MiB output limit is ignored and
+scanned again.
+
 <a name="windows-plugins"></a>
 **Windows VST3 and CLAP plugins.** They run through
 [yabridge](https://github.com/robbert-vdh/yabridge), which wraps them as

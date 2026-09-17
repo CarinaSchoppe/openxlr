@@ -894,7 +894,10 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             if (!_inserts.TryGetValue(channel, out List<InsertDefinition>? list)) return;
             int idx = list.FindIndex(i => i.Id == insertId);
             if (idx < 0) return;
-            list[idx].Params[symbol] = value;
+            Dictionary<string, double> parameters = list[idx].Params;
+            if (!parameters.ContainsKey(symbol) && parameters.Count >= InsertDefinition.MaxParams)
+                throw new InvalidOperationException($"insert '{insertId}' already holds {InsertDefinition.MaxParams} control values");
+            parameters[symbol] = value;
             if (!_built || list[idx].Bypass || _insertErrors.ContainsKey(channel)
                 || !_chains.TryGetValue(channel, out FilterHandle? chain)) return;
             // The chain names LV2 stages i0, i1, ... in the order of the

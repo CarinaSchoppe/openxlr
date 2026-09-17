@@ -111,6 +111,32 @@ public sealed class SavedMixerValidationTests
         });
     }
 
+    // A control value past the cap is refused by the live mixer, so a file
+    // holding more re-enters trimmed: the settings keep the first entries
+    // with a note, a profile is refused whole.
+    [Fact]
+    public void AnInsertWithTooManyControlValuesIsTrimmedInSettingsAndRefusedInAProfile()
+    {
+        InConfig(root =>
+        {
+            string values = string.Join(',', Enumerable.Range(0, InsertDefinition.MaxParams + 1).Select(i => $"\"p{i}\":{i}"));
+            string json = "{\"inserts\":{\"xlr1\":[{\"id\":\"one\",\"kind\":\"lv2\",\"plugin\":\"urn:eq\",\"params\":{" + values + "}}]}}";
+            string settings = Path.Combine(root, "mixer.json");
+            File.WriteAllText(settings, json);
+            MixerSettings loaded = Assert.IsType<MixerSettings>(MixerSettings.Load(settings, out string? warning));
+            Assert.Contains("inserts.xlr1.params: too many entries", warning);
+            InsertDefinition insert = Assert.Single(Assert.Single(loaded.Inserts).Value);
+            Assert.Equal(InsertDefinition.MaxParams, insert.Params.Count);
+            Assert.Equal(0, insert.Params["p0"]);
+
+            string profilePath = Path.Combine(root, "openxlr", "profiles", "0fd9-007d", "Test.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(profilePath)!);
+            File.WriteAllText(profilePath, "{\"device\":{\"gainDb\":75},\"mixer\":" + json + "}");
+            var ex = Assert.Throws<JsonException>(() => ProfileStore.Load("0fd9:007d", "Test"));
+            Assert.Equal("Invalid saved mixer field 'inserts.xlr1.params': too many entries.", ex.Message);
+        });
+    }
+
     [Fact]
     [System.Runtime.Versioning.SupportedOSPlatform("linux")]
     public void ACorruptBackupCannotOverwriteASymbolicLinkTarget()

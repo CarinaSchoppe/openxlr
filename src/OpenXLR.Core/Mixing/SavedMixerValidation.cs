@@ -57,6 +57,7 @@ internal static class SavedMixerValidation
 
     private const string NullEntry = "null entry";
     private const string NonFinite = "non-finite number";
+    private const string TooMany = "too many entries";
 
     // Lenient pass for the settings file.
 
@@ -107,11 +108,20 @@ internal static class SavedMixerValidation
                     notes.Add($"inserts.{channel}: {NullEntry}");
                     continue;
                 }
-                inserts.Add(insert with { Params = Levels(insert.Params, $"inserts.{channel}.params", notes) });
+                inserts.Add(insert with { Params = Capped(Levels(insert.Params, $"inserts.{channel}.params", notes), $"inserts.{channel}.params", notes) });
             }
             kept[channel] = inserts;
         }
         return kept;
+    }
+
+    // The live mixer refuses a control value past the cap, so a file holding
+    // more was not written by this daemon; the first entries are kept.
+    private static Dictionary<string, double> Capped(Dictionary<string, double> levels, string field, List<string> notes)
+    {
+        if (levels.Count <= InsertDefinition.MaxParams) return levels;
+        notes.Add($"{field}: {TooMany}");
+        return levels.Take(InsertDefinition.MaxParams).ToDictionary();
     }
 
     // Strict pass for profiles.
@@ -138,6 +148,7 @@ internal static class SavedMixerValidation
             {
                 Require(insert is { Id: not null, Kind: not null, Plugin: not null }, NullEntry, $"inserts.{channel}");
                 Levels(insert.Params, $"inserts.{channel}.params");
+                Require(insert.Params.Count <= InsertDefinition.MaxParams, TooMany, $"inserts.{channel}.params");
             }
         }
     }

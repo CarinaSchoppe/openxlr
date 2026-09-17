@@ -841,6 +841,10 @@ Changing the plugins used by your chains refreshes the offered list even
 when their identifiers contain unusual characters. Copies are recognized by
 name, with an optional vendor prefix, and matching input and output widths.
 Two different names sharing only their last word remain separate plugins.
+The message limit includes escaped Unicode names, parameter labels and
+native-plugin metadata such as bundle paths. A large or unusually named
+collection is shortened before sending, so it cannot make the window
+discard the entire list as an oversized message.
 
 <a name="profiles"></a>
 ### 3.6 Save and recall a scene

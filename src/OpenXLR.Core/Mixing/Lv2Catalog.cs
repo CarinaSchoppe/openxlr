@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text.Encodings.Web;
 
 namespace OpenXLR.Core.Mixing;
 
@@ -139,10 +140,35 @@ public static class Lv2Catalog
     /// will read.
     /// </summary>
     internal static int Footprint(PluginInfo p)
-        => 252 + p.Plugin.Length + p.Name.Length + p.Category.Length
-           + p.Params.Sum(q => 152 + q.Symbol.Length + q.Name.Length + q.ScalePoints.Sum(sp => 24 + sp.Label.Length))
-           + p.RequiredFeatures.Sum(f => f.Length + 4) + (p.InputSymbols.Count + p.OutputSymbols.Count) * 16
-           + (p.Widths is null ? 0 : 12 + p.Widths.Count * 3);
+    {
+        // Include every transmitted string, including optional native-host
+        // metadata. Fixed allowances cover property names, booleans, quotes,
+        // separators and the longest finite numeric representations.
+        long size = 512 + TextBytes(p.Kind) + TextBytes(p.Plugin) + TextBytes(p.Name) + TextBytes(p.Category)
+            + TextBytes(p.InputSymbol) + TextBytes(p.OutputSymbol) + TextBytes(p.Path);
+        foreach (PluginParam parameter in p.Params)
+        {
+            size += 256 + TextBytes(parameter.Symbol) + TextBytes(parameter.Name);
+            foreach (ScalePoint point in parameter.ScalePoints) size += 64 + TextBytes(point.Label);
+        }
+        foreach (IReadOnlyList<string> values in new[] { p.RequiredFeatures, p.UnsupportedFeatures,
+                     p.NativeUiRequiredFeatures, p.InputSymbols, p.OutputSymbols })
+            foreach (string value in values) size += TextBytes(value) + 3;
+        if (p.Widths is not null) size += (long)p.Widths.Count * 12;
+        return (int)Math.Min(size, int.MaxValue);
+    }
+
+    private static long TextBytes(string? text)
+    {
+        long bytes = 0;
+        if (text is not null)
+            foreach (char character in text)
+                // The default JSON encoder escapes non-ASCII and selected
+                // ASCII characters. Six bytes per UTF-16 code unit also covers
+                // surrogate pairs and short escapes without allocating JSON.
+                bytes += character <= 0x7f && !JavaScriptEncoder.Default.WillEncode(character) ? 1 : 6;
+        return bytes;
+    }
 
     /// <summary>
     /// Keep a list under the budget by dropping the largest plugins first: a

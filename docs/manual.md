@@ -1467,6 +1467,11 @@ Review plugin names, paths and scanner output before sharing the archive.
 | `/usr/lib/systemd/user/pipewire-pulse.service.d/openxlr.conf` | installed by the packages: raises pipewire-pulse's open-file limit ([section 5.8](#open-files)) |
 | `ws://127.0.0.1:37890/ws` | the daemon's API, documented in [api.md](api.md); the same commands over HTTP at `/api/v1` ([http-api.md](http-api.md)) |
 
+The daemon makes a final attempt to save pending mixer settings when it
+shuts down, including when startup fails after the mixer changed. If that
+write fails, the last file on disk remains in use. Later cleanup cannot
+schedule another save from a mixer that is already being dismantled.
+
 Saved mixer and hardware data are checked before restoration. A null entry
 or a number that is not finite (`1e999`) counts as a bad entry. What happens
 next depends on the file:

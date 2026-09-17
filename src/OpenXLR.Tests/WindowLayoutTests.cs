@@ -275,6 +275,20 @@ public sealed class WindowLayoutTests
                 windows.Add(options);
                 options.Show();
                 Layout(options, 980, 800);
+                // The cards grow as features land, and the window sizes itself
+                // to them. On a tall screen that produced a window the height
+                // of the monitor, so the cap is what the scroll region needs to
+                // do anything at all: it is the one that has to hold.
+                var cards = options.GetVisualDescendants().OfType<ScrollViewer>()
+                    .First(v => v.GetVisualDescendants().OfType<Grid>().Any(g => g.ColumnDefinitions.Count == 3));
+                Assert.True(cards.Extent.Height > OptionsWindow.Comfortable - 200,
+                    $"the cards are {cards.Extent.Height} tall, so this no longer tests a capped window");
+                Layout(options, 980, OptionsWindow.Comfortable);
+                Assert.True(cards.Viewport.Height < cards.Extent.Height,
+                    $"at the cap the cards ({cards.Extent.Height}) must not all fit the viewport ({cards.Viewport.Height})");
+                Assert.True(cards.VerticalScrollBarVisibility == Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+                    "the capped page must be able to show a scrollbar");
+                Layout(options, 980, 800);
                 var launch = options.FindControl<ComboBox>("LaunchBehavior")!;
                 var close = options.FindControl<ComboBox>("CloseBehavior")!;
                 Assert.Equal(1, launch.SelectedIndex);

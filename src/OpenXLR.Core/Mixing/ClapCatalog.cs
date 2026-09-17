@@ -485,6 +485,11 @@ internal static class HostScan
             else if (reader.ValueTextEquals("enum"u8)) { reader.Read(); enumeration = reader.TokenType == JsonTokenType.True; }
             else { reader.Read(); reader.Skip(); }
         }
+        // A valid JSON number such as 1e999 can still overflow a double.
+        // Omit only that control so one bad range cannot prevent every
+        // plugin from being serialized to the window.
+        if (!double.IsFinite(min) || !double.IsFinite(max) || (initial.HasValue && !double.IsFinite(initial.Value)))
+            return null;
         return new PluginParam(
             id.ToString(CultureInfo.InvariantCulture), name, min, max, initial ?? min,
             Toggled: stepped && min == 0 && max == 1,

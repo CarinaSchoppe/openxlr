@@ -6,6 +6,36 @@ namespace OpenXLR.Tests;
 
 public sealed class Lv2BundleTests
 {
+    [Fact]
+    public void NonFiniteLv2MetadataCannotBreakTheCatalogueReply()
+    {
+        if (!NativeLibrary.TryLoad("liblilv-0.so.0", out IntPtr library)) return;
+        NativeLibrary.Free(library);
+        string directory = Directory.CreateTempSubdirectory("openxlr-lv2-ranges-").FullName;
+        try
+        {
+            string bundle = Directory.CreateDirectory(Path.Combine(directory, "ranges.lv2")).FullName;
+            File.WriteAllText(Path.Combine(bundle, "manifest.ttl"),
+                "@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n"
+                + "<urn:openxlr:test:ranges> a lv2:Plugin ; rdfs:seeAlso <ranges.ttl> .\n");
+            string text = Bundle("ranges", "urn:openxlr:test:ranges", 3)
+                .Replace("lv2:maximum 1.0", "lv2:maximum 1e999", StringComparison.Ordinal);
+            // Keep one useful control; its invalid scale point is optional
+            // metadata and must not make the whole plugin disappear.
+            text = text.Replace("lv2:symbol \"c2\" ; lv2:name \"Control 2\" ; lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1e999",
+                "lv2:symbol \"c2\" ; lv2:name \"Control 2\" ; lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ; "
+                + "lv2:scalePoint [ <http://www.w3.org/2000/01/rdf-schema#label> \"bad\" ; <http://www.w3.org/1999/02/22-rdf-syntax-ns#value> 1e999 ]",
+                StringComparison.Ordinal);
+            File.WriteAllText(Path.Combine(bundle, "ranges.ttl"), text);
+            PluginInfo plugin = Assert.Single(Lv2Catalog.ScanNow(directory));
+            PluginParam control = Assert.Single(plugin.Params);
+            Assert.Equal("c2", control.Symbol);
+            Assert.Empty(control.ScalePoints);
+            Assert.NotEmpty(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(plugin));
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
     private static string Bundle(string name, string uri, int extraControls)
     {
         var sb = new StringBuilder();

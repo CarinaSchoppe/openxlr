@@ -243,13 +243,16 @@ public static class Lv2Catalog
                     string? lbl = Lilv.Str(Lilv.lilv_node_as_string(Lilv.lilv_scale_point_get_label(sp)));
                     IntPtr vn = Lilv.lilv_scale_point_get_value(sp);
                     double v = Lilv.lilv_node_is_float(vn) || Lilv.lilv_node_is_int(vn) ? Lilv.lilv_node_as_float(vn) : 0;
-                    if (lbl is not null) points.Add(new ScalePoint(Clip(lbl), v));
+                    if (lbl is not null && double.IsFinite(v)) points.Add(new ScalePoint(Clip(lbl), v));
                 }
                 Lilv.lilv_scale_points_free(sps);
             }
             float min = float.IsNaN(mins[i]) ? 0 : mins[i];
             float max = float.IsNaN(maxs[i]) ? 1 : maxs[i];
             float def = float.IsNaN(defs[i]) ? min : defs[i];
+            // NaN means a missing range to lilv and keeps the legacy defaults
+            // above. Infinite metadata cannot be sent as a JSON number.
+            if (!float.IsFinite(min) || !float.IsFinite(max) || !float.IsFinite(def)) continue;
             pars.Add(new PluginParam(sym, pname, min, max, def,
                 Lilv.lilv_port_has_property(plugin, port, toggled),
                 Lilv.lilv_port_has_property(plugin, port, integer),

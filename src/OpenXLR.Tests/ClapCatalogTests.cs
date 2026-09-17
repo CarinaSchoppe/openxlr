@@ -7,6 +7,24 @@ namespace OpenXLR.Tests;
 
 public sealed class ClapCatalogTests
 {
+    [Theory]
+    [InlineData("min")]
+    [InlineData("max")]
+    [InlineData("default")]
+    public void NonFiniteControlsCannotBreakTheCatalogueReply(string field)
+    {
+        string description = "{\"file\":\"plugin.clap\",\"plugins\":[{\"id\":\"test\",\"name\":\"Test\",\"params\":["
+            + "{\"id\":1,\"name\":\"Broken\",\"" + field + "\":1e999},"
+            + "{\"id\":2,\"name\":\"Healthy\",\"min\":0,\"max\":1,\"default\":0.5}]}]}";
+        foreach (IReadOnlyList<PluginInfo> plugins in new[] { ClapCatalog.Parse(description), Vst3Catalog.Parse(description) })
+        {
+            PluginParam control = Assert.Single(Assert.Single(plugins).Params);
+            Assert.Equal("2", control.Symbol);
+            Assert.Equal(0.5, control.Default);
+            Assert.NotEmpty(JsonSerializer.SerializeToUtf8Bytes(plugins));
+        }
+    }
+
     // What the helper's scanner prints for one bundle, shortened.
     private const string Scan = """
         {"file":"/usr/lib/clap/DragonflyHallReverb.clap","plugins":[

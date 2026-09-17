@@ -845,6 +845,10 @@ The message limit includes escaped Unicode names, parameter labels and
 native-plugin metadata such as bundle paths. A large or unusually named
 collection is shortened before sending, so it cannot make the window
 discard the entire list as an oversized message.
+Controls with non-finite ranges or default values are omitted from the
+generated controls; non-finite LV2 scale points are omitted too. Other
+controls and plugins remain available, so malformed plugin metadata cannot
+prevent the whole catalogue from reaching the window.
 
 <a name="profiles"></a>
 ### 3.6 Save and recall a scene

@@ -13,9 +13,9 @@ behaviour verified on hardware before it ships. The project is small on
 purpose. It prefers one small, idiomatic change over a framework, and a
 feature that is measured over one that is described.
 
-## Where it stands (0.1.36)
+## Where it stands (0.1.39)
 
-This is what 0.1.36 ships. A checked item is in the released packages.
+This is what 0.1.39 ships. A checked item is in the released packages.
 
 - [x] Wave XLR Pro, XLR Dock (MK.1 and MK.2 modules), Wave XLR, Wave XLR
   MK.2: hardware controls, verified by owners of each device.
@@ -157,8 +157,12 @@ while fixes to existing hosts remain part of normal maintenance.
 - [ ] Plugin latency reported per insert and compensated across mixes.
 - [ ] Sound Check: record a short microphone sample, loop it through the
   live chain, compare presets while listening.
-- [ ] Plugin manager: search paths, rescan, quarantine of plugins that
-  crash the scanner.
+- [x] A bundle that hangs or fails the scanner is remembered and passed
+  over while the daemon builds its catalogue, asked again when the user
+  installs, syncs or rescans or when the bundle, the helper or the bridge
+  changes. Skipped bundles and folders the scan could not read are named
+  in Options, and a failed scan keeps the phase it reached in its log.
+- [ ] Plugin manager: search paths and rescan in one place.
 
 ## Next: daemon and integrations
 

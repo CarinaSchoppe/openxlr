@@ -36,6 +36,56 @@ public sealed class DeviceManagerHangTests
         public void SetPhantom(bool on) { } public void SetClipGuard(bool on) { } public void SetCompressor(bool on) { }
     }
 
+    /// <summary>A device that opens and then answers every read badly.</summary>
+    private sealed class BrokenDevice : IAudioDevice
+    {
+        public int Connects;
+        public void Dispose() { }
+        public DeviceInfo Info { get; } = new("Elgato", "Wave XLR MK.2", 0x0fd9, 0x00b6);
+        public DeviceCapabilities Capabilities { get; } = new() { Gain = true };
+        public bool Connected { get; private set; }
+        public void Connect() { Connects++; Connected = true; }
+        public void Disconnect() => Connected = false;
+        public DeviceState ReadState() => throw new InvalidOperationException("read block 0004: 1 bytes, at least 11 expected");
+        public void SetGainDb(int db) { } public void SetMute(bool on) { } public void SetLowCut(bool on) { }
+        public void SetExpander(bool on) { } public void SetVoiceTune(bool on) { } public void SetVoiceTuneStrength(int v) { }
+        public void SetHpVolumeDb(double db) { } public void SetLowImpedance(bool on) { } public void SetCrossfade(int v) { }
+        public void SetPhantom(bool on) { } public void SetClipGuard(bool on) { } public void SetCompressor(bool on) { }
+    }
+
+    [Fact]
+    public void AFailingPollWaitsBeforeTheDeviceIsReopenedAndWaitsLongerEachTime()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "openxlr-test-" + Guid.NewGuid().ToString("N"));
+        string? prev = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", dir);
+        TimeSpan prevDelay = DeviceManager.PollRetryDelay;
+        DeviceManager.PollRetryDelay = TimeSpan.FromMilliseconds(150);
+        try
+        {
+            var device = new BrokenDevice();
+            var manager = new DeviceManager(NullLogger<DeviceManager>.Instance, new ConfigurationBuilder().Build(), () => [device]);
+
+            for (int i = 0; i < 5; i++) manager.SweepOnce();   // connect, fail, drop; then wait
+            Assert.Equal(1, device.Connects);
+            Thread.Sleep(200);
+            manager.SweepOnce();
+            Assert.Equal(2, device.Connects);                  // reopened after the first wait
+            Thread.Sleep(200);
+            manager.SweepOnce();
+            Assert.Equal(2, device.Connects);                  // the second wait is twice as long
+            Thread.Sleep(150);
+            manager.SweepOnce();
+            Assert.Equal(3, device.Connects);
+        }
+        finally
+        {
+            DeviceManager.PollRetryDelay = prevDelay;
+            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", prev);
+            try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
+        }
+    }
+
     [Fact]
     public void ThreeHangsSetTheDeviceAsideAndAReplugBringsItBack()
     {

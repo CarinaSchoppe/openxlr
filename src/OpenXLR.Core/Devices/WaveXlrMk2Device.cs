@@ -40,6 +40,11 @@ public class WaveXlrMk2Device : IAudioDevice
     private const int CrossfadeLen = 6;
     private const int SettingsLen = 38;
     private const int HpLen = 2;
+    // How much of each block ReadState and the setters index (the highest
+    // offset used, plus one); a shorter answer is refused rather than decoded.
+    private const int CrossfadeUsed = 1;
+    private const int SettingsUsed = 11;
+    private const int HpUsed = 2;
 
     private const int ClipGuardOffset = 2;
     private const byte ClipGuardOffMask = 0x04;   // set = ClipGuard disabled
@@ -133,17 +138,20 @@ public class WaveXlrMk2Device : IAudioDevice
         return n;
     }
 
-    private byte[] Read(ushort block, int length)
+    /// <param name="used">The least length the caller indexes; a device
+    /// answering less is refused here instead of failing at the index.</param>
+    private byte[] Read(ushort block, int length, int used)
     {
         var buf = new byte[length];
         lock (_lock)
         {
             int n = TransferWithRetry(RtRead, VReq, block, buf, length);
             if (n < 0) throw new InvalidOperationException($"read block {block:x4}: {LibUsb.StrError(n)}");
-            // The block lengths come from a Wave Link capture; a short read is
-            // tolerated so a firmware that answers less still gets decoded
-            // (ReadState only indexes the low offsets) and DumpBlocks shows
-            // the real length in diagnostics.
+            if (n < used) throw new InvalidOperationException($"read block {block:x4}: {n} bytes, at least {used} expected");
+            // The block lengths come from a Wave Link capture; a short read
+            // beyond the offsets in use is tolerated so a firmware that
+            // answers less still gets decoded, and DumpBlocks shows the real
+            // length in diagnostics.
             if (n != length) Array.Resize(ref buf, n);
         }
         return buf;
@@ -160,18 +168,18 @@ public class WaveXlrMk2Device : IAudioDevice
         }
     }
 
-    private void Modify(ushort block, int length, Action<byte[]> edit)
+    private void Modify(ushort block, int length, int used, Action<byte[]> edit)
     {
-        byte[] b = Read(block, length);
+        byte[] b = Read(block, length, used);
         edit(b);
         Write(block, b);
     }
 
     public DeviceState ReadState()
     {
-        byte[] s = Read(BlockSettings, SettingsLen);
-        byte[] hp = Read(BlockHp, HpLen);
-        byte[] xf = Read(BlockCrossfade, CrossfadeLen);
+        byte[] s = Read(BlockSettings, SettingsLen, SettingsUsed);
+        byte[] hp = Read(BlockHp, HpLen, HpUsed);
+        byte[] xf = Read(BlockCrossfade, CrossfadeLen, CrossfadeUsed);
         return new DeviceState
         {
             GainDb = s[0],
@@ -190,10 +198,10 @@ public class WaveXlrMk2Device : IAudioDevice
     }
 
     private void Flag(byte mask, bool on)
-        => Modify(BlockSettings, SettingsLen, b => b[1] = on ? (byte)(b[1] | mask) : (byte)(b[1] & ~mask));
+        => Modify(BlockSettings, SettingsLen, SettingsUsed, b => b[1] = on ? (byte)(b[1] | mask) : (byte)(b[1] & ~mask));
 
     public void SetGainDb(int db)
-        => Modify(BlockSettings, SettingsLen, b => b[0] = (byte)Math.Clamp(db, 0, 80));
+        => Modify(BlockSettings, SettingsLen, SettingsUsed, b => b[0] = (byte)Math.Clamp(db, 0, 80));
 
     public void SetMute(bool on) => Flag(MuteMask, on);
     public void SetLowCut(bool on) => Flag(LowCutMask, on);
@@ -201,22 +209,22 @@ public class WaveXlrMk2Device : IAudioDevice
     public void SetVoiceTune(bool on) => Flag(VoiceTuneMask, on);
 
     public void SetVoiceTuneStrength(int value)
-        => Modify(BlockSettings, SettingsLen, b => b[10] = (byte)Math.Clamp(value, 0, 100));
+        => Modify(BlockSettings, SettingsLen, SettingsUsed, b => b[10] = (byte)Math.Clamp(value, 0, 100));
 
     public void SetHpVolumeDb(double db)
-        => Modify(BlockHp, HpLen, b => b[0] = (byte)Math.Clamp((int)Math.Round(-db * 4), 0, 240));
+        => Modify(BlockHp, HpLen, HpUsed, b => b[0] = (byte)Math.Clamp((int)Math.Round(-db * 4), 0, 240));
 
     public void SetLowImpedance(bool on)
-        => Modify(BlockHp, HpLen, b => b[1] = on ? (byte)(b[1] | LowZMask) : (byte)(b[1] & ~LowZMask));
+        => Modify(BlockHp, HpLen, HpUsed, b => b[1] = on ? (byte)(b[1] | LowZMask) : (byte)(b[1] & ~LowZMask));
 
     public void SetCrossfade(int value)
-        => Modify(BlockCrossfade, CrossfadeLen, b => b[0] = (byte)Math.Clamp(value, 0, 200));
+        => Modify(BlockCrossfade, CrossfadeLen, CrossfadeUsed, b => b[0] = (byte)Math.Clamp(value, 0, 200));
 
     public void SetPhantom(bool on) => Flag(PhantomMask, on);
     public void SetCompressor(bool on) => Flag(CompressorMask, on);
 
     public void SetClipGuard(bool on)
-        => Modify(BlockSettings, SettingsLen, b => b[ClipGuardOffset] = on
+        => Modify(BlockSettings, SettingsLen, SettingsUsed, b => b[ClipGuardOffset] = on
             ? (byte)(b[ClipGuardOffset] & ~ClipGuardOffMask)
             : (byte)(b[ClipGuardOffset] | ClipGuardOffMask));
 
@@ -227,7 +235,7 @@ public class WaveXlrMk2Device : IAudioDevice
                  { ("settings", BlockSettings, SettingsLen), ("hp", BlockHp, HpLen),
                    ("crossfade", BlockCrossfade, CrossfadeLen) })
         {
-            try { blocks[name] = Convert.ToHexString(Read(block, len)); }
+            try { blocks[name] = Convert.ToHexString(Read(block, len, used: 0)); }
             catch (Exception ex) { blocks[name] = $"error: {ex.Message}"; }
         }
         return blocks;

@@ -32,6 +32,9 @@ public sealed record InsertDefinition
 
     /// <summary>Control values by port symbol; ports not listed keep defaults.</summary>
     public Dictionary<string, double> Params { get; init; } = [];
+
+    /// <summary>The most control values one insert keeps, on every path that adds one: a command, or a saved file read back.</summary>
+    public const int MaxParams = 256;
 }
 
 /// <summary>An insert as pushed to clients: its definition plus live status.</summary>

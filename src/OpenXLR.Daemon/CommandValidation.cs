@@ -17,7 +17,7 @@ public static class CommandValidation
     public const int MaxDevices = 16;
     public const int MaxInsertsPerChannel = 16;
     public const int MaxInsertId = 64;
-    public const int MaxParamsPerInsert = 256;
+    public const int MaxParamsPerInsert = InsertDefinition.MaxParams;
     public const int MaxOverrides = 512;     // remembered app assignments
 
     public static string? Check(Command cmd, ILayoutInfo layout, Func<InsertDefinition, PluginInfo?> findPlugin)
@@ -161,6 +161,17 @@ public static class CommandValidation
             case "setInsertParam":
                 if (cmd.Channel is not null && !layout.IsInsertKey(cmd.Channel)) return $"setInsertParam: '{Short(cmd.Channel)}' has no insert chain";
                 if (TooLong(cmd.InsertId, MaxInsertId) || TooLong(cmd.Symbol, MaxText)) return "setInsertParam: id or symbol too long";
+                // The symbol names a line in the native host's protocol and
+                // a key in the saved chain, so only a control the plugin
+                // declares is accepted, as setInserts requires of a whole chain.
+                if (cmd.Channel is not null && cmd.InsertId is not null && cmd.Symbol is not null)
+                {
+                    if (layout.InsertInChain(cmd.Channel, cmd.InsertId) is not { } insert)
+                        return $"setInsertParam: '{Short(cmd.InsertId)}' is not in the chain";
+                    if (cmd.Symbol.Any(c => char.IsWhiteSpace(c) || char.IsControl(c))
+                        || findPlugin(insert)?.Params.Any(p => p.Symbol == cmd.Symbol) != true)
+                        return $"setInsertParam: '{Short(insert.Label ?? insert.Plugin)}' has no control '{Short(cmd.Symbol)}'";
+                }
                 return Finite(cmd, "value");
             default:
                 return null;   // the service knows the rest, or reports the command as unknown

@@ -13,6 +13,8 @@ public sealed class CommandLimitsTests
         public bool IsMonitorFeed(string feed) => feed is "monitor" or "monitor2" or "monitor+monitor2";
         public bool IsMonitorOutput(string device) => device is "alsa_output.headset" or "alsa_output.katana" or "alsa_output.pro#";
         public bool IsInsertKey(string key) => key is "xlr1" or "mix:monitor";
+        public InsertDefinition? InsertInChain(string key, string id)
+            => key is "xlr1" && id is "comp" ? new InsertDefinition { Id = "comp", Kind = "lv2", Plugin = "urn:test:comp" } : null;
         public int OverrideCount { get; set; }
     }
 
@@ -48,6 +50,11 @@ public sealed class CommandLimitsTests
     [InlineData("""{"cmd":"setInserts","channel":"xlr1","inserts":[{"id":null,"kind":"lv2","plugin":"urn:test:comp"}]}""", "every insert")]
     [InlineData("""{"cmd":"setInserts","channel":"xlr1","inserts":[{"id":"a","kind":null,"plugin":"urn:test:comp"}]}""", "every insert")]
     [InlineData("""{"cmd":"setInserts","channel":"xlr1","inserts":null}""", "need 'channel' and 'inserts'")]
+    [InlineData("""{"cmd":"setInsertParam","channel":"xlr1","insertId":"comp","symbol":"ratio","value":4}""", null)]
+    [InlineData("""{"cmd":"setInsertParam","channel":"xlr1","insertId":"gone","symbol":"ratio","value":4}""", "not in the chain")]
+    [InlineData("""{"cmd":"setInsertParam","channel":"xlr1","insertId":"comp","symbol":"gain","value":4}""", "has no control")]
+    [InlineData("""{"cmd":"setInsertParam","channel":"xlr1","insertId":"comp","symbol":"ratio\nquit","value":4}""", "has no control")]
+    [InlineData("""{"cmd":"setInsertParam","channel":"xlr1","insertId":"comp","symbol":"ratio","value":"4"}""", "finite number")]
     public void RejectsWhatTheMixerUsedToSwallow(string json, string? expectedFragment)
     {
         string? result = CommandValidation.Check(Cmd(json), new Layout(), Find);

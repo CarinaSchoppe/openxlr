@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.36
+Version:        0.1.39
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -97,6 +97,8 @@ install -Dm644 packaging/50-xlr-dock-capture-hold.conf \
     %{buildroot}%{_datadir}/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf
 install -Dm644 packaging/51-openxlr-pro-raw-names.conf \
     %{buildroot}%{_datadir}/wireplumber/wireplumber.conf.d/51-openxlr-pro-raw-names.conf
+install -Dm644 packaging/52-openxlr-mk1-capture-hold.conf \
+    %{buildroot}%{_datadir}/wireplumber/wireplumber.conf.d/52-openxlr-mk1-capture-hold.conf
 
 # The reference unit points into a source checkout; the package runs
 # the wrapper.
@@ -142,6 +144,7 @@ MSG
 %{_udevrulesdir}/70-openxlr.rules
 %{_datadir}/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf
 %{_datadir}/wireplumber/wireplumber.conf.d/51-openxlr-pro-raw-names.conf
+%{_datadir}/wireplumber/wireplumber.conf.d/52-openxlr-mk1-capture-hold.conf
 %{_userunitdir}/openxlr-daemon.service
 %{_userunitdir}/pipewire-pulse.service.d/openxlr.conf
 %{_datadir}/applications/openxlr.desktop
@@ -149,6 +152,27 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Thu Sep 17 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.39-1
+- The original Wave XLR (MK.1) gets a WirePlumber rule that keeps its capture node running, so a playback stream opening first can no longer silence the microphone for the life of the capture stream. Same bug and same fix as the XLR Dock; the rule matches the MK.1 only.
+- The daemon reads the default sink and source before any of its services start, so the default it defends after building the graph is the one the user had, not one WirePlumber moved to the card while the daemon switched its profile.
+- The USB vendor interface is claimed before control transfers, which removes the kernel's "did not claim interface 3 before use" warning on the MK.1 and the XLR Dock.
+
+* Thu Sep 17 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.38-1
+- A channel or mix name holding an apostrophe or a double quote reaches PipeWire intact. The name was escaped for one of the two passes that parse a module argument, so an apostrophe ended the description there and dropped the properties after it: the sink lost its session priority, was flagged virtual and could suspend on idle. LV2 port symbols from a bundle's metadata are escaped in the filter chain like the plugin URI.
+- A device that opens but answers every read badly is reopened after 2 seconds, doubling to 32 while the failures go on, instead of ten times a second with a USB helper process forked and killed each time. The MK.2 backends refuse a block answer shorter than the fields they decode.
+- setInsertParam accepts only an insert in the chain and a control the catalogue declares for its plugin, as setInserts already did, and an insert keeps at most 256 control values on every path that adds one, a command or a saved file read back.
+- The daemon reads its host configuration from its install directory rather than the working directory, so a settings file in the home directory cannot move the control API off the loopback address.
+
+* Thu Sep 17 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.37-1
+- A bundle that hangs the plugin scanner is remembered instead of being retried at every start, where it cost the whole 60 second deadline each time while the other plugins never appeared. It is asked again when the user installs, syncs or rescans, or when the bundle, the helper or the bridge changes. Output that does not parse is no longer kept as a success no rescan could clear, and a scanner that could not start stays retryable.
+- Skipped bundles are named in Options with the reason and the time, and a folder the scan could not read is named under its own path, so an unreadable folder under a search root is accounted for instead of being passed over in silence.
+- The native scanner prints the phase each scan reached, so a plugin that hangs after it has finished initializing can be attributed to creating the class, wiring the controller, asking about buses or probing widths. Those lines are kept only for a scan that failed.
+- A linked folder reached twice under a search root is visited once, and an unreadable child folder no longer discards the plugins found elsewhere in the same root.
+- The SUPPORT tile carries a switch for the deep Wine trace, which needed an environment variable and a daemon restart to turn on and the same again to turn off. It applies to the next Rescan and is not persisted, so a restart clears it.
+- The daemon units ask for a memory-lock allowance, and the diagnostics archive carries the hard limit beside the soft one along with the loader variables that reach Wine. OPENXLR_PLUGIN_CLEAN_ENV drops the session's loader variables from a plugin launch for telling a plugin fault from something the session injected; it is off by default.
+- Options sizes itself to its cards up to a cap and scrolls them inside it, so the window no longer grows to the height of a tall monitor as cards are added.
+- Hardening along the plugin and file paths: the native host discards oversized output lines and keeps only the meter and parameter names the catalogue declares for its plugin, the scan cache rejects mismatched entries and bounds what it reads, a corrupt configuration backup is published atomically without overwriting what a link points at, and a layout save arriving after settings close is refused.
+
 * Wed Sep 16 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.36-1
 - The desktop's volume and OpenXLR's monitor volume stay in step, with the master gain applied once at each monitor sink. A 150% button next to MONITOR and next to each monitor mix opens an explicit boost range; while it is off the slider stops at 100%, and turning it off returns a boosted output to 100%. A boosted value arriving from the desktop opens the range on its own, and OpenDeck dials follow it instead of pinning at the top.
 - A profile recall waits for the mixer to finish starting and writes the saved gain, so a recall no longer lands on a half-built mixer or leaves the locked gains at their boot values. A recall that arrives after the device has moved on is discarded, and one that fails leaves the current settings as they were.

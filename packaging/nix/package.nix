@@ -20,7 +20,7 @@
 
 buildDotnetModule {
   pname = "openxlr";
-  version = "0.1.36";
+  version = "0.1.39";
 
   src = ../..;
 
@@ -80,6 +80,7 @@ buildDotnetModule {
     install -Dm644 packaging/70-openxlr.rules -t $out/lib/udev/rules.d
     install -Dm644 packaging/50-xlr-dock-capture-hold.conf \
       packaging/51-openxlr-pro-raw-names.conf \
+      packaging/52-openxlr-mk1-capture-hold.conf \
       -t $out/share/wireplumber/wireplumber.conf.d
     install -Dm644 packaging/pipewire-pulse-openxlr.conf \
       $out/lib/systemd/user/pipewire-pulse.service.d/openxlr.conf

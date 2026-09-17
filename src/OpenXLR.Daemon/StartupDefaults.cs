@@ -1,3 +1,5 @@
+using OpenXLR.Core;
+
 namespace OpenXLR.Daemon;
 
 /// <summary>
@@ -22,18 +24,24 @@ public sealed record StartupDefaults(string? Sink, string? Source)
     public static StartupDefaults Capture()
     {
         string? sink = null, source = null;
-        try { sink = Run("pactl", "get-default-sink"); } catch (Exception) { /* best effort */ }
-        try { source = Run("pactl", "get-default-source"); } catch (Exception) { /* best effort */ }
+        try { sink = Run("pactl", ["get-default-sink"]); } catch (Exception) { /* best effort */ }
+        try { source = Run("pactl", ["get-default-source"]); } catch (Exception) { /* best effort */ }
         return new StartupDefaults(sink, source);
     }
 
-    private static string Run(string exe, params string[] args)
+    /// <summary>
+    /// Capture the default before hosted services start, without letting an
+    /// unavailable PulseAudio server hold up the daemon. This is a snapshot
+    /// only, so an error means there is simply no earlier default to defend.
+    /// </summary>
+    internal static string Run(string exe, IReadOnlyList<string> args, TimeSpan? timeout = null)
     {
-        var psi = new System.Diagnostics.ProcessStartInfo(exe) { RedirectStandardOutput = true };
-        foreach (string a in args) psi.ArgumentList.Add(a);
-        using var p = System.Diagnostics.Process.Start(psi)!;
-        string output = p.StandardOutput.ReadToEnd();
-        p.WaitForExit(3000);
-        return output.Trim();
+        ProcessResult result = ProcessRunner.Run(exe, args, timeout ?? TimeSpan.FromSeconds(3),
+            stdoutCap: 64 * 1024, stderrCap: 16 * 1024);
+        if (result.TimedOut) throw new TimeoutException($"{exe} timed out while reading the startup default");
+        if (result.Truncated) throw new InvalidOperationException($"{exe} output exceeded the startup default limit");
+        if (result.Incomplete) throw new InvalidOperationException($"{exe} ended before the startup default was complete");
+        if (result.ExitCode != 0) throw new InvalidOperationException($"{exe} failed: {result.Stderr.Trim()}");
+        return result.StdoutText.Trim();
     }
 }

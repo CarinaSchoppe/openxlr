@@ -1220,6 +1220,10 @@ Restart OpenDeck after installing or updating the plugin.
   `journalctl --user -u openxlr-daemon -n 50`. "present but could not
   be opened" can mean missing USB permission or a busy interface; check
   the udev rule and whether another hardware-control program is running.
+- If the desktop audio server is not ready at login, OpenXLR waits up to
+  three seconds each for its initial default-output and default-input
+  queries. A failed query leaves that default unknown and the daemon still
+  starts; select your preferred desktop default afterwards.
 - With more than one supported interface attached, the header shows a
   picker; the mixer's input channels follow the chosen one.
 

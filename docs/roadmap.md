@@ -157,8 +157,12 @@ while fixes to existing hosts remain part of normal maintenance.
 - [ ] Plugin latency reported per insert and compensated across mixes.
 - [ ] Sound Check: record a short microphone sample, loop it through the
   live chain, compare presets while listening.
-- [ ] Plugin manager: search paths, rescan, quarantine of plugins that
-  crash the scanner.
+- [x] A bundle that hangs or fails the scanner is remembered and passed
+  over while the daemon builds its catalogue, asked again when the user
+  installs, syncs or rescans or when the bundle, the helper or the bridge
+  changes. Skipped bundles and folders the scan could not read are named
+  in Options, and a failed scan keeps the phase it reached in its log.
+- [ ] Plugin manager: search paths and rescan in one place.
 
 ## Next: daemon and integrations
 

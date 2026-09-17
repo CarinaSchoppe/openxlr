@@ -304,6 +304,12 @@ state, a raw vendor-block dump, the PipeWire graph, daemon logs and
 configs. Nothing gets uploaded; attach the archive to an issue, or to a
 post in the Discord support forum, yourself.
 
+For a plugin that will not appear, the same section lists the bundles the
+last scan skipped and the folders it could not read. A Windows plugin that
+fails only under the bridge has a deep Wine trace checkbox there: turn it
+on, Rescan, collect the archive, then turn it off. Scans are much slower
+while it is on, and it clears itself on a daemon restart.
+
 ## Credits
 
 - [Emanuele Sparvoli](https://github.com/emaspa): author, maintainer and code.

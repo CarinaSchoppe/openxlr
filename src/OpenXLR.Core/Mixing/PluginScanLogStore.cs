@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace OpenXLR.Core.Mixing;
 
@@ -19,7 +20,11 @@ namespace OpenXLR.Core.Mixing;
 /// <param name="Detail">What the scan itself noted, such as the error that ended parsing.</param>
 public sealed record PluginScanAttempt(string Kind, string Bundle, string Outcome,
     DateTimeOffset StartedAt, TimeSpan Duration, int? ExitCode, bool TimedOut, bool OutputCapped,
-    bool Cached = false, string? Scanner = null, string? Bridge = null, string? Detail = null);
+    bool Cached = false, string? Scanner = null, string? Bridge = null, string? Detail = null)
+{
+    public bool WineTrace { get; init; }
+    public string? WineDebug { get; init; }
+}
 
 /// <summary>Where a saved log ended up, or why there is none.</summary>
 public readonly record struct PluginScanLogRef(string? Id, string? Note);
@@ -32,9 +37,10 @@ public readonly record struct PluginScanLogRef(string? Id, string? Note);
 /// stay that size: it is serialized into every diagnostics reply, and a
 /// bridged plugin can print megabytes. Clipping it to a head and a tail is
 /// what lost the one line that mattered in the field, a Wine stack overflow
-/// whose first exception sat in the middle of a long unwind. The full output
-/// of an attempt that failed is written here instead, under explicit bounds:
-/// at most <see cref="StreamCapBytes"/> of standard error and
+/// whose first exception sat in the middle of a long unwind. More output
+/// from an attempt that failed is written here, with repeated lines collapsed:
+/// at most <see cref="StreamCapBytes"/> of standard error normally,
+/// <see cref="TraceStreamCapBytes"/> during a deep Wine trace, and
 /// <see cref="StdoutCapBytes"/> of standard output per attempt, at most
 /// <see cref="MaxFiles"/> logs and <see cref="MaxTotalBytes"/> in total.
 /// Nothing here is ever uploaded, and a successful scan writes nothing.
@@ -44,7 +50,7 @@ public readonly record struct PluginScanLogRef(string? Id, string? Note);
 /// cannot grow the directory. Failing to write a log never fails a scan;
 /// the reason is recorded in the evidence entry instead.
 /// </summary>
-public sealed class PluginScanLogStore(string directory)
+public sealed partial class PluginScanLogStore(string directory)
 {
     /// <summary>
     /// Standard error kept per attempt, and the cap the scan asks the process
@@ -54,6 +60,13 @@ public sealed class PluginScanLogStore(string directory)
     /// runner keeps first.
     /// </summary>
     public const int StreamCapBytes = 256 * 1024;
+
+    // Module loads can fill the ordinary budget before the first exception.
+    // Read more during a reproduction, then collapse runs before saving a
+    // smaller prefix. Both limits apply even when every line is different.
+    public const int TraceCaptureBytes = 8 * 1024 * 1024;
+    public const int TraceStreamCapBytes = 1024 * 1024;
+    private const int HeaderValueBytes = 2048;
 
     /// <summary>
     /// Standard output kept per attempt. A description that parsed is not
@@ -68,7 +81,7 @@ public sealed class PluginScanLogStore(string directory)
     /// <summary>Bytes kept across all logs, oldest deleted first.</summary>
     public const long MaxTotalBytes = 4L * 1024 * 1024;
 
-    private const int HeaderReadBytes = 1024;
+    private const int HeaderReadBytes = 8 * 1024;
 
     public string Directory { get; } = directory;
 
@@ -198,8 +211,8 @@ public sealed class PluginScanLogStore(string directory)
     internal static string Compose(string id, PluginScanAttempt attempt, int attemptNumber,
         ReadOnlySpan<byte> stdout, bool stdoutCapped, string stderr, bool stderrCapped)
     {
-        int errorKept = Math.Min(stderr.Length, StreamCapBytes);
-        int outputKept = Math.Min(stdout.Length, StdoutCapBytes);
+        int errorLimit = attempt.WineTrace ? TraceStreamCapBytes : StreamCapBytes;
+        int captureLimit = attempt.WineTrace ? TraceCaptureBytes : StreamCapBytes;
         var text = new StringBuilder();
         text.Append("# OpenXLR failed plugin scan log\n");
         text.Append("id: ").Append(id).Append('\n');
@@ -220,18 +233,19 @@ public sealed class PluginScanLogStore(string directory)
         if (attempt.Scanner is { Length: > 0 } scanner) text.Append("scanner: ").Append(Line(scanner)).Append('\n');
         if (attempt.Bridge is { Length: > 0 } bridge) text.Append("bridge: ").Append(Line(bridge)).Append('\n');
         if (attempt.Detail is { Length: > 0 } detail) text.Append("detail: ").Append(Line(detail)).Append('\n');
-        text.Append("limits: stderr ").Append(StreamCapBytes.ToString(CultureInfo.InvariantCulture))
+        text.Append("wineTrace: ").Append(attempt.WineTrace ? "true" : "false").Append('\n');
+        text.Append("wineDebug: ").Append(attempt.WineDebug is null ? "inherited default" : Line(attempt.WineDebug)).Append('\n');
+        text.Append("captureLimit: stderr ").Append(captureLimit.ToString(CultureInfo.InvariantCulture)).Append(" bytes\n");
+        text.Append("limits: stderr ").Append(errorLimit.ToString(CultureInfo.InvariantCulture))
             .Append(" bytes, stdout ").Append(StdoutCapBytes.ToString(CultureInfo.InvariantCulture))
             .Append(" bytes, ").Append(MaxFiles.ToString(CultureInfo.InvariantCulture))
             .Append(" logs, ").Append(MaxTotalBytes.ToString(CultureInfo.InvariantCulture)).Append(" bytes in total\n");
         text.Append("note: this is the scanner's own output. OpenXLR did not load the plugin, and reading this file does not run anything.\n");
 
-        text.Append(Section("stderr", stderr.Length, errorKept, stderrCapped));
-        text.Append(stderr, 0, errorKept);
-        if (errorKept > 0 && stderr[errorKept - 1] != '\n') text.Append('\n');
-        text.Append(Section("stdout", stdout.Length, outputKept, stdoutCapped));
-        text.Append(Encoding.UTF8.GetString(stdout[..outputKept]));
-        if (outputKept > 0 && stdout[outputKept - 1] != (byte)'\n') text.Append('\n');
+        AppendStream(text, "stderr", stderr, Encoding.UTF8.GetByteCount(stderr), captureLimit, errorLimit, stderrCapped);
+        int outputKept = Math.Min(stdout.Length, StdoutCapBytes);
+        AppendStream(text, "stdout", Encoding.UTF8.GetString(stdout[..outputKept]), stdout.Length,
+            StdoutCapBytes, StdoutCapBytes, stdoutCapped);
         return text.ToString();
     }
 
@@ -240,7 +254,91 @@ public sealed class PluginScanLogStore(string directory)
     /// system allows, a line break included, and a header field that could
     /// carry one would be a header field that can write another.
     /// </summary>
-    private static string Line(string value) => value.ReplaceLineEndings(" ").Replace('\n', ' ').Replace('\r', ' ');
+    private static string Line(string value)
+    {
+        const string marker = " [truncated]";
+        string prefix = Utf8Prefix(value, HeaderValueBytes);
+        if (prefix.Length != value.Length) prefix = Utf8Prefix(value, HeaderValueBytes - marker.Length) + marker;
+        return prefix.ReplaceLineEndings(" ").Replace('\n', ' ').Replace('\r', ' ');
+    }
+
+    private static void AppendStream(StringBuilder text, string stream, string value, int had,
+        int captureLimit, int savedLimit, bool cappedWhileReading)
+    {
+        string captured = Utf8Prefix(value, captureLimit);
+        string collapsed = CollapseLines(captured);
+        int capturedBytes = Encoding.UTF8.GetByteCount(captured);
+        int collapsedBytes = Encoding.UTF8.GetByteCount(collapsed);
+        string saved = Utf8Prefix(collapsed, savedLimit);
+        int kept = Encoding.UTF8.GetByteCount(saved);
+        if (capturedBytes < had)
+            text.Append('[').Append(stream).Append(" capture kept the first ").Append(capturedBytes)
+                .Append(" of ").Append(had).Append(" bytes]\n");
+        if (collapsed != captured)
+            text.Append('[').Append(stream).Append(" repeated lines collapsed: ").Append(capturedBytes)
+                .Append(" bytes became ").Append(collapsedBytes).Append(" bytes]\n");
+        text.Append(Section(stream, collapsed == captured ? had : collapsedBytes, kept, cappedWhileReading));
+        text.Append(saved);
+        if (saved.Length > 0 && saved[^1] != '\n') text.Append('\n');
+    }
+
+    // Limit encoded bytes, not UTF-16 characters. A plugin name or Wine
+    // message need not be ASCII, and a split surrogate would grow on disk
+    // when the UTF-8 encoder replaces it.
+    private static string Utf8Prefix(string value, int bytes)
+    {
+        int end = 0, used = 0;
+        foreach (Rune rune in value.EnumerateRunes())
+        {
+            if (used + rune.Utf8SequenceLength > bytes) break;
+            used += rune.Utf8SequenceLength;
+            end += rune.Utf16SequenceLength;
+        }
+        return value[..end];
+    }
+
+    // Only the envelope changes between repeated Wine messages. Keep the
+    // plugin label and the whole payload, including addresses and opcodes,
+    // so a second fault cannot disappear as another copy of the first.
+    [GeneratedRegex(@"^(?:\[?(?:[0-9]{4}-[0-9]{2}-[0-9]{2}[T ])?[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.,][0-9]+)?\]?\s+)", RegexOptions.CultureInvariant)]
+    private static partial Regex Timestamp();
+
+    [GeneratedRegex(@"(^|\] )(?:(?:[0-9]+\.[0-9]+):)?(?:[0-9a-fA-F]{4,16}:){1,2}(?=(?:trace|fixme|err|warn):)", RegexOptions.CultureInvariant)]
+    private static partial Regex WineThread();
+
+    internal static string CollapseLines(string value)
+    {
+        var text = new StringBuilder();
+        string? previous = null;
+        int copies = 0;
+        for (int start = 0; start < value.Length;)
+        {
+            int newline = value.AsSpan(start).IndexOfAny('\r', '\n');
+            int end = newline < 0 ? value.Length : start + newline;
+            string line = value[start..end];
+            int next = end;
+            if (next < value.Length && value[next] == '\r') next++;
+            if (next < value.Length && value[next] == '\n') next++;
+            string key = WineThread().Replace(Timestamp().Replace(line, ""), "$1");
+            if (key == previous) copies++;
+            else
+            {
+                Count();
+                previous = key;
+                copies = 1;
+            }
+            if (copies <= 3) text.Append(value, start, next - start);
+            start = next;
+        }
+        Count();
+        return text.ToString();
+
+        void Count()
+        {
+            if (copies > 3) text.Append("[OpenXLR: ").Append((copies - 3).ToString(CultureInfo.InvariantCulture))
+                .Append(" further identical lines omitted]\n");
+        }
+    }
 
     private static string Section(string stream, int had, int kept, bool cappedWhileReading)
     {

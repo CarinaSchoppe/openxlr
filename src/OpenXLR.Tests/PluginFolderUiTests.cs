@@ -71,6 +71,33 @@ public sealed class PluginFolderUiTests : IDisposable
     }
 
     [Fact]
+    public async Task SkippedBundlesReachOptionsThroughTheSetupProtocolAndClearOnRefresh()
+    {
+        await using var client = new DaemonClient();
+        var vm = new OptionsViewModel(client, new MainViewModel(client));
+        var setup = new OpenXLR.Core.Mixing.PluginSetup(true, "~/.lv2", "~/.clap", "~/.vst3", null, false, [], [])
+        {
+            SkippedScans = new(2, [new("vst3", "/plugins/Timeout.vst3", "timeout", "timed out", DateTimeOffset.Parse("2026-09-17T10:00:00Z")),
+                new("clap", "/plugins/Old.clap", "unknown", "reason not recorded", null)]),
+        };
+        vm.ApplyPluginSetup(System.Text.Json.JsonSerializer.SerializeToNode(new PluginSetupMessage(setup),
+            new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
+        Assert.Equal("Skipped after a failed scan: 2", vm.SkippedPlugins);
+        Assert.Equal(2, vm.SkippedPluginDetails.Count);
+        Assert.Contains("/plugins/Timeout.vst3", vm.SkippedPluginDetails[0]);
+        Assert.Contains("timed out", vm.SkippedPluginDetails[0]);
+        Assert.DoesNotContain("time not recorded", vm.SkippedPluginDetails[0]);
+        Assert.Contains("time not recorded", vm.SkippedPluginDetails[1]);
+        vm.ApplyPluginSetup(JsonNode.Parse("""{"skippedFailedCount":0,"skippedFailedBundles":[]}"""));
+        Assert.Empty(vm.SkippedPluginDetails);
+        Assert.Equal("Skipped after a failed scan: 0", vm.SkippedPlugins);
+        vm.ApplyPluginSetup(JsonNode.Parse("{}"));
+        Assert.Equal("Skipped bundles: unavailable", vm.SkippedPlugins);
+        vm.ApplyPluginSetup(null);
+        Assert.Empty(vm.SkippedPluginDetails);
+    }
+
+    [Fact]
     public void PluginFileReplyUsesTheFieldsTheManagerReads()
     {
         var result = new OpenXLR.Core.Mixing.WindowsPluginFiles(true, "", [

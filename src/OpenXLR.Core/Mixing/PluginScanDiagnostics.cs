@@ -11,7 +11,14 @@ public sealed record PluginScanEntry(string Path, string Outcome, bool Cached = 
     string? LogId = null, string? LogNote = null);
 
 public sealed record PluginScanReport(string Kind, DateTimeOffset CompletedAt,
-    IReadOnlyList<PluginScanEntry> Entries, int Omitted);
+    IReadOnlyList<PluginScanEntry> Entries, int Omitted)
+{
+    public int SkippedFailedCount { get; init; }
+    public IReadOnlyList<PluginSkippedBundle> SkippedFailedBundles { get; init; } = [];
+}
+
+public sealed record PluginSkippedBundle(string Kind, string Path, string Outcome, string Reason, DateTimeOffset? FailedAt);
+public sealed record PluginSkippedScans(int Count, IReadOnlyList<PluginSkippedBundle> Bundles);
 
 /// <summary>One bundle the last scan of a format found and could not read.</summary>
 public sealed record PluginScanFailure(string Kind, string Path, string Outcome, int? ExitCode,
@@ -25,6 +32,14 @@ public static class PluginScanDiagnostics
     public static IReadOnlyList<PluginScanReport> Snapshot()
     {
         lock (Gate) return Reports.Values.OrderBy(r => r.Kind, StringComparer.Ordinal).ToArray();
+    }
+
+    /// <summary>Quiet catalogue omissions, counted independently of the bounded scan evidence.</summary>
+    public static PluginSkippedScans SkippedFailures(IEnumerable<PluginScanReport>? reports = null)
+    {
+        var completed = (reports ?? Snapshot()).ToArray();
+        return new(completed.Sum(r => r.SkippedFailedCount),
+            [.. completed.SelectMany(r => r.SkippedFailedBundles).Take(Capture.Limit)]);
     }
 
     /// <summary>
@@ -90,10 +105,24 @@ public static class PluginScanDiagnostics
         internal const int Limit = 128;
         private readonly List<PluginScanEntry> _entries = [];
         private int _omitted;
+        private int _skippedFailedCount;
+        private readonly List<PluginSkippedBundle> _skippedFailed = [];
+
+        public void SkipFailure(string path, string? outcome, DateTimeOffset? failedAt)
+        {
+            _skippedFailedCount++;
+            // Old cache entries have no reason or timestamp. Say that rather
+            // than giving the current scan's time to a failure it did not run.
+            string code = outcome ?? "unknown";
+            if (_skippedFailed.Count < Limit)
+                _skippedFailed.Add(new(kind, Clip(path, 4096)!, code,
+                    Reasons.GetValueOrDefault(code, "previous scan failed; reason not recorded"), failedAt));
+            Add(path, "skipped-failed", cached: true);
+        }
 
         public void Add(string path, string outcome, bool cached = false, int plugins = 0,
             int duplicates = 0, int? exitCode = null, string? detail = null,
-            string? logId = null, string? logNote = null)
+            string? logId = null, string? logNote = null, bool wineTrace = false)
         {
             if (_entries.Count >= Limit)
             {
@@ -104,15 +133,32 @@ public static class PluginScanDiagnostics
                 _entries.RemoveAt(replace);
             }
             _entries.Add(new(Clip(path, 4096)!, outcome, cached, plugins, duplicates, exitCode,
-                ClipEnds(detail, 2048), logId, Clip(logNote, 512)));
+                ScanDetail(detail, wineTrace), logId, Clip(logNote, 512)));
         }
 
         public PluginScanReport Complete()
         {
-            var report = new PluginScanReport(kind, DateTimeOffset.UtcNow, _entries.ToArray(), _omitted);
+            var report = new PluginScanReport(kind, DateTimeOffset.UtcNow, _entries.ToArray(), _omitted)
+            {
+                SkippedFailedCount = _skippedFailedCount,
+                SkippedFailedBundles = _skippedFailed.ToArray(),
+            };
             lock (Gate) Reports[kind] = report;
             return report;
         }
+    }
+
+    internal const int TraceDetailCharacters = 16 * 1024;
+
+    // A deep trace starts with module loads and the opening fault. Spending
+    // its larger detail budget on the tail would keep the secondary unwind
+    // instead. The saved log has room for more and collapses repeated lines.
+    private static string? ScanDetail(string? text, bool wineTrace)
+    {
+        if (!wineTrace) return ClipEnds(text, 2048);
+        const string marker = " [truncated]";
+        return text is { Length: > TraceDetailCharacters }
+            ? text[..(TraceDetailCharacters - marker.Length)] + marker : text;
     }
 
     internal static string? Clip(string? text, int limit)
@@ -121,7 +167,7 @@ public static class PluginScanDiagnostics
     /// <summary>
     /// Keep the startup context and later errors without letting a bridge
     /// banner fill the detail. What this drops is not lost: a failed attempt's
-    /// whole output goes to <see cref="PluginScanLogStore"/>, and the entry's
+    /// bounded output goes to <see cref="PluginScanLogStore"/>, and the entry's
     /// <c>LogId</c> names it.
     /// </summary>
     internal static string? ClipEnds(string? text, int limit)

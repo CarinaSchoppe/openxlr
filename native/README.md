@@ -44,6 +44,13 @@ fills the skipped bytes with zeroes. Empty binary attributes are supported.
 These checks need no display, installed plugin or PipeWire server. They do
 not turn a native plugin into a sandbox or cap its own allocations.
 
+`make -C native test-scan` checks the ordinary CLAP and VST3 phase markers
+against a fixture that exits inside each phase. It also scans 200 plugins
+with 32 parameters each and checks that markers stay at four lines per
+CLAP plugin and five per VST3 audio class, plus four per module. It needs
+Python 3 and a compiler with C++20 support for the fixture, but no Wine,
+display or installed plugin. The normal host build still uses C++17.
+
 `python3 native/tests/lsp-editor.py` is an opt-in desktop regression using
 an isolated LSP Gate Mono LV2 instance. It needs python-xlib, the installed
 plugin, a running PipeWire server and a display large enough for the tested

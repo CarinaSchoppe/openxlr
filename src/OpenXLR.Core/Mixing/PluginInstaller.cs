@@ -46,7 +46,10 @@ public sealed record PluginSetup(
     public string? WindowsEditorNote { get; init; }
     /// <summary>The daemon's soft memory-lock limit in bytes; -1 is unlimited, null is unknown.</summary>
     public long? MemoryLockLimitBytes { get; init; }
+    /// <summary>The daemon's hard memory-lock limit, with the same units and sentinels as the soft limit.</summary>
+    public long? MemoryLockHardLimitBytes { get; init; }
     public string? MemoryLockNote { get; init; }
+    public PluginSkippedScans SkippedScans { get; init; } = new(0, []);
     public string BridgeProvider { get; init; } = "system";
     public string? BridgeDirectory { get; init; }
     public string? WindowsPluginDirectory { get; init; }
@@ -899,9 +902,15 @@ public sealed class PluginInstaller
             }
             catch (Exception ex) { status = new { error = PluginScanDiagnostics.Clip(ex.Message, 2048) }; }
         }
+        var environment = new PluginHostEnvironment(_managed);
+        var limits = PluginMemoryLock.ReadLimits();
+        PluginSkippedScans skipped = PluginScanDiagnostics.SkippedFailures();
         return new
         {
             controller = _yabridgectl, wineExecutable = _wine, winePrefix = _winePrefix,
+            memoryLockLimitBytes = limits.Soft, memoryLockHardLimitBytes = limits.Hard,
+            hostEnvironment = environment.Diagnostics(),
+            skippedFailedCount = skipped.Count, skippedFailedBundles = skipped.Bundles,
             sourceCommit = _managed?.SourceCommit, status,
             hostExecutable = NativePluginHost.Executable, hostInstalled = _hostInstalled,
             processArchitecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
@@ -914,6 +923,8 @@ public sealed class PluginInstaller
             {
                 directory = PluginScanLogStore.DefaultDirectory,
                 stderrCapBytes = PluginScanLogStore.StreamCapBytes,
+                traceStderrCapBytes = PluginScanLogStore.TraceStreamCapBytes,
+                traceCaptureBytes = PluginScanLogStore.TraceCaptureBytes,
                 stdoutCapBytes = PluginScanLogStore.StdoutCapBytes,
                 maxFiles = PluginScanLogStore.MaxFiles,
                 maxTotalBytes = PluginScanLogStore.MaxTotalBytes
@@ -953,11 +964,13 @@ public sealed class PluginInstaller
         IReadOnlyList<string> wine = _wine is null || _yabridgectl is null
             ? []
             : [.. WinePluginFolders().Where(f => !known.Contains(Path.GetFullPath(f).TrimEnd('/')))];
-        long? memoryLockLimit = PluginMemoryLock.ReadLimit();
+        var memoryLock = PluginMemoryLock.ReadLimits();
         return new(_hostInstalled, Shorten(_lv2), Shorten(_clap), Shorten(_vst3), _managed?.Version ?? version, _wine is not null, bridged, wine)
         {
-            MemoryLockLimitBytes = memoryLockLimit,
-            MemoryLockNote = PluginMemoryLock.Note(memoryLockLimit, _hostInstalled && _yabridgectl is not null && _wine is not null),
+            MemoryLockLimitBytes = memoryLock.Soft,
+            MemoryLockHardLimitBytes = memoryLock.Hard,
+            MemoryLockNote = PluginMemoryLock.Note(memoryLock.Soft, memoryLock.Hard, _hostInstalled && _yabridgectl is not null && _wine is not null),
+            SkippedScans = PluginScanDiagnostics.SkippedFailures(),
             WineVersion = wineVersion,
             BridgeProvider = _managed is null ? "system" : "openxlr",
             BridgeDirectory = _managed is null ? null : Shorten(_managed.Directory),

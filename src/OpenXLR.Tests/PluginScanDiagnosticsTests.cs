@@ -50,7 +50,7 @@ public sealed class PluginScanDiagnosticsTests
                 return new(0, Encoding.UTF8.GetBytes("{\"plugins\":[{\"id\":\"same-id\",\"name\":\"EQ\",\"audioIns\":2,\"audioOuts\":2}]}"), "", false, false);
             }
             var cache = new ScanCache(Path.Combine(dir, "cache"));
-            var result = HostScan.Run(kind, "unused", [dir, Path.Combine(dir, "missing")], _ => bundles, Describe, cache);
+            var result = HostScan.Run(kind, "unused", [dir, Path.Combine(dir, "missing")], (_, _) => bundles, Describe, cache);
             Assert.Single(result);
             var report = PluginScanDiagnostics.Snapshot().Single(r => r.Kind == kind);
             Assert.Contains(report.Entries, e => e.Outcome == "scan-failed" && e.ExitCode == 9 && e.Detail!.Contains("required module"));
@@ -62,7 +62,7 @@ public sealed class PluginScanDiagnosticsTests
             Assert.Contains(report.Entries, e => e.Duplicates == 1);
             Assert.Equal(2, goodCalls);
 
-            result = HostScan.Run(kind, "unused", [dir], _ => bundles, Describe, cache);
+            result = HostScan.Run(kind, "unused", [dir], (_, _) => bundles, Describe, cache);
             Assert.Single(result);
             Assert.Equal(2, goodCalls); // reading evidence does not invalidate the cache
             report = PluginScanDiagnostics.Snapshot().Single(r => r.Kind == kind);
@@ -74,7 +74,7 @@ public sealed class PluginScanDiagnosticsTests
 
             // A cache filled by an older helper answers nothing: whatever the
             // scanner has learnt since reaches bundles that never changed.
-            result = HostScan.Run(kind, "unused", [dir], _ => bundles, Describe,
+            result = HostScan.Run(kind, "unused", [dir], (_, _) => bundles, Describe,
                 new ScanCache(Path.Combine(dir, "cache"), "another-helper"));
             Assert.Single(result);
             Assert.Equal(4, goodCalls);
@@ -218,10 +218,10 @@ public sealed class PluginScanDiagnosticsTests
         try
         {
             var cache = new ScanCache(Path.Combine(dir, "cache"));
-            HostScan.Run(kind, "unused", [dir], _ => throw new UnauthorizedAccessException("cannot read folder"), _ => throw new Exception(), cache);
+            HostScan.Run(kind, "unused", [dir], (_, _) => throw new UnauthorizedAccessException("cannot read folder"), _ => throw new Exception(), cache);
             Assert.Contains(PluginScanDiagnostics.Snapshot().Single(r => r.Kind == kind).Entries, e => e.Outcome == "directory-error");
             File.WriteAllText(Path.Combine(dir, "plugin.vst3"), "fixture");
-            HostScan.Run(kind, "unused", [dir], _ => [Path.Combine(dir, "plugin.vst3")], _ => throw new IOException("loader missing"), cache);
+            HostScan.Run(kind, "unused", [dir], (_, _) => [Path.Combine(dir, "plugin.vst3")], _ => throw new IOException("loader missing"), cache);
             Assert.Contains(PluginScanDiagnostics.Snapshot().Single(r => r.Kind == kind).Entries, e => e.Outcome == "start-error" && e.Detail == "loader missing");
         }
         finally { Directory.Delete(dir, recursive: true); }

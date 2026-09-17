@@ -261,7 +261,7 @@ public sealed class PluginScanLogTests
             // A missing Windows module is the one failing outcome this cannot
             // reach, since it is only decided for the real "vst3" format, whose
             // evidence another test class owns; PluginSourceRecoveryTests has it.
-            HostScan.Run(kind, "unused", [dir], _ => bundles, Describe,
+            HostScan.Run(kind, "unused", [dir], (_, _) => bundles, Describe,
                 new ScanCache(Path.Combine(dir, "cache")), logs);
             var entries = ReportFor(kind).Entries
                 .ToDictionary(e => Path.GetFileNameWithoutExtension(e.Path.TrimEnd('/')), e => e, StringComparer.Ordinal);

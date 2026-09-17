@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.37
+Version:        0.1.38
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -149,6 +149,12 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Thu Sep 17 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.38-1
+- A channel or mix name holding an apostrophe or a double quote reaches PipeWire intact. The name was escaped for one of the two passes that parse a module argument, so an apostrophe ended the description there and dropped the properties after it: the sink lost its session priority, was flagged virtual and could suspend on idle. LV2 port symbols from a bundle's metadata are escaped in the filter chain like the plugin URI.
+- A device that opens but answers every read badly is reopened after 2 seconds, doubling to 32 while the failures go on, instead of ten times a second with a USB helper process forked and killed each time. The MK.2 backends refuse a block answer shorter than the fields they decode.
+- setInsertParam accepts only an insert in the chain and a control the catalogue declares for its plugin, as setInserts already did, and an insert keeps at most 256 control values on every path that adds one, a command or a saved file read back.
+- The daemon reads its host configuration from its install directory rather than the working directory, so a settings file in the home directory cannot move the control API off the loopback address.
+
 * Thu Sep 17 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.37-1
 - A bundle that hangs the plugin scanner is remembered instead of being retried at every start, where it cost the whole 60 second deadline each time while the other plugins never appeared. It is asked again when the user installs, syncs or rescans, or when the bundle, the helper or the bridge changes. Output that does not parse is no longer kept as a success no rescan could clear, and a scanner that could not start stays retryable.
 - Skipped bundles are named in Options with the reason and the time, and a folder the scan could not read is named under its own path, so an unreadable folder under a search root is accounted for instead of being passed over in silence.

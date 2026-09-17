@@ -368,6 +368,12 @@ known. Updating OpenXLR reads every one of them again once, because the
 new version may see them differently, which makes the first scan after
 an update as slow as the first ever.
 
+CLAP and VST3 discovery follows linked folders, but visits each resolved
+directory only once per search root. Links back to a parent or another alias
+of the same folder do not repeatedly scan its plugins. An unreadable child
+folder does not discard plugins found in other folders. VST3 bundle contents
+are not searched for further bundles.
+
 The scan cache is disposable. Invalid index entries are ignored independently,
 so undamaged descriptions and records of failed scans remain usable. Cached
 descriptions must use the filename assigned to their bundle and must not be

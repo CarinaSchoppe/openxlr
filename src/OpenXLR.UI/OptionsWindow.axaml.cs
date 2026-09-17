@@ -6,18 +6,31 @@ namespace OpenXLR.UI;
 
 public partial class OptionsWindow : Window
 {
+    /// <summary>
+    /// As tall as this window is worth making on a screen with room to spare.
+    /// Past this the eye travels further than the scroll would have, and the
+    /// two columns of cards stop reading as one page.
+    /// </summary>
+    internal const double Comfortable = 860;
+
     public OptionsWindow()
     {
         InitializeComponent();
-        // The window sizes itself to its cards, so on a short screen it can be
-        // taller than the desktop, with its bottom off the edge and no way to
-        // resize it. Cap it to the screen it opens on; the cards scroll.
+        // The window sizes itself to its cards, so without a cap it grows
+        // until it runs out of desktop. Two caps, because each answers a
+        // different screen: the screen's own working area keeps the bottom on
+        // a short display, and Comfortable keeps a tall one from handing back
+        // a window the height of the monitor. Whichever is smaller wins, and
+        // the cards scroll inside it.
         Opened += (_, _) =>
         {
-            var screen = Screens.ScreenFromWindow(this);
-            if (screen is null) return;
-            double usable = screen.WorkingArea.Height / screen.Scaling;
-            if (usable > 200) MaxHeight = usable - 60;
+            double cap = Comfortable;
+            if (Screens.ScreenFromWindow(this) is { } screen)
+            {
+                double usable = screen.WorkingArea.Height / screen.Scaling;
+                if (usable > 200) cap = Math.Min(cap, usable - 60);
+            }
+            MaxHeight = cap;
         };
     }
 

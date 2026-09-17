@@ -42,6 +42,12 @@ public static class PluginCatalog
     /// so only new bundles cost a scan, and every bundle once after the
     /// native helper itself changes. Blocks until the new list is ready.
     ///
+    /// A refresh is something the user asked for: an install, a sync, a
+    /// folder change or a rescan. So it also asks again about the bundles
+    /// that failed to describe themselves, which the catalogue the daemon
+    /// builds on its own passes by. Rescanning is how a user who has fixed
+    /// a broken plugin gets it looked at again.
+    ///
     /// The old catalogue is dropped first and the heap swept before the new
     /// one is built: the daemon runs under a firm heap limit, and holding
     /// two catalogues and a large module's description at once does not fit
@@ -52,8 +58,8 @@ public static class PluginCatalog
     public static IReadOnlyList<PluginInfo> Refresh()
     {
         Lv2Catalog.Reset();
-        ClapCatalog.Reset();
-        Vst3Catalog.Reset();
+        ClapCatalog.Reset(retryFailures: true);
+        Vst3Catalog.Reset(retryFailures: true);
         All.Reset();
         GC.Collect(2, GCCollectionMode.Aggressive, blocking: true);
         NativeHeap.Trim();

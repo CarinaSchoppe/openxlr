@@ -48,6 +48,8 @@ namespace {
 
 // OPENXLR_HOST_TRACE in the environment: describe buses and the first
 // cycles on stderr. Read once, since the audio thread may not ask.
+// Scanner phase lines use the same trace prefix but are always present:
+// a normal failed scan must say which plugin call was in progress.
 bool trace_enabled = getenv("OPENXLR_HOST_TRACE") != nullptr;
 
 enum { MAX_TIMERS = 32, MAX_FDS = 32 };
@@ -773,7 +775,7 @@ bool open_module(Vst3 *v, const char *path) {
 
 // Create the component and its controller, wire them, and read what they
 // are. Shared by loading and scanning.
-bool instantiate(Vst3 *v, const TUID cid) {
+bool instantiate(Vst3 *v, const TUID cid, int32 scan_class = -1) {
   if (v->factory->createInstance(cid, IID(IComponent),
                                  (void **)&v->component) != kResultOk ||
       !v->component) {
@@ -801,6 +803,8 @@ bool instantiate(Vst3 *v, const TUID cid) {
     fputs("the plugin does not process audio\n", stderr);
     return false;
   }
+  if (scan_class >= 0)
+    fprintf(stderr, "trace: scan VST3 class %d: controller\n", scan_class);
   // The controller is a second object, or the same one wearing both hats.
   TUID controller_id;
   if (v->component->getControllerClassId(controller_id) == kResultOk &&
@@ -1294,17 +1298,20 @@ extern "C" const Backend vst3_backend = {
 // catalogue. Each is created once, wired to its controller, and asked about
 // its buses, parameters and editor, then let go.
 extern "C" int vst3_scan(const char *path) {
+  fputs("trace: scan VST3: module load\n", stderr);
   Vst3 v;
   if (!open_module(&v, path))
     return 1;
   printf("{\"file\":");
   json_string(path);
   printf(",\"plugins\":[");
+  fputs("trace: scan VST3: factory classes\n", stderr);
   int32 count = v.factory->countClasses();
   IPluginFactory2 *factory2 = nullptr;
   v.factory->queryInterface(IID(IPluginFactory2), (void **)&factory2);
   bool first = true;
   for (int32 i = 0; i < count; ++i) {
+    fprintf(stderr, "trace: scan VST3 class %d: class info and component\n", i);
     PClassInfo info;
     if (v.factory->getClassInfo(i, &info) != kResultOk ||
         strcmp(info.category, kVstAudioEffectClass) != 0)
@@ -1317,7 +1324,8 @@ extern "C" int vst3_scan(const char *path) {
         subcategories = info2.subCategories;
       }
     }
-    if (!instantiate(&v, info.cid)) {
+    if (!instantiate(&v, info.cid, i)) {
+      fprintf(stderr, "trace: scan VST3 class %d: release\n", i);
       release_plugin(&v);
       continue;
     }
@@ -1347,6 +1355,9 @@ extern "C" int vst3_scan(const char *path) {
     // The default width, as the untouched instance reports it. The width
     // probes below come after everything else, since asking changes the
     // instance.
+    // These queries do not change the instance. One marker covers both
+    // loops, keeping even a large module to five lines per audio class.
+    fprintf(stderr, "trace: scan VST3 class %d: buses and parameters\n", i);
     int default_in = main_bus_channels(&v, kInput);
     int default_out = main_bus_channels(&v, kOutput);
     printf("],\"audioIns\":%d,\"audioOuts\":%d", default_in, default_out);
@@ -1393,6 +1404,7 @@ extern "C" int vst3_scan(const char *path) {
     // at load.
     static_assert(MAX_CHANNELS == 2, "accepts_width knows the arrangement of each width the host carries");
     printf("],\"widths\":[");
+    fprintf(stderr, "trace: scan VST3 class %d: width probes\n", i);
     bool first_width = true, asked = false;
     for (unsigned width = 1; width <= MAX_CHANNELS; ++width) {
       bool accepted;
@@ -1413,14 +1425,17 @@ extern "C" int vst3_scan(const char *path) {
       first_width = false;
     }
     printf("]}");
+    fprintf(stderr, "trace: scan VST3 class %d: release\n", i);
     release_plugin(&v);
   }
   puts("]}");
+  fputs("trace: scan VST3: module release\n", stderr);
   if (factory2)
     factory2->release();
   v.factory->release();
   if (v.module_exit)
     v.module_exit();
   dlclose(v.library);
+  fputs("trace: scan VST3: complete\n", stderr);
   return 0;
 }

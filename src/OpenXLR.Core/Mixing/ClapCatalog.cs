@@ -12,11 +12,17 @@ namespace OpenXLR.Core.Mixing;
 /// </summary>
 public static class ClapCatalog
 {
-    private static readonly Refreshable<IReadOnlyList<PluginInfo>> Scan = new(() => ScanNow());
+    private static volatile bool _retryFailures;
+    private static readonly Refreshable<IReadOnlyList<PluginInfo>> Scan = new(() => ScanNow(retryFailures: _retryFailures));
 
     public static IReadOnlyList<PluginInfo> Plugins => Scan.Value;
 
-    public static void Reset() => Scan.Reset();
+    /// <param name="retryFailures">Ask again about bundles the last scan could not describe.</param>
+    public static void Reset(bool retryFailures = false)
+    {
+        _retryFailures = retryFailures;
+        Scan.Reset();
+    }
 
     /// <summary>Where bundles live, in the order the CLAP specification gives.</summary>
     public static IReadOnlyList<string> SearchPath()
@@ -32,10 +38,10 @@ public static class ClapCatalog
         => ManagedYabridge.Discover() is null ? [.. paths]
             : [Path.Combine(ManagedYabridge.PluginHome, "clap"), .. paths];
 
-    internal static IReadOnlyList<PluginInfo> ScanNow(IEnumerable<string>? directories = null)
+    internal static IReadOnlyList<PluginInfo> ScanNow(IEnumerable<string>? directories = null, bool retryFailures = false)
         => HostScan.Run("clap", "scan-clap", directories ?? SearchPath(),
             directory => Directory.EnumerateFiles(directory, "*.clap", SearchOption.AllDirectories),
-            logs: new PluginScanLogStore(PluginScanLogStore.DefaultDirectory));
+            logs: new PluginScanLogStore(PluginScanLogStore.DefaultDirectory), retryFailures: retryFailures);
 
     internal static IReadOnlyList<PluginInfo> Parse(string json) => HostScan.Parse(json, "clap");
 }
@@ -48,11 +54,17 @@ public static class ClapCatalog
 /// </summary>
 public static class Vst3Catalog
 {
-    private static readonly Refreshable<IReadOnlyList<PluginInfo>> Scan = new(() => ScanNow());
+    private static volatile bool _retryFailures;
+    private static readonly Refreshable<IReadOnlyList<PluginInfo>> Scan = new(() => ScanNow(retryFailures: _retryFailures));
 
     public static IReadOnlyList<PluginInfo> Plugins => Scan.Value;
 
-    public static void Reset() => Scan.Reset();
+    /// <param name="retryFailures">Ask again about bundles the last scan could not describe.</param>
+    public static void Reset(bool retryFailures = false)
+    {
+        _retryFailures = retryFailures;
+        Scan.Reset();
+    }
 
     public static IReadOnlyList<string> SearchPath()
     {
@@ -87,9 +99,9 @@ public static class Vst3Catalog
         return found;
     }
 
-    internal static IReadOnlyList<PluginInfo> ScanNow(IEnumerable<string>? directories = null)
+    internal static IReadOnlyList<PluginInfo> ScanNow(IEnumerable<string>? directories = null, bool retryFailures = false)
         => HostScan.Run("vst3", "scan-vst3", directories ?? SearchPath(), Bundles,
-            logs: new PluginScanLogStore(PluginScanLogStore.DefaultDirectory));
+            logs: new PluginScanLogStore(PluginScanLogStore.DefaultDirectory), retryFailures: retryFailures);
 
     internal static IReadOnlyList<PluginInfo> Parse(string json) => HostScan.Parse(json, "vst3");
 }
@@ -103,10 +115,16 @@ internal static class HostScan
     /// and a caller that supplies its own <paramref name="describe"/> passes
     /// its own or none, so a test never writes into the user's cache.
     /// </summary>
+    /// <param name="retryFailures">
+    /// Ask again about bundles a previous scan could not describe. A scan the
+    /// user asked for does; the one that builds the catalogue on its own
+    /// passes them by, so a bundle that hangs the scanner costs its deadline
+    /// once rather than at every start.
+    /// </param>
     internal static IReadOnlyList<PluginInfo> Run(string kind, string command, IEnumerable<string> directories,
         Func<string, IEnumerable<string>> bundlesIn,
         Func<string, ProcessResult>? describe = null, ScanCache? scanCache = null,
-        PluginScanLogStore? logs = null)
+        PluginScanLogStore? logs = null, bool retryFailures = false)
     {
         // Nothing here may throw: the catalogue is read once and kept, so an
         // exception would be kept with it, and every lookup after would fail.
@@ -120,6 +138,7 @@ internal static class HostScan
                 return result;
             }
             ManagedYabridge? bridge = ManagedYabridge.Discover();
+            var environment = new PluginHostEnvironment(bridge, scanner: true);
             // What a saved log may say about the tools involved, taken from
             // what discovery has already read. Nothing here probes, launches
             // or asks the network for a version.
@@ -162,6 +181,16 @@ internal static class HostScan
                     }
                     byte[]? description = cache.Lookup(bundle);
                     bool cached = description is not null;
+                    // A bundle that already failed is left alone: it is the
+                    // one that costs the whole deadline, and a catalogue the
+                    // daemon builds by itself must not spend a minute on each
+                    // of them at every start. The failure stays in this
+                    // report, so the archive still shows what was skipped.
+                    if (description is null && !retryFailures && cache.Failure(bundle) is { } failure)
+                    {
+                        evidence.SkipFailure(bundle, failure.FailureReason, failure.FailedAt);
+                        continue;
+                    }
                     string? stderr = null;
                     int? exitCode = null;
                     bool timedOut = false, outputCapped = false;
@@ -175,10 +204,14 @@ internal static class HostScan
                         ProcessResult scan;
                         try { scan = describe is not null ? describe(bundle)
                             : ProcessRunner.Run(NativePluginHost.Executable, [command, bundle], TimeSpan.FromSeconds(60),
-                                stderrCap: PluginScanLogStore.StreamCapBytes,
-                                environment: bridge?.HostEnvironment()); }
+                                stderrCap: environment.StderrCap,
+                                environment: environment.Overlay, removeEnvironment: environment.RemovedVariables); }
                         catch (Exception ex)
                         {
+                            // A missing helper or temporary resource shortage says
+                            // nothing about the bundle. Forget an older failure too,
+                            // so a repaired launch can return it on the next run.
+                            cache.Invalidate(bundle);
                             evidence.Add(bundle, "start-error", detail: ex.Message);
                             continue;
                         }
@@ -198,21 +231,22 @@ internal static class HostScan
                             string detail = missingWindows ? stderr + "\n" + MissingWindowsModuleDetail(bundle) : stderr;
                             PluginScanLogRef log = Keep(logs, new PluginScanAttempt(kind, bundle, outcome, startedAt,
                                 System.Diagnostics.Stopwatch.GetElapsedTime(begun), exitCode, timedOut, outputCapped,
-                                Scanner: scannerStamp, Bridge: bridgeStamp), scan.Stdout, stderr, scan.Truncated);
+                                Scanner: scannerStamp, Bridge: bridgeStamp) { WineTrace = environment.WineTrace, WineDebug = environment.WineDebug }, scan.Stdout, stderr, scan.Truncated);
                             evidence.Add(bundle, outcome, exitCode: scan.ExitCode, detail: detail,
-                                logId: log.Id, logNote: log.Note);
+                                logId: log.Id, logNote: log.Note, wineTrace: environment.WineTrace);
+                            cache.StoreFailure(bundle, outcome, startedAt);
                             continue;
                         }
                         description = scan.Stdout;
-                        cache.Store(bundle, description);
                     }
                     try
                     {
                         IReadOnlyList<PluginInfo> parsed = Parse(description, kind);
+                        if (!cached) cache.Store(bundle, description);
                         int before = result.Count;
                         result.AddRange(parsed.Where(plugin => known.Add(plugin.Plugin)));
                         evidence.Add(bundle, parsed.Count == 0 ? "no-plugins" : "ok", cached,
-                            parsed.Count, parsed.Count - (result.Count - before), detail: stderr);
+                            parsed.Count, parsed.Count - (result.Count - before), detail: stderr, wineTrace: environment.WineTrace);
                     }
                     catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
                     {
@@ -220,10 +254,15 @@ internal static class HostScan
                         // came from a launch or from the cache a launch filled.
                         PluginScanLogRef log = Keep(logs, new PluginScanAttempt(kind, bundle, "invalid-description",
                             startedAt, System.Diagnostics.Stopwatch.GetElapsedTime(begun), exitCode, timedOut,
-                            outputCapped, cached, scannerStamp, bridgeStamp, ex.Message),
+                            outputCapped, cached, scannerStamp, bridgeStamp, ex.Message) { WineTrace = environment.WineTrace, WineDebug = environment.WineDebug },
                             description, stderr ?? "", outputCapped);
                         evidence.Add(bundle, "invalid-description", cached, detail: ex.Message,
-                            logId: log.Id, logNote: log.Note);
+                            logId: log.Id, logNote: log.Note, wineTrace: environment.WineTrace);
+                        // Fresh malformed output belongs to this bundle. Damaged
+                        // cached bytes do not: discard them so the next scan can
+                        // ask the scanner before deciding the bundle is broken.
+                        if (cached) cache.Invalidate(bundle);
+                        else cache.StoreFailure(bundle, "invalid-description", startedAt);
                     }
                 }
             }
@@ -285,7 +324,13 @@ internal static class HostScan
     {
         var result = new List<PluginInfo>();
         var reader = new Utf8JsonReader(json, new JsonReaderOptions { CommentHandling = JsonCommentHandling.Skip });
-        if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject) return result;
+        if (!reader.Read()) throw new JsonException("The scanner returned an empty description.");
+        if (reader.TokenType != JsonTokenType.StartObject)
+        {
+            reader.Skip();
+            while (reader.Read()) { }
+            return result;
+        }
         // The scanner writes "file" before "plugins", so a plugin's path is
         // known by the time one is read; if it is not, the bundle is unnamed.
         string file = "";
@@ -306,6 +351,9 @@ internal static class HostScan
             }
             else { reader.Read(); reader.Skip(); }
         }
+        // Read through the end before caching. A complete plugin followed by
+        // truncated JSON or extra output is still a broken description.
+        while (reader.Read()) { }
         return result;
     }
 

@@ -313,9 +313,19 @@ public sealed class WindowLayoutTests
                     ["yabridge"] = "5.1.1",
                     ["wine"] = true,
                     ["windowsEditorNote"] = "The companion package fixes Windows editor input.",
-                    ["memoryLockNote"] = OpenXLR.Core.Mixing.PluginMemoryLock.Note(8388608, true),
+                    ["memoryLockNote"] = OpenXLR.Core.Mixing.PluginMemoryLock.Note(8388608, 8388608, true),
+                    ["skippedFailedCount"] = 1,
+                    ["skippedFailedBundles"] = new JsonArray(new JsonObject
+                    {
+                        ["path"] = "/plugins/Skipped.vst3", ["reason"] = "timed out", ["failedAt"] = "2026-09-17T10:00:00Z",
+                    }),
                 });
                 Layout(options, 980, 800);
+                var skippedPlugins = options.FindControl<StackPanel>("SkippedPlugins")!;
+                Assert.Contains(skippedPlugins.GetVisualDescendants().OfType<TextBlock>(),
+                    b => b.Text == "Skipped after a failed scan: 1");
+                Assert.Contains(skippedPlugins.GetVisualDescendants().OfType<TextBlock>(),
+                    b => b.Text?.Contains("/plugins/Skipped.vst3", StringComparison.Ordinal) == true);
                 var memoryWarning = options.FindControl<TextBlock>("MemoryLockWarning")!;
                 Assert.True(memoryWarning.IsVisible);
                 Assert.True(memoryWarning.Bounds.Height > memoryWarning.FontSize * 2);

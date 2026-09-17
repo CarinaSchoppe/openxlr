@@ -12,6 +12,7 @@ native/tests/audio
 native/tests/clap
 native/tests/vst3
 native/tests/lifecycle
+native/tests/scan-plugin.so
 # nix build output symlink
 result
 

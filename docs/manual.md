@@ -368,6 +368,13 @@ known. Updating OpenXLR reads every one of them again once, because the
 new version may see them differently, which makes the first scan after
 an update as slow as the first ever.
 
+The scan cache is disposable. Invalid index entries are ignored independently,
+so undamaged descriptions and records of failed scans remain usable. Cached
+descriptions must use the filename assigned to their bundle and must not be
+symbolic links; cache cleanup does not follow index paths to other files. A
+description larger than the live scanner's 64 MiB output limit is ignored and
+scanned again.
+
 <a name="windows-plugins"></a>
 **Windows VST3 and CLAP plugins.** They run through
 [yabridge](https://github.com/robbert-vdh/yabridge), which wraps them as
@@ -575,9 +582,54 @@ the name of the saved scanner output:
 journalctl --user -u openxlr-daemon -n 200 --no-pager | grep 'plugin scan'
 ```
 
-A timeout is not cached, so the next Rescan tries that bundle again. The
-warning makes a failed scan visible; it does not fix the underlying Wine
-or plugin failure. Collect [diagnostics](#reporting) after the scan ends.
+Failed scans, including timeouts and malformed descriptions, are remembered
+so automatic catalogue builds skip them. Options, PLUGINS shows a quiet
+"Skipped after a failed scan" count and expandable list with the reason and
+original failure time. It shows at most 128 bundles and says how many more
+were omitted. Older cache entries have no recorded reason or time. A
+changed bundle or scanner is tried automatically; Rescan retries failures
+even when the files are unchanged. Scanner start errors stay retryable.
+Collect [diagnostics](#reporting) after the scan ends.
+
+For a loader conflict, `OPENXLR_PLUGIN_CLEAN_ENV=1` in the daemon's environment
+opts its scanners and live plugin hosts into a clean launch. It removes
+exactly `LD_LIBRARY_PATH`, `LD_PRELOAD` and `LD_AUDIT`, with either bridge
+provider. Normal launches retain all three. Removing them can disable
+GameMode, capture and overlays, or break CUDA plugins and runtime wrappers,
+so use this only to investigate a conflict. Restart the daemon after
+changing its environment, then Rescan to retry remembered failures.
+The diagnostics archive records whether this was active, the effective
+values, any removed values and the Wine runner selected by `WINELOADER`
+or the host's PATH. Values are bounded and paths receive the archive's
+usual redaction.
+
+**Capture a deep Wine trace.** If a Windows plugin hangs during scan,
+`OPENXLR_PLUGIN_WINE_TRACE=1` adds exception, unwind and module-load output
+for a bug report. It slows scanning and is off by default. Only scanners
+receive `WINEDEBUG=+seh,+unwind,+loaddll`; live hosts keep their environment.
+An existing `WINEDEBUG`, including an empty value, takes precedence.
+
+```sh
+systemctl --user set-environment OPENXLR_PLUGIN_WINE_TRACE=1
+systemctl --user restart openxlr-daemon
+```
+
+In Options, PLUGINS, choose Rescan, wait for it to finish, then collect
+[diagnostics](#reporting). In `plugin-discovery.json`, check
+`discovery.hostEnvironment.wineTrace` is true and `scannerWineDebug` names
+the effective channels. The failed log under `plugin-scan-logs/` also
+records `wineTrace: true` and `wineDebug`. Ordinary scans already include
+`trace: scan` phase lines, so the last phase identifies the calls in progress.
+A deep trace captures the first 8 MiB of stderr and saves up to 1 MiB after
+collapsing repeated lines. Three copies remain, followed by the omitted
+count. The 60 second deadline and 4 MiB total log budget still apply.
+
+After collecting the archive, turn tracing off:
+
+```sh
+systemctl --user unset-environment OPENXLR_PLUGIN_WINE_TRACE
+systemctl --user restart openxlr-daemon
+```
 
 After a Wine upgrade, a bridged scan can be the first program to use an
 older Wine prefix. Wine then updates it and may show an optional Mono or
@@ -610,15 +662,16 @@ they change or stop other Wine applications using that prefix. Start with
 `plugin-discovery.json` holds one short line per bundle, and a bundle that
 fails can print far more than a line: a bridge's startup banner fills the
 beginning and a Wine unwind fills the end, so the exception in between
-would be the part that is clipped. The whole output of an attempt that
-failed is written to a file instead, under
+would be the part that is clipped. More output from a failed attempt is
+kept in a bounded file with repeated lines collapsed, under
 `~/.cache/openxlr/plugin-scan-logs/` (or `$XDG_CACHE_HOME` when that is
 set), readable only by you. The scan entry names its file in `logId`, so
 the line and the file are held together.
 
 The bounds are fixed, and a log always states where it was cut:
 
-- 256 KiB of standard error and 64 KiB of standard output per attempt.
+- 256 KiB of standard error normally, or 1 MiB after repetition collapse
+  during a deep Wine trace, and 64 KiB of standard output per attempt.
 - One file per bundle: a bundle that fails again replaces its own file and
   counts the attempt, so repeated failures do not grow the directory.
 - 24 files and 4 MiB in total, oldest deleted first.
@@ -681,9 +734,20 @@ with its Windows half can be paged out under memory pressure, and reading
 them back can exceed an audio cycle. The effective limit depends on the
 distribution and user session; check the running daemon before changing it.
 
-Group names alone do not grant a memory-lock limit; the distribution's
-PAM and systemd policy determines it. On Arch, the realtime privileges
-package provides the relevant group policy:
+The daemon's unit asks for the allowance with `LimitMEMLOCK=infinity`,
+in the packaged unit, the NixOS module and the one the window writes for a
+source build. That covers a session whose own ceiling is already high but whose
+user manager hands units less, and it costs nothing where the allowance
+was there anyway.
+
+It cannot invent an allowance the session does not have. A unit raises the
+soft limit as far as the hard limit and no further, and the user manager
+that starts the daemon is unprivileged, so a session capped at 8 MiB stays
+capped whatever the unit asks for. That is what the steps below are for.
+
+Group names alone do not grant a memory-lock limit; the distribution's PAM
+and systemd policy determines it. On Arch, the realtime privileges package
+provides the relevant group policy:
 
 ```sh
 sudo pacman -S realtime-privileges

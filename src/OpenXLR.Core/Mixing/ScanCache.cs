@@ -32,7 +32,13 @@ public sealed class ScanCache
     /// the one that was scanned. Null for anything that is not a link, which
     /// is also what entries written before this was recorded carry.
     /// </param>
-    public sealed record Entry(long Modified, long Size, string File, string? Scanner = null, string? Target = null);
+    /// <param name="Failed">
+    /// The scanner could not describe this bundle. There is no description
+    /// file, and <see cref="File"/> is empty. Entries written before this
+    /// was recorded carry false, which is what they were.
+    /// </param>
+    public sealed record Entry(long Modified, long Size, string File, string? Scanner = null, string? Target = null,
+        bool Failed = false, string? FailureReason = null, DateTimeOffset? FailedAt = null);
 
     private readonly string _directory;
     private readonly string _scanner;
@@ -71,22 +77,58 @@ public sealed class ScanCache
         }
     }
 
+    /// <summary>What this cache still holds about a bundle, or null once the bundle or the helper has changed.</summary>
+    private Entry? Current(string bundle)
+        => _index.TryGetValue(bundle, out Entry? entry) && string.Equals(entry.Scanner, _scanner, StringComparison.Ordinal)
+            && Stamp(bundle) is { } stamp
+            && entry.Modified == stamp.Modified && entry.Size == stamp.Size
+            && string.Equals(entry.Target, stamp.Target, StringComparison.Ordinal)
+            ? entry : null;
+
     /// <summary>The description of a bundle that has not changed since, read by this same helper, or null.</summary>
     public byte[]? Lookup(string bundle)
     {
-        if (!_index.TryGetValue(bundle, out Entry? entry) || !string.Equals(entry.Scanner, _scanner, StringComparison.Ordinal)
-            || Stamp(bundle) is not { } stamp
-            || entry.Modified != stamp.Modified || entry.Size != stamp.Size
-            || !string.Equals(entry.Target, stamp.Target, StringComparison.Ordinal))
-            return null;
-        try { return File.ReadAllBytes(Path.Combine(_directory, entry.File)); }
+        if (Current(bundle) is not { Failed: false } entry) return null;
+        try
+        {
+            string path = Path.Combine(_directory, entry.File);
+            if (new FileInfo(path).LinkTarget is not null) return null;
+            using var stream = File.OpenRead(path);
+            // Cache reads have the same byte budget as a live scanner. Size
+            // changes during the read must not cause an unbounded allocation.
+            long length = stream.Length;
+            if (length > ProcessRunner.DefaultStdoutCap) return null;
+            byte[] description = new byte[(int)length];
+            stream.ReadExactly(description);
+            return stream.ReadByte() == -1 ? description : null;
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    /// <summary>
+    /// This bundle already failed to be described, and has not changed since.
+    /// A bundle that hangs the scanner costs the whole deadline every time it
+    /// is asked, so it is asked once and then left alone until the bundle,
+    /// the helper or the bridge changes, or the user rescans.
+    /// </summary>
+    public bool KnownFailure(string bundle) => Current(bundle) is { Failed: true };
+
+    public Entry? Failure(string bundle) => Current(bundle) is { Failed: true } entry ? entry : null;
+
+    /// <summary>Discard damaged cache data so the next scan asks the bundle again.</summary>
+    public void Invalidate(string bundle)
+    {
+        if (!_index.Remove(bundle, out Entry? entry)) return;
+        if (entry.File.Length > 0)
+            try { File.Delete(Path.Combine(_directory, entry.File)); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        _dirty = true;
     }
 
     public void Store(string bundle, byte[] description)
     {
         if (Stamp(bundle) is not { } stamp) return;
-        string file = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(bundle))) + ".json";
+        string file = FileName(bundle);
         try
         {
             OpenXlrPaths.WriteAtomic(Path.Combine(_directory, file), description);
@@ -96,13 +138,28 @@ public sealed class ScanCache
         _dirty = true;
     }
 
+    /// <summary>Record that this bundle could not be described, so the next scan can pass it by.</summary>
+    public void StoreFailure(string bundle, string reason = "scan-failed", DateTimeOffset? failedAt = null)
+    {
+        if (Stamp(bundle) is not { } stamp) return;
+        // A bundle that described itself before and fails now leaves its old
+        // description behind; nothing will read it again.
+        if (_index.TryGetValue(bundle, out Entry? previous) && previous.File.Length > 0)
+            try { File.Delete(Path.Combine(_directory, previous.File)); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        _index[bundle] = new Entry(stamp.Modified, stamp.Size, "", _scanner, stamp.Target,
+            Failed: true, FailureReason: reason, FailedAt: failedAt ?? DateTimeOffset.UtcNow);
+        _dirty = true;
+    }
+
     /// <summary>Forget bundles that are gone, and write the index if anything changed.</summary>
     public void Save()
     {
         foreach ((string bundle, Entry entry) in _index.Where(e => !File.Exists(e.Key) && !Directory.Exists(e.Key)).ToList())
         {
             _index.Remove(bundle);
-            try { File.Delete(Path.Combine(_directory, entry.File)); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            if (entry.File.Length > 0)
+                try { File.Delete(Path.Combine(_directory, entry.File)); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             _dirty = true;
         }
         if (!_dirty) return;
@@ -126,9 +183,10 @@ public sealed class ScanCache
     /// loads, a wrapper for another architecture among them, and one leftover
     /// link to a plugin that was removed must not cost a full rescan of the
     /// bundle at every start. Whether the files the host does need are usable
-    /// is the scanner's answer, not the cache's: a scan that fails is never
-    /// stored, and a source that disappears changes the stamp, so the entry
-    /// that was already there stops being used.
+    /// is the scanner's answer, not the cache's: a scan that fails is kept as
+    /// a failure rather than a description, and a source that disappears
+    /// changes the stamp, so the entry that was already there stops being
+    /// used.
     /// </summary>
     internal static (long Modified, long Size, string? Target)? Stamp(string bundle)
     {
@@ -213,14 +271,22 @@ public sealed class ScanCache
         try
         {
             if (!File.Exists(path)) return new(StringComparer.Ordinal);
-            return JsonSerializer.Deserialize<Dictionary<string, Entry>>(File.ReadAllText(path), Options)
+            var entries = JsonSerializer.Deserialize<Dictionary<string, Entry>>(File.ReadAllText(path), Options)
                 ?? new(StringComparer.Ordinal);
+            // The index is cache data, not permission to read or delete an
+            // arbitrary path. Failure markers have no description file.
+            foreach ((string bundle, Entry entry) in entries.ToArray())
+                if (entry is null || entry.File != (entry.Failed ? "" : FileName(bundle))) entries.Remove(bundle);
+            return entries;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             return new(StringComparer.Ordinal);   // a damaged cache is just a slow start
         }
     }
+
+    private static string FileName(string bundle)
+        => Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(bundle))) + ".json";
 
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 }

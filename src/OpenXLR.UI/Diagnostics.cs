@@ -152,7 +152,8 @@ public static class Diagnostics
         // read here rather than written here.
         const int MaxLogs = 24;
         const long MaxTotalBytes = 4L * 1024 * 1024;
-        const int MaxFileBytes = 512 * 1024;
+        // A deep trace holds 1 MiB of stderr, 64 KiB of stdout and a bounded header.
+        const int MaxFileBytes = 1152 * 1024;
 
         string destination = Path.Combine(work, "plugin-scan-logs");
         Directory.CreateDirectory(destination);

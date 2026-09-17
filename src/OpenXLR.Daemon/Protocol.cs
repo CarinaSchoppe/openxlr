@@ -120,7 +120,10 @@ public sealed record PluginSetupMessage(PluginSetup Setup)
     /// <summary>What to know before opening a bridged plugin's own editor, or null.</summary>
     [JsonPropertyName("windowsEditorNote")] public string? WindowsEditorNote => Setup.WindowsEditorNote;
     [JsonPropertyName("memoryLockLimitBytes")] public long? MemoryLockLimitBytes => Setup.MemoryLockLimitBytes;
+    [JsonPropertyName("memoryLockHardLimitBytes")] public long? MemoryLockHardLimitBytes => Setup.MemoryLockHardLimitBytes;
     [JsonPropertyName("memoryLockNote")] public string? MemoryLockNote => Setup.MemoryLockNote;
+    [JsonPropertyName("skippedFailedCount")] public int SkippedFailedCount => Setup.SkippedScans.Count;
+    [JsonPropertyName("skippedFailedBundles")] public IReadOnlyList<PluginSkippedBundle> SkippedFailedBundles => Setup.SkippedScans.Bundles;
     [JsonPropertyName("bridgeProvider")] public string BridgeProvider => Setup.BridgeProvider;
     [JsonPropertyName("bridgeDirectory")] public string? BridgeDirectory => Setup.BridgeDirectory;
     [JsonPropertyName("windowsPluginDirectory")] public string? WindowsPluginDirectory => Setup.WindowsPluginDirectory;

@@ -155,6 +155,12 @@ public sealed class HttpApiTests
             Assert.Equal("pluginDiagnostics", discovery.GetProperty("type").GetString());
             Assert.True(discovery.GetProperty("discovery").TryGetProperty("searchPaths", out _));
             Assert.True(discovery.GetProperty("discovery").TryGetProperty("scans", out _));
+            Assert.True(discovery.GetProperty("discovery").TryGetProperty("memoryLockHardLimitBytes", out _));
+            Assert.True(discovery.GetProperty("discovery").TryGetProperty("hostEnvironment", out var hostEnvironment));
+            Assert.True(hostEnvironment.TryGetProperty("wineRunner", out _));
+            Assert.True(hostEnvironment.TryGetProperty("loaderEnvironment", out _));
+            Assert.True(discovery.GetProperty("discovery").TryGetProperty("skippedFailedCount", out _));
+            Assert.True(discovery.GetProperty("discovery").TryGetProperty("skippedFailedBundles", out _));
         }
         finally
         {

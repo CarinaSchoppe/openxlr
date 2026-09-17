@@ -576,7 +576,7 @@ public sealed class PluginInstallerTests : IDisposable
     public void TheSetupNamesTheDirectoriesAndWhatIsMissing()
     {
         PluginSetup setup = Installer().Setup();
-        Assert.Equal(PluginMemoryLock.ReadLimit(), setup.MemoryLockLimitBytes);
+        Assert.Equal(PluginMemoryLock.ReadLimits().Soft, setup.MemoryLockLimitBytes);
         Assert.Null(setup.YabridgeVersion);
         Assert.False(setup.Wine);
         Assert.Empty(setup.WindowsDirectories);

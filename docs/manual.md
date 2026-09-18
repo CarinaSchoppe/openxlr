@@ -886,6 +886,13 @@ Profiles belong to the interface they were saved with; another device
 shows its own list. With the OpenDeck plugin a key can recall a
 profile ([section 4](#stream-deck)).
 
+Legacy profiles directly under `~/.config/openxlr/profiles` are moved into
+the Wave XLR Pro folder, `0fd9-00b4`, at startup. If that folder already
+contains a profile with the same name, both copies are preserved and the
+remaining legacy profiles still migrate. The existing device-specific
+profile is the one shown in the picker; the colliding original remains in
+the legacy folder for manual comparison.
+
 **Recall on connect.** The "On connect" picker under the list names a
 profile the daemon recalls by itself whenever the interface connects
 fresh: at daemon start (so at login), after a replug or a power cycle,

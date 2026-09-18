@@ -83,8 +83,12 @@ public static class ProfileStore
             string proDir = Dir("0fd9:00b4");
             foreach (string f in Directory.EnumerateFiles(Root, "*.json"))
             {
-                OpenXlrPaths.EnsurePrivateDir(proDir);
-                File.Move(f, Path.Combine(proDir, Path.GetFileName(f)), overwrite: false);
+                try
+                {
+                    OpenXlrPaths.EnsurePrivateDir(proDir);
+                    File.Move(f, Path.Combine(proDir, Path.GetFileName(f)), overwrite: false);
+                }
+                catch (IOException) { /* keep this original and migrate the remaining profiles */ }
             }
         }
         catch (IOException) { /* leave stragglers for the next run */ }

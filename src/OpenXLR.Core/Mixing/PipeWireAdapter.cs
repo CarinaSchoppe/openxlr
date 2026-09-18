@@ -380,6 +380,22 @@ public sealed class PipeWireAdapter
             throw new InvalidOperationException("PipeWire did not report the updated sink level");
     }
 
+    /// <summary>Read a sink's mute directly, without a cached graph snapshot.</summary>
+    public bool GetSinkMuted(string sinkName)
+        => Run("pactl", "get-sink-mute", BareSink(sinkName)).Trim() switch
+        {
+            "Mute: yes" => true,
+            "Mute: no" => false,
+            _ => throw new InvalidOperationException("output mute is unavailable"),
+        };
+
+    /// <summary>Toggle a sink's mute atomically at pipewire-pulse.</summary>
+    public void ToggleSinkMuted(string sinkName)
+    {
+        Run("pactl", "set-sink-mute", BareSink(sinkName), "toggle");
+        InvalidateDump();
+    }
+
     /// <summary>Set one sink-input's volume (used for the combine fader legs).</summary>
     public void SetSinkInputVolume(int index, double volume)
         => Run("pactl", "set-sink-input-volume", index.ToString(),
@@ -1351,7 +1367,7 @@ public sealed class PipeWireAdapter
             if (Listed(DesktopServiceBinaries, binary) || Listed(DesktopServiceBinaries, appName)) continue;
             if (appName is not null && appName.Contains("OpenXLR", StringComparison.Ordinal)) continue;
 
-            found.Add(new AudioStream(0, appName, binary, null));
+            found.Add(new AudioStream(0, appName, binary, null) { ProcessId = ProcessId(props) });
         }
         return found;
     }
@@ -1425,7 +1441,7 @@ public sealed class PipeWireAdapter
                 o.GetProperty("id").GetInt32(),
                 AppProperty("application.name"),
                 binary,
-                Str(props, "media.name")) { Serial = serial });
+                Str(props, "media.name")) { Serial = serial, ProcessId = ProcessId(client) is > 0 and var pid ? pid : ProcessId(props) });
         }
         return found;
 
@@ -1433,6 +1449,13 @@ public sealed class PipeWireAdapter
             => props.ValueKind == JsonValueKind.Object && props.TryGetProperty(key, out JsonElement v) &&
                v.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(v.GetString())
                 ? v.GetString() : null;
+    }
+
+    private static int ProcessId(JsonElement props)
+    {
+        if (props.ValueKind != JsonValueKind.Object || !props.TryGetProperty("application.process.id", out var value)) return 0;
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int number)) return Math.Max(0, number);
+        return value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), out int parsed) ? Math.Max(0, parsed) : 0;
     }
 
     /// <summary>All audio nodes as (id, node.name, media.class).</summary>

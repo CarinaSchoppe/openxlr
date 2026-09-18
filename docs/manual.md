@@ -1590,3 +1590,86 @@ an interrupted write leaves the previous file in place.
 
 Uninstalling a package leaves `~/.config/openxlr` in place; remove it
 by hand if you want a clean slate.
+
+## Additional capture inputs
+
+Open **Edit layout**, then **Add capture input**. Enter a channel name,
+choose an available microphone, capture card or another Wave interface, and
+select its stereo pair. Pair 1 works for ordinary mono and stereo sources.
+The new channel starts muted in every mix. Open only the sends you need.
+
+Capture channels can be renamed, reordered and deleted like application
+channels. Their layout row shows the connection state and pair; hover over
+it to see the exact source name. An offline input stays silent and reconnects
+with its saved faders when the same source returns. A different source or
+pair needs a new capture channel. Profile recall changes its sends, not its
+source binding. Application routing never targets capture inputs.
+
+Several Wave interfaces can supply capture audio at once. The active-device
+picker still chooses the single interface whose hardware controls OpenXLR
+shows. The software input effects and XLR inserts retain their existing scope;
+additional capture inputs can use the effects on the mixes they feed.
+
+## Desktop keys and focused application routing
+
+Open **Desktop keys** and enable desktop integration. For PC shortcuts, select
+the application channels you want, then choose **Apply and configure keys**.
+The desktop portal asks for the shortcuts and permission to use them. For an
+OpenDeck key, choose **Route focused application** and the destination channel
+in the Toggle inspector. No PC shortcut needs to be selected for OpenDeck.
+Keep the OpenXLR window process running; hiding it in the tray keeps the keys
+active. The daemon alone does not own a desktop shortcut session.
+
+The GlobalShortcuts portal registers keys on Wayland. It does not expose the
+focused application's identity. Focused routing therefore currently requires
+KDE Plasma, where a short-lived KWin script reads the active process id. It
+reads no window titles and removes its script after the query. The daemon
+uses `gdbus`, supplied by the GLib command-line tools, to ask the window for it.
+On unsupported desktops or when the window is closed, routing reports an error.
+
+The exact process, or a unique audio identity among its child processes,
+must appear in PipeWire. The existing application assignment is then updated
+and remembered for the next launch. A stream that is still starting joins
+that channel when the daemon next discovers it. Multiple possible identities, stopped
+processes, unavailable clients and deleted target channels produce an error.
+Titles and executable names are not guessed. A PC error is shown in Desktop
+keys; OpenDeck flashes an alert for a failed or unanswered command.
+
+Bindings are stored in `desktop-keys.json` independently of profiles. Renaming
+a channel keeps its key identity; deleting it makes its key fail until it is
+removed from the configured list. After a portal or session-bus restart, open
+Desktop keys and apply again to reconnect. A method call that times out or is
+cancelled also closes the desktop connection, releasing outstanding replies;
+apply again once the desktop service is responsive. Cancelling the permission dialog
+leaves the requested preferences saved, with a visible inactive error state;
+apply again to retry or disable the integration.
+
+Disabling or replacing a shortcut session stops further activations. A
+command already sent to the daemon may still finish; its delayed reply
+does not replace the status of the disabled, closed or replacement session.
+
+### Output volume, mute and system output keys
+
+In **Desktop keys**, select **Add volume and mute keys** and choose the current
+system default or a named output. Each volume press moves five percentage
+points within 0 to 150%. Mute toggles at the audio server. Monitor A and B
+update their corresponding mix masters; a selected external monitor output
+uses the existing linked monitor-volume behavior. Other external outputs
+change independently. Ordinary internal OpenXLR application sinks are not
+volume targets because their gains must stay at unity.
+
+Select **Switch system output** entries to register keys which select and
+enforce that default sink. **Follow selected monitor output** follows the
+first output in the monitor selection. These keys keep the configured capture
+default and mixer routing intact. Unplugged named outputs report an error;
+their bindings remain saved for reconnection. At most 16 output-selection
+shortcuts and 32 focused-channel shortcuts are retained.
+
+For OpenDeck, use the Toggle inspector's **System output controls** and
+**Enforced system output** groups. Volume and mute keys are momentary actions;
+they acknowledge the command without displaying a persistent mute indicator.
+Output-selection keys indicate the enforced choice. These Deck actions only
+need the daemon. PC shortcuts also need the running UI and a desktop supporting
+the GlobalShortcuts portal, but do not need KDE's focused-window integration.
+Desktop shortcuts are explicitly selected in the portal; existing media-key
+bindings are not replaced automatically.

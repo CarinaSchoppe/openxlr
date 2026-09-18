@@ -41,14 +41,17 @@ public static class CommandValidation
             case "setWindowsPluginEnabled":
             case "deleteWindowsPlugin":
                 return CheckPluginPath(cmd);
+            case "createCaptureChannel":
+                if (BadName(cmd.Name)) return "createCaptureChannel: name must contain 1 to 60 printable characters";
+                return CaptureBinding.IsValid(cmd.Source, cmd.CapturePair) ? null : "createCaptureChannel: need an external source and a pair from 0 to 31";
             case "createChannel":
             case "createMix":
                 return BadName(cmd.Name) ? $"{cmd.Cmd}: name must contain 1 to 60 printable characters" : null;
             case "renameChannel":
             case "deleteChannel":
                 if (cmd.Channel is null) return $"{cmd.Cmd}: need 'channel'";
-                if (TooLong(cmd.Channel, 36) || !layout.HasApplicationChannel(cmd.Channel))
-                    return $"{cmd.Cmd}: '{Short(cmd.Channel)}' is not an application channel";
+                if (TooLong(cmd.Channel, 36) || !layout.HasEditableChannel(cmd.Channel))
+                    return $"{cmd.Cmd}: '{Short(cmd.Channel)}' is not an editable channel";
                 return cmd.Cmd == "renameChannel" && BadName(cmd.Name) ? "renameChannel: name must contain 1 to 60 printable characters" : null;
             case "renameMix":
             case "deleteMix":
@@ -74,6 +77,18 @@ public static class CommandValidation
                 return cmd.Cmd == "setMixVolume" ? Finite(cmd, "value") : null;
             case "setOutputVolume":
                 return Finite(cmd, "value");
+            case "adjustOutputVolume":
+            case "toggleOutputMute":
+            case "setMainOutput":
+                if (cmd.Device is not null && (cmd.Device.Length is 0 or > 256 || cmd.Device.Any(char.IsControl)))
+                    return $"{cmd.Cmd}: invalid output name";
+                if (cmd.Cmd == "setMainOutput" && cmd.Device is null) return "setMainOutput: need 'device'";
+                if (cmd.Cmd == "adjustOutputVolume")
+                    return Finite(cmd, "value") ?? (cmd.Value.GetDouble() is >= -.5 and <= .5 ? null : "adjustOutputVolume: step must be between -0.5 and 0.5");
+                return null;
+            case "routeFocusedApp":
+                return cmd.Channel is { Length: > 0 and <= 36 } && layout.HasApplicationChannel(cmd.Channel)
+                    ? null : "routeFocusedApp: select an application channel";
             case "assignStream":
                 if (cmd.Channel is not null && !IsChannelOrIgnore(layout, cmd.Channel)) return $"assignStream: unknown channel '{Short(cmd.Channel)}'";
                 return null;
@@ -215,5 +230,5 @@ public static class CommandValidation
 
     /// <summary>A real channel, or the "ignore" pseudo-channel that leaves an app to the desktop.</summary>
     private static bool IsChannelOrIgnore(ILayoutInfo layout, string id)
-        => id == OpenXLR.Core.Mixing.StreamMatcher.Ignore || layout.HasChannel(id);
+        => id == OpenXLR.Core.Mixing.StreamMatcher.Ignore || layout.HasApplicationChannel(id);
 }

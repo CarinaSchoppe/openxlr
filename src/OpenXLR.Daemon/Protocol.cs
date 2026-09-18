@@ -66,6 +66,8 @@ public sealed record Command
     /// <summary>"setEnforcedDefaults": devices to hold as system defaults (null = don't enforce).</summary>
     [JsonPropertyName("sink")] public string? Sink { get; init; }
     [JsonPropertyName("source")] public string? Source { get; init; }
+    /// <summary>Zero-based stereo pair for createCaptureChannel, default 0.</summary>
+    [JsonPropertyName("capturePair")] public int CapturePair { get; init; }
 
     /// <summary>"saveProfile" / "loadProfile" / "deleteProfile": the profile name;
     /// "setRecallOnConnect": the profile to recall on connect, empty to clear.</summary>

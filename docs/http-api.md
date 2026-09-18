@@ -120,3 +120,24 @@ For `setEnforcedDefaults`, `sink: "@monitor"` follows the first selected
 monitor output as the system playback device. The response state retains
 that value; see [the command contract](api.md) for resolution and volume
 synchronization.
+
+Capture channels use the same command endpoint:
+`{"cmd":"createCaptureChannel","name":"Headset mic","source":"alsa_input.usb-headset","capturePair":0}`.
+The source must be present. Success is returned after the layout is saved.
+State channel entries expose `captureSource`, `capturePair` and `captureConnected`;
+a disconnected source retains its binding and reconnects when it returns.
+
+`{"cmd":"routeFocusedApp","channel":"music"}` uses the same focused-application
+routing as PC and OpenDeck keys. Enable **Desktop keys** in the running window.
+KDE Plasma supplies the focused process; GLib's `gdbus` must be installed.
+An unavailable desktop service, absent audio client or ambiguous identity
+returns the normal command error response and does not select a guessed app.
+
+Output keys use the same authenticated command endpoint:
+`{"cmd":"adjustOutputVolume","value":-0.05}` lowers the current system output
+by five percentage points; an optional `device` binds an exact output name.
+`{"cmd":"toggleOutputMute"}` toggles the current output's mute.
+`{"cmd":"setMainOutput","device":"alsa_output.usb-headset"}` selects and enforces
+that output. `@monitor` follows the selected monitor output. Limits, rejected
+targets and linked-monitor behavior match the [WebSocket contract](api.md).
+These commands require the daemon but do not require a running UI or KDE.

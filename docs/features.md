@@ -127,6 +127,14 @@ Channels appear as playback devices in the desktop's audio applet, and
 the virtual microphones (Stream and Chat by default) as recording
 devices; the hardware input channels are hidden from it.
 
+### External capture channels
+
+Additional microphones, headsets, capture cards and attached Wave interfaces
+can feed independent channels from their PipeWire sources. Select a stereo
+pair in the layout editor, then use the existing mix sends, mutes, meters and
+profiles. Exact source bindings survive hotplug; absent inputs stay silent.
+
+
 ## Inserts
 
 LV2, CLAP and VST3 effects can form a mono chain on each XLR input and a
@@ -339,3 +347,15 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   plugin scan failure. Enable it, Rescan, collect diagnostics, then disable
   it. Scans get much slower and produce large logs. The switch takes effect
   without a daemon restart and is not saved across restarts
+
+### Desktop routing keys
+
+Focused-application routing is available from OpenDeck Toggle keys and PC
+global shortcuts. The latter use the desktop GlobalShortcuts portal, including
+on Wayland. Focus identity currently comes from KDE Plasma's KWin; ambiguous
+or unavailable process identities are refused instead of guessed.
+
+PipeWire output volume, mute and enforced system-output selection are available
+from the same PC shortcut session and OpenDeck Toggle keys. Volume steps use
+desktop percentages up to 150%; targets can follow the current default or stay
+bound to a named external output or monitor mix.

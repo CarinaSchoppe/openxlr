@@ -29,7 +29,21 @@ export function mixShortName(mixer, id) {
 
 const option = (target, label) => ({ target, label });
 
-export function layoutChoices(mixer) {
+export function controllableOutputs(mixer, devices = []) {
+  const monitors = new Set((mixer?.mixes ?? []).filter(m => m.kind === "monitor").map(m => `OpenXLR_mix_${m.id}`));
+  return devices.filter(d => d.kind === 0 && d.name && d.name.length <= 256 && !/[\p{Cc}#]/u.test(d.name)
+    && !/^[@-]|^[0-9]+$/.test(d.name) && (!d.isOwn || monitors.has(d.name)));
+}
+
+export function outputKey(target) {
+  if (typeof target !== "string") return null;
+  const prefixes = {"outputup:":"up", "outputdown:":"down", "outputmute:":"mute", "mainoutput:":"main"};
+  for (const [prefix, kind] of Object.entries(prefixes))
+    if (target.startsWith(prefix)) return {kind, device:target.slice(prefix.length) || null};
+  return null;
+}
+
+export function layoutChoices(mixer, devices = []) {
   const mixes = mixer?.mixes ?? [];
   const channels = mixer?.channels ?? [];
   if (!mixes.length || !channels.length) return { toggleGroups: [], levelGroups: [] };
@@ -39,12 +53,28 @@ export function layoutChoices(mixer) {
     label: "Mix mutes",
     items: mixes.map((mix) => option(`mixmute:${mix.id}`, `${mix.name} mix mute`)),
   }];
+  toggleGroups.push({
+    id: "layout-focus", label: "Route focused application",
+    items: channels.filter((channel) => !channel.hardware && !channel.captureSource)
+      .map((channel) => option(`focus:${channel.id}`, `Focused app to ${channel.name}`)),
+  });
   for (const mix of mixes) toggleGroups.push({
     id: `layout-send-mutes-${mix.id}`,
     label: `Send mutes: ${mix.name}`,
     items: channels.map((channel) => option(
       `sendmute:${channel.id}:${mix.id}`, `${channel.name} in ${mix.name}`)),
   });
+
+  const outputs = [{name:"", description:"Current system default"}, ...controllableOutputs(mixer, devices)];
+  toggleGroups.push({id:"layout-output-keys", label:"System output controls", items:outputs.flatMap(d => [
+    option(`outputup:${d.name}`, `${d.description || d.name}: louder 5%`),
+    option(`outputdown:${d.name}`, `${d.description || d.name}: quieter 5%`),
+    option(`outputmute:${d.name}`, `${d.description || d.name}: toggle mute`),
+  ])});
+  toggleGroups.push({id:"layout-main-output", label:"Enforced system output", items:[
+    option("mainoutput:@monitor", "Follow selected monitor output"),
+    ...outputs.filter(d => d.name).map(d => option(`mainoutput:${d.name}`, d.description || d.name)),
+  ]});
 
   const levelGroups = [
     {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { channelName, layoutChoices, mixName } from "../com.emaspa.openxlr.sdPlugin/layout-choices.mjs";
+import { channelName, layoutChoices, mixName, controllableOutputs, outputKey } from "../com.emaspa.openxlr.sdPlugin/layout-choices.mjs";
 
 const mixer = {
   mixes: [
@@ -45,4 +45,19 @@ test("focus keys only target application channels and follow renames", () => {
   ]};
   assert.deepEqual(layoutChoices(state).toggleGroups.find(g => g.id === "layout-focus").items,
     [{target:"focus:apps", label:"Focused app to Renamed apps"}]);
+});
+
+
+test("output choices reject internal sinks and ambiguous names, retaining monitor masters", () => {
+  const state = {...mixer, mixes:[{id:"monitor", kind:"monitor"}, {id:"chat",kind:"virtualMic"}]};
+  const devices = ["headset:analog", "OpenXLR_mix_monitor", "OpenXLR_mix_chat", "OpenXLR_ch_system",
+    "123", "@DEFAULT_SINK@", "sink#hp1", "-sink", "bad\u0085name"].map(name => ({name,kind:0,isOwn:name.startsWith("OpenXLR")}));
+  devices.push({name:"mic",kind:1});
+  assert.deepEqual(controllableOutputs(state, devices).map(d => d.name), ["headset:analog","OpenXLR_mix_monitor"]);
+  const groups = layoutChoices(state, devices).toggleGroups;
+  assert.ok(groups.find(g => g.id === "layout-output-keys").items.some(i => i.target === "outputup:"));
+  assert.ok(groups.find(g => g.id === "layout-main-output").items.some(i => i.target === "mainoutput:@monitor"));
+  assert.deepEqual(outputKey("outputmute:headset:analog"), {kind:"mute",device:"headset:analog"});
+  assert.deepEqual(outputKey("outputdown:"), {kind:"down",device:null});
+  assert.equal(outputKey("feed:headset"), null);
 });

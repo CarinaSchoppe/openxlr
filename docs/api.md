@@ -130,6 +130,9 @@ that final acknowledgement (or an `error` without a request id):
 | `getNativeEditorRules` | none | read release defaults and explicit user overrides for native editor compatibility |
 | `setNativeEditorRule` | `kind`, `plugin`, `name?`, `blocked?` | set `blocked:true` to use OpenXLR controls, `false` to allow the native editor, or null/absent to remove the override and follow release defaults. Saved atomically before success; answered with `nativeEditorRules` |
 | `showInsertUi` | `channel`, `insertId` | open an enabled insert's native editor when the optional host is installed and the editor policy allows it; a blocked editor is refused without changing the audio instance |
+| `adjustOutputVolume` | optional `device`, `value` | change a PipeWire output by desktop percentage points (`0.05` is 5%). Finite steps from -0.5 to 0.5, final volume clamped to 0 through 1.5. Omit `device` for the current desktop default |
+| `toggleOutputMute` | optional `device` | toggle mute at the audio server; omit `device` for the current desktop default |
+| `setMainOutput` | `device` | select and enforce an available PipeWire output as the system default, or `@monitor` for the first selected monitor output. Retains capture-default policy and mixer feeds |
 | `routeFocusedApp` | `channel` | route the focused KDE application to an application channel and remember the assignment; requires the running UI with Desktop keys enabled and `gdbus`. Missing or ambiguous process identity is an error, with no guessed routing |
 | `assignApp` | `identity`, `channel`, `label?` | route an app (creates a registry entry if unseen); `channel: "ignore"` stops managing it, its streams go back to the system default output and stay wherever the desktop routes them |
 | `assignStream` | `streamId`, `channel` | route one live stream by its PipeWire id; also remembered for the app; `ignore` works here too |
@@ -424,3 +427,18 @@ daemon connection is down. Such a query returns null at once and retains no
 pending reply slot. Queries already sent keep their request identity until
 the acknowledgement or disconnect, so a late reply cannot answer a newer
 query.
+
+### Output key targets
+
+Output keys accept exact external sink names and OpenXLR monitor-mix sinks.
+Internal channel, post and non-monitor mix sinks retain unity gain and are
+rejected. Numeric ids, Pulse aliases, shared-jack `#` names and unavailable
+outputs are rejected. `@monitor` is only valid for `setMainOutput` and requires
+a selected, available monitor output. A missing target or audio-server failure
+returns a command error without changing the enforced default policy.
+
+Relative volume reads the audio server at key-press time. It uses the same
+monitor master and linked output synchronization as desktop volume changes;
+it never uses the client's previous slider value. Named keys remain bound to
+that output across default changes. A key with no device resolves the desktop
+default anew on every press. Mute toggles use pipewire-pulse's atomic toggle.

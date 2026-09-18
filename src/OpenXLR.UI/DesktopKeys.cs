@@ -38,7 +38,8 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
             var bus = new DesktopBus(connection);
             connection.AddMethodHandler(new KWinFocus(bus));
             await connection.RequestNameAsync(KWinFocus.Service).WaitAsync(TimeSpan.FromSeconds(3), _lifetime.Token);
-            if (settings.FocusChannels.Count == 0)
+            var actions = Actions(settings);
+            if (actions.Count == 0)
             {
                 SetStatus("OpenDeck focus routing is enabled. Select channels below to assign PC shortcuts.");
                 return;
@@ -46,7 +47,6 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
             var created = await bus.Request("CreateSession", "a{sv}", token => (ref MessageWriter w) =>
                 w.WriteDictionary(new Dictionary<string, VariantValue> { ["handle_token"] = token, ["session_handle_token"] = token }), _lifetime.Token);
             string session = created["session_handle"].GetString();
-            var channels = settings.FocusChannels.ToHashSet(StringComparer.Ordinal);
             int active = 0; // 0 binding, 1 active, -1 closed
             _activated = await connection.AddMatchAsync(new MatchRule { Type = MessageType.Signal, Sender = DesktopBus.Portal,
                 Path = DesktopBus.PortalPath, Interface = DesktopBus.Shortcuts, Member = "Activated" },
@@ -55,8 +55,8 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
                 {
                     if (notification.IsCompletion) { SetStatus("Desktop connection lost. Open Desktop keys and apply to reconnect."); return; }
                     var (activeSession, id) = notification.Value;
-                    if (Volatile.Read(ref active) == 1 && ReferenceEquals(_connection, connection) && activeSession == session && id.StartsWith("focus_", StringComparison.Ordinal)
-                        && channels.Contains(id[6..])) _ = InvokeAsync(id[6..]);
+                    if (Volatile.Read(ref active) == 1 && ReferenceEquals(_connection, connection) && activeSession == session
+                        && actions.TryGetValue(id, out KeyAction? action)) _ = InvokeAsync(action);
                 }, emitOnCapturedContext: false, flags: ObserverFlags.EmitOnConnectionClosed | ObserverFlags.EmitOnReaderFailed);
             _closed = await connection.AddMatchAsync(new MatchRule { Type = MessageType.Signal, Sender = DesktopBus.Portal,
                 Path = session, Interface = "org.freedesktop.portal.Session", Member = "Closed" },
@@ -69,10 +69,10 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
             {
                 w.WriteObjectPath(session);
                 var array = w.WriteArrayStart(DBusType.Struct);
-                foreach (string channel in settings.FocusChannels)
+                foreach (var (id, action) in actions)
                 {
-                    w.WriteStructureStart(); w.WriteString("focus_" + channel);
-                    w.WriteDictionary(new Dictionary<string, VariantValue> { ["description"] = "Route focused app to " + channel });
+                    w.WriteStructureStart(); w.WriteString(id);
+                    w.WriteDictionary(new Dictionary<string, VariantValue> { ["description"] = action.Description });
                 }
                 w.WriteArrayEnd(array);
                 w.WriteString(""); // the portal supplies its own permission/configuration window
@@ -90,13 +90,30 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
         finally { _configure.Release(); }
     }
 
-    private async Task InvokeAsync(string channel)
+    internal sealed record KeyAction(string Description, Func<Task<string?>> Invoke);
+    internal Dictionary<string, KeyAction> Actions(DesktopKeySettings settings)
+    {
+        var actions = new Dictionary<string, KeyAction>(StringComparer.Ordinal);
+        foreach (string channel in settings.FocusChannels)
+            actions["focus_" + channel] = new("Route focused app to " + channel, () => client.RouteFocusedAppAsync(channel));
+        if (settings.OutputControls)
+        {
+            actions["output_up"] = new("Output volume up 5%", () => client.AdjustOutputVolumeAsync(settings.OutputDevice, .05));
+            actions["output_down"] = new("Output volume down 5%", () => client.AdjustOutputVolumeAsync(settings.OutputDevice, -.05));
+            actions["output_mute"] = new("Toggle output mute", () => client.ToggleOutputMuteAsync(settings.OutputDevice));
+        }
+        foreach (string output in settings.MainOutputs)
+            actions[DesktopKeySettings.MainKey(output)] = new("Set system output to " + output, () => client.SetMainOutputAsync(output));
+        return actions;
+    }
+
+    private async Task InvokeAsync(KeyAction action)
     {
         if (Interlocked.Exchange(ref _invoking, 1) != 0) return;
         try
         {
-            string? error = await client.RouteFocusedAppAsync(channel);
-            SetStatus(error ?? "Focused application routed to " + channel + ".");
+            string? error = await action.Invoke();
+            SetStatus(error ?? "Completed: " + action.Description + ".");
         }
         catch (Exception ex) { SetStatus(ex.Message); }
         finally { Volatile.Write(ref _invoking, 0); }

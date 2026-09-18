@@ -57,6 +57,26 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
     daemon.receive(state);
     assert.equal(host.messages.filter(m => m.event === "sendToPropertyInspector").length, count);
 
+    for (const [target, expected] of [
+      ["outputup:", {cmd:"adjustOutputVolume",device:null,value:.05}],
+      ["outputdown:qa-output", {cmd:"adjustOutputVolume",device:"qa-output",value:-.05}],
+      ["outputmute:qa-output", {cmd:"toggleOutputMute",device:"qa-output"}],
+      ["mainoutput:qa-output", {cmd:"setMainOutput",device:"qa-output"}],
+      ["mainoutput:@monitor", {cmd:"setMainOutput",device:"@monitor"}],
+    ]) {
+      host.receive({event:"willAppear",context:"output-key",action:"com.emaspa.openxlr.toggle",payload:{settings:{target}}});
+      host.receive({event:"keyDown",context:"output-key"});
+      const {requestId, ...payload} = daemon.messages.at(-1);
+      assert.deepEqual(payload, expected);
+      daemon.receive({type:"commandResult",requestId});
+      assert.ok(host.messages.some(m => m.event === "showOk" && m.context === "output-key"));
+    }
+    host.receive({event:"willAppear",context:"missing-output",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"outputmute:gone"}}});
+    const beforeMissing = daemon.messages.length;
+    host.receive({event:"keyDown",context:"missing-output"});
+    assert.equal(daemon.messages.length, beforeMissing);
+    assert.ok(host.messages.some(m => m.event === "showAlert" && m.context === "missing-output"));
+
     // A desktop boost must not jump back to 100% on the first dial tick.
     state.mixer.mixes = [
       {id:"monitor",name:"Monitor A",kind:"monitor",volume:1.5},

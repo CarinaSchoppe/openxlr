@@ -343,3 +343,8 @@ Focused-application routing is available from OpenDeck Toggle keys and PC
 global shortcuts. The latter use the desktop GlobalShortcuts portal, including
 on Wayland. Focus identity currently comes from KDE Plasma's KWin; ambiguous
 or unavailable process identities are refused instead of guessed.
+
+PipeWire output volume, mute and enforced system-output selection are available
+from the same PC shortcut session and OpenDeck Toggle keys. Volume steps use
+desktop percentages up to 150%; targets can follow the current default or stay
+bound to a named external output or monitor mix.

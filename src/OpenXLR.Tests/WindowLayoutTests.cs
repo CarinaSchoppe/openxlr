@@ -295,6 +295,7 @@ public sealed class WindowLayoutTests
                 setup.Close();
 
                 for (int i = 0; i < 32; i++) vm.Channels.Add(new ChannelViewModel(new DaemonClient(), "key-channel" + i, "Shortcut channel " + i, []));
+                vm.Outputs.Add(new AudioDeviceItem("long-output", "Very long headphone and speaker output description for narrow desktop windows", false));
                 using var keys = new DesktopKeys(new DaemonClient());
                 var keyWindow = new DesktopKeysWindow(keys, vm);
                 windows.Add(keyWindow);
@@ -303,6 +304,10 @@ public sealed class WindowLayoutTests
                 var keyScroll = Assert.Single(keyWindow.GetVisualDescendants().OfType<ScrollViewer>(), v => v.Content is StackPanel);
                 Assert.True(keyScroll.Extent.Height > keyScroll.Viewport.Height);
                 Capture(keyWindow, "desktop-keys-360");
+                keyScroll.Offset = new Vector(0, keyScroll.Extent.Height);
+                Layout(keyWindow, 360, 340);
+                Assert.True(keyScroll.Extent.Width <= keyScroll.Viewport.Width + 1);
+                Capture(keyWindow, "desktop-output-keys-360");
                 keyWindow.Close();
 
                 new UiSettings { StartMinimized = true, MinimizeToTray = true }.Save();

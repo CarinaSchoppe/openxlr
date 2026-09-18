@@ -446,6 +446,9 @@ public sealed class MixerService : IHostedService, IDisposable
                     if (cmd.Mix is null) return "setMixMuted: need 'mix'";
                     _mixer.SetMixMuted(cmd.Mix, cmd.Value.GetBoolean());
                     break;
+                case "adjustOutputVolume": _mixer.AdjustOutputVolume(cmd.Device, cmd.Value.GetDouble()); break;
+                case "toggleOutputMute": _mixer.ToggleOutputMute(cmd.Device); break;
+                case "setMainOutput": _mixer.SetMainOutput(cmd.Device!); break;
                 case "routeFocusedApp":
                     _mixer.RouteFocusedApplication(DesktopFocusQuery.Read(), cmd.Channel!);
                     break;

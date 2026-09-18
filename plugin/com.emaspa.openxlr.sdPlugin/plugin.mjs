@@ -5,7 +5,7 @@
 
 import process from "node:process";
 import { randomUUID } from "node:crypto";
-import { channelName, mixName, mixShortName, layoutChoices } from "./layout-choices.mjs";
+import { channelName, mixName, mixShortName, layoutChoices, controllableOutputs, outputKey } from "./layout-choices.mjs";
 import fs from "node:fs";
 import os from "node:os";
 
@@ -41,7 +41,7 @@ let daemon = null;
 const layoutInspectors = new Set();
 let lastLayout = "";
 function publishLayout() {
-  const choices = layoutChoices(daemonState?.mixer);
+  const choices = layoutChoices(daemonState?.mixer, daemonState?.devices);
   const serialized = JSON.stringify(choices);
   if (serialized === lastLayout) return;
   lastLayout = serialized;
@@ -336,7 +336,7 @@ host.onmessage = (e) => {
       if (m.payload?.request === "layout") {
         layoutInspectors.add(m.context);
         send({ event: "sendToPropertyInspector", context: m.context,
-               payload: layoutChoices(daemonState?.mixer) });
+               payload: layoutChoices(daemonState?.mixer, daemonState?.devices) });
       }
       else if (m.payload?.request === "outputs")
         send({ event: "sendToPropertyInspector", context: m.context,
@@ -404,6 +404,14 @@ function deviceTargetSupported(target) {
 // need the key's saved meta for id fallback, so they take the instance.
 function toggleValue(target, inst) {
   if (!target) return null;
+  const output = outputKey(target);
+  if (output) {
+    if (!mixer()) return null;
+    if (output.kind === "main" && output.device === "@monitor")
+      return mixer().monitorOutputs?.length ? mixer().enforcedDefaultSink === "@monitor" : null;
+    if (output.device && !controllableOutputs(mixer(), daemonState?.devices).some(d => d.name === output.device)) return null;
+    return output.kind === "main" ? mixer().enforcedDefaultSink === output.device : false;
+  }
   if (target.startsWith("insert|")) {
     const [, ch, id] = target.split("|");
     const ins = resolveInsert(ch, id, metaOf(inst, target));
@@ -464,6 +472,12 @@ const nextFeed = (feed) => feed === "monitor" ? "monitor2" : feed === "monitor2"
 
 function toggleLabel(target, inst) {
   if (!target) return "OpenXLR";
+  const output = outputKey(target);
+  if (output) {
+    const name = output.device === "@monitor" ? "Follow monitor" : output.device
+      ? daemonState?.devices?.find(d => d.name === output.device)?.description ?? output.device : "System default";
+    return `${({up:"Louder",down:"Quieter",mute:"Toggle mute",main:"System out"})[output.kind]}\n${name}`;
+  }
   if (target.startsWith("insert|")) {
     const [, ch, id] = target.split("|");
     const ins = resolveInsert(ch, id, metaOf(inst, target));
@@ -580,7 +594,14 @@ function onKeyDown(context, inst) {
   const t = inst.settings.target;
   const cur = toggleValue(t, inst);
   if (cur === null) { send({ event: "showAlert", context }); return; }
-  if (t.startsWith("focus:")) keyCommand(context, { cmd: "routeFocusedApp", channel: t.slice(6) });
+  const output = outputKey(t);
+  if (output) {
+    const payload = output.kind === "main" ? {cmd:"setMainOutput",device:output.device}
+      : output.kind === "mute" ? {cmd:"toggleOutputMute",device:output.device}
+      : {cmd:"adjustOutputVolume",device:output.device,value:output.kind === "up" ? .05 : -.05};
+    keyCommand(context, payload);
+  }
+  else if (t.startsWith("focus:")) keyCommand(context, { cmd: "routeFocusedApp", channel: t.slice(6) });
   else if (t.startsWith("insert|")) {
     const [, ch, id] = t.split("|");
     const ins = resolveInsert(ch, id, metaOf(inst, t));

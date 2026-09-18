@@ -23,13 +23,16 @@ public sealed class DesktopKeysTests
         var fake = new DesktopBackend(new DesktopBus(desktop));
         desktop.AddMethodHandler(fake);
         var commands = new ConcurrentQueue<string>();
+        var outputCommands = new ConcurrentQueue<string>();
         await using var server = await SocketTestServer.Start(async (socket, stop) =>
         {
             while (!stop.IsCancellationRequested)
             {
                 var command = await SocketTestServer.Receive(socket, stop);
-                if (command["cmd"]!.GetValue<string>() != "routeFocusedApp") continue;
-                commands.Enqueue(command["channel"]!.GetValue<string>());
+                string cmd = command["cmd"]!.GetValue<string>();
+                if (cmd == "routeFocusedApp") commands.Enqueue(command["channel"]!.GetValue<string>());
+                else if (cmd == "toggleOutputMute") outputCommands.Enqueue(cmd);
+                else continue;
                 await SocketTestServer.Send(socket, new { type = "commandResult", requestId = command["requestId"]!.GetValue<string>() }, stop);
             }
         });
@@ -39,12 +42,15 @@ public sealed class DesktopKeysTests
         client.Start();
         await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
         using var keys = new DesktopKeys(client);
-        await keys.ConfigureAsync(new DesktopKeySettings { Enabled = true, FocusChannels = ["music", "browser"] }, save: false);
+        await keys.ConfigureAsync(new DesktopKeySettings { Enabled = true, FocusChannels = ["music", "browser"], OutputControls = true, MainOutputs = ["headset"] }, save: false);
         Assert.StartsWith("Desktop keys are active", keys.Status);
-        Assert.Equal(["focus_music", "focus_browser"], fake.ShortcutIds);
+        Assert.Equal(["focus_music", "focus_browser", "output_up", "output_down", "output_mute", DesktopKeySettings.MainKey("headset")], fake.ShortcutIds);
         fake.Activate("focus_music");
-        await Wait(() => keys.Status.StartsWith("Focused application routed", StringComparison.Ordinal));
+        await Wait(() => keys.Status.StartsWith("Completed:", StringComparison.Ordinal));
         Assert.Equal("music", Assert.Single(commands));
+        fake.Activate("output_mute");
+        await Wait(() => keys.Status == "Completed: Toggle output mute.");
+        Assert.Equal("toggleOutputMute", Assert.Single(outputCommands));
         fake.Activate("focus_deleted");
         fake.Activate("focus_browser", "/not_the_session");
         await Task.Delay(80);

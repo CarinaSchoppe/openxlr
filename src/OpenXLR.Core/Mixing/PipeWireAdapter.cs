@@ -337,6 +337,13 @@ public sealed class PipeWireAdapter
         InvalidateDump();
     }
 
+    /// <summary>Toggle a sink's mute atomically at pipewire-pulse.</summary>
+    public void ToggleSinkMuted(string sinkName)
+    {
+        Run("pactl", "set-sink-mute", BareSink(sinkName), "toggle");
+        InvalidateDump();
+    }
+
     /// <summary>Set one sink-input's volume (used for the combine fader legs).</summary>
     public void SetSinkInputVolume(int index, double volume)
         => Run("pactl", "set-sink-input-volume", index.ToString(),

@@ -1607,3 +1607,29 @@ removed from the configured list. After a portal or session-bus restart, open
 Desktop keys and apply again to reconnect. Cancelling the permission dialog
 leaves the requested preferences saved, with a visible inactive error state;
 apply again to retry or disable the integration.
+
+### Output volume, mute and system output keys
+
+In **Desktop keys**, select **Add volume and mute keys** and choose the current
+system default or a named output. Each volume press moves five percentage
+points within 0 to 150%. Mute toggles at the audio server. Monitor A and B
+update their corresponding mix masters; a selected external monitor output
+uses the existing linked monitor-volume behavior. Other external outputs
+change independently. Ordinary internal OpenXLR application sinks are not
+volume targets because their gains must stay at unity.
+
+Select **Switch system output** entries to register keys which select and
+enforce that default sink. **Follow selected monitor output** follows the
+first output in the monitor selection. These keys keep the configured capture
+default and mixer routing intact. Unplugged named outputs report an error;
+their bindings remain saved for reconnection. At most 16 output-selection
+shortcuts and 32 focused-channel shortcuts are retained.
+
+For OpenDeck, use the Toggle inspector's **System output controls** and
+**Enforced system output** groups. Volume and mute keys are momentary actions;
+they acknowledge the command without displaying a persistent mute indicator.
+Output-selection keys indicate the enforced choice. These Deck actions only
+need the daemon. PC shortcuts also need the running UI and a desktop supporting
+the GlobalShortcuts portal, but do not need KDE's focused-window integration.
+Desktop shortcuts are explicitly selected in the portal; existing media-key
+bindings are not replaced automatically.

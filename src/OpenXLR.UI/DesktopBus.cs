@@ -18,14 +18,31 @@ internal sealed class DesktopBus(DBusConnection connection)
     internal Task<T> Call<T>(string destination, string path, string iface, string method,
         string? signature, Body? body, MessageValueReader<T> reader, CancellationToken cancel = default)
     {
+        cancel.ThrowIfCancellationRequested();
         var writer = connection.GetMessageWriter();
         try
         {
             writer.WriteMethodCallHeader(destination, path, iface, method, signature);
             body?.Invoke(ref writer);
-            return connection.CallMethodAsync(writer.CreateMessage(), reader).WaitAsync(TimeSpan.FromSeconds(3), cancel);
+            return AwaitReply(connection.CallMethodAsync(writer.CreateMessage(), reader), cancel);
         }
         finally { writer.Dispose(); }
+    }
+
+    private async Task<T> AwaitReply<T>(Task<T> pending, CancellationToken cancel)
+    {
+        try { return await pending.WaitAsync(TimeSpan.FromSeconds(3), cancel).ConfigureAwait(false); }
+        catch (Exception ex) when (ex is TimeoutException or OperationCanceledException)
+        {
+            // The protocol library has no cancellation for individual method
+            // replies. A timed-out waiter alone leaves its reply registered.
+            // Close this private desktop session to release all pending calls;
+            // its observers report the disconnection and Apply can reconnect.
+            connection.Dispose();
+            try { await pending.ConfigureAwait(false); }
+            catch (Exception) { /* observe the reply completed by disconnection */ }
+            throw;
+        }
     }
 
     internal Task Empty(string destination, string path, string iface, string method,

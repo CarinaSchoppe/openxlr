@@ -1604,6 +1604,8 @@ keys; OpenDeck flashes an alert for a failed or unanswered command.
 Bindings are stored in `desktop-keys.json` independently of profiles. Renaming
 a channel keeps its key identity; deleting it makes its key fail until it is
 removed from the configured list. After a portal or session-bus restart, open
-Desktop keys and apply again to reconnect. Cancelling the permission dialog
+Desktop keys and apply again to reconnect. A method call that times out or is
+cancelled also closes the desktop connection, releasing outstanding replies;
+apply again once the desktop service is responsive. Cancelling the permission dialog
 leaves the requested preferences saved, with a visible inactive error state;
 apply again to retry or disable the integration.

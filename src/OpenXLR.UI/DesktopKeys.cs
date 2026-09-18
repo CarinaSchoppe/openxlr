@@ -32,9 +32,10 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
             Stop();
             if (!settings.Enabled) { SetStatus("Desktop keys are disabled."); return; }
             SetStatus("Connecting to the desktop...");
-            var connection = new DBusConnection(DBusAddress.Session ?? throw new InvalidOperationException("No session bus is available."));
+            var connection = new DBusConnection(Environment.GetEnvironmentVariable("DBUS_SESSION_BUS_ADDRESS") ?? DBusAddress.Session ?? throw new InvalidOperationException("No session bus is available."));
             _connection = connection;
             await connection.ConnectAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3), _lifetime.Token);
+            _ = ObserveConnectionAsync(connection);
             var bus = new DesktopBus(connection);
             connection.AddMethodHandler(new KWinFocus(bus));
             await connection.RequestNameAsync(KWinFocus.Service).WaitAsync(TimeSpan.FromSeconds(3), _lifetime.Token);
@@ -88,6 +89,13 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
             SetStatus("Desktop keys: " + ex.Message);
         }
         finally { _configure.Release(); }
+    }
+
+    private async Task ObserveConnectionAsync(DBusConnection connection)
+    {
+        await connection.DisconnectedAsync().ConfigureAwait(false);
+        if (ReferenceEquals(_connection, connection) && !_lifetime.IsCancellationRequested)
+            SetStatus("Desktop connection lost. Open Desktop keys and apply to reconnect.");
     }
 
     private async Task InvokeAsync(string channel)

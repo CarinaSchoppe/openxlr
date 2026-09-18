@@ -70,6 +70,66 @@ public sealed class DesktopKeysTests
         Assert.Equal("Desktop keys are disabled.", keys.Status);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AbandonedMethodCallsCloseTheConnectionAndReleasePendingReplies(bool cancelled)
+    {
+        await using var environment = await PrivateBus.Start();
+        using var server = new DBusConnection(environment.Address);
+        await server.ConnectAsync();
+        await server.RequestNameAsync("org.openxlr.Silent");
+        using var handler = new SilentDesktop();
+        server.AddMethodHandler(handler);
+        using var connection = new DBusConnection(environment.Address);
+        await connection.ConnectAsync();
+        Task disconnected = connection.DisconnectedAsync();
+        using var stop = new CancellationTokenSource();
+        Task pending = new DesktopBus(connection).Empty("org.openxlr.Silent", "/silent", "org.openxlr.Silent", "Wait", cancel: stop.Token);
+        await handler.Arrived.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        if (cancelled)
+        {
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+        }
+        else await Assert.ThrowsAsync<TimeoutException>(() => pending);
+        await disconnected.WaitAsync(TimeSpan.FromSeconds(1));
+    }
+
+    private sealed class SilentDesktop : IPathMethodHandler, IDisposable
+    {
+        public string Path => "/silent";
+        public bool HandlesChildPaths => false;
+        internal TaskCompletionSource Arrived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private MethodContext? _context;
+        public ValueTask HandleMethodAsync(MethodContext context)
+        {
+            context.DisposesAsynchronously = true;
+            _context = context;
+            Arrived.TrySetResult();
+            return ValueTask.CompletedTask;
+        }
+        public void Dispose() => _context?.Dispose();
+    }
+
+    [Fact]
+    public async Task DeckOnlyIntegrationReportsALostDesktopConnection()
+    {
+        var environment = await PrivateBus.Start();
+        bool stopped = false;
+        try
+        {
+            await using var client = new DaemonClient();
+            using var keys = new DesktopKeys(client);
+            await keys.ConfigureAsync(new DesktopKeySettings { Enabled = true }, save: false);
+            Assert.StartsWith("OpenDeck focus routing is enabled", keys.Status);
+            await environment.DisposeAsync();
+            stopped = true;
+            await Wait(() => keys.Status.StartsWith("Desktop connection lost", StringComparison.Ordinal));
+        }
+        finally { if (!stopped) await environment.DisposeAsync(); }
+    }
+
     [Fact]
     public async Task SettingsFailureDoesNotReportAnEnabledIntegration()
     {

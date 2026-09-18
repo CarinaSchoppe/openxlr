@@ -1674,8 +1674,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         var seen = new HashSet<string>();
         foreach (string name in _monitorOutputs)
         {
-            int marker = name.IndexOf('#');
-            string key = marker < 0 ? name : name[..marker] + "#bus";
+            string key = OutputRouteKey(name);
             if (seen.Add(key)) yield return (key, name);
         }
     }

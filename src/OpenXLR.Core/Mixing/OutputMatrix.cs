@@ -30,6 +30,7 @@ public sealed partial class Mixer
         }
     }
 
+    /// <summary>Shared identity for output grouping, route gains and saved route restoration.</summary>
     internal static string OutputRouteKey(string output)
     {
         int marker = output.IndexOf('#');

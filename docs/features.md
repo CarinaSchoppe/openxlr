@@ -74,6 +74,12 @@ does not reach the speakers until unmuted.
 
 ## Submixer
 
+The output matrix sends any mix to any selected output with an independent
+0 to 100% route level. Profiles recall those sends, and an all-Off row stays
+silent. Outputs sharing a hardware bus have one row and one set of sends.
+Mix inserts remain upstream of the matrix. Internal gain nodes are hidden
+from device pickers and do not require a process for each route.
+
 The **Flow** window shows inputs, channels, mixes and outputs in four columns.
 Click a card to trace its signal path, with colours for each routing stage and
 unrelated routes dimmed. Processing stays inside the channel and mix cards;
@@ -95,9 +101,10 @@ Built from PipeWire nodes, no kernel modules or custom drivers:
   while audio plays, as does the API, with stable ids so profiles and
   Stream Deck keys survive a rename. Every change is saved before it is
   confirmed
-- The monitor mixes can play on several outputs at once, hardware
-  outputs included; each output picks which monitor mix feeds it, or
-  both summed (Monitor A+B), so a headset with a game sink and a chat
+- Any mix can play on several outputs at once, hardware outputs included:
+  Monitor A/B, Stream, Chat, Aux and custom virtual microphones. Outputs
+  pick a mix or a sum (Monitor A+B in the picker, any sum through the API),
+  so a headset with a game sink and a chat
   sink hears two selections, and one pair of headphones can hear the
   desktop from A with a separately processed mic from B
 - Level meters throughout, dB-scaled, pushed at 15 Hz

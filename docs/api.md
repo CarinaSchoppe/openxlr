@@ -108,8 +108,9 @@ that final acknowledgement (or an `error` without a request id):
 | `setMixVolume` / `setMixMuted` | `mix`, `value` | mix masters; monitor volume range 0 to 1.5, other mixes 0 to 1; values outside the range are clamped |
 | `setMonitorOutputs` | `devices[]` | every sink the monitor mixes feed; a newly listed output is fed by the first monitor mix |
 | `setMonitorOutput` | `device` | a single monitor sink; `null` disconnects the route |
-| `setMonitorFeed` | `device`, `mix` | what feeds one selected output: `monitor` (Monitor A), `monitor2` (Monitor B), or both summed as `monitor+monitor2` (Monitor A+B); the Pro's own jacks follow one feed together. The state's `monitorFeeds` lists the exceptions from the first mix in the same form. An error when the feed names anything but distinct monitor mixes, or the output is not selected |
+| `setMonitorFeed` | `device`, `mix` | what feeds one selected output: any existing mix id, including `stream`, `chat`, `auxout` and custom virtual microphones, or distinct ids joined with `+` to sum them. The Pro's own jacks follow one feed together. The state's `monitorFeeds` lists exceptions from the first monitor mix in layout order. Unknown or repeated mix ids and unselected outputs are rejected. Deleting the last included mix returns that output to the first monitor mix; deliberately silent matrix outputs stay silent |
 | `setAuxPortEnabled` | `value` | send the Aux mix to the USB Aux port |
+| `setOutputRoute` | `device`, `mix`, `value` | one mix's send into a selected output, 0 to 1. A positive value adds or adjusts the route; zero disconnects it. Values outside that range, non-finite values, unknown mixes and unselected outputs are rejected. Physical jacks sharing a bus change together |
 | `setOutputVolume` | `value` | volume of the selected monitor devices, 0 to 1.5; the range the devices themselves take, so a desktop level above unity can be held and written back unchanged. Values outside it are clamped, and the state reports what reached the devices. With no output selected the command succeeds and changes nothing |
 | `listPlugins` | none | the installed LV2, CLAP and VST3 plugins, answered with a `plugins` message |
 | `getPluginDiagnostics` | none | read bridge status and existing native scan evidence without syncing, rescanning or changing inserts; answered with `pluginDiagnostics` |
@@ -146,6 +147,17 @@ profile file that fails validation, or that cannot be parsed, is refused
 before anything is applied; the error starts with `profile '<name>':`. A bad
 mixer field is named; a non-finite device level is reported as `Saved device
 levels must be finite numbers.` without one.
+
+`mixer.outputRoutes` lists per-route gain exceptions as
+`{"device":"alsa_output.headset","mix":"chat","level":0.5}`. A mix included
+in `monitorFeeds` but absent from this list uses unity gain. Shared Pro jack
+gains use `device#bus`. An explicit empty string in `monitorFeeds` means the
+output is silent; it is distinct from an absent entry, which selects the first
+monitor mix. Zero in `setOutputRoute` removes that mix from the feed and its
+gain exception. Removing an output drops its gains. Levels use the desktop
+volume percentage scale, with the same whole-percent precision as `pactl`
+writes elsewhere in the mixer. Profile scenes and mixer settings preserve
+the route gains. Like other fader edits, saving is debounced and retried.
 
 `setEnforcedDefaults` accepts `sink: "@monitor"` to follow the first selected
 monitor output as the system playback device. The state and saved settings

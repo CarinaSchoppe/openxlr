@@ -252,8 +252,8 @@ public static class Lv2Catalog
             float def = float.IsNaN(defs[i]) ? min : defs[i];
             // NaN means a missing range to lilv and keeps the legacy defaults
             // above. Infinite metadata cannot be sent as a JSON number.
-            if (!float.IsFinite(min) || !float.IsFinite(max) || !float.IsFinite(def)) continue;
-            pars.Add(new PluginParam(sym, pname, min, max, def,
+            if (!float.IsFinite(min) || !float.IsFinite(max) || !float.IsFinite(def) || min > max) continue;
+            pars.Add(new PluginParam(sym, pname, min, max, Math.Clamp(def, min, max),
                 Lilv.lilv_port_has_property(plugin, port, toggled),
                 Lilv.lilv_port_has_property(plugin, port, integer),
                 Lilv.lilv_port_has_property(plugin, port, logarithmic),

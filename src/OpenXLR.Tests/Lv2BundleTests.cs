@@ -7,6 +7,38 @@ namespace OpenXLR.Tests;
 public sealed class Lv2BundleTests
 {
     [Fact]
+    public void Lv2ControlsHaveOrderedBoundsAndDefaultsWithinTheirRange()
+    {
+        if (!NativeLibrary.TryLoad("liblilv-0.so.0", out IntPtr library)) return;
+        NativeLibrary.Free(library);
+        string directory = Directory.CreateTempSubdirectory("openxlr-lv2-bounds-").FullName;
+        try
+        {
+            string bundle = Directory.CreateDirectory(Path.Combine(directory, "bounds.lv2")).FullName;
+            File.WriteAllText(Path.Combine(bundle, "manifest.ttl"),
+                "@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n"
+                + "<urn:openxlr:test:bounds> a lv2:Plugin ; rdfs:seeAlso <bounds.ttl> .\n");
+            string[] ranges =
+            [
+                "lv2:default 1.0 ; lv2:minimum 2.0 ; lv2:maximum 1.0",
+                "lv2:default 3.0 ; lv2:minimum 3.0 ; lv2:maximum 3.0",
+                "lv2:default -6.0 ; lv2:minimum -5.0 ; lv2:maximum -1.0",
+                "lv2:default 21.0 ; lv2:minimum 10.0 ; lv2:maximum 20.0",
+                "lv2:minimum 10.0 ; lv2:maximum 20.0",
+            ];
+            string text = Bundle("bounds", "urn:openxlr:test:bounds", ranges.Length);
+            for (int i = 0; i < ranges.Length; i++)
+                text = text.Replace($"lv2:name \"Control {i}\" ; lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0",
+                    $"lv2:name \"Control {i}\" ; {ranges[i]}", StringComparison.Ordinal);
+            File.WriteAllText(Path.Combine(bundle, "bounds.ttl"), text);
+            IReadOnlyList<PluginParam> controls = Assert.Single(Lv2Catalog.ScanNow(directory)).Params;
+            Assert.Equal(["c1", "c2", "c3", "c4"], controls.Select(p => p.Symbol));
+            Assert.Equal([3.0, -5.0, 20.0, 10.0], controls.Select(p => p.Default));
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    [Fact]
     public void NonFiniteLv2MetadataCannotBreakTheCatalogueReply()
     {
         if (!NativeLibrary.TryLoad("liblilv-0.so.0", out IntPtr library)) return;

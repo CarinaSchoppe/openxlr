@@ -8,6 +8,87 @@ namespace OpenXLR.Tests;
 public sealed class ClapCatalogTests
 {
     [Theory]
+    [InlineData("name")]
+    [InlineData("audioIns")]
+    [InlineData("audioOuts")]
+    [InlineData("gui")]
+    [InlineData("layoutRefused")]
+    public void NestedScalarValuesCannotReplacePluginIdentity(string field)
+    {
+        foreach (string invalid in new[] { "{\"id\":\"nested\"}", "[{\"id\":\"nested\"}]" })
+        {
+            string description = "{\"plugins\":[{\"id\":\"first\",\"" + field + "\":" + invalid
+                + ",\"params\":[{\"id\":7}]},{\"id\":\"second\"}]}";
+            foreach (IReadOnlyList<PluginInfo> plugins in new[] { ClapCatalog.Parse(description), Vst3Catalog.Parse(description) })
+            {
+                Assert.Equal(["first", "second"], plugins.Select(p => p.Plugin));
+                Assert.Equal("7", Assert.Single(plugins[0].Params).Symbol);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("name")]
+    [InlineData("min")]
+    [InlineData("max")]
+    [InlineData("default")]
+    [InlineData("stepped")]
+    [InlineData("enum")]
+    public void NestedScalarValuesCannotReplaceControlIdentity(string field)
+    {
+        foreach (string invalid in new[] { "{\"id\":99}", "[{\"id\":99}]" })
+        {
+            string description = "{\"plugins\":[{\"id\":\"test\",\"params\":[{\"id\":7,\"" + field
+                + "\":" + invalid + "},{\"id\":8}]}]}";
+            foreach (IReadOnlyList<PluginInfo> plugins in new[] { ClapCatalog.Parse(description), Vst3Catalog.Parse(description) })
+                Assert.Equal(["7", "8"], Assert.Single(plugins).Params.Select(p => p.Symbol));
+        }
+    }
+
+    [Fact]
+    public void NestedFileMetadataCannotSupplyPlugins()
+    {
+        const string description = """
+            {"file":{"plugins":[{"id":"nested"}]},"plugins":[{"id":"real"}]}
+            """;
+        foreach (IReadOnlyList<PluginInfo> plugins in new[] { ClapCatalog.Parse(description), Vst3Catalog.Parse(description) })
+        {
+            Assert.Equal("real", Assert.Single(plugins).Plugin);
+            Assert.Equal("", plugins[0].Path);
+        }
+    }
+
+    [Fact]
+    public void NonObjectPluginEntriesDoNotHideLaterPlugins()
+    {
+        const string description = """
+            {"plugins":[null,42,"bad",[{"id":"nested"}],{"id":{"id":"nested"}},{"id":"real"}]}
+            """;
+        foreach (IReadOnlyList<PluginInfo> plugins in new[] { ClapCatalog.Parse(description), Vst3Catalog.Parse(description) })
+            Assert.Equal("real", Assert.Single(plugins).Plugin);
+    }
+
+    [Fact]
+    public void ControlsHaveOrderedBoundsAndDefaultsWithinTheirRange()
+    {
+        const string description = """
+            {"plugins":[{"id":"test","params":[
+                {"id":1,"min":2,"max":1},
+                {"id":2,"min":3,"max":3,"default":3},
+                {"id":3,"min":-5,"max":-1,"default":-6},
+                {"id":4,"min":10,"max":20,"default":21},
+                {"id":5,"min":10,"max":20}
+            ]}]}
+            """;
+        foreach (IReadOnlyList<PluginInfo> plugins in new[] { ClapCatalog.Parse(description), Vst3Catalog.Parse(description) })
+        {
+            IReadOnlyList<PluginParam> controls = Assert.Single(plugins).Params;
+            Assert.Equal(["2", "3", "4", "5"], controls.Select(p => p.Symbol));
+            Assert.Equal([3.0, -5.0, 20.0, 10.0], controls.Select(p => p.Default));
+        }
+    }
+
+    [Theory]
     [InlineData("{}")]
     [InlineData("{\"id\":null}")]
     [InlineData("{\"id\":\"0\"}")]

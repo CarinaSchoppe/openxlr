@@ -379,15 +379,18 @@ internal static class HostScan
             if (reader.ValueTextEquals("file"u8))
             {
                 reader.Read();
-                file = reader.TokenType == JsonTokenType.String ? reader.GetString() ?? "" : "";
+                file = Text(ref reader) ?? "";
             }
             else if (reader.ValueTextEquals("plugins"u8))
             {
                 reader.Read();
                 if (reader.TokenType != JsonTokenType.StartArray) { reader.Skip(); continue; }
-                while (reader.Read() && reader.TokenType == JsonTokenType.StartObject)
+                while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+                {
+                    if (reader.TokenType != JsonTokenType.StartObject) { reader.Skip(); continue; }
                     if (ReadPlugin(ref reader, kind, file) is PluginInfo info)
                         result.Add(info);
+                }
             }
             else { reader.Read(); reader.Skip(); }
         }
@@ -413,7 +416,7 @@ internal static class HostScan
             else if (reader.ValueTextEquals("name"u8)) { reader.Read(); name = Text(ref reader); }
             else if (reader.ValueTextEquals("audioIns"u8)) { reader.Read(); ins = Whole(ref reader); }
             else if (reader.ValueTextEquals("audioOuts"u8)) { reader.Read(); outs = Whole(ref reader); }
-            else if (reader.ValueTextEquals("gui"u8)) { reader.Read(); gui = reader.TokenType == JsonTokenType.True; }
+            else if (reader.ValueTextEquals("gui"u8)) { reader.Read(); gui = Flag(ref reader); }
             // The widths the helper asked the plugin about. Present and
             // empty is an answer too: the plugin refused every one.
             else if (reader.ValueTextEquals("widths"u8))
@@ -490,17 +493,18 @@ internal static class HostScan
             else if (reader.ValueTextEquals("min"u8)) { reader.Read(); min = Number(ref reader); }
             else if (reader.ValueTextEquals("max"u8)) { reader.Read(); max = Number(ref reader, 1); }
             else if (reader.ValueTextEquals("default"u8)) { reader.Read(); initial = Number(ref reader); }
-            else if (reader.ValueTextEquals("stepped"u8)) { reader.Read(); stepped = reader.TokenType == JsonTokenType.True; }
-            else if (reader.ValueTextEquals("enum"u8)) { reader.Read(); enumeration = reader.TokenType == JsonTokenType.True; }
+            else if (reader.ValueTextEquals("stepped"u8)) { reader.Read(); stepped = Flag(ref reader); }
+            else if (reader.ValueTextEquals("enum"u8)) { reader.Read(); enumeration = Flag(ref reader); }
             else { reader.Read(); reader.Skip(); }
         }
         // A valid JSON number such as 1e999 can still overflow a double.
         // Omit only that control so one bad range cannot prevent every
         // plugin from being serialized to the window.
-        if (id is null || !double.IsFinite(min) || !double.IsFinite(max) || (initial.HasValue && !double.IsFinite(initial.Value)))
+        if (id is null || !double.IsFinite(min) || !double.IsFinite(max) || min > max
+            || (initial.HasValue && !double.IsFinite(initial.Value)))
             return null;
         return new PluginParam(
-            id.Value.ToString(CultureInfo.InvariantCulture), name, min, max, initial ?? min,
+            id.Value.ToString(CultureInfo.InvariantCulture), name, min, max, Math.Clamp(initial ?? min, min, max),
             Toggled: stepped && min == 0 && max == 1,
             Integer: stepped,
             Logarithmic: false,
@@ -508,14 +512,35 @@ internal static class HostScan
             []);
     }
 
+    // Consume the entire value even when a scalar field contains an object
+    // or array, so nested properties cannot become plugin or control fields.
     private static string? Text(ref Utf8JsonReader reader)
-        => reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+    {
+        string? value = reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+        reader.Skip();
+        return value;
+    }
 
     private static double Number(ref Utf8JsonReader reader, double fallback = 0)
-        => reader.TokenType == JsonTokenType.Number && reader.TryGetDouble(out double value) ? value : fallback;
+    {
+        double result = reader.TokenType == JsonTokenType.Number && reader.TryGetDouble(out double value) ? value : fallback;
+        reader.Skip();
+        return result;
+    }
 
     private static int Whole(ref Utf8JsonReader reader)
-        => reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value) ? value : 0;
+    {
+        int result = reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value) ? value : 0;
+        reader.Skip();
+        return result;
+    }
+
+    private static bool Flag(ref Utf8JsonReader reader)
+    {
+        bool value = reader.TokenType == JsonTokenType.True;
+        reader.Skip();
+        return value;
+    }
 
     /// <summary>
     /// The picker's grouping, from the plugin's own feature list: CLAP

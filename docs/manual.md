@@ -856,10 +856,16 @@ Controls with non-finite ranges or default values are omitted from the
 generated controls; non-finite LV2 scale points are omitted too. Other
 controls and plugins remain available, so malformed plugin metadata cannot
 prevent the whole catalogue from reaching the window.
+Controls whose minimum exceeds their maximum are omitted too. Equal bounds
+remain valid, and finite defaults outside the declared range are limited to
+its nearest endpoint, including when resetting generated controls.
 CLAP and VST3 controls also need a valid, unique numeric parameter id.
 Missing, fractional, negative, overflowing or reserved ids are omitted;
 when a scanner repeats an id, only its first control is offered. Invalid
 ids are never rounded or wrapped into a different control.
+Nested objects or arrays in scalar scanner fields are ignored as a whole,
+so their contents cannot rename a plugin or address another control. Invalid
+plugin-list entries do not hide the valid entries that follow them.
 
 <a name="profiles"></a>
 ### 3.6 Save and recall a scene

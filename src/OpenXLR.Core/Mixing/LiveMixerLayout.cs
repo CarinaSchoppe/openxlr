@@ -287,9 +287,13 @@ public sealed partial class Mixer
             _inserts.Remove(key, out List<InsertDefinition>? savedInserts);
             string? previousSource = _enforcedSource;
             var previousFeeds = new Dictionary<string, string>(_monitorFeeds);
+            var previousRouteLevels = new Dictionary<(string Output, string Mix), double>(_outputRouteLevels);
+            foreach (var route in _outputRouteLevels.Keys.Where(route => route.Mix == id).ToArray())
+                _outputRouteLevels.Remove(route);
             if (_enforcedSource == mix.VirtualMicName) _enforcedSource = null;
             foreach ((string output, string feed) in previousFeeds)
             {
+                if (!MonitorFeed.Includes(feed, id)) continue;
                 string remaining = MonitorFeed.Join(MonitorFeed.Parts(feed).Where(part => part != id));
                 if (remaining.Length == 0) _monitorFeeds.Remove(output);
                 else _monitorFeeds[output] = remaining;
@@ -304,6 +308,8 @@ public sealed partial class Mixer
                 _enforcedSource = previousSource;
                 _monitorFeeds.Clear();
                 foreach (var (output, feed) in previousFeeds) _monitorFeeds[output] = feed;
+                _outputRouteLevels.Clear();
+                foreach (var pair in previousRouteLevels) _outputRouteLevels[pair.Key] = pair.Value;
                 throw;
             }
 

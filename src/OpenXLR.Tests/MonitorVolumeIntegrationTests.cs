@@ -7,6 +7,80 @@ namespace OpenXLR.Tests;
 public sealed class MonitorVolumeIntegrationTests
 {
     [MonitorPipeWireFact]
+    public void OutputMatrixKeepsIndependentGainsAcrossRecallDeletionAndHotplug()
+    {
+        var pw = new PipeWireAdapter();
+        using var mixer = new Mixer(pw);
+        pw.CreateNullSink("matrix_first", "Matrix first");
+        uint second = pw.CreateNullSink("matrix_second", "Matrix second");
+        mixer.Build(MonitorConfig());
+        mixer.SetMonitorOutputs(["matrix_first", "matrix_second"]);
+        Assert.Null(mixer.SetOutputRoute("matrix_first", "chat", .5));
+        Assert.Null(mixer.SetOutputRoute("matrix_second", "chat", .8));
+        var nodes = pw.DumpNodes().Where(node => node.Name.StartsWith("OpenXLR_route_", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(2, nodes.Length);
+        Assert.DoesNotContain(pw.ListDevices(), node => node.Name.StartsWith("OpenXLR_route_", StringComparison.Ordinal));
+        mixer.EnsureOwnSinkLevels();
+        Assert.Equal([.5, .8], nodes.Select(node => pw.GetSinkVolume(node.Name)!.Value).Order());
+        MixerScene scene = mixer.ExportScene();
+        Assert.Null(mixer.SetOutputRoute("matrix_first", "chat", .3));
+        Assert.Equal(nodes.Select(node => node.Id), pw.DumpNodes().Where(node => node.Name.StartsWith("OpenXLR_route_", StringComparison.Ordinal)).Select(node => node.Id));
+        mixer.ApplyScene(scene);
+        Assert.Equal([.5, .8], mixer.Snapshot().OutputRoutes.Select(route => route.Level).Order());
+        mixer.ApplySettings(mixer.ExportSettings());
+        Assert.Equal([.5, .8], mixer.Snapshot().OutputRoutes.Select(route => route.Level).Order());
+        mixer.ApplyScene(new MixerScene { MonitorOutputs = scene.MonitorOutputs, MonitorFeeds = scene.MonitorFeeds });
+        Assert.Empty(mixer.Snapshot().OutputRoutes);
+        Assert.All(nodes, node => Assert.Equal(1, pw.GetSinkVolume(node.Name)));
+        mixer.ApplyScene(scene);
+
+        // A silent first output must not prevent a later output reconnecting.
+        Assert.Null(mixer.SetOutputRoute("matrix_first", "monitor", 0));
+        Assert.Null(mixer.SetOutputRoute("matrix_first", "chat", 0));
+        Assert.Equal("", mixer.MonitorFeedOf("matrix_first"));
+        pw.UnloadModule(second);
+        pw.CreateNullSink("matrix_second", "Matrix second");
+        Assert.True(SpinWait.SpinUntil(mixer.EnsureMonitorRoutes, TimeSpan.FromSeconds(3)));
+        Assert.Equal(.8, Assert.Single(mixer.Snapshot().OutputRoutes).Level);
+
+        // Removing an internal gain node must heal without losing its value.
+        Assert.True(SpinWait.SpinUntil(() => pw.DumpNodes().Count(node =>
+            node.Name.StartsWith("OpenXLR_route_", StringComparison.Ordinal)) == 1, TimeSpan.FromSeconds(3)));
+        string stage = pw.DumpNodes().Single(node => node.Name.StartsWith("OpenXLR_route_", StringComparison.Ordinal)).Name;
+        string module = pw.Run("pactl", "list", "short", "modules").Split('\n')
+            .Single(line => line.Contains(stage, StringComparison.Ordinal)).Split('\t')[0];
+        Assert.True(ProcessRunner.Run("pactl", ["unload-module", module]).Ok);
+        Assert.True(SpinWait.SpinUntil(() =>
+        {
+            try { mixer.EnsureMonitorRoutes(); return pw.GetSinkVolume(stage) == .8; }
+            catch (InvalidOperationException) { return false; }
+        }, TimeSpan.FromSeconds(5)));
+
+        Assert.Throws<IOException>(() => mixer.DeleteVirtualMix("chat", _ => "disk full"));
+        Assert.Equal(.8, Assert.Single(mixer.ExportSettings().OutputRoutes).Level);
+        MixerSettings? saved = null;
+        mixer.DeleteVirtualMix("chat", settings => { saved = settings; return null; });
+        Assert.Empty(saved!.OutputRoutes);
+        Assert.Empty(mixer.Snapshot().OutputRoutes);
+        Assert.Equal("", mixer.MonitorFeedOf("matrix_first"));
+        Assert.True(SpinWait.SpinUntil(() => !pw.DumpNodes().Any(node => node.Name.StartsWith("OpenXLR_route_", StringComparison.Ordinal)), TimeSpan.FromSeconds(3)));
+        Assert.NotNull(mixer.SetOutputRoute("matrix_second", "chat", .5));
+
+        // Pseudo-jack addresses describe one bus, even when a command names
+        // an exact selected jack instead of the aggregate address.
+        mixer.SetMonitorOutputs(["shared#hp1", "shared#hp2"]);
+        Assert.Null(mixer.SetMonitorFeed("shared#hp2", "monitor2"));
+        Assert.Equal("monitor2", mixer.MonitorFeedOf("shared#hp1"));
+        Assert.Null(mixer.SetOutputRoute("shared#hp1", "monitor2", .5));
+        Assert.Equal("shared#bus", Assert.Single(mixer.ExportSettings().OutputRoutes).Device);
+        Assert.False(mixer.JackRoutesAtUnity);
+        Assert.Null(mixer.SetOutputRoute("shared#hp2", "monitor2", 0));
+        Assert.Equal("", mixer.MonitorFeedOf("shared#hp1"));
+        Assert.Equal("", mixer.MonitorFeedOf("shared#hp2"));
+        Assert.True(mixer.JackRoutesAtUnity);
+    }
+
+    [MonitorPipeWireFact]
     public void AnyMixFeedsSurviveRecallAndDeletionCannotLeaveAStaleRoute()
     {
         var pw = new PipeWireAdapter();
@@ -404,6 +478,30 @@ public sealed class MonitorVolumeIntegrationTests
                 (feed.Split('+').Contains("chat") ? 0.1 * Math.Pow(0.7, 3) : 0) +
                 (feed.Split('+').Contains("stream") ? 0.1 * Math.Pow(0.4, 3) : 0) +
                 (feed.Split('+').Contains("auxout") ? 0.1 * Math.Pow(0.3, 3) : 0);
+            Capture(expected, direct);
+        }
+
+        mixer.SetMixVolume("monitor", 1);
+        mixer.SetMixMuted("monitor", false);
+        Assert.Null(mixer.SetMonitorFeed("test_master_output", "monitor+chat"));
+        Assert.Null(mixer.SetOutputRoute("test_master_output", "monitor", .5));
+        Assert.Null(mixer.SetOutputRoute("test_master_output", "chat", .7));
+        Capture(.1 * (Math.Pow(.8 * .5, 3) + Math.Pow(.7 * .7, 3)), false);
+        Assert.Null(mixer.SetOutputRoute("test_master_output", "monitor", .2));
+        Capture(.1 * (Math.Pow(.8 * .2, 3) + Math.Pow(.7 * .7, 3)), false);
+        Assert.Null(mixer.SetOutputRoute("test_master_output", "chat", 0));
+        Assert.Null(mixer.SetOutputRoute("test_master_output", "monitor", 0));
+        Capture(0, false);
+
+        pw.CreateNullSink("test_matrix_other", "Other output");
+        mixer.SetMonitorOutputs(["test_master_output", "test_matrix_other"]);
+        Assert.Null(mixer.SetOutputRoute("test_matrix_other", "monitor", 0));
+        Assert.Null(mixer.SetOutputRoute("test_matrix_other", "chat", .5));
+        Capture(.1 * Math.Pow(.7 * .5, 3), false, "test_matrix_other");
+        Capture(0, false);
+
+        static void Capture(double expected, bool direct, string output = "test_master_output")
+        {
             var result = ProcessRunner.Run("python3", ["-c", """
                 import struct, subprocess, sys, tempfile
                 rate = 48000
@@ -416,7 +514,7 @@ public sealed class MonitorVolumeIntegrationTests
                 if '--raw' in subprocess.check_output(['pw-cat', '--help'], text=True):
                     args.append('--raw')
                 capture = tempfile.TemporaryFile()
-                record = subprocess.Popen(['pw-cat', '--record', *args, '--target', 'test_master_output', '--properties={ stream.capture.sink = true }', '-'], stdout=capture, stderr=subprocess.PIPE)
+                record = subprocess.Popen(['pw-cat', '--record', *args, '--target', sys.argv[3], '--properties={ stream.capture.sink = true }', '-'], stdout=capture, stderr=subprocess.PIPE)
                 play = None
                 try:
                     play = subprocess.Popen(['pw-cat', '--playback', *args, '--target', sys.argv[2], '-'], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -453,7 +551,7 @@ public sealed class MonitorVolumeIntegrationTests
                         process.wait()
                     capture.close()
                 """, expected.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                direct ? "OpenXLR_mix_monitor" : "OpenXLR_ch_test"], TimeSpan.FromSeconds(20));
+                direct ? "OpenXLR_mix_monitor" : "OpenXLR_ch_test", output], TimeSpan.FromSeconds(20));
             Assert.True(result.Ok, result.StdoutText + result.Stderr);
         }
     }

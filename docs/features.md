@@ -74,6 +74,12 @@ does not reach the speakers until unmuted.
 
 ## Submixer
 
+The output matrix sends any mix to any selected output with an independent
+0 to 100% route level. Profiles recall those sends, and an all-Off row stays
+silent. Outputs sharing a hardware bus have one row and one set of sends.
+Mix inserts remain upstream of the matrix. Internal gain nodes are hidden
+from device pickers and do not require a process for each route.
+
 The **Flow** window shows inputs, channels, mixes and outputs in four columns.
 Click a card to trace its signal path, with colours for each routing stage and
 unrelated routes dimmed. Processing stays inside the channel and mix cards;

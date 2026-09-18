@@ -31,7 +31,7 @@ public abstract class ViewModelBase : INotifyPropertyChanged
 /// sends user changes back. A guard flag suppresses echo: while applying a push
 /// we must not re-send the values we just received.
 /// </summary>
-public sealed class MainViewModel : ViewModelBase
+public sealed partial class MainViewModel : ViewModelBase
 {
     public DaemonRestartViewModel DaemonRestart { get; } = new();
     public UpdatesViewModel Updates { get; } = new();
@@ -856,6 +856,7 @@ public sealed class MainViewModel : ViewModelBase
         string primaryMonitor = monitorMixes.FirstOrDefault()?.Id ?? "monitor";
         foreach (MonitorOutputItem item in MonitorOutputs)
             item.SyncFeed(monitorMixes, feeds?[item.Name]?.GetValue<string>() ?? primaryMonitor);
+        SyncOutputMatrix(mixer);
         Raise(nameof(MonitorSummary));
     }
 
@@ -1235,6 +1236,7 @@ public sealed class MonitorOutputItem : ViewModelBase
             // every possible combination of the layout's mixes.
             if (!options.Any(o => o.Id == mixId))
             {
+                if (mixId.Length == 0) options = [.. options, new MixOption("", "Silent")];
                 string[] ids = mixId.Split('+');
                 if (ids.Length > 1 && ids.All(id => options.Any(o => o.Id == id)))
                     options = [.. options, new MixOption(mixId, string.Join(" + ", ids.Select(id => options.First(o => o.Id == id).Name)))];
@@ -1508,6 +1510,12 @@ internal static class SliderSync
     private static DispatcherTimer? _timer;
 
     public static void Touch(string key) => Touched[key] = Environment.TickCount64;
+
+    public static void Forget(string key)
+    {
+        Pending.Remove(key);
+        Touched.Remove(key);
+    }
 
     public static bool RecentlyTouched(string key)
         => Touched.TryGetValue(key, out long t) && Environment.TickCount64 - t < 800;

@@ -45,7 +45,7 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
     host.receive({event:"keyDown",context:"feed-key"});
     assert.deepEqual(daemon.messages.at(-1), {cmd:"setMonitorFeed",device:"qa-output",mix:"monitor+monitor2"});
     state.mixer.mixes.push({id:"stream",name:"Stream",kind:"virtualMic"}, {id:"auxout",name:"Aux",kind:"auxPort"});
-    for (const [current, next] of [["monitor+monitor2", "stream"], ["stream", "auxout"], ["auxout", "monitor"], ["deleted", "monitor"]]) {
+    for (const [current, next] of [["monitor+monitor2", "stream"], ["stream", "auxout"], ["auxout", "monitor"], ["deleted", "monitor"], ["", "monitor"]]) {
       state.mixer.monitorFeeds["qa-output"] = current;
       daemon.receive(state);
       host.receive({event:"keyDown",context:"feed-key"});

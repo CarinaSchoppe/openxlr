@@ -95,9 +95,10 @@ Built from PipeWire nodes, no kernel modules or custom drivers:
   while audio plays, as does the API, with stable ids so profiles and
   Stream Deck keys survive a rename. Every change is saved before it is
   confirmed
-- The monitor mixes can play on several outputs at once, hardware
-  outputs included; each output picks which monitor mix feeds it, or
-  both summed (Monitor A+B), so a headset with a game sink and a chat
+- Any mix can play on several outputs at once, hardware outputs included:
+  Monitor A/B, Stream, Chat, Aux and custom virtual microphones. Outputs
+  pick a mix or a sum (Monitor A+B in the picker, any sum through the API),
+  so a headset with a game sink and a chat
   sink hears two selections, and one pair of headphones can hear the
   desktop from A with a separately processed mic from B
 - Level meters throughout, dB-scaled, pushed at 15 Hz

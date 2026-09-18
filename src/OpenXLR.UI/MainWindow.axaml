@@ -599,7 +599,7 @@
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
                   <ToggleButton Content="To USB Aux port" IsChecked="{Binding AuxPortEnabled, Mode=TwoWay}"
-                                IsVisible="{Binding IsAuxPort}"
+                                IsVisible="{Binding ShowAuxPortToggle}"
                                 ToolTip.Tip="Send this mix to the second computer on the USB Aux port. Enabling briefly interrupts the interface's audio while its stream restarts."/>
                 </StackPanel>
               </Border>

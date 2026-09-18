@@ -3,6 +3,7 @@
 
 Arguments are passed on to `dotnet test`, so a build that lives somewhere
 other than the default output can be tested with `--artifacts-path <dir>`.
+OPENXLR_TEST_FILTER selects a focused regression instead of the full audio suite.
 """
 import os
 from pathlib import Path
@@ -53,7 +54,7 @@ def main():
                     processes.append(subprocess.Popen(["wireplumber", *policy], env=env, stdout=log, stderr=log))
                 subprocess.run(["dotnet", "test", "src/OpenXLR.Tests/OpenXLR.Tests.csproj",
                                 "-c", "Release", "--no-build", "--filter",
-                                "FullyQualifiedName~MonitorVolumeIntegrationTests|FullyQualifiedName~ProfileStartupTests|FullyQualifiedName~DspAudioIntegrationTests", *sys.argv[1:]],
+                                os.environ.get("OPENXLR_TEST_FILTER", "FullyQualifiedName~MonitorVolumeIntegrationTests|FullyQualifiedName~ProfileStartupTests|FullyQualifiedName~DspAudioIntegrationTests"), *sys.argv[1:]],
                                env=env, check=True, timeout=180,
                                cwd=Path(__file__).resolve().parent.parent)
             except Exception:

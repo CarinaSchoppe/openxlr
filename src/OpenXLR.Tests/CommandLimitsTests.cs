@@ -34,7 +34,7 @@ public sealed class CommandLimitsTests
     [Theory]
     [InlineData("""{"cmd":"setLevel","channel":"system","mix":"monitor","value":0.5}""", null)]
     [InlineData("""{"cmd":"setMonitorFeed","device":"alsa_output.headset","mix":"monitor2"}""", null)]
-    [InlineData("""{"cmd":"setMonitorFeed","device":"alsa_output.headset","mix":"nope"}""", "not a monitor mix")]
+    [InlineData("""{"cmd":"setMonitorFeed","device":"alsa_output.headset","mix":"nope"}""", "not a mix")]
     [InlineData("""{"cmd":"setLevel","channel":"nope","mix":"monitor","value":0.5}""", "unknown channel")]
     [InlineData("""{"cmd":"setLevel","channel":"system","mix":"nope","value":0.5}""", "unknown mix")]
     [InlineData("""{"cmd":"setLevel","channel":"system","mix":"monitor","value":"loud"}""", "finite number")]

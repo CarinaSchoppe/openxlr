@@ -19,6 +19,8 @@ public sealed class MixerService : IHostedService, IDisposable
     private readonly DeviceManager _devices;
     private readonly StartupDefaults? _startupDefaults;
     private readonly Mixer _mixer;
+    private readonly PipeWireAdapter _pipeWire;
+    private IDisposable? _graphWatch;
     private readonly ServiceProgress _progress = new();
     private volatile bool _checkingProgress;
     internal bool IsResponsive(TimeSpan limit) => !_checkingProgress || _progress.IsRecent(limit);
@@ -64,7 +66,8 @@ public sealed class MixerService : IHostedService, IDisposable
         _startupDefaults = startupDefaults;
         _lifetime = lifetime;
         EditorPolicy = editorPolicy ?? new NativeEditorPolicy();
-        _mixer = new(new PipeWireAdapter(_progress.Mark, note => _log.LogInformation("{msg}", note)));
+        _pipeWire = new PipeWireAdapter(_progress.Mark, note => _log.LogInformation("{msg}", note));
+        _mixer = new(_pipeWire);
         _saves = new SettingsSaver(
             () => _mixer.ExportSettings().Save(),
             error =>
@@ -235,6 +238,7 @@ public sealed class MixerService : IHostedService, IDisposable
 
         try
         {
+            _graphWatch = _pipeWire.WatchGraph(note => _log.LogInformation("{msg}", note));
             MixerSettings? saved = MixerSettings.Load(MixerSettings.DefaultPath, out string? settingsWarning);
             if (settingsWarning is not null)
                 _log.LogWarning("mixer settings: {warning}{fallback}", settingsWarning, saved is null ? "; starting with defaults" : "");
@@ -390,6 +394,7 @@ public sealed class MixerService : IHostedService, IDisposable
             _log.LogInformation("submix graph torn down");
         }
         else _saves.Close(write: false);
+        Interlocked.Exchange(ref _graphWatch, null)?.Dispose();
     }
 
     /// <summary>Apply a mixer command. Returns null on success, else an error.</summary>
@@ -593,5 +598,6 @@ public sealed class MixerService : IHostedService, IDisposable
         _streamSweep?.Dispose();
         _meterPush?.Dispose();
         _saves.Dispose();
+        Interlocked.Exchange(ref _graphWatch, null)?.Dispose();
     }
 }

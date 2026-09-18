@@ -1,5 +1,6 @@
 using OpenXLR.Core;
 using OpenXLR.Core.Mixing;
+using System.Text.Json;
 
 namespace OpenXLR.Tests;
 
@@ -7,9 +8,43 @@ namespace OpenXLR.Tests;
 public sealed partial class MonitorVolumeIntegrationTests
 {
     [MonitorPipeWireFact]
+    public void RegistrySubscriptionRecoversAfterItsHelperIsKilled()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "openxlr-registry-" + Guid.NewGuid());
+        Directory.CreateDirectory(dir);
+        string script = Path.Combine(dir, "watch");
+        ExecutableScript.Write(script, """
+            #!/bin/sh
+            printf '%s\n' "$$" >> "$(dirname "$0")/launches"
+            exec pw-dump "$@"
+            """);
+        var pw = new PipeWireAdapter();
+        try
+        {
+            uint oldModule = pw.CreateNullSink("registry_before", "Registry before");
+            using var graph = new PipeWireGraph(executable: script);
+            Assert.True(graph.WaitFor(items => HasNode(items, "registry_before"), TimeSpan.FromSeconds(5)));
+            JsonElement[] before = graph.Read();
+            int pid = int.Parse(File.ReadAllLines(Path.Combine(dir, "launches"))[0]);
+            using (var helper = System.Diagnostics.Process.GetProcessById(pid)) helper.Kill();
+            pw.UnloadModule(oldModule);
+            pw.CreateNullSink("registry_after", "Registry after");
+            Assert.True(graph.WaitFor(items => HasNode(items, "registry_after") && !HasNode(items, "registry_before"), TimeSpan.FromSeconds(8)));
+            Assert.True(File.ReadAllLines(Path.Combine(dir, "launches")).Length >= 2);
+            Assert.True(HasNode(before, "registry_before"));
+        }
+        finally { pw.TearDown(); Directory.Delete(dir, true); }
+
+        static bool HasNode(JsonElement[] items, string name) => items.Any(item =>
+            item.TryGetProperty("info", out var info) && info.ValueKind == JsonValueKind.Object &&
+            info.TryGetProperty("props", out var props) && props.TryGetProperty("node.name", out var node) && node.GetString() == name);
+    }
+
+    [MonitorPipeWireFact]
     public void OutputMatrixKeepsIndependentGainsAcrossRecallDeletionAndHotplug()
     {
         var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
         using var mixer = new Mixer(pw);
         pw.CreateNullSink("matrix_first", "Matrix first");
         uint second = pw.CreateNullSink("matrix_second", "Matrix second");
@@ -84,6 +119,7 @@ public sealed partial class MonitorVolumeIntegrationTests
     public void AnyMixFeedsSurviveRecallAndDeletionCannotLeaveAStaleRoute()
     {
         var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
         using var mixer = new Mixer(pw);
         uint output = pw.CreateNullSink("test_feeds_output", "Feed test");
         try
@@ -142,6 +178,7 @@ public sealed partial class MonitorVolumeIntegrationTests
     public void StreamAssignmentsCannotBypassTheAppLimitOrPartiallyMoveAudio()
     {
         var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
         using var mixer = new Mixer(pw);
         mixer.Build(new MixerConfig
         {
@@ -180,12 +217,12 @@ public sealed partial class MonitorVolumeIntegrationTests
             }
             mixer.ForgetApp("app0");
             mixer.AssignStream(stream.Id, "music");
-            Assert.True(SpinWait.SpinUntil(() => pw.StreamSinkName(stream.Serial) == "OpenXLR_ch_music", TimeSpan.FromSeconds(3)));
             Assert.Equal(Mixer.MaxAppOverrides, mixer.OverrideCount);
             Assert.True(SpinWait.SpinUntil(() =>
             {
                 mixer.SyncStreams();
-                return mixer.Streams.Any(s => s.Identity == stream.Identity);
+                return mixer.Streams.Any(s => s.Serial == stream.Serial && s.ChannelId == "music")
+                    && pw.StreamSinkName(stream.Serial) == "OpenXLR_ch_music";
             }, TimeSpan.FromSeconds(3)));
             mixer.AssignStream(stream.Id, StreamMatcher.Ignore);
             Assert.Equal(StreamMatcher.Ignore, mixer.Matcher.Overrides[stream.Identity]);
@@ -206,6 +243,7 @@ public sealed partial class MonitorVolumeIntegrationTests
         Assert.Equal("1", Environment.GetEnvironmentVariable("OPENXLR_TEST_MONITOR_VOLUME"));
         Assert.StartsWith("openxlr-monitor-test-", Path.GetFileName(Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR")!));
         var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
         using var mixer = new Mixer(pw);
         pw.CreateNullSink("test_headphones", "Test headphones");
         pw.CreateNullSink("test_speakers", "Test speakers");
@@ -286,6 +324,7 @@ public sealed partial class MonitorVolumeIntegrationTests
     public void AnOutputThatRefusedTheVolumeIsPutRightWhenItComesBack()
     {
         var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
         using var mixer = new Mixer(pw);
         pw.CreateNullSink("retry_first", "Retry first");
         uint second = pw.CreateNullSink("retry_second", "Retry second");
@@ -324,6 +363,7 @@ public sealed partial class MonitorVolumeIntegrationTests
     public void ANewSelectionDropsWhatTheOldOneStillOwed()
     {
         var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
         using var mixer = new Mixer(pw);
         pw.CreateNullSink("stale_first", "Stale first");
         uint second = pw.CreateNullSink("stale_second", "Stale second");
@@ -365,6 +405,7 @@ public sealed partial class MonitorVolumeIntegrationTests
     public void DesktopMonitorMastersAreIndependentAndSurviveSceneAndSettingsRecall()
     {
         var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
         using var mixer = new Mixer(pw);
         mixer.Build(MonitorConfig());
         mixer.SetMixVolume("monitor2", 0.6);
@@ -438,6 +479,7 @@ public sealed partial class MonitorVolumeIntegrationTests
     public void MonitorMasterChangesTheRecordedAudioExactlyOnce()
     {
         var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
         using var mixer = new Mixer(pw);
         pw.CreateNullSink("test_master_output", "Test master output");
         var config = MonitorConfig();

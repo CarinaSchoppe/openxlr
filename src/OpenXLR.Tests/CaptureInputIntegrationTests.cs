@@ -10,6 +10,7 @@ public sealed partial class MonitorVolumeIntegrationTests
     public void IncompleteCaptureLinksStayDisconnectedAndRetryBothSides()
     {
         var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
         using var mixer = new Mixer(pw);
         mixer.Build(new MixerConfig { Channels = [new("system", "System")],
             Mixes = [new("monitor", "Monitor", MixKind.Monitor)] });
@@ -69,6 +70,7 @@ public sealed partial class MonitorVolumeIntegrationTests
     public void IndependentCaptureSourcesSurviveRecallRenameAndHotplug()
     {
         var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
         using var mixer = new Mixer(pw);
         mixer.Build(new MixerConfig { Channels = [new("system", "System")],
             Mixes = [new("monitor", "Monitor", MixKind.Monitor)] });

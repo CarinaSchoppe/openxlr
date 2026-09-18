@@ -9,6 +9,7 @@ public sealed partial class MonitorVolumeIntegrationTests
     public void FocusedProcessRoutesItsLiveAudioAndRemembersTheAssignment()
     {
         var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
         using var mixer = new Mixer(pw);
         mixer.Build(new MixerConfig { Channels = [new("system", "System"), new("music", "Music")],
             Mixes = [new("monitor", "Monitor", MixKind.Monitor)] });

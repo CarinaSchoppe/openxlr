@@ -147,6 +147,41 @@ public static class ProcessRunner
         return process.ExitCode;
     }
 
+    /// <summary>
+    /// Subscribe to a helper until cancellation, EOF or a reader failure. The
+    /// reader bounds individual messages and startup time; silence after startup
+    /// is normal. Stderr remains capped and both pipes stop together.
+    /// </summary>
+    internal static async Task RunStreamingAsync(string exe, IReadOnlyList<string> args,
+        Func<Stream, CancellationToken, Task> read, CancellationToken cancel)
+    {
+        cancel.ThrowIfCancellationRequested();
+        var start = new ProcessStartInfo(exe)
+        {
+            UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+        };
+        start.Environment["LC_ALL"] = "C";
+        start.Environment["LANGUAGE"] = "C";
+        foreach (string argument in args) start.ArgumentList.Add(argument);
+        using Process process = Process.Start(start) ?? throw new InvalidOperationException($"failed to start {exe}");
+        using var stopping = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+        Task<(byte[] Data, bool Truncated, bool Incomplete)> errors =
+            ReadCappedAsync(process.StandardError.BaseStream, DefaultStderrCap, stopping);
+        try
+        {
+            await read(process.StandardOutput.BaseStream, stopping.Token).ConfigureAwait(false);
+            throw new IOException($"{exe} subscription ended");
+        }
+        finally
+        {
+            stopping.Cancel();
+            KillTree(process);
+            await errors.ConfigureAwait(false);
+            // A process stuck in the kernel must not hold daemon shutdown.
+            process.WaitForExit(2000);
+        }
+    }
+
     /// <summary>Overlay inherited values, then remove only the names the caller chose.</summary>
     internal static void ApplyEnvironment(ProcessStartInfo start, IReadOnlyDictionary<string, string>? environment,
         IReadOnlyCollection<string>? removeEnvironment = null)

@@ -65,6 +65,13 @@ plugin scans from user-installed CLAP and VST3 bundles.
 For a focused rerun on the same private server, set `OPENXLR_TEST_FILTER` to
 the desired `dotnet test` filter instead of passing a second `--filter`.
 
+Application routing tests run the normal mixer sweep while waiting for the
+destination to settle. PipeWire's move acknowledgement can arrive before
+the session manager publishes the new link. Check both the tracked channel
+and the real stream destination instead of assuming they change together.
+The capture, output-route and key-control audio tests enable the registry
+subscription so they exercise the daemon's normal discovery path.
+
 The window layout test runs in its own process using X11 and isolated
 configuration, runtime and session-bus settings. It checks narrow plugin
 windows and mixer widths from 640 to 2400 logical pixels. Set

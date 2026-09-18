@@ -9,6 +9,7 @@ public sealed partial class MonitorVolumeIntegrationTests
     public void OutputKeysFollowTheCurrentDefaultAndKeepMonitorMastersIndependent()
     {
         var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
         using var mixer = new Mixer(pw);
         mixer.Build(new MixerConfig { Channels = [new("system", "System")], Mixes =
             [new("monitor", "Monitor A", MixKind.Monitor), new("monitor2", "Monitor B", MixKind.Monitor)] });

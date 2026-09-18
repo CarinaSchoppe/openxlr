@@ -280,8 +280,18 @@ Identity matching ignores letter case, including live channel changes and
 the running and playing indicators. If PipeWire reuses a node id for a new
 stream, or a stream later reports its actual app identity, the next sweep
 applies that app's routing instead of keeping the previous placement.
-Running clients and playback streams are read together from one graph
-snapshot, avoiding a second full parse during each application refresh.
+The daemon subscribes to PipeWire registry changes through one persistent
+`pw-dump --monitor --no-colors` process. Devices, running clients, playback
+streams and sink levels share its incremental snapshot. An unchanged graph
+is neither dumped nor parsed again during the one-second routing sweep.
+That sweep still reconciles routing and device state. If the subscription
+ends, its old registry is discarded and a fresh connection is retried with
+backoff, up to five seconds between attempts. The journal reports outages
+and recovery. Each JSON batch is limited to 8 MiB, and the retained registry
+to 16 MiB of decoded text and 65,536 objects, leaving room for parsing within
+the daemon's heap limit;
+invalid or oversized output ends that subscription instead of growing the
+daemon indefinitely.
 
 1. Change the channel in the dropdown next to the app. The move happens
    immediately and is remembered for that app. The channels also appear

@@ -307,6 +307,8 @@ public sealed class WindowLayoutTests
                 keyScroll.Offset = new Vector(0, keyScroll.Extent.Height);
                 Layout(keyWindow, 360, 340);
                 Assert.True(keyScroll.Extent.Width <= keyScroll.Viewport.Width + 1);
+                Assert.Contains(keyWindow.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "Current system default output");
+                Assert.DoesNotContain(keyWindow.GetVisualDescendants().OfType<TextBlock>(), t => t.Text?.StartsWith("AudioDeviceItem {") == true);
                 Capture(keyWindow, "desktop-output-keys-360");
                 keyWindow.Close();
 

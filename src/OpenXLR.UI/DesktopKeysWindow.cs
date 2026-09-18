@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -27,6 +28,8 @@ internal sealed class DesktopKeysWindow : Window
             if (outputs.All(d => d.Name != missing)) outputs.Add(new AudioDeviceItem(missing, missing + " (unavailable)", false));
         var outputChoices = new[] { new AudioDeviceItem("", "Current system default output", false) }.Concat(outputs).ToArray();
         var outputDevice = new ComboBox { ItemsSource = outputChoices,
+            ItemTemplate = new FuncDataTemplate<AudioDeviceItem>((item, _) => new TextBlock
+                { Text = item?.Label, TextTrimming = TextTrimming.CharacterEllipsis }),
             SelectedItem = outputChoices.FirstOrDefault(d => d.Name == (saved.OutputDevice ?? "")),
             HorizontalAlignment = HorizontalAlignment.Stretch };
         var mainChoices = new[] { new AudioDeviceItem("@monitor", "Follow selected monitor output", false) }.Concat(outputs)

@@ -182,7 +182,20 @@ affects only the display; the daemon continues processing audio.
    and recalled after a daemon restart; explicitly loading a profile restores
    the values saved in that profile. A physical device named simply
    "Monitor" (often HDMI audio) is a separate output device, not a third mix.
-4. The Volume slider sets the level of the selected devices. To control this
+4. **Output matrix** opens one row per selected output, with a send for every
+   mix, including Stream, Chat, Aux and custom microphones. Each send runs
+   from Off to 100%, independently of that mix's feeds to other outputs.
+   Off disconnects the route; an output whose sends are all Off stays silent.
+   Mix masters and insert processing still apply before these sends.
+   The percentages use the same PipeWire volume scale as other mixer controls.
+   Summing several loud mixes can exceed unity, so adjust their sends to keep
+   headroom. Settings and profiles remember the matrix.
+
+   Pro jacks that share the USB return bus appear in one row. Their software
+   mix and send levels change together. A route below unity uses software
+   microphone monitoring so the direct hardware path cannot bypass its gain.
+   Independent physical jack mixes require hardware support beyond that bus.
+5. The Volume slider sets the level of the selected devices. To control this
    same level with a keyboard volume wheel, media keys or the Linux audio
    applet, open Options, SYSTEM DEFAULT DEVICES, and choose **Follow MONITOR
    output (system volume controls)** as Default output. Linux then uses the

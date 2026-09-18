@@ -433,7 +433,7 @@ function toggleValue(target, inst) {
 const feedOf = (sink) => mixer()?.monitorFeeds?.[sink] ?? "monitor";
 const FEED_LETTER = { monitor: "A", monitor2: "B" };
 const feedLetters = (feed) => feed.split("+").map((id) => FEED_LETTER[id] ?? mixName(mixer(), id)).join("+");
-const feedLabel = (feed) => feed.split("+").every(id => Object.hasOwn(FEED_LETTER, id))
+const feedLabel = (feed) => feed === "" ? "Silent" : feed.split("+").every(id => Object.hasOwn(FEED_LETTER, id))
   ? `Monitor ${feedLetters(feed)}` : feed.split("+").map(id => mixName(mixer(), id)).join(" + ");
 // Keep A, B, A+B first, then include every other live mix.
 const nextFeed = (feed) => {

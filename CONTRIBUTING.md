@@ -63,6 +63,11 @@ ClipGuard with recorded test audio, low cut and a native LSP gate, run
 build, with swh-plugins and LSP LV2 plugins installed. The runner isolates
 plugin scans from user-installed CLAP and VST3 bundles.
 
+Application routing tests run the normal mixer sweep while waiting for the
+destination to settle. PipeWire's move acknowledgement can arrive before
+the session manager publishes the new link. Check both the tracked channel
+and the real stream destination instead of assuming they change together.
+
 The window layout test runs in its own process using X11 and isolated
 configuration, runtime and session-bus settings. It checks narrow plugin
 windows and mixer widths from 640 to 2400 logical pixels. Set

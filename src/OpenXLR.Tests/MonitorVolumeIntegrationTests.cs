@@ -83,12 +83,12 @@ public sealed class MonitorVolumeIntegrationTests
             }
             mixer.ForgetApp("app0");
             mixer.AssignStream(stream.Id, "music");
-            Assert.True(SpinWait.SpinUntil(() => pw.StreamSinkName(stream.Serial) == "OpenXLR_ch_music", TimeSpan.FromSeconds(3)));
             Assert.Equal(Mixer.MaxAppOverrides, mixer.OverrideCount);
             Assert.True(SpinWait.SpinUntil(() =>
             {
                 mixer.SyncStreams();
-                return mixer.Streams.Any(s => s.Identity == stream.Identity);
+                return mixer.Streams.Any(s => s.Serial == stream.Serial && s.ChannelId == "music")
+                    && pw.StreamSinkName(stream.Serial) == "OpenXLR_ch_music";
             }, TimeSpan.FromSeconds(3)));
             mixer.AssignStream(stream.Id, StreamMatcher.Ignore);
             Assert.Equal(StreamMatcher.Ignore, mixer.Matcher.Overrides[stream.Identity]);

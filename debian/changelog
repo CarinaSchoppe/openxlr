@@ -1,3 +1,13 @@
+openxlr (0.1.40) resolute; urgency=medium
+
+  * Any mix can feed the selected outputs, with a level per route in the new output matrix window, and extra PipeWire capture sources can be added as input channels.
+  * Desktop keys through the desktop portal: route the focused application, adjust or mute an output, and switch the enforced system output; the same actions on OpenDeck keys and dials.
+  * The daemon follows PipeWire registry events instead of dumping the graph every second, and falls back to a one-shot read while the subscription reconnects.
+  * The Windows bridge companion is compiled for the baseline x86-64 so an AUR build no longer faults in the plugin factory on AVX-512 machines.
+  * Focused routing needs gdbus (libglib2.0-bin).
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Fri, 18 Sep 2026 21:30:00 +0100
+
 openxlr (0.1.39) resolute; urgency=medium
 
   * The original Wave XLR (MK.1) gets a WirePlumber rule that keeps its capture node running, so a playback stream opening first can no longer silence the microphone for the life of the capture stream. Same bug and same fix as the XLR Dock; the rule matches the MK.1 only.

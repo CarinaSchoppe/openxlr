@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.39
+Version:        0.1.40
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -153,6 +153,12 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Fri Sep 18 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.40-1
+- Any mix can feed the selected outputs, with a level per route in the new output matrix window, and extra PipeWire capture sources can be added as input channels.
+- Desktop keys through the desktop portal: route the focused application, adjust or mute an output, and switch the enforced system output; the same actions on OpenDeck keys and dials.
+- The daemon follows PipeWire registry events instead of dumping the graph every second, and falls back to a one-shot read while the subscription reconnects.
+- The Windows bridge companion is compiled for the baseline x86-64 so an AUR build no longer faults in the plugin factory on AVX-512 machines.
+- Focused routing needs gdbus (glib2).
 * Thu Sep 17 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.39-1
 - The original Wave XLR (MK.1) gets a WirePlumber rule that keeps its capture node running, so a playback stream opening first can no longer silence the microphone for the life of the capture stream. Same bug and same fix as the XLR Dock; the rule matches the MK.1 only.
 - The daemon reads the default sink and source before any of its services start, so the default it defends after building the graph is the one the user had, not one WirePlumber moved to the card while the daemon switched its profile.

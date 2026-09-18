@@ -60,7 +60,8 @@ public sealed class MainViewModel : ViewModelBase
         });
         _client.ErrorReceived += msg => Dispatcher.UIThread.Post(() => Status = msg);
         _client.NativeEditorRulesChanged += () => Dispatcher.UIThread.Post(() => InsertsViewModel.ReloadAll?.Invoke());
-        _client.MetersReceived += levels => Dispatcher.UIThread.Post(() => ApplyMeters(levels));
+        var meters = new MeterUpdates(action => Dispatcher.UIThread.Post(action), ApplyMeters);
+        _client.MetersReceived += meters.Publish;
         InsertsViewModel.ReloadAll = () =>
         {
             InsertsViewModel.ForgetCatalogue();

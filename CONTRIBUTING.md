@@ -41,6 +41,7 @@ tools/check-openapi.py docs/openapi-v1.json     # the HTTP API document keeps it
 tools/check-spec.py packaging/rpm/openxlr.spec  # every installed file is in %files
 make -C native  # C/C++, PipeWire, lilv, LV2 and X11 development headers
 make -C native test-audio test-clap test-vst3  # audio bounds, stall detection, CLAP bus layouts and VST3 parameter and stream checks
+dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~Lv2BundleTests  # run with lilv installed, even if the earlier suite ran without it
 python3 tools/test-monitor-volume.py  # private PipeWire server; pipewire-pulse, wireplumber, pactl
 xvfb-run -a make -C native test-editor  # also needs Xvfb and xauth
 OPENXLR_TEST_DESKTOP=1 xvfb-run -a dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~TrayWindowTests

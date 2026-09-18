@@ -59,6 +59,7 @@ public sealed class PluginLatencyIntegrationTests
             }, TimeSpan.FromSeconds(8)));
             WaitForDelay(20);
             Assert.Null(mixer.Snapshot().MixLatencyError);
+            Assert.False(mixer.EnsureFilterRoutes()); // An unchanged report does not keep broadcasting.
         }
         finally
         {
@@ -103,10 +104,10 @@ public sealed class PluginLatencyIntegrationTests
         Assert.DoesNotContain(pw.ListDevices(), n => n.Name.StartsWith("OpenXLR_delay_", StringComparison.Ordinal));
         mixer.DeleteVirtualMix("chat", _ => null);
         Assert.Single(mixer.Snapshot().MixDelayMilliseconds);
-        Assert.Null(pw.FindNodeId("OpenXLR_delay_chat_in"));
+        Assert.True(SpinWait.SpinUntil(() => pw.FindNodeId("OpenXLR_delay_chat_in") is null, TimeSpan.FromSeconds(3)));
         mixer.SetMixLatencyCompensation(false);
         Assert.Empty(mixer.Snapshot().MixDelayMilliseconds);
-        Assert.Null(pw.FindNodeId("OpenXLR_delay_monitor_in"));
+        Assert.True(SpinWait.SpinUntil(() => pw.FindNodeId("OpenXLR_delay_monitor_in") is null, TimeSpan.FromSeconds(3)));
     }
 
     [MonitorPipeWireFact]

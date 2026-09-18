@@ -20,6 +20,7 @@ internal static class MixLatency
 
 public sealed partial class Mixer
 {
+    private readonly Dictionary<(string Chain, string Insert), double?> _latencyReports = [];
     private bool _compensateMixLatency;
     private string? _mixLatencyError;
     private readonly Dictionary<string, FilterHandle> _mixDelays = [];
@@ -117,16 +118,37 @@ public sealed partial class Mixer
         }
     }
 
+    private bool TrackLatencyReportsLocked()
+    {
+        bool changed = false;
+        int count = 0;
+        foreach ((string key, List<InsertDefinition> inserts) in _inserts)
+            foreach (InsertDefinition insert in inserts)
+            {
+                count++;
+                var identity = (key, insert.Id);
+                double? value = InsertLatencyLocked(key, insert);
+                if (_latencyReports.TryGetValue(identity, out double? old) && old == value) continue;
+                _latencyReports[identity] = value;
+                changed = true;
+            }
+        if (count != _latencyReports.Count)
+            foreach (var key in _latencyReports.Keys.Where(k => !_inserts.TryGetValue(k.Chain, out var list) || !list.Any(i => i.Id == k.Insert)).ToArray())
+            { _latencyReports.Remove(key); changed = true; }
+        return changed;
+    }
+
     private bool UpdateMixLatencyLocked()
     {
-        if (!_compensateMixLatency) { _mixLatencyError = null; return false; }
+        bool reportsChanged = TrackLatencyReportsLocked();
+        if (!_compensateMixLatency) { _mixLatencyError = null; return reportsChanged; }
         var totals = _config.Mixes.ToDictionary(m => m.Id, MixLatencyLocked);
         var plan = MixLatency.Plan(totals, out string? error);
         if (_mixDelays.Count != _config.Mixes.Count || _mixDelayErrors.Count > 0)
             error = _mixDelayErrors.Values.FirstOrDefault() ?? "Not all mix delay paths are available.";
         if (error is not null)
             foreach (string id in plan.Keys) plan[id] = 0;
-        bool changed = _mixLatencyError != error;
+        bool changed = reportsChanged || _mixLatencyError != error;
         _mixLatencyError = error;
         foreach ((string id, double delay) in plan)
         {

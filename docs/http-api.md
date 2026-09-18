@@ -27,7 +27,8 @@ HTTP's Bearer header does not replace that WebSocket exchange. Ping, close,
 message deadlines and command budgets remain the same on both socket paths.
 
 Commands use the names and fields in [the WebSocket API](api.md), including
-current Monitor A/B feed commands. Both transports share the dispatcher,
+mix-to-output feed commands, which accept any existing mix or a sum of distinct
+mix ids. Both transports share the dispatcher,
 validation and broadcasts. HTTP returns
 `{"apiVersion":"1","ok":true,"messages":[]}` after a successful mutation.
 Read replies are in `messages`; rejected commands return HTTP 400, `ok:false`

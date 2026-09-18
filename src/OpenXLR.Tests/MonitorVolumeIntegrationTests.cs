@@ -7,6 +7,64 @@ namespace OpenXLR.Tests;
 public sealed class MonitorVolumeIntegrationTests
 {
     [MonitorPipeWireFact]
+    public void AnyMixFeedsSurviveRecallAndDeletionCannotLeaveAStaleRoute()
+    {
+        var pw = new PipeWireAdapter();
+        using var mixer = new Mixer(pw);
+        uint output = pw.CreateNullSink("test_feeds_output", "Feed test");
+        try
+        {
+            mixer.Build(MonitorConfig());
+            mixer.SetMonitorOutputs(["test_feeds_output"]);
+            Assert.Null(mixer.SetMonitorFeed("test_feeds_output", "chat+monitor"));
+            Assert.Equal("monitor+chat", mixer.MonitorFeedOf("test_feeds_output"));
+            var scene = mixer.ExportScene();
+            Assert.Null(mixer.SetMonitorFeed("test_feeds_output", "monitor2"));
+            mixer.ApplyScene(scene);
+            Assert.Equal("monitor+chat", mixer.MonitorFeedOf("test_feeds_output"));
+
+            Assert.Throws<IOException>(() => mixer.DeleteVirtualMix("chat", _ => "disk full"));
+            Assert.True(mixer.HasMix("chat"));
+            Assert.Equal("monitor+chat", mixer.MonitorFeedOf("test_feeds_output"));
+            AssertIncoming("OpenXLR_mix_monitor", "OpenXLR_mix_chat");
+
+            MixerSettings? saved = null;
+            mixer.DeleteVirtualMix("chat", settings => { saved = settings; return null; });
+            Assert.False(mixer.HasMix("chat"));
+            Assert.DoesNotContain(saved!.MonitorFeeds.Values, feed => MonitorFeed.Includes(feed, "chat"));
+            Assert.Equal("monitor", mixer.MonitorFeedOf("test_feeds_output"));
+            AssertIncoming("OpenXLR_mix_monitor");
+            mixer.CreateVirtualMix("Podcast", _ => null);
+            Assert.Null(mixer.SetMonitorFeed("test_feeds_output", "podcast"));
+            AssertIncoming("OpenXLR_mix_podcast");
+            mixer.DeleteVirtualMix("podcast", _ => null);
+            Assert.False(mixer.ExportSettings().MonitorFeeds.ContainsKey("test_feeds_output"));
+            AssertIncoming("OpenXLR_mix_monitor");
+
+            void AssertIncoming(params string[] expected)
+            {
+                Assert.True(SpinWait.SpinUntil(() =>
+                {
+                    var result = ProcessRunner.Run("pw-dump", []);
+                    if (!result.Ok) return false;
+                    using var graph = System.Text.Json.JsonDocument.Parse(result.Stdout);
+                    var nodes = graph.RootElement.EnumerateArray()
+                        .Where(n => n.GetProperty("type").GetString() == "PipeWire:Interface:Node")
+                        .ToDictionary(n => n.GetProperty("id").GetInt32(), n => n.GetProperty("info").GetProperty("props").GetProperty("node.name").GetString());
+                    int target = nodes.Single(n => n.Value == "test_feeds_output").Key;
+                    var sources = graph.RootElement.EnumerateArray()
+                        .Where(n => n.GetProperty("type").GetString() == "PipeWire:Interface:Link")
+                        .Select(n => n.GetProperty("info"))
+                        .Where(n => n.GetProperty("input-node-id").GetInt32() == target)
+                        .Select(n => nodes.GetValueOrDefault(n.GetProperty("output-node-id").GetInt32())).ToHashSet();
+                    return sources.SetEquals(expected);
+                }, TimeSpan.FromSeconds(3)), "The selected output did not follow the saved feed.");
+            }
+        }
+        finally { pw.UnloadModule(output); }
+    }
+
+    [MonitorPipeWireFact]
     public void StreamAssignmentsCannotBypassTheAppLimitOrPartiallyMoveAudio()
     {
         var pw = new PipeWireAdapter();
@@ -308,7 +366,13 @@ public sealed class MonitorVolumeIntegrationTests
         var pw = new PipeWireAdapter();
         using var mixer = new Mixer(pw);
         pw.CreateNullSink("test_master_output", "Test master output");
-        mixer.Build(MonitorConfig());
+        var config = MonitorConfig();
+        mixer.Build(config with
+        {
+            Mixes = [.. config.Mixes, new("stream", "Stream", MixKind.VirtualMic), new("auxout", "Aux", MixKind.AuxPort)],
+            Channels = [config.Channels[0] with { Levels = new Dictionary<string, double>(config.Channels[0].Levels)
+                { ["stream"] = 0.4, ["auxout"] = 0.3 } }],
+        });
         mixer.SetMonitorOutputs(["test_master_output"]);
         // Wait for late combine legs and their initial channel sends.
         Assert.True(SpinWait.SpinUntil(() => { mixer.EnsureCellLevels(); return pw.FindNodeId("OpenXLR_ch_test") is not null; }, TimeSpan.FromSeconds(3)));
@@ -323,6 +387,10 @@ public sealed class MonitorVolumeIntegrationTests
             ("monitor+monitor2", 0.5, 1.2, false, false, false),
             ("monitor+monitor2", 0.5, 0.7, true, false, false),
             ("monitor", 1.2, 1.0, false, false, true),
+            ("chat", 1.0, 1.0, false, false, false),
+            ("stream", 1.0, 1.0, false, false, false),
+            ("auxout", 1.0, 1.0, false, false, false),
+            ("monitor+chat", 0.5, 1.0, false, false, false),
         })
         {
             mixer.SetMixVolume("monitor", a);
@@ -332,7 +400,10 @@ public sealed class MonitorVolumeIntegrationTests
             Assert.Null(mixer.SetMonitorFeed("test_master_output", feed));
             double expected = direct ? 0.1 * Math.Pow(a, 3) :
                 (feed.Split('+').Contains("monitor") && !muteA ? 0.1 * Math.Pow(0.8 * a, 3) : 0) +
-                (feed.Split('+').Contains("monitor2") && !muteB ? 0.1 * Math.Pow(0.6 * b, 3) : 0);
+                (feed.Split('+').Contains("monitor2") && !muteB ? 0.1 * Math.Pow(0.6 * b, 3) : 0) +
+                (feed.Split('+').Contains("chat") ? 0.1 * Math.Pow(0.7, 3) : 0) +
+                (feed.Split('+').Contains("stream") ? 0.1 * Math.Pow(0.4, 3) : 0) +
+                (feed.Split('+').Contains("auxout") ? 0.1 * Math.Pow(0.3, 3) : 0);
             var result = ProcessRunner.Run("python3", ["-c", """
                 import struct, subprocess, sys, tempfile
                 rate = 48000

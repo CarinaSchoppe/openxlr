@@ -842,17 +842,16 @@ public sealed class MainViewModel : ViewModelBase
                 .Where(n => n is not null).Select(n => n!) ?? []);
         foreach (MonitorOutputItem item in MonitorOutputs) item.Sync(current.Contains(item.Name));
 
-        // Every monitor mix is a possible feed for an output; the first one is
-        // the default for outputs the daemon lists no exception for.
-        var monitorMixes = (mixer?["mixes"] as JsonArray)?
-            .Where(m => m is not null && (m["kind"]?.GetValue<string>() ?? "monitor") == "monitor")
-            .Select(m => new MixOption(m!["id"]!.GetValue<string>(), m["name"]?.GetValue<string>() ?? m["id"]!.GetValue<string>()))
-            .ToList() ?? [];
+        var allMixes = (mixer?["mixes"] as JsonArray)?.Where(m => m is not null).ToList() ?? [];
+        var monitorMixes = allMixes.Where(m => (m!["kind"]?.GetValue<string>() ?? "monitor") == "monitor")
+            .Select(m => new MixOption(m!["id"]!.GetValue<string>(), m["name"]?.GetValue<string>() ?? m["id"]!.GetValue<string>())).ToList();
         // With two or more monitor mixes an output can also hear them all,
         // summed: "Monitor A+B" for headphones that want the desktop from A
         // and a separately processed mic from B.
         if (monitorMixes.Count > 1)
             monitorMixes.Add(new MixOption(string.Join("+", monitorMixes.Select(m => m.Id)), SummedName(monitorMixes.Select(m => m.Name))));
+        monitorMixes.AddRange(allMixes.Where(m => (m!["kind"]?.GetValue<string>() ?? "monitor") != "monitor")
+            .Select(m => new MixOption(m!["id"]!.GetValue<string>(), m["name"]?.GetValue<string>() ?? m["id"]!.GetValue<string>())));
         var feeds = mixer?["monitorFeeds"] as JsonObject;
         string primaryMonitor = monitorMixes.FirstOrDefault()?.Id ?? "monitor";
         foreach (MonitorOutputItem item in MonitorOutputs)
@@ -989,6 +988,8 @@ public sealed class MainViewModel : ViewModelBase
         SoftClipGuard = mixer["softClipGuard"]?.GetValue<bool>() ?? false;
         Inserts.Apply(mixer["inserts"]?["xlr1"]);
         Inserts2.Apply(mixer["inserts"]?["xlr2"]);
+        bool auxAudible = mixer["monitorFeeds"] is JsonObject monitorFeeds && monitorFeeds.Any(
+            feed => (feed.Value?.GetValue<string>() ?? "").Split('+').Contains("auxout"));
 
         if (mixer["mixes"] is JsonArray mixes)
         {
@@ -998,11 +999,14 @@ public sealed class MainViewModel : ViewModelBase
                     { Kind = m["kind"]?.GetValue<string>() ?? "monitor" });
             bool auxOn = mixer["auxPortEnabled"]?.GetValue<bool>() ?? true;
             foreach (MixViewModel mv in Mixes.Where(mv => mv.IsAuxPort)) mv.ApplyAuxPort(auxOn);
-            // The Aux mix only exists to feed the device's USB Aux port; hide
-            // it on hardware without that port (its send rows follow below,
-            // once the channels have synced).
+            // Aux can feed a selected output even without a USB Aux port.
+            // Hide its unused controls on other hardware; send rows follow
+            // the same rule below, once the channels have synced.
             foreach (MixViewModel mv in Mixes.Where(mv => mv.IsAuxPort))
-                mv.Visible = !DeviceConnected || CapOutputRouting;
+            {
+                mv.AuxPortAvailable = !DeviceConnected || CapOutputRouting;
+                mv.Visible = mv.AuxPortAvailable || auxAudible;
+            }
 
             foreach (MixViewModel mv in Mixes)
             {
@@ -1032,7 +1036,7 @@ public sealed class MainViewModel : ViewModelBase
                     _ => true,
                 };
                 foreach (SendViewModel send in c.Sends.Where(s => s.MixId == "auxout"))
-                    send.Visible = !DeviceConnected || CapOutputRouting;
+                    send.Visible = !DeviceConnected || CapOutputRouting || auxAudible;
             }
         }
     }
@@ -1206,11 +1210,11 @@ public sealed class MonitorOutputItem : ViewModelBase
     public string Name { get; }
     public string Label { get; }
 
-    /// <summary>The monitor mixes this output can be fed by.</summary>
+    /// <summary>The mixes this output can be fed by.</summary>
     public ObservableCollection<MixOption> Feeds { get; } = [];
 
     private MixOption? _feed;
-    /// <summary>The monitor mix feeding this output; picking one tells the daemon.</summary>
+    /// <summary>The mix feeding this output; picking one tells the daemon.</summary>
     public MixOption? Feed
     {
         get => _feed;
@@ -1227,7 +1231,15 @@ public sealed class MonitorOutputItem : ViewModelBase
         _syncing = true;
         try
         {
-            if (!options.Select(o => o.Id).SequenceEqual(Feeds.Select(f => f.Id)))
+            // Preserve an API-selected sum in the picker without offering
+            // every possible combination of the layout's mixes.
+            if (!options.Any(o => o.Id == mixId))
+            {
+                string[] ids = mixId.Split('+');
+                if (ids.Length > 1 && ids.All(id => options.Any(o => o.Id == id)))
+                    options = [.. options, new MixOption(mixId, string.Join(" + ", ids.Select(id => options.First(o => o.Id == id).Name)))];
+            }
+            if (!options.Select(o => (o.Id, o.Name)).SequenceEqual(Feeds.Select(f => (f.Id, f.Name))))
             {
                 Feeds.Clear();
                 foreach (MixOption o in options) Feeds.Add(o);
@@ -1309,6 +1321,14 @@ public sealed class MixViewModel : ViewModelBase, IHasId
 
     /// <summary>Only the Aux mix carries the port toggle.</summary>
     public bool IsAuxPort => Id == "auxout";
+
+    private bool _auxPortAvailable = true;
+    public bool AuxPortAvailable
+    {
+        get => _auxPortAvailable;
+        set { if (Set(ref _auxPortAvailable, value)) Raise(nameof(ShowAuxPortToggle)); }
+    }
+    public bool ShowAuxPortToggle => IsAuxPort && AuxPortAvailable;
 
     private bool _auxPortEnabled = true;
     public bool AuxPortEnabled

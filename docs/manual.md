@@ -150,7 +150,7 @@ affects only the display; the daemon continues processing audio.
    on: your speakers, a headset, or several at once. On the Wave XLR
    Pro its own outputs (Headphones 1, Headphones 2, Line Out) appear
    here too; ticking one switches the hardware's output routing.
-2. Next to a ticked device, the feed picker says which monitor mix it
+2. Next to a ticked device, the feed picker says which mix it
    hears. Leave it on Monitor A, or choose Monitor B for an output that
    should hear a different selection: a headset whose game side and
    chat side are two sinks, for instance, gets the voice channels on
@@ -160,6 +160,16 @@ affects only the display; the daemon continues processing audio.
    on B, add a denoiser under the Monitor B master, and one pair of
    headphones hears both, with the plugin touching only your voice.
    The Pro's own jacks share one feed.
+   Stream, Chat, Aux and custom virtual microphones are also available, so
+   you can listen to the mix a recorder or second computer receives, including
+   its inserts and master. This does not move its recording clients. The
+   API can sum any distinct mixes; such a selection is shown in the picker.
+   Deleting a mix removes it from selected feeds; if nothing remains, the
+   output returns to Monitor A. A failed layout save leaves the old feed intact.
+   Listening to a recording or Aux mix on the Pro's jacks uses the software
+   microphone path so its recording feed is never silenced by direct monitoring.
+   On devices without USB Aux, selecting Aux reveals its mix and send faders
+   without showing a switch for a hardware port the device does not have.
 3. Linux lists **OpenXLR Monitor A** and **OpenXLR Monitor B** as separate
    playback devices. Their desktop volume and mute controls correspond to
    the respective SUBMIXER master, in both directions. Selecting one as the
@@ -1243,7 +1253,7 @@ phantom, low cut, expander, voice tune, ClipGuard, compressor, low
 impedance, the Pro's output selectors, the aux level lock, the gain
 lock), the software low cut (cycling Off, 80, 120), a mix or send mute,
 the monitor output (switching the monitor mixes to one specific device),
-an output's feed (cycling Monitor A, Monitor B and Monitor A+B, lit
+an output's feed (cycling Monitor A, Monitor B, Monitor A+B and the remaining mixes, lit
 when not on A),
 the bypass of one insert or of a whole chain, or a profile to recall.
 The key's LED is green for an engaged feature, red for a mute, and grey

@@ -68,6 +68,9 @@ error. Ordinary fader saves keep their debounced, retried behaviour.
   restart hint.
 - `deleteMix {mix}` removes the virtual microphone, its sends, inserts and
   capture device. Anything recording from it loses the device.
+  Outputs listening to that mix keep the other mixes in their feed, or return
+  to the first monitor mix if none remain. Feed changes are part of the saved
+  deletion and roll back with it when saving fails.
 - `setLayoutOrder {channels, mixes}` reorders the editable ids. Supply every
   application-channel id and every virtual-microphone id exactly once;
   hardware inputs, Monitor A/B and Aux keep their positions. No node changes.

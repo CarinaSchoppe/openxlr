@@ -53,6 +53,23 @@ public sealed class CaptureInputTests
         Assert.Equal("right.source", config.Channels.Single(c => c.Id == "mic").CaptureSource);
     }
 
+    [Theory]
+    [InlineData(31)]
+    [InlineData(32)]
+    [InlineData(40)]
+    public void TruncatedCaptureCannotReplaceTheSynthesizedApplicationChannel(int index)
+    {
+        var saved = Enumerable.Range(0, index)
+            .Select(i => new UserChannelDefinition($"mic{i}", "Microphone", "capture.source")).ToList();
+        saved.Add(new("system", "System", "capture.source"));
+        var config = MixerConfig.FromSettings(new MixerSettings { UserChannels = saved });
+        ChannelDefinition app = Assert.Single(config.Channels, c => c.IsApplication);
+        Assert.Equal("system", app.Id);
+        Assert.Null(app.CaptureSource);
+        Assert.Equal(32, config.Channels.Count(c => c.InputPair is null));
+        Assert.Equal(app.Id, config.ResolveApplicationChannel("missing"));
+    }
+
     [Fact]
     public void BindingNamesAndPairLimitsAreBounded()
     {

@@ -1596,7 +1596,8 @@ On unsupported desktops or when the window is closed, routing reports an error.
 
 The exact process, or a unique audio identity among its child processes,
 must appear in PipeWire. The existing application assignment is then updated
-and remembered for the next launch. Multiple possible identities, stopped
+and remembered for the next launch. A stream that is still starting joins
+that channel when the daemon next discovers it. Multiple possible identities, stopped
 processes, unavailable clients and deleted target channels produce an error.
 Titles and executable names are not guessed. A PC error is shown in Desktop
 keys; OpenDeck flashes an alert for a failed or unanswered command.

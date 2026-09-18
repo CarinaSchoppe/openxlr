@@ -26,16 +26,31 @@ public sealed partial class MonitorVolumeIntegrationTests
             AudioStream? stream = null;
             Assert.True(SpinWait.SpinUntil(() =>
             {
-                mixer.SyncStreams();
                 stream = pw.ListStreams().FirstOrDefault(s => s.Identity == "focus-test");
                 return stream?.ProcessId > 0;
             }, TimeSpan.FromSeconds(5)));
+            // A key can arrive before the daemon's first stream sweep. Keep
+            // running that sweep while waiting, as the daemon does in service.
+            Assert.Empty(mixer.Streams);
             mixer.RouteFocusedApplication(stream!.ProcessId, "music");
-            Assert.True(SpinWait.SpinUntil(() => pw.StreamSinkName(stream.Serial) == "OpenXLR_ch_music", TimeSpan.FromSeconds(3)));
+            void WaitForChannel(string channel)
+            {
+                Assert.True(SpinWait.SpinUntil(() =>
+                {
+                    mixer.SyncStreams();
+                    return mixer.Streams.Any(s => s.Serial == stream.Serial && s.ChannelId == channel)
+                        && pw.StreamSinkName(stream.Serial) == "OpenXLR_ch_" + channel;
+                }, TimeSpan.FromSeconds(3)));
+            }
+            WaitForChannel("music");
             Assert.Equal("music", mixer.Matcher.Overrides["focus-test"]);
+            // Once discovered, the same command must move the existing stream.
+            mixer.RouteFocusedApplication(stream.ProcessId, "system");
+            WaitForChannel("system");
+            Assert.Equal("system", mixer.Matcher.Overrides["focus-test"]);
             Assert.Throws<InvalidOperationException>(() => mixer.RouteFocusedApplication(stream.ProcessId, "missing"));
             Assert.Throws<InvalidOperationException>(() => mixer.RouteFocusedApplication(int.MaxValue, "system"));
-            Assert.Equal("OpenXLR_ch_music", pw.StreamSinkName(stream.Serial));
+            Assert.Equal("OpenXLR_ch_system", pw.StreamSinkName(stream.Serial));
         }
         finally { stop.Cancel(); play.GetAwaiter().GetResult(); }
     }

@@ -242,6 +242,11 @@ PipeWire as an audio client; a green light means it is playing. Manage sits
 beside the APPLICATIONS heading, like Edit layout beside SUBMIXER. The app
 controls wrap onto further rows when the window is narrower.
 
+Opening the window or receiving an updated app list only displays the current
+routing. A remembered routing change is sent when you choose a different
+channel. When the mixer stops supplying an app list, both the APPLICATIONS
+card and the Manage list clear their stale entries.
+
 An app's playback streams and audio client share the same identity even
 when PipeWire puts the process name only on the client. Windows executable
 names such as `Balatro.exe` use the same normalized key as their Wine or

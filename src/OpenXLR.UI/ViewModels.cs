@@ -920,47 +920,56 @@ public sealed class MainViewModel : ViewModelBase
 
     private void ApplyStreams(JsonNode? mixer)
     {
-        if (mixer?["streams"] is not JsonArray arr) { Apps.Clear(); return; }
-        var fresh = new List<(string Identity, string Label, string Channel, bool Active, bool Running)>();
-        foreach (JsonNode? s in arr)
+        if (mixer?["streams"] is not JsonArray arr)
         {
-            if (s is null) continue;
-            fresh.Add((s["identity"]?.GetValue<string>() ?? "?",
-                       s["label"]?.GetValue<string>() ?? "?",
-                       s["channelId"]?.GetValue<string>() ?? "",
-                       s["active"]?.GetValue<bool>() ?? true,
-                       s["running"]?.GetValue<bool>() ?? true));
+            Apps.Clear();
+            ActiveApps.Clear();
+            Raise(nameof(HasApps));
+            return;
         }
         // Apps route to application channels only; "not managed" leaves them to the desktop.
         List<ChannelChoice> choices = [.. Channels.Where(c => c.IsEditable).Select(c => new ChannelChoice(c.Id, c.Name)),
             new ChannelChoice(AppStreamViewModel.Ignore, "Not managed")];
         // Update in place so an open dropdown is not closed by a state push.
-        foreach (var f in fresh)
+        var byIdentity = Apps.ToDictionary(a => a.Identity, StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (JsonNode? stream in arr)
         {
-            AppStreamViewModel? existing = Apps.FirstOrDefault(a =>
-                string.Equals(a.Identity, f.Identity, StringComparison.OrdinalIgnoreCase));
-            if (existing is null)
-                Apps.Add(new AppStreamViewModel(_client, f.Identity, f.Label, choices)
-                    { ChannelId = f.Channel, Active = f.Active, Running = f.Running });
+            if (stream is null) continue;
+            string identity = stream["identity"]?.GetValue<string>() ?? "?";
+            string label = stream["label"]?.GetValue<string>() ?? "?";
+            string channel = stream["channelId"]?.GetValue<string>() ?? "";
+            bool active = stream["active"]?.GetValue<bool>() ?? true;
+            bool running = stream["running"]?.GetValue<bool>() ?? true;
+            seen.Add(identity);
+            if (!byIdentity.TryGetValue(identity, out AppStreamViewModel? existing))
+            {
+                existing = new AppStreamViewModel(_client, identity, label, choices);
+                // Initial state is a daemon update too, not a user routing edit.
+                existing.ApplyFromDaemon(channel, active, running);
+                byIdentity.Add(identity, existing);
+                Apps.Add(existing);
+            }
             else
             {
                 existing.SyncChannels(choices);
-                existing.ApplyFromDaemon(f.Channel, f.Active, f.Running, f.Label);
+                existing.ApplyFromDaemon(channel, active, running, label);
             }
         }
         for (int i = Apps.Count - 1; i >= 0; i--)
-            if (!fresh.Any(f => string.Equals(f.Identity, Apps[i].Identity, StringComparison.OrdinalIgnoreCase))) Apps.RemoveAt(i);
+            if (!seen.Contains(Apps[i].Identity)) Apps.RemoveAt(i);
 
         // Maintain the running-apps view without disturbing open dropdowns.
+        var listed = new HashSet<AppStreamViewModel>(ActiveApps);
+        var wanted = new HashSet<AppStreamViewModel>();
         foreach (AppStreamViewModel a in Apps)
         {
-            bool listed = ActiveApps.Contains(a);
-            bool wanted = a.Active || a.Running;
-            if (wanted && !listed) ActiveApps.Add(a);
-            else if (!wanted && listed) ActiveApps.Remove(a);
+            if (!a.Active && !a.Running) continue;
+            wanted.Add(a);
+            if (listed.Add(a)) ActiveApps.Add(a);
         }
         for (int i = ActiveApps.Count - 1; i >= 0; i--)
-            if (!Apps.Contains(ActiveApps[i])) ActiveApps.RemoveAt(i);
+            if (!wanted.Contains(ActiveApps[i])) ActiveApps.RemoveAt(i);
         Raise(nameof(HasApps));
     }
 

@@ -23,13 +23,16 @@ public sealed class DesktopKeysTests
         var fake = new DesktopBackend(new DesktopBus(desktop));
         desktop.AddMethodHandler(fake);
         var commands = new ConcurrentQueue<string>();
+        var outputCommands = new ConcurrentQueue<string>();
         await using var server = await SocketTestServer.Start(async (socket, stop) =>
         {
             while (!stop.IsCancellationRequested)
             {
                 var command = await SocketTestServer.Receive(socket, stop);
-                if (command["cmd"]!.GetValue<string>() != "routeFocusedApp") continue;
-                commands.Enqueue(command["channel"]!.GetValue<string>());
+                string cmd = command["cmd"]!.GetValue<string>();
+                if (cmd == "routeFocusedApp") commands.Enqueue(command["channel"]!.GetValue<string>());
+                else if (cmd == "toggleOutputMute") outputCommands.Enqueue(cmd);
+                else continue;
                 await SocketTestServer.Send(socket, new { type = "commandResult", requestId = command["requestId"]!.GetValue<string>() }, stop);
             }
         });
@@ -39,12 +42,15 @@ public sealed class DesktopKeysTests
         client.Start();
         await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
         using var keys = new DesktopKeys(client);
-        await keys.ConfigureAsync(new DesktopKeySettings { Enabled = true, FocusChannels = ["music", "browser"] }, save: false);
+        await keys.ConfigureAsync(new DesktopKeySettings { Enabled = true, FocusChannels = ["music", "browser"], OutputControls = true, MainOutputs = ["headset"] }, save: false);
         Assert.StartsWith("Desktop keys are active", keys.Status);
-        Assert.Equal(["focus_music", "focus_browser"], fake.ShortcutIds);
+        Assert.Equal(["focus_music", "focus_browser", "output_up", "output_down", "output_mute", DesktopKeySettings.MainKey("headset")], fake.ShortcutIds);
         fake.Activate("focus_music");
-        await Wait(() => keys.Status.StartsWith("Focused application routed", StringComparison.Ordinal));
+        await Wait(() => keys.Status.StartsWith("Completed:", StringComparison.Ordinal));
         Assert.Equal("music", Assert.Single(commands));
+        fake.Activate("output_mute");
+        await Wait(() => keys.Status == "Completed: Toggle output mute.");
+        Assert.Equal("toggleOutputMute", Assert.Single(outputCommands));
         fake.Activate("focus_deleted");
         fake.Activate("focus_browser", "/not_the_session");
         await Task.Delay(80);
@@ -68,6 +74,66 @@ public sealed class DesktopKeysTests
         Assert.Throws<InvalidOperationException>(() => DesktopFocusQuery.Read());
         await keys.ConfigureAsync(new DesktopKeySettings(), save: false);
         Assert.Equal("Desktop keys are disabled.", keys.Status);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RapidOutputKeysAreOrderedBoundedAndDiscardedWhenDisabled(bool disable)
+    {
+        await using var environment = await PrivateBus.Start();
+        using var desktop = new DBusConnection(environment.Address);
+        await desktop.ConnectAsync();
+        await desktop.RequestNameAsync(DesktopBus.Portal);
+        var fake = new DesktopBackend(new DesktopBus(desktop));
+        desktop.AddMethodHandler(fake);
+        var received = new ConcurrentQueue<string>();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            while (!stop.IsCancellationRequested)
+            {
+                var command = await SocketTestServer.Receive(socket, stop);
+                if (command["requestId"] is not { } id) continue;
+                received.Enqueue(command["cmd"]!.GetValue<string>());
+                await release.Task.WaitAsync(stop);
+                await SocketTestServer.Send(socket, new { type = "commandResult", requestId = id.GetValue<string>(),
+                    error = received.Count == 1 ? "first command failed" : null }, stop);
+            }
+        });
+        await using var client = new DaemonClient(server.Url);
+        var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.ConnectionChanged += up => { if (up) connected.TrySetResult(); };
+        client.Start();
+        await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        using var keys = new DesktopKeys(client);
+        await keys.ConfigureAsync(new DesktopKeySettings { Enabled = true, OutputControls = true, MainOutputs = ["headset"] }, save: false);
+        fake.Activate("output_up");
+        await Wait(() => received.Count == 1);
+        string[] ids = [DesktopKeySettings.MainKey("headset"), "output_down", "output_mute", "output_up"];
+        for (int i = 0; i < 20; i++) fake.Activate(ids[i % ids.Length]);
+        // A round trip on the sending connection lets all preceding portal
+        // signals arrive before we release the blocked daemon reply.
+        await new DesktopBus(desktop).Call(KWinFocus.Service, "/org/openxlr/Desktop",
+            "org.freedesktop.DBus.Introspectable", "Introspect", null, null,
+            static (message, _) => message.GetBodyReader().ReadString());
+        await Wait(() => keys.Status.Contains("queue is full", StringComparison.Ordinal));
+        Assert.Single(received);
+        if (disable) await keys.ConfigureAsync(new DesktopKeySettings(), save: false);
+        release.TrySetResult();
+        var invoking = typeof(DesktopKeys).GetField("_invoking", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        await Wait(() => (int)invoking.GetValue(keys)! == 0);
+        if (disable)
+        {
+            Assert.Single(received);
+            Assert.Equal("Desktop keys are disabled.", keys.Status);
+        }
+        else
+        {
+            string[] group = ["setMainOutput", "adjustOutputVolume", "toggleOutputMute", "adjustOutputVolume"];
+            Assert.Equal(new[] { "adjustOutputVolume" }.Concat(Enumerable.Range(0, 16).Select(i => group[i % group.Length])), received);
+            Assert.StartsWith("Completed:", keys.Status);
+        }
     }
 
     [Theory]

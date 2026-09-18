@@ -132,3 +132,12 @@ routing as PC and OpenDeck keys. Enable **Desktop keys** in the running window.
 KDE Plasma supplies the focused process; GLib's `gdbus` must be installed.
 An unavailable desktop service, absent audio client or ambiguous identity
 returns the normal command error response and does not select a guessed app.
+
+Output keys use the same authenticated command endpoint:
+`{"cmd":"adjustOutputVolume","value":-0.05}` lowers the current system output
+by five percentage points; an optional `device` binds an exact output name.
+`{"cmd":"toggleOutputMute"}` toggles the current output's mute.
+`{"cmd":"setMainOutput","device":"alsa_output.usb-headset"}` selects and enforces
+that output. `@monitor` follows the selected monitor output. Limits, rejected
+targets and linked-monitor behavior match the [WebSocket contract](api.md).
+These commands require the daemon but do not require a running UI or KDE.

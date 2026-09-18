@@ -15,6 +15,7 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
     private DBusConnection? _connection;
     private IDisposable? _activated, _closed;
     private int _invoking;
+    private readonly Queue<(KeyAction Action, Func<bool> IsActive)> _pending = new();
     internal string Status { get; private set; } = "Desktop keys are disabled.";
     internal event Action? Changed;
 
@@ -39,7 +40,8 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
             var bus = new DesktopBus(connection);
             connection.AddMethodHandler(new KWinFocus(bus));
             await connection.RequestNameAsync(KWinFocus.Service).WaitAsync(TimeSpan.FromSeconds(3), _lifetime.Token);
-            if (settings.FocusChannels.Count == 0)
+            var actions = Actions(settings);
+            if (actions.Count == 0)
             {
                 SetStatus("OpenDeck focus routing is enabled. Select channels below to assign PC shortcuts.");
                 return;
@@ -47,7 +49,6 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
             var created = await bus.Request("CreateSession", "a{sv}", token => (ref MessageWriter w) =>
                 w.WriteDictionary(new Dictionary<string, VariantValue> { ["handle_token"] = token, ["session_handle_token"] = token }), _lifetime.Token);
             string session = created["session_handle"].GetString();
-            var channels = settings.FocusChannels.ToHashSet(StringComparer.Ordinal);
             int active = 0; // 0 binding, 1 active, -1 closed
             bool IsCurrent() => ReferenceEquals(_connection, connection) && !_lifetime.IsCancellationRequested;
             Func<bool> isActive = () => IsCurrent() && Volatile.Read(ref active) == 1;
@@ -64,8 +65,8 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
                         return;
                     }
                     var (activeSession, id) = notification.Value;
-                    if (isActive() && activeSession == session && id.StartsWith("focus_", StringComparison.Ordinal)
-                        && channels.Contains(id[6..])) _ = InvokeAsync(id[6..], isActive);
+                    if (isActive() && activeSession == session
+                        && actions.TryGetValue(id, out KeyAction? action)) _ = InvokeAsync(action, isActive);
                 }, emitOnCapturedContext: false, flags: ObserverFlags.EmitOnConnectionClosed | ObserverFlags.EmitOnReaderFailed);
             _closed = await connection.AddMatchAsync(new MatchRule { Type = MessageType.Signal, Sender = DesktopBus.Portal,
                 Path = session, Interface = "org.freedesktop.portal.Session", Member = "Closed" },
@@ -78,10 +79,10 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
             {
                 w.WriteObjectPath(session);
                 var array = w.WriteArrayStart(DBusType.Struct);
-                foreach (string channel in settings.FocusChannels)
+                foreach (var (id, action) in actions)
                 {
-                    w.WriteStructureStart(); w.WriteString("focus_" + channel);
-                    w.WriteDictionary(new Dictionary<string, VariantValue> { ["description"] = "Route focused app to " + channel });
+                    w.WriteStructureStart(); w.WriteString(id);
+                    w.WriteDictionary(new Dictionary<string, VariantValue> { ["description"] = action.Description });
                 }
                 w.WriteArrayEnd(array);
                 w.WriteString(""); // the portal supplies its own permission/configuration window
@@ -99,6 +100,23 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
         finally { _configure.Release(); }
     }
 
+    internal sealed record KeyAction(string Description, Func<Task<string?>> Invoke);
+    internal Dictionary<string, KeyAction> Actions(DesktopKeySettings settings)
+    {
+        var actions = new Dictionary<string, KeyAction>(StringComparer.Ordinal);
+        foreach (string channel in settings.FocusChannels)
+            actions["focus_" + channel] = new("Route focused app to " + channel, () => client.RouteFocusedAppAsync(channel));
+        if (settings.OutputControls)
+        {
+            actions["output_up"] = new("Output volume up 5%", () => client.AdjustOutputVolumeAsync(settings.OutputDevice, .05));
+            actions["output_down"] = new("Output volume down 5%", () => client.AdjustOutputVolumeAsync(settings.OutputDevice, -.05));
+            actions["output_mute"] = new("Toggle output mute", () => client.ToggleOutputMuteAsync(settings.OutputDevice));
+        }
+        foreach (string output in settings.MainOutputs)
+            actions[DesktopKeySettings.MainKey(output)] = new("Set system output to " + output, () => client.SetMainOutputAsync(output));
+        return actions;
+    }
+
     private async Task ObserveConnectionAsync(DBusConnection connection)
     {
         await connection.DisconnectedAsync().ConfigureAwait(false);
@@ -106,16 +124,42 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
             SetStatus("Desktop connection lost. Open Desktop keys and apply to reconnect.");
     }
 
-    private async Task InvokeAsync(string channel, Func<bool> isActive)
+    private async Task InvokeAsync(KeyAction action, Func<bool> isActive)
     {
-        if (!isActive() || Interlocked.Exchange(ref _invoking, 1) != 0) return;
-        try
+        bool full;
+        lock (_pending)
         {
-            string? error = await client.RouteFocusedAppAsync(channel);
-            if (isActive()) SetStatus(error ?? "Focused application routed to " + channel + ".");
+            if (!isActive()) return;
+            full = _pending.Count >= 16;
+            if (!full)
+            {
+                _pending.Enqueue((action, isActive));
+                if (_invoking != 0) return;
+                Volatile.Write(ref _invoking, 1);
+            }
         }
-        catch (Exception ex) { if (isActive()) SetStatus(ex.Message); }
-        finally { Volatile.Write(ref _invoking, 0); }
+        if (full)
+        {
+            if (isActive()) SetStatus("Desktop key queue is full; this press was not queued. Wait for the daemon before retrying.");
+            return;
+        }
+        // One consumer preserves output-switch/volume order without losing
+        // ordinary key repeats or accumulating unbounded daemon requests.
+        while (true)
+        {
+            lock (_pending)
+            {
+                if (_pending.Count == 0) { Volatile.Write(ref _invoking, 0); return; }
+                (action, isActive) = _pending.Dequeue();
+            }
+            if (!isActive()) continue;
+            try
+            {
+                string? error = await action.Invoke();
+                if (isActive()) SetStatus(error ?? "Completed: " + action.Description + ".");
+            }
+            catch (Exception ex) { if (isActive()) SetStatus(ex.Message); }
+        }
     }
 
     private void SetStatus(string text) { Status = text; Changed?.Invoke(); }
@@ -123,6 +167,7 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
     {
         DBusConnection? connection = _connection;
         _connection = null; // invalidate queued callbacks before disposing their observers
+        lock (_pending) _pending.Clear();
         _activated?.Dispose(); _activated = null;
         _closed?.Dispose(); _closed = null;
         // A portal session is owned by this connection and closes with it.

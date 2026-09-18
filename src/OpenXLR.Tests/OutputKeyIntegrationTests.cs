@@ -48,6 +48,9 @@ public sealed partial class MonitorVolumeIntegrationTests
         Assert.True(state.Mixes.Single(m => m.Id == "monitor2").Muted);
         Assert.Equal(1, state.Mixes.Single(m => m.Id == "monitor").Volume);
         Assert.False(state.Mixes.Single(m => m.Id == "monitor").Muted);
+        mixer.ToggleOutputMute(null);
+        Assert.False(mixer.Snapshot().Mixes.Single(m => m.Id == "monitor2").Muted);
+        Assert.False(pw.GetSinkMuted("OpenXLR_mix_monitor2"));
         foreach (string bad in new[] { "missing", "@DEFAULT_SINK@", "123", "test_key_headset#hp1", "OpenXLR_ch_system" })
             Assert.Throws<InvalidOperationException>(() => mixer.SetMainOutput(bad));
         Assert.Equal("OpenXLR_mix_monitor2", mixer.ExportSettings().EnforcedDefaultSink);

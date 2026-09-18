@@ -441,4 +441,6 @@ Relative volume reads the audio server at key-press time. It uses the same
 monitor master and linked output synchronization as desktop volume changes;
 it never uses the client's previous slider value. Named keys remain bound to
 that output across default changes. A key with no device resolves the desktop
-default anew on every press. Mute toggles use pipewire-pulse's atomic toggle.
+default anew on every press. External mute toggles use pipewire-pulse's atomic toggle. Monitor mixes read
+mute directly from the audio server and use the existing mix setter so state
+and graph updates follow the same path as the mixer mute control.

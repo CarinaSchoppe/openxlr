@@ -337,6 +337,15 @@ public sealed class PipeWireAdapter
         InvalidateDump();
     }
 
+    /// <summary>Read a sink's mute directly, without a cached graph snapshot.</summary>
+    public bool GetSinkMuted(string sinkName)
+        => Run("pactl", "get-sink-mute", BareSink(sinkName)).Trim() switch
+        {
+            "Mute: yes" => true,
+            "Mute: no" => false,
+            _ => throw new InvalidOperationException("output mute is unavailable"),
+        };
+
     /// <summary>Toggle a sink's mute atomically at pipewire-pulse.</summary>
     public void ToggleSinkMuted(string sinkName)
     {

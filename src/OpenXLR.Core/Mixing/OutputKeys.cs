@@ -24,14 +24,18 @@ public sealed partial class Mixer
         }
     }
 
-    /// <summary>Toggle at the audio server, so repeated keys never use a stale UI mute value.</summary>
+    /// <summary>Read mute from the audio server, never from a stale UI value.</summary>
     public void ToggleOutputMute(string? device)
     {
         lock (_gate)
         {
             string sink = ResolveOutputKeyLocked(device);
-            _pw.ToggleSinkMuted(sink);
-            SyncOwnSinkLevels(out _); // a monitor mix also publishes its mute through the usual mixer state
+            MixDefinition? mix = _config.Mixes.FirstOrDefault(m => m.Kind == MixKind.Monitor && m.SinkName == sink);
+            if (mix is null) _pw.ToggleSinkMuted(sink);
+            // Use the regular monitor setter so state and graph acknowledgement
+            // follow the same path as a click in the mixer, even when registry
+            // events have not caught up with pipewire-pulse yet.
+            else SetMixMuted(mix.Id, !_pw.GetSinkMuted(sink));
         }
     }
 

@@ -551,6 +551,8 @@ public sealed class MainViewModel : ViewModelBase
 
     // --- layout editing: the daemon answers after the new layout is saved ---
 
+    public Task<string?> CreateCaptureChannel(string name, string source, int pair)
+        => Edit(_client.CreateCaptureChannelAsync(name, source, pair));
     public Task<string?> CreateChannel(string name) => Edit(_client.CreateChannelAsync(name));
     public Task<string?> RenameChannel(string id, string name) => Edit(_client.RenameChannelAsync(id, name));
     public Task<string?> DeleteChannel(string id) => Edit(_client.DeleteChannelAsync(id));
@@ -928,7 +930,7 @@ public sealed class MainViewModel : ViewModelBase
             return;
         }
         // Apps route to application channels only; "not managed" leaves them to the desktop.
-        List<ChannelChoice> choices = [.. Channels.Where(c => c.IsEditable).Select(c => new ChannelChoice(c.Id, c.Name)),
+        List<ChannelChoice> choices = [.. Channels.Where(c => c.IsApplication).Select(c => new ChannelChoice(c.Id, c.Name)),
             new ChannelChoice(AppStreamViewModel.Ignore, "Not managed")];
         // Update in place so an open dropdown is not closed by a state push.
         var byIdentity = Apps.ToDictionary(a => a.Identity, StringComparer.OrdinalIgnoreCase);
@@ -1362,8 +1364,14 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
 
     private bool _isHardware;
     /// <summary>A hardware input (XLR 1, XLR 2, Aux In): structural, not editable.</summary>
-    public bool IsHardware { get => _isHardware; set { if (Set(ref _isHardware, value)) Raise(nameof(IsEditable)); } }
+    public bool IsHardware { get => _isHardware; set { if (Set(ref _isHardware, value)) { Raise(nameof(IsEditable)); Raise(nameof(IsApplication)); } } }
     public bool IsEditable => !IsHardware;
+    private string? _captureSource;
+    public string? CaptureSource { get => _captureSource; set { if (Set(ref _captureSource, value)) Raise(nameof(IsApplication)); } }
+    public bool IsApplication => !IsHardware && CaptureSource is null;
+    public bool CaptureConnected { get; private set; }
+    private string _captureLabel = "";
+    public string CaptureLabel { get => _captureLabel; set => Set(ref _captureLabel, value); }
 
     public ObservableCollection<SendViewModel> Sends { get; } = [];
 
@@ -1399,6 +1407,9 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
     {
         if (n["name"]?.GetValue<string>() is { Length: > 0 } name) Name = name;
         IsHardware = n["hardware"]?.GetValue<bool>() ?? false;
+        CaptureSource = n["captureSource"]?.GetValue<string>();
+        CaptureConnected = n["captureConnected"]?.GetValue<bool>() ?? false;
+        CaptureLabel = CaptureSource is null ? "" : $"{(CaptureConnected ? "Connected" : "Offline")} · pair {(n["capturePair"]?.GetValue<int>() ?? 0) + 1}";
         var muted = new HashSet<string>();
         if (n["mutedIn"] is JsonArray arr)
             foreach (JsonNode? m in arr) if (m is not null) muted.Add(m.GetValue<string>());

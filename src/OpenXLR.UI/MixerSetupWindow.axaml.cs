@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -23,6 +25,40 @@ public partial class MixerSetupWindow : Window
         string name = ChannelName.Text?.Trim() ?? "";
         if (name.Length == 0 || Vm is not { } vm) return;
         if (await Run(vm.CreateChannel(name))) ChannelName.Text = "";
+    }
+
+    private async void OnAddCapture(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is not { } vm) return;
+        var name = new TextBox { Name = "CaptureName", MaxLength = 60, PlaceholderText = "Channel name" };
+        var source = new ComboBox { Name = "CaptureSource", PlaceholderText = "Capture source", ItemsSource = vm.Inputs.Where(d => !d.IsOwn).ToArray(),
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+        var pair = new ComboBox { Name = "CapturePair", ItemsSource = Enumerable.Range(1, 32).Select(n => $"Pair {n}").ToArray(), SelectedIndex = 0 };
+        var add = new Button { Name = "CreateCapture", Content = "Add input", IsDefault = true };
+        var cancel = new Button { Content = "Cancel", IsCancel = true };
+        var dialog = new Window
+        {
+            Title = "Add capture input", Width = 480, Height = 340, MinWidth = 360, MinHeight = 320,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, Classes = { "dialog" },
+            Content = new ScrollViewer { Content = new StackPanel
+            {
+                Margin = new Avalonia.Thickness(18), Spacing = 12,
+                Children = { name, source, pair,
+                    new TextBlock { Text = "Choose a microphone, capture card or another Wave interface. Pair 1 also works for mono sources. The new input starts muted in every mix and stays silent while its source is offline.", TextWrapping = TextWrapping.Wrap, Classes = { "hint" } },
+                    new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { cancel, add } } },
+            } },
+        };
+        bool accepted = false;
+        add.Click += (_, _) =>
+        {
+            if (string.IsNullOrWhiteSpace(name.Text) || source.SelectedItem is not AudioDeviceItem || pair.SelectedIndex < 0) return;
+            accepted = true;
+            dialog.Close();
+        };
+        cancel.Click += (_, _) => dialog.Close();
+        await dialog.ShowDialog(this);
+        if (accepted && source.SelectedItem is AudioDeviceItem selected)
+            await Run(vm.CreateCaptureChannel(name.Text!.Trim(), selected.Name, pair.SelectedIndex));
     }
 
     private async void OnAddMix(object? sender, RoutedEventArgs e)
@@ -66,7 +102,8 @@ public partial class MixerSetupWindow : Window
     {
         if (Item<ChannelViewModel>(sender) is not { } channel || Vm is not { } vm) return;
         string? name = await PromptName($"Rename channel '{channel.Name}'", channel.Name,
-            "Programs playing into this channel keep playing; the playback device shows the new name right away.");
+            channel.IsApplication ? "Programs playing into this channel keep playing; the playback device shows the new name right away."
+                : "The capture source and the channel's routing stay unchanged.");
         if (name is not null && name != channel.Name) await Run(vm.RenameChannel(channel.Id, name));
     }
 
@@ -82,7 +119,8 @@ public partial class MixerSetupWindow : Window
     {
         if (Item<ChannelViewModel>(sender) is not { } channel || Vm is not { } vm) return;
         if (await Confirm($"Delete channel '{channel.Name}'?",
-                "Programs routed to it move to the first remaining application channel. Its playback device disappears from the desktop."))
+                channel.IsApplication ? "Programs routed to it move to the first remaining application channel. Its playback device disappears from the desktop."
+                    : "The capture input and its sends are removed. The source device remains available to other applications."))
             await Run(vm.DeleteChannel(channel.Id));
     }
 

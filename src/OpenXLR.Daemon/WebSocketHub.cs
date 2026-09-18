@@ -320,6 +320,7 @@ public sealed class WebSocketHub
             case "set":
                 error = cmd.Control is null ? "set: missing 'control'" : _devices.Apply(cmd.Control, cmd.Value);  // broadcasts on success
                 break;
+            case "createCaptureChannel":
             case "createChannel":
             case "renameChannel":
             case "deleteChannel":

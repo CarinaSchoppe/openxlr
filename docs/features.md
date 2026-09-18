@@ -120,6 +120,14 @@ Channels appear as playback devices in the desktop's audio applet, and
 the virtual microphones (Stream and Chat by default) as recording
 devices; the hardware input channels are hidden from it.
 
+### External capture channels
+
+Additional microphones, headsets, capture cards and attached Wave interfaces
+can feed independent channels from their PipeWire sources. Select a stereo
+pair in the layout editor, then use the existing mix sends, mutes, meters and
+profiles. Exact source bindings survive hotplug; absent inputs stay silent.
+
+
 ## Inserts
 
 LV2, CLAP and VST3 effects can form a mono chain on each XLR input and a

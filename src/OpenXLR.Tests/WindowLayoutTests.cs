@@ -269,6 +269,31 @@ public sealed class WindowLayoutTests
                 }
                 Capture(chain, "chain-440");
 
+                vm.Inputs.Add(new AudioDeviceItem("test_source", "Second microphone", false));
+                vm.Inputs.Add(new AudioDeviceItem("OpenXLR_stream", "Own mix", true));
+                var setup = new MixerSetupWindow { DataContext = vm };
+                windows.Add(setup);
+                setup.Show();
+                Layout(setup, 600, 640);
+                typeof(MixerSetupWindow).GetMethod("OnAddCapture", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(setup, [null, new Avalonia.Interactivity.RoutedEventArgs()]);
+                Dispatcher.UIThread.RunJobs();
+                var captureDialog = Assert.Single(setup.OwnedWindows);
+                windows.Add(captureDialog);
+                Layout(captureDialog, 360, 340);
+                var sourcePicker = captureDialog.GetVisualDescendants().OfType<ComboBox>().Single(c => c.Name == "CaptureSource");
+                Assert.Single(sourcePicker.Items);
+                Assert.Equal("test_source", ((AudioDeviceItem)sourcePicker.Items[0]!).Name);
+                var pairPicker = captureDialog.GetVisualDescendants().OfType<ComboBox>().Single(c => c.Name == "CapturePair");
+                Assert.Equal(32, pairPicker.Items.Count);
+                Assert.Equal(0, pairPicker.SelectedIndex);
+                var addCapture = captureDialog.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "CreateCapture");
+                addCapture.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                Assert.True(captureDialog.IsVisible); // incomplete input cannot submit
+                Capture(captureDialog, "capture-input-360");
+                captureDialog.Close();
+                setup.Close();
+
                 new UiSettings { StartMinimized = true, MinimizeToTray = true }.Save();
                 var optionsVm = new OptionsViewModel(new DaemonClient(), vm);
                 var options = new OptionsWindow { DataContext = optionsVm };

@@ -401,6 +401,7 @@ public sealed class MixerService : IHostedService, IDisposable
         {
             switch (cmd.Cmd)
             {
+                case "createCaptureChannel":
                 case "createChannel":
                 case "renameChannel":
                 case "deleteChannel":
@@ -416,6 +417,7 @@ public sealed class MixerService : IHostedService, IDisposable
                         Func<MixerSettings, string?> save = settings => settings.Save();
                         switch (cmd.Cmd)
                         {
+                            case "createCaptureChannel": _mixer.CreateCaptureChannel(cmd.Name!, cmd.Source!, cmd.CapturePair, save); break;
                             case "createChannel": _mixer.CreateApplicationChannel(cmd.Name!, save); break;
                             case "renameChannel": _mixer.RenameApplicationChannel(cmd.Channel!, cmd.Name!, save); break;
                             case "deleteChannel": _mixer.DeleteApplicationChannel(cmd.Channel!, save); break;

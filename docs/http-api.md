@@ -116,3 +116,9 @@ For `setEnforcedDefaults`, `sink: "@monitor"` follows the first selected
 monitor output as the system playback device. The response state retains
 that value; see [the command contract](api.md) for resolution and volume
 synchronization.
+
+Capture channels use the same command endpoint:
+`{"cmd":"createCaptureChannel","name":"Headset mic","source":"alsa_input.usb-headset","capturePair":0}`.
+The source must be present. Success is returned after the layout is saved.
+State channel entries expose `captureSource`, `capturePair` and `captureConnected`;
+a disconnected source retains its binding and reconnects when it returns.

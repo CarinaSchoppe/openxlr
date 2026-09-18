@@ -66,6 +66,36 @@ public sealed class AppIdentityTests
         """);
 
     [Fact]
+    public void OneApplicationSnapshotKeepsClientFallbackAndLaterUpdates()
+    {
+        byte[] json = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(BalatroGraph) + """
+            [{"id":650,"type":"PipeWire:Interface:Client","info":{"props":{
+                "application.name":"Player","application.process.binary":"mpv"
+            }}}]
+            """);
+        var (streams, clients) = PipeWireAdapter.ListApplications(json);
+
+        AudioStream stream = Assert.Single(streams);
+        AudioStream client = Assert.Single(clients);
+        Assert.Equal("mpv", stream.Identity);
+        Assert.Equal("mpv", client.Identity);
+        Assert.Equal("Balatro.exe", stream.AppName); // explicit node name wins over the client
+        Assert.Equal("Player", client.AppName);
+        Assert.Equal(43258, stream.Serial);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("[] {}")]
+    [InlineData("[{\"id\":1")]
+    public void InvalidGraphCannotProduceHalfAnApplicationSnapshot(string json)
+    {
+        var (streams, clients) = PipeWireAdapter.ListApplications(Encoding.UTF8.GetBytes(json));
+        Assert.Empty(streams);
+        Assert.Empty(clients);
+    }
+
+    [Fact]
     public void PlaybackAndClientShareOneIdentityAndSavedRoute()
     {
         AudioStream client = Assert.Single(PipeWireAdapter.ListClients(BalatroGraph));

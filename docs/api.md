@@ -180,6 +180,13 @@ Windows executable names normalize to the same key as their Wine/Proton
 client, for example `Balatro.exe` becomes `balatro`. `assignApp` and
 `forgetApp` also accept those legacy executable-name identities. When
 loading conflicting old and normalized overrides, the normalized key wins.
+Identity comparisons ignore letter case for live routing as well as saved
+assignments. `forgetApp` discards the cached placement of matching streams,
+so the next sweep reapplies automatic routing even while the app is playing.
+`assignStream` requires a currently tracked PipeWire node id. An unknown id
+returns an error without being treated as a PulseAudio stream serial. A
+refused stream move does not store an unapplied assignment, including an
+`ignore` choice.
 At most 512 application assignments can be added through live commands.
 At that limit, `assignApp` and `assignStream` may still update an existing
 assignment, including an `ignore` choice. A new remembered identity returns

@@ -1743,18 +1743,28 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     public bool SyncStreams()
     {
         if (!_built) return false;
-        IReadOnlyList<AudioStream> live = _pw.ListStreams();
+        var (live, clients) = _pw.ListApplications();
         bool changed = false;
 
         lock (_gate)
         {
             var seen = new HashSet<int>();
-            var liveIdentities = new HashSet<string>();
+            var liveIdentities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (AudioStream s in live)
             {
+                string identity = s.Identity;
                 seen.Add(s.Id);
-                liveIdentities.Add(s.Identity);
-                if (_streams.ContainsKey(s.Id)) continue;
+                liveIdentities.Add(identity);
+                if (_streams.TryGetValue(s.Id, out StreamAssignment? previous))
+                {
+                    // Registry ids are reused, and an app can publish its
+                    // identity after playback starts. Only keep the placement
+                    // while both the stream serial and app still match.
+                    if (previous.Serial == s.Serial &&
+                        string.Equals(previous.Identity, identity, StringComparison.OrdinalIgnoreCase)) continue;
+                    _streams.Remove(s.Id);
+                    changed = true;
+                }
 
                 string channelId = _config.ResolveApplicationChannel(Matcher.Match(s));
                 if (channelId == StreamMatcher.Ignore)
@@ -1765,9 +1775,9 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                     // was managed; that one goes back to the default output.
                     try { ReleaseStreamLocked(s.Serial); }
                     catch (InvalidOperationException) { continue; }
-                    var left = new StreamAssignment(s.Id, s.Serial, s.Label, s.Identity, StreamMatcher.Ignore);
+                    var left = new StreamAssignment(s.Id, s.Serial, s.Label, identity, StreamMatcher.Ignore);
                     _streams[s.Id] = left;
-                    if (!PipeWireAdapter.IsPlumbingIdentity(s.Identity)) _apps[s.Identity] = left;
+                    if (!PipeWireAdapter.IsPlumbingIdentity(identity)) _apps[identity] = left;
                     changed = true;
                     continue;
                 }
@@ -1791,11 +1801,11 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 }
                 catch (InvalidOperationException) { continue; }
 
-                var placed = new StreamAssignment(s.Id, s.Serial, s.Label, s.Identity, ch.Id);
+                var placed = new StreamAssignment(s.Id, s.Serial, s.Label, identity, ch.Id);
                 _streams[s.Id] = placed;
                 // Transient plumbing (Wine's probe streams, bare runtime
                 // binaries) is routed but never remembered as an app.
-                if (!PipeWireAdapter.IsPlumbingIdentity(s.Identity)) _apps[s.Identity] = placed;
+                if (!PipeWireAdapter.IsPlumbingIdentity(identity)) _apps[identity] = placed;
                 changed = true;
             }
 
@@ -1807,8 +1817,8 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
 
             // Every running audio-capable app is listed even before it plays:
             // PipeWire clients cover "running", streams cover "playing".
-            var runningIdentities = new HashSet<string>();
-            foreach (AudioStream client in _pw.ListClients())
+            var runningIdentities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (AudioStream client in clients)
             {
                 string identity = client.Identity;
                 if (PipeWireAdapter.IsPlumbingIdentity(identity)) continue;
@@ -1876,6 +1886,9 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             identity = StreamMatcher.MigrateIdentity(identity);
             _apps.Remove(identity);
             Matcher.RemoveOverride(identity);
+            foreach ((int id, StreamAssignment placed) in _streams.ToList())
+                if (string.Equals(placed.Identity, identity, StringComparison.OrdinalIgnoreCase))
+                    _streams.Remove(id);
         }
     }
 
@@ -1896,7 +1909,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 EnsureOverrideCapacity(identity);
                 Matcher.SetOverride(identity, StreamMatcher.Ignore);
                 foreach ((int id, StreamAssignment placed) in _streams.ToList())
-                    if (placed.Identity == identity)
+                    if (string.Equals(placed.Identity, identity, StringComparison.OrdinalIgnoreCase))
                     {
                         try { ReleaseStreamLocked(placed.Serial); }
                         catch (InvalidOperationException) { /* the sweep retries */ }
@@ -1914,7 +1927,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             Matcher.SetOverride(identity, channelId);
 
             foreach ((int id, StreamAssignment placed) in _streams.ToList())
-                if (placed.Identity == identity)
+                if (string.Equals(placed.Identity, identity, StringComparison.OrdinalIgnoreCase))
                 {
                     try { _pw.MoveStreamToSink(placed.Serial, ch.SinkName); }
                     catch (InvalidOperationException) { /* the sweep retries */ }
@@ -1938,27 +1951,25 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     {
         lock (_gate)
         {
+            // The command carries a registry id, not the PulseAudio serial
+            // used by pactl. An unknown id must never address another stream.
+            if (!_streams.TryGetValue(streamId, out StreamAssignment? existing))
+                throw new InvalidOperationException($"No tracked playback stream with PipeWire id {streamId}.");
             if (channelId == StreamMatcher.Ignore)
             {
-                if (!_streams.TryGetValue(streamId, out StreamAssignment? managed)) return;
-                EnsureOverrideCapacity(managed.Identity);
-                Matcher.SetOverride(managed.Identity, StreamMatcher.Ignore);
-                ReleaseStreamLocked(managed.Serial);
+                EnsureOverrideCapacity(existing.Identity);
+                ReleaseStreamLocked(existing.Serial);
+                Matcher.SetOverride(existing.Identity, StreamMatcher.Ignore);
                 _streams.Remove(streamId);   // the next sweep lists it as unmanaged
                 return;
             }
             ChannelDefinition? ch = _config.Channels.FirstOrDefault(c => c.Id == channelId);
             if (ch is null) return;
 
-            if (_streams.TryGetValue(streamId, out StreamAssignment? existing))
-            {
-                EnsureOverrideCapacity(existing.Identity);
-                _pw.MoveStreamToSink(existing.Serial, ch.SinkName);
-                Matcher.SetOverride(existing.Identity, channelId);
-                _streams.Remove(streamId); // the next sweep confirms the destination
-                return;
-            }
-            _pw.MoveStreamToSink(streamId, ch.SinkName);
+            EnsureOverrideCapacity(existing.Identity);
+            _pw.MoveStreamToSink(existing.Serial, ch.SinkName);
+            Matcher.SetOverride(existing.Identity, channelId);
+            _streams.Remove(streamId); // the next sweep confirms the destination
         }
     }
 

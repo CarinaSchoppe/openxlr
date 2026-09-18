@@ -243,6 +243,12 @@ names such as `Balatro.exe` use the same normalized key as their Wine or
 Proton client, so the app keeps one entry and one channel assignment.
 When older settings contain both that key and a stale executable-name
 alias, the existing normalized assignment takes precedence.
+Identity matching ignores letter case, including live channel changes and
+the running and playing indicators. If PipeWire reuses a node id for a new
+stream, or a stream later reports its actual app identity, the next sweep
+applies that app's routing instead of keeping the previous placement.
+Running clients and playback streams are read together from one graph
+snapshot, avoiding a second full parse during each application refresh.
 
 1. Change the channel in the dropdown next to the app. The move happens
    immediately and is remembered for that app. The channels also appear
@@ -261,8 +267,9 @@ alias, the existing normalized assignment takes precedence.
    with its own game and chat sinks. The app stays listed as ignored so
    you can bring it back by picking a channel.
 4. Forget, in the same window, drops an app and its remembered channel.
-   A running app re-registers on the next sweep and is routed by the
-   rules again; use "Not managed" for a lasting opt-out.
+   A running app, including one already playing audio, re-registers on the
+   next sweep and is routed by the rules again; use "Not managed" for a
+   lasting opt-out.
 
 An app that is missing from the card is not registered with PipeWire
 as a client. That happens with some applications until they start

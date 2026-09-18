@@ -1264,6 +1264,18 @@ public sealed class PipeWireAdapter
         ["wine", "wine64", "wine-preloader", "wine64-preloader", "wineserver",
          "steamwebhelper"];   // superseded identity: its audio now registers as "steam"
 
+    /// <summary>Parse one graph for both halves of the application's sweep.</summary>
+    internal (IReadOnlyList<AudioStream> Streams, IReadOnlyList<AudioStream> Clients) ListApplications()
+        => ListApplications(DumpJson());
+
+    internal static (IReadOnlyList<AudioStream> Streams, IReadOnlyList<AudioStream> Clients) ListApplications(byte[] json)
+    {
+        JsonDocument doc;
+        try { doc = PipeWireSnapshot.Parse(json); }
+        catch (JsonException) { return ([], []); }
+        using (doc) return (ListStreams(doc.RootElement), ListClients(doc.RootElement));
+    }
+
     /// <summary>
     /// Every running application that has registered with PipeWire, playing or
     /// not. Browsers, chat apps and players connect as clients the moment they
@@ -1273,36 +1285,38 @@ public sealed class PipeWireAdapter
 
     internal static IReadOnlyList<AudioStream> ListClients(byte[] json)
     {
-        var found = new List<AudioStream>();
         JsonDocument doc;
         try { doc = PipeWireSnapshot.Parse(json); }
-        catch (JsonException) { return found; }
-        using (doc)
+        catch (JsonException) { return []; }
+        using (doc) return ListClients(doc.RootElement);
+    }
+
+    private static IReadOnlyList<AudioStream> ListClients(JsonElement root)
+    {
+        var found = new List<AudioStream>();
+        foreach (JsonElement o in root.EnumerateArray())
         {
-            foreach (JsonElement o in doc.RootElement.EnumerateArray())
-            {
-                if (!o.TryGetProperty("type", out JsonElement t) ||
-                    t.GetString() != "PipeWire:Interface:Client") continue;
-                if (!o.TryGetProperty("info", out JsonElement info) ||
-                    !info.TryGetProperty("props", out JsonElement props)) continue;
+            if (!o.TryGetProperty("type", out JsonElement t) ||
+                t.GetString() != "PipeWire:Interface:Client") continue;
+            if (!o.TryGetProperty("info", out JsonElement info) ||
+                !info.TryGetProperty("props", out JsonElement props)) continue;
 
-                string? binary = props.TryGetProperty("application.process.binary", out JsonElement b) ? b.GetString() : null;
-                if (binary is not null && binary.EndsWith(" (deleted)", StringComparison.Ordinal))
-                    binary = binary[..^10];
-                string? appName = props.TryGetProperty("application.name", out JsonElement an) ? an.GetString() : null;
-                // Chromium registers its capture-side client as "<name> input";
-                // it is the same application, so drop the suffix.
-                if (appName is not null && appName.EndsWith(" input", StringComparison.Ordinal))
-                    appName = appName[..^6];
-                if (binary is null && appName is null) continue;
-                bool Listed(string[] list, string? v) => v is not null && Array.Exists(list, e =>
-                        v.Equals(e, StringComparison.OrdinalIgnoreCase));
-                if (Listed(PlumbingBinaries, binary) || Listed(PlumbingBinaries, appName)) continue;
-                if (Listed(DesktopServiceBinaries, binary) || Listed(DesktopServiceBinaries, appName)) continue;
-                if (appName is not null && appName.Contains("OpenXLR", StringComparison.Ordinal)) continue;
+            string? binary = props.TryGetProperty("application.process.binary", out JsonElement b) ? b.GetString() : null;
+            if (binary is not null && binary.EndsWith(" (deleted)", StringComparison.Ordinal))
+                binary = binary[..^10];
+            string? appName = props.TryGetProperty("application.name", out JsonElement an) ? an.GetString() : null;
+            // Chromium registers its capture-side client as "<name> input";
+            // it is the same application, so drop the suffix.
+            if (appName is not null && appName.EndsWith(" input", StringComparison.Ordinal))
+                appName = appName[..^6];
+            if (binary is null && appName is null) continue;
+            bool Listed(string[] list, string? v) => v is not null && Array.Exists(list, e =>
+                    v.Equals(e, StringComparison.OrdinalIgnoreCase));
+            if (Listed(PlumbingBinaries, binary) || Listed(PlumbingBinaries, appName)) continue;
+            if (Listed(DesktopServiceBinaries, binary) || Listed(DesktopServiceBinaries, appName)) continue;
+            if (appName is not null && appName.Contains("OpenXLR", StringComparison.Ordinal)) continue;
 
-                found.Add(new AudioStream(0, appName, binary, null));
-            }
+            found.Add(new AudioStream(0, appName, binary, null));
         }
         return found;
     }
@@ -1316,68 +1330,70 @@ public sealed class PipeWireAdapter
 
     internal static IReadOnlyList<AudioStream> ListStreams(byte[] json)
     {
-        var found = new List<AudioStream>();
         JsonDocument doc;
         try { doc = PipeWireSnapshot.Parse(json); }
-        catch (JsonException) { return found; }
-        using (doc)
+        catch (JsonException) { return []; }
+        using (doc) return ListStreams(doc.RootElement);
+    }
+
+    private static IReadOnlyList<AudioStream> ListStreams(JsonElement root)
+    {
+        var found = new List<AudioStream>();
+        // Native PipeWire streams can leave process metadata on their
+        // owning client. Read it from this same snapshot, regardless of
+        // whether the client appears before or after its playback node.
+        var clients = new Dictionary<int, JsonElement>();
+        foreach (JsonElement o in root.EnumerateArray())
+            if (o.TryGetProperty("type", out JsonElement type) &&
+                type.GetString() == "PipeWire:Interface:Client" &&
+                o.TryGetProperty("id", out JsonElement id) && id.ValueKind == JsonValueKind.Number &&
+                id.TryGetInt32(out int clientId) &&
+                o.TryGetProperty("info", out JsonElement info) && info.ValueKind == JsonValueKind.Object &&
+                info.TryGetProperty("props", out JsonElement props))
+                clients[clientId] = props;
+
+        foreach (JsonElement o in root.EnumerateArray())
         {
-            // Native PipeWire streams can leave process metadata on their
-            // owning client. Read it from this same snapshot, regardless of
-            // whether the client appears before or after its playback node.
-            var clients = new Dictionary<int, JsonElement>();
-            foreach (JsonElement o in doc.RootElement.EnumerateArray())
-                if (o.TryGetProperty("type", out JsonElement type) &&
-                    type.GetString() == "PipeWire:Interface:Client" &&
-                    o.TryGetProperty("id", out JsonElement id) && id.ValueKind == JsonValueKind.Number &&
-                    id.TryGetInt32(out int clientId) &&
-                    o.TryGetProperty("info", out JsonElement info) && info.ValueKind == JsonValueKind.Object &&
-                    info.TryGetProperty("props", out JsonElement props))
-                    clients[clientId] = props;
+            if (!o.TryGetProperty("type", out JsonElement t) ||
+                !(t.GetString()?.EndsWith("Node", StringComparison.Ordinal) ?? false)) continue;
+            if (!o.TryGetProperty("info", out JsonElement info) ||
+                !info.TryGetProperty("props", out JsonElement props)) continue;
 
-            foreach (JsonElement o in doc.RootElement.EnumerateArray())
-            {
-                if (!o.TryGetProperty("type", out JsonElement t) ||
-                    !(t.GetString()?.EndsWith("Node", StringComparison.Ordinal) ?? false)) continue;
-                if (!o.TryGetProperty("info", out JsonElement info) ||
-                    !info.TryGetProperty("props", out JsonElement props)) continue;
+            string mc = props.TryGetProperty("media.class", out JsonElement m) ? m.GetString() ?? "" : "";
+            if (mc != "Stream/Output/Audio") continue;
 
-                string mc = props.TryGetProperty("media.class", out JsonElement m) ? m.GetString() ?? "" : "";
-                if (mc != "Stream/Output/Audio") continue;
+            // Exclude the mixer's own plumbing. Filter modules (combine and
+            // remap sinks, loopbacks) run internal streams named things like
+            // "output.OpenXLR_ch_game"; moving those rewires the mixer
+            // itself. Real applications never carry node.link-group.
+            if (props.TryGetProperty("node.link-group", out _)) continue;
 
-                // Exclude the mixer's own plumbing. Filter modules (combine and
-                // remap sinks, loopbacks) run internal streams named things like
-                // "output.OpenXLR_ch_game"; moving those rewires the mixer
-                // itself. Real applications never carry node.link-group.
-                if (props.TryGetProperty("node.link-group", out _)) continue;
+            string? nodeName = props.TryGetProperty("node.name", out JsonElement nn) ? nn.GetString() : null;
+            if (nodeName is not null && nodeName.Contains("OpenXLR", StringComparison.Ordinal)) continue;
 
-                string? nodeName = props.TryGetProperty("node.name", out JsonElement nn) ? nn.GetString() : null;
-                if (nodeName is not null && nodeName.Contains("OpenXLR", StringComparison.Ordinal)) continue;
+            string? mediaName = props.TryGetProperty("media.name", out JsonElement mn) ? mn.GetString() : null;
+            if (mediaName is not null && mediaName.StartsWith("Simultaneous output", StringComparison.Ordinal)) continue;
 
-                string? mediaName = props.TryGetProperty("media.name", out JsonElement mn) ? mn.GetString() : null;
-                if (mediaName is not null && mediaName.StartsWith("Simultaneous output", StringComparison.Ordinal)) continue;
-
-                // object.serial is what PulseAudio exposes as the sink-input
-                // id, and pactl move-sink-input addresses streams by that, not
-                // by the PipeWire node id.
-                int serial = props.TryGetProperty("object.serial", out JsonElement os) &&
-                             os.TryGetInt32(out int sv) ? sv : o.GetProperty("id").GetInt32();
-                // A binary replaced on disk while running (updates) reports
-                // as "name (deleted)"; strip it or the app splits identities.
-                JsonElement client = default;
-                if (props.TryGetProperty("client.id", out JsonElement owner) && owner.ValueKind == JsonValueKind.Number &&
-                    owner.TryGetInt32(out int ownerId))
-                    clients.TryGetValue(ownerId, out client);
-                string? AppProperty(string key) => Str(props, key) ?? Str(client, key);
-                string? binary = AppProperty("application.process.binary");
-                if (binary is not null && binary.EndsWith(" (deleted)", StringComparison.Ordinal))
-                    binary = binary[..^10];
-                found.Add(new AudioStream(
-                    o.GetProperty("id").GetInt32(),
-                    AppProperty("application.name"),
-                    binary,
-                    Str(props, "media.name")) { Serial = serial });
-            }
+            // object.serial is what PulseAudio exposes as the sink-input
+            // id, and pactl move-sink-input addresses streams by that, not
+            // by the PipeWire node id.
+            int serial = props.TryGetProperty("object.serial", out JsonElement os) &&
+                         os.TryGetInt32(out int sv) ? sv : o.GetProperty("id").GetInt32();
+            // A binary replaced on disk while running (updates) reports
+            // as "name (deleted)"; strip it or the app splits identities.
+            JsonElement client = default;
+            if (props.TryGetProperty("client.id", out JsonElement owner) && owner.ValueKind == JsonValueKind.Number &&
+                owner.TryGetInt32(out int ownerId))
+                clients.TryGetValue(ownerId, out client);
+            string? AppProperty(string key) => Str(props, key) ?? Str(client, key);
+            string? binary = AppProperty("application.process.binary");
+            if (binary is not null && binary.EndsWith(" (deleted)", StringComparison.Ordinal))
+                binary = binary[..^10];
+            found.Add(new AudioStream(
+                o.GetProperty("id").GetInt32(),
+                AppProperty("application.name"),
+                binary,
+                Str(props, "media.name")) { Serial = serial });
         }
         return found;
 

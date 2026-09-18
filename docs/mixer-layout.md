@@ -115,6 +115,9 @@ To use a different source or pair, create a new capture channel and remove the o
 
 Disconnected sources retain their exact binding and faders. They reconnect
 when that node and pair return, without falling back to another microphone.
+Both sides of the channel must connect before the input reports connected.
+If only one link succeeds, it is removed and the next sweep retries the
+whole connection, including the two links used for a mono source.
 Multiple interfaces can therefore supply audio simultaneously, independently
 of the interface selected for hardware controls. Hardware controls and the
 built-in input DSP still belong to the selected Wave interface. Capture inputs

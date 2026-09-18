@@ -194,7 +194,7 @@ public sealed class PipeWireAdapter
     }
 
     /// <summary>Load a null sink; returns its module id for later unload.</summary>
-    public uint CreateNullSink(string nodeName, string description)
+    public uint CreateNullSink(string nodeName, string description, bool visible = true)
     {
         // suspend-on-idle must be off: an idle channel sink would otherwise be
         // suspended by PipeWire and drop the first moment of audio (or all of it)
@@ -209,7 +209,8 @@ public sealed class PipeWireAdapter
             // node.virtual=false: KDE's audio applet hides virtual devices,
             // and these are devices the user assigns applications to.
             "sink_properties=" + PropList($"node.description={PropValue(description)}" +
-            " node.suspend-on-idle=false priority.session=100 node.virtual=false"));
+            " node.suspend-on-idle=false " + (visible ? "priority.session=100 node.virtual=false" :
+                "priority.session=0 node.virtual=true node.hidden=true")));
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;
@@ -274,6 +275,9 @@ public sealed class PipeWireAdapter
         Run("pactl", "unload-module", id.ToString());
         _modules.Remove(id);
     }
+
+    /// <summary>An owned node disappeared externally; its old module id is no longer ours.</summary>
+    internal void ForgetModule(uint id) => _modules.Remove(id);
 
     /// <summary>A "sink#suffix" pseudo-device address without its suffix.</summary>
     private static string BareSink(string sinkName)
@@ -1205,6 +1209,7 @@ public sealed class PipeWireAdapter
 
             string? name = props.TryGetProperty("node.name", out JsonElement n) ? n.GetString() : null;
             if (name is null) continue;
+            if (name.StartsWith("OpenXLR_route_", StringComparison.Ordinal)) continue;
             string mc = props.TryGetProperty("media.class", out JsonElement m) ? m.GetString() ?? "" : "";
 
             bool isSink = mc == "Audio/Sink";

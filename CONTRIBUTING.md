@@ -62,6 +62,8 @@ ClipGuard with recorded test audio, low cut and a native LSP gate, run
 `OPENXLR_TEST_DSP=1 python3 tools/test-monitor-volume.py` after a native-enabled
 build, with swh-plugins and LSP LV2 plugins installed. The runner isolates
 plugin scans from user-installed CLAP and VST3 bundles.
+For a focused rerun on the same private server, set `OPENXLR_TEST_FILTER` to
+the desired `dotnet test` filter instead of passing a second `--filter`.
 
 Application routing tests run the normal mixer sweep while waiting for the
 destination to settle. PipeWire's move acknowledgement can arrive before

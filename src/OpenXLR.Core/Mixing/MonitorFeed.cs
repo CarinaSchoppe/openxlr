@@ -1,7 +1,7 @@
 namespace OpenXLR.Core.Mixing;
 
 /// <summary>
-/// What feeds a monitor output: one monitor mix id, or several joined with
+/// What feeds a monitor output: any mix id, or several joined with
 /// '+' ("monitor+monitor2" is Monitor A and Monitor B summed into the same
 /// output, so one pair of headphones can carry the desktop from A and a
 /// separately processed microphone from B). The state, profiles and the

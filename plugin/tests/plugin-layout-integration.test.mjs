@@ -44,6 +44,13 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
     assert.ok(update.payload.levelGroups.flatMap(g => g.items).some(item => item.label === "Renamed Desktop in Monitor B"));
     host.receive({event:"keyDown",context:"feed-key"});
     assert.deepEqual(daemon.messages.at(-1), {cmd:"setMonitorFeed",device:"qa-output",mix:"monitor+monitor2"});
+    state.mixer.mixes.push({id:"stream",name:"Stream",kind:"virtualMic"}, {id:"auxout",name:"Aux",kind:"auxPort"});
+    for (const [current, next] of [["monitor+monitor2", "stream"], ["stream", "auxout"], ["auxout", "monitor"], ["deleted", "monitor"], ["", "monitor"]]) {
+      state.mixer.monitorFeeds["qa-output"] = current;
+      daemon.receive(state);
+      host.receive({event:"keyDown",context:"feed-key"});
+      assert.deepEqual(daemon.messages.at(-1), {cmd:"setMonitorFeed",device:"qa-output",mix:next});
+    }
     host.receive({event:"propertyInspectorDidDisappear",context:"qa"});
     const count = host.messages.filter(m => m.event === "sendToPropertyInspector").length;
     state.mixer.channels[0].name = "Another name";

@@ -161,6 +161,9 @@ public partial class MainWindow : Window
     private void OnEditLayout(object? sender, RoutedEventArgs e)
         => new MixerSetupWindow { DataContext = _vm }.ShowDialog(this);
 
+    private void OnOutputMatrix(object? sender, RoutedEventArgs e)
+        => new OutputMatrixWindow { DataContext = _vm }.ShowDialog(this);
+
     private void OnAbout(object? sender, RoutedEventArgs e)
         => new AboutWindow().ShowDialog(this);
 

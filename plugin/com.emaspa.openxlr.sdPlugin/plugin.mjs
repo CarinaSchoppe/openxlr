@@ -462,13 +462,21 @@ function toggleValue(target, inst) {
   return dev()?.[target] ?? null;
 }
 
-// An output's feed as the daemon stores it: one monitor mix id, or ids
+// An output's feed as the daemon stores it: any mix id, or ids
 // joined with '+' when the output hears them summed.
 const feedOf = (sink) => mixer()?.monitorFeeds?.[sink] ?? "monitor";
 const FEED_LETTER = { monitor: "A", monitor2: "B" };
-const feedLetters = (feed) => feed.split("+").map((id) => FEED_LETTER[id] ?? id).join("+");
-// The feed key cycles A, B, A+B.
-const nextFeed = (feed) => feed === "monitor" ? "monitor2" : feed === "monitor2" ? "monitor+monitor2" : "monitor";
+const feedLetters = (feed) => feed.split("+").map((id) => FEED_LETTER[id] ?? mixName(mixer(), id)).join("+");
+const feedLabel = (feed) => feed === "" ? "Silent" : feed.split("+").every(id => Object.hasOwn(FEED_LETTER, id))
+  ? `Monitor ${feedLetters(feed)}` : feed.split("+").map(id => mixName(mixer(), id)).join(" + ");
+// Keep A, B, A+B first, then include every other live mix.
+const nextFeed = (feed) => {
+  const mixes = mixer()?.mixes ?? [];
+  const monitors = mixes.filter(m => (m.kind ?? "monitor") === "monitor").map(m => m.id);
+  const choices = [...monitors, ...(monitors.length > 1 ? [monitors.join("+")] : []),
+    ...mixes.filter(m => (m.kind ?? "monitor") !== "monitor").map(m => m.id)];
+  return choices.length ? choices[(choices.indexOf(feed) + 1) % choices.length] : "monitor";
+};
 
 function toggleLabel(target, inst) {
   if (!target) return "OpenXLR";
@@ -497,13 +505,13 @@ function toggleLabel(target, inst) {
     const d = daemonState?.devices?.find((x) => x.name === sink);
     const name = d?.description ?? sink.split(".").pop();
     // The output follows Monitor A unless its feed was switched.
-    return `Monitor ${feedLetters(feedOf(sink))}\n${name}`;
+    return `${feedLabel(feedOf(sink))}\n${name}`;
   }
   if (target.startsWith("feed:")) {
     const sink = target.slice(5);
     const d = daemonState?.devices?.find((x) => x.name === sink);
     const name = d?.description ?? sink.split(".").pop();
-    return `${name}\nMonitor ${feedLetters(feedOf(sink))}`;
+    return `${name}\n${feedLabel(feedOf(sink))}`;
   }
   if (target.startsWith("mixmute:")) return `${mixName(mixer(), target.slice(8))}\nMute`;
   if (target.startsWith("sendmute:")) {

@@ -68,6 +68,9 @@ error. Ordinary fader saves keep their debounced, retried behaviour.
   restart hint.
 - `deleteMix {mix}` removes the virtual microphone, its sends, inserts and
   capture device. Anything recording from it loses the device.
+  Outputs listening to that mix keep the other mixes in their feed, or return
+  to the first monitor mix if none remain. Feed changes are part of the saved
+  deletion and roll back with it when saving fails.
 - `setLayoutOrder {channels, mixes}` reorders the editable ids. Supply every
   application-channel id and every virtual-microphone id exactly once;
   hardware inputs, Monitor A/B and Aux keep their positions. No node changes.
@@ -117,3 +120,25 @@ of the interface selected for hardware controls. Hardware controls and the
 built-in input DSP still belong to the selected Wave interface. Capture inputs
 can feed mix insert chains; per-input insert hosting remains limited to the
 existing XLR channels.
+
+## Output routes
+
+`monitorFeeds` records the mixes included in each selected output. The output
+matrix can store an empty string for a deliberately silent output; it stays
+silent across recalls and unrelated mix deletion. Deleting its last included
+mix retains the existing fallback to the primary monitor mix.
+
+`outputRoutes` stores gain exceptions as `{device, mix, level}` entries. A
+selected feed absent from this list uses 100%. Levels are positive and at
+most 1; zero is represented by removing the mix from `monitorFeeds`.
+The state, mixer settings and profile scenes carry this list. Shared Pro
+jack routes use the canonical `device#bus` key. Removing an output or mix
+removes its gains; a failed mix-deletion save restores them. A legacy scene
+that recalls output selection or feeds without gains uses unity gains.
+
+`setOutputRoute` changes one route. Fader saves retain the normal debounced
+and retried persistence behaviour. A route below unity uses a hidden
+PipeWire gain sink, created muted before it is connected. Unity routes use
+direct links until they need a gain node. Existing gain nodes update in
+place, and unrelated outputs keep their links. Gain-node creation checks
+pipewire-pulse's open-file headroom and adds no helper process per route.

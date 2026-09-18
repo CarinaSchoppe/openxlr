@@ -77,6 +77,67 @@ public sealed class DesktopKeysTests
     }
 
     [Theory]
+    [InlineData("disable", null)]
+    [InlineData("disable", "old command failed")]
+    [InlineData("close", null)]
+    [InlineData("close", "old command failed")]
+    [InlineData("replace", null)]
+    [InlineData("replace", "old command failed")]
+    public async Task LateCommandRepliesCannotReplaceTheCurrentSessionStatus(string transition, string? error)
+    {
+        await using var environment = await PrivateBus.Start();
+        using var desktop = new DBusConnection(environment.Address);
+        await desktop.ConnectAsync();
+        await desktop.RequestNameAsync(DesktopBus.Portal);
+        var fake = new DesktopBackend(new DesktopBus(desktop));
+        desktop.AddMethodHandler(fake);
+        var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int commands = 0;
+        await using var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            while (!stop.IsCancellationRequested)
+            {
+                var command = await SocketTestServer.Receive(socket, stop);
+                if (command["cmd"]!.GetValue<string>() != "routeFocusedApp") continue;
+                bool first = Interlocked.Increment(ref commands) == 1;
+                arrived.TrySetResult();
+                await release.Task.WaitAsync(stop);
+                await SocketTestServer.Send(socket, new { type = "commandResult",
+                    requestId = command["requestId"]!.GetValue<string>(), error = first ? error : null }, stop);
+            }
+        });
+        await using var client = new DaemonClient(server.Url);
+        var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.ConnectionChanged += up => { if (up) connected.TrySetResult(); };
+        client.Start();
+        await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        using var keys = new DesktopKeys(client);
+        var enabled = new DesktopKeySettings { Enabled = true, FocusChannels = ["music"] };
+        await keys.ConfigureAsync(enabled, save: false);
+        fake.Activate("focus_music");
+        await arrived.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        if (transition == "close")
+        {
+            fake.CloseSession();
+            await Wait(() => keys.Status.StartsWith("Shortcut session closed", StringComparison.Ordinal));
+        }
+        else await keys.ConfigureAsync(transition == "replace" ? enabled : new DesktopKeySettings(), save: false);
+        string status = keys.Status;
+        release.TrySetResult();
+        // Wait for the handler itself to finish, not merely for the server to
+        // send its reply, so a delayed UI continuation cannot escape the check.
+        var invoking = typeof(DesktopKeys).GetField("_invoking", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        await Wait(() => (int)invoking.GetValue(keys)! == 0);
+        Assert.Equal(status, keys.Status);
+        await keys.ConfigureAsync(enabled, save: false);
+        string active = keys.Status;
+        fake.Activate("focus_music");
+        await Wait(() => Volatile.Read(ref commands) == 2 && keys.Status != active);
+        Assert.DoesNotContain("failed", keys.Status);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task AbandonedMethodCallsCloseTheConnectionAndReleasePendingReplies(bool cancelled)

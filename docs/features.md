@@ -343,3 +343,10 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   plugin scan failure. Enable it, Rescan, collect diagnostics, then disable
   it. Scans get much slower and produce large logs. The switch takes effect
   without a daemon restart and is not saved across restarts
+
+### Desktop routing keys
+
+Focused-application routing is available from OpenDeck Toggle keys and PC
+global shortcuts. The latter use the desktop GlobalShortcuts portal, including
+on Wayland. Focus identity currently comes from KDE Plasma's KWin; ambiguous
+or unavailable process identities are refused instead of guessed.

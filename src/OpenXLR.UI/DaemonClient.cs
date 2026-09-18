@@ -352,6 +352,8 @@ public sealed class DaemonClient : IAsyncDisposable
 
     public Task<string?> CreateCaptureChannelAsync(string name, string source, int pair)
         => EditLayoutAsync(new() { ["cmd"] = "createCaptureChannel", ["name"] = name, ["source"] = source, ["capturePair"] = pair });
+    public Task<string?> RouteFocusedAppAsync(string channel)
+        => EditLayoutAsync(new() { ["cmd"] = "routeFocusedApp", ["channel"] = channel });
     public Task<string?> CreateChannelAsync(string name)
         => EditLayoutAsync(new() { ["cmd"] = "createChannel", ["name"] = name });
     public Task<string?> RenameChannelAsync(string channel, string name)

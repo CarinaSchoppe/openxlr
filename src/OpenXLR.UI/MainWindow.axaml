@@ -190,6 +190,7 @@
                   IsEnabled="{Binding DaemonRestart.CanRestart}" Click="OnRestartDaemon"
                   ToolTip.Tip="Restart the OpenXLR user service. Audio will be interrupted briefly."/>
           <TextBlock Name="HeaderVersion" Text="v0.0.0" Classes="h" VerticalAlignment="Center"/>
+          <Button Content="Desktop keys" Padding="10,3" FontSize="{DynamicResource Ox.Label.FontSize}" Classes="ghost" Click="OnDesktopKeys"/>
           <Button Content="About" Padding="10,3" FontSize="12" Classes="ghost"
                   Click="OnAbout"/>
         </StackPanel>

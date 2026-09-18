@@ -126,3 +126,9 @@ Capture channels use the same command endpoint:
 The source must be present. Success is returned after the layout is saved.
 State channel entries expose `captureSource`, `capturePair` and `captureConnected`;
 a disconnected source retains its binding and reconnects when it returns.
+
+`{"cmd":"routeFocusedApp","channel":"music"}` uses the same focused-application
+routing as PC and OpenDeck keys. Enable **Desktop keys** in the running window.
+KDE Plasma supplies the focused process; GLib's `gdbus` must be installed.
+An unavailable desktop service, absent audio client or ambiguous identity
+returns the normal command error response and does not select a guessed app.

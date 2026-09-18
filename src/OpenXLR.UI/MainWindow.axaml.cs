@@ -15,6 +15,7 @@ public partial class MainWindow : Window
 {
     private readonly DaemonClient _client;
     private readonly MainViewModel _vm;
+    private readonly DesktopKeys _desktopKeys;
     private TrayIcon? _tray;
     private bool _reallyExit;
     private bool _hideToTrayPending;
@@ -32,6 +33,8 @@ public partial class MainWindow : Window
         _client = client;
         InitializeComponent();
         _vm = new MainViewModel(_client);
+        _desktopKeys = new DesktopKeys(_client);
+        _ = _desktopKeys.StartAsync();
         DataContext = _vm;
         _client.Start();          // connects, and keeps retrying if the daemon isn't up yet
         HeaderVersion.Text = $"v{AppVersion.Current}";
@@ -87,6 +90,7 @@ public partial class MainWindow : Window
             _hideToTrayPending = false;
             _lifetime.Cancel();
             _tray?.Dispose();
+            _desktopKeys.Dispose();
             await _client.DisposeAsync();
             _lifetime.Dispose();
             // A window that started hidden is not the lifetime's MainWindow,
@@ -144,6 +148,9 @@ public partial class MainWindow : Window
             _tray = null;
         }
     }
+
+    private async void OnDesktopKeys(object? sender, RoutedEventArgs e)
+        => await new DesktopKeysWindow(_desktopKeys, _vm).ShowDialog(this);
 
     private void OnOptions(object? sender, RoutedEventArgs e)
         => new OptionsWindow(new OptionsViewModel(_client, _vm)).ShowDialog(this);

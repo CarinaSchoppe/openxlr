@@ -39,6 +39,11 @@ export function layoutChoices(mixer) {
     label: "Mix mutes",
     items: mixes.map((mix) => option(`mixmute:${mix.id}`, `${mix.name} mix mute`)),
   }];
+  toggleGroups.push({
+    id: "layout-focus", label: "Route focused application",
+    items: channels.filter((channel) => !channel.hardware && !channel.captureSource)
+      .map((channel) => option(`focus:${channel.id}`, `Focused app to ${channel.name}`)),
+  });
   for (const mix of mixes) toggleGroups.push({
     id: `layout-send-mutes-${mix.id}`,
     label: `Send mutes: ${mix.name}`,

@@ -144,6 +144,8 @@ public sealed record AudioStream(int Id, string? AppName, string? Binary, string
 {
     /// <summary>PulseAudio sink-input id (PipeWire object.serial); used to move it.</summary>
     public int Serial { get; init; }
+    /// <summary>Owning application process, when the live PipeWire client supplies it.</summary>
+    public int ProcessId { get; init; }
 
     /// <summary>
     /// Stable-ish key for remembering a per-app choice. Prefers the binary, but

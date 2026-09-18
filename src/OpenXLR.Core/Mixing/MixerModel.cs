@@ -103,13 +103,18 @@ public sealed record ChannelDefinition(string Id, string Name)
 
     /// <summary>
     /// Capture channel pair of the hardware interface feeding this channel
-    /// (0 = first stereo pair), or null for an application channel. On the Wave
+    /// (0 = first stereo pair), or null for a user channel. On the Wave
     /// XLR Pro's 6-channel source: pair 0 = XLR 1, pair 1 = XLR 2, pair 2 =
     /// Line In.
     /// </summary>
     public int? InputPair { get; init; }
 
-    /// <summary>PipeWire node name of the sink applications play into.</summary>
+    /// <summary>Explicit capture node name for a user input, independent of the active Wave interface.</summary>
+    public string? CaptureSource { get; init; }
+    public int CapturePair { get; init; }
+    public bool IsApplication => InputPair is null && CaptureSource is null;
+
+    /// <summary>PipeWire node name of the channel sink.</summary>
     public string SinkName => $"OpenXLR_ch_{Id}";
 }
 
@@ -130,6 +135,9 @@ public sealed record MixerState
     /// here is fed by the first monitor mix.
     /// </summary>
     public IReadOnlyDictionary<string, string> MonitorFeeds { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>Per-route gain exceptions; unlisted selected feeds use unity.</summary>
+    public IReadOnlyList<OutputRouteLevel> OutputRoutes { get; init; } = [];
 
     /// <summary>Volume of the selected output device (0..1.5), or null.</summary>
     public double? OutputVolume { get; init; }
@@ -180,7 +188,7 @@ public sealed record MixStatus(string Id, string Name, double Volume, bool Muted
 public sealed record ChannelStatus(string Id, string Name,
     IReadOnlyDictionary<string, double> Levels,
     IReadOnlyList<string> MutedIn,
-    bool Hardware = false);
+    bool Hardware = false, string? CaptureSource = null, int CapturePair = 0, bool CaptureConnected = false);
 
 
 /// <summary>

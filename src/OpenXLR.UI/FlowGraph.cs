@@ -36,6 +36,9 @@ internal sealed record FlowGraph(IReadOnlyList<FlowNode> Nodes, IReadOnlyList<Fl
                 {
                     "xlr1" => "XLR 1 jack", "xlr2" => "XLR 2 jack", _ => "Line In / USB Aux",
                 }, "Hardware", FlowIcon.Microphone, true));
+            if (channel.CaptureSource is { } capture)
+                sources.Add(($"capture:{channel.Id}", capture, channel.CaptureLabel,
+                    FlowIcon.Microphone, channel.CaptureConnected));
             sources.AddRange(vm.ActiveApps.Where(a => a.ChannelId == channel.Id)
                 .Select(a => ($"app:{a.Identity}", a.Label, a.Active ? "Software" : a.StatusText,
                     FlowIcon.Application, a.Active)));
@@ -54,7 +57,7 @@ internal sealed record FlowGraph(IReadOnlyList<FlowNode> Nodes, IReadOnlyList<Fl
                 processing = string.Join("\n", stages);
             }
             var node = new FlowNode($"ch:{channel.Id}", channel.Name,
-                channel.IsHardware ? "Hardware channel" : "Application channel",
+                channel.IsHardware ? "Hardware channel" : channel.IsApplication ? "Application channel" : "Capture channel",
                 FlowStage.Channel, FlowIcon.Channel, y, Processing: processing);
             double laneHeight = Math.Max(node.Height, sources.Count * (58 + Gap) - Gap);
             node = node with { Y = y + (laneHeight - node.Height) / 2 };

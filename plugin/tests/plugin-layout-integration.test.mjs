@@ -34,6 +34,13 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
     host.receive({event:"sendToPlugin",context:"qa",payload:{request:"layout"}});
     assert.ok(host.messages.at(-1).payload.levelGroups.flatMap(g => g.items)
       .some(item => item.target === "send:system:monitor2"));
+    host.receive({event:"willAppear",context:"focus-key",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"focus:system"}}});
+    host.receive({event:"keyDown",context:"focus-key"});
+    const focus = daemon.messages.at(-1);
+    assert.deepEqual({...focus, requestId:undefined}, {cmd:"routeFocusedApp",channel:"system",requestId:undefined});
+    assert.equal(typeof focus.requestId, "string");
+    daemon.receive({type:"commandResult",requestId:focus.requestId,error:"ambiguous application"});
+    assert.ok(host.messages.some(m => m.event === "showAlert" && m.context === "focus-key"));
     host.receive({event:"willAppear",context:"feed-key",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"feed:qa-output"}}});
     host.receive({event:"keyDown",context:"feed-key"});
     assert.deepEqual(daemon.messages.at(-1), {cmd:"setMonitorFeed",device:"qa-output",mix:"monitor2"});
@@ -44,11 +51,38 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
     assert.ok(update.payload.levelGroups.flatMap(g => g.items).some(item => item.label === "Renamed Desktop in Monitor B"));
     host.receive({event:"keyDown",context:"feed-key"});
     assert.deepEqual(daemon.messages.at(-1), {cmd:"setMonitorFeed",device:"qa-output",mix:"monitor+monitor2"});
+    state.mixer.mixes.push({id:"stream",name:"Stream",kind:"virtualMic"}, {id:"auxout",name:"Aux",kind:"auxPort"});
+    for (const [current, next] of [["monitor+monitor2", "stream"], ["stream", "auxout"], ["auxout", "monitor"], ["deleted", "monitor"], ["", "monitor"]]) {
+      state.mixer.monitorFeeds["qa-output"] = current;
+      daemon.receive(state);
+      host.receive({event:"keyDown",context:"feed-key"});
+      assert.deepEqual(daemon.messages.at(-1), {cmd:"setMonitorFeed",device:"qa-output",mix:next});
+    }
     host.receive({event:"propertyInspectorDidDisappear",context:"qa"});
     const count = host.messages.filter(m => m.event === "sendToPropertyInspector").length;
     state.mixer.channels[0].name = "Another name";
     daemon.receive(state);
     assert.equal(host.messages.filter(m => m.event === "sendToPropertyInspector").length, count);
+
+    for (const [target, expected] of [
+      ["outputup:", {cmd:"adjustOutputVolume",device:null,value:.05}],
+      ["outputdown:qa-output", {cmd:"adjustOutputVolume",device:"qa-output",value:-.05}],
+      ["outputmute:qa-output", {cmd:"toggleOutputMute",device:"qa-output"}],
+      ["mainoutput:qa-output", {cmd:"setMainOutput",device:"qa-output"}],
+      ["mainoutput:@monitor", {cmd:"setMainOutput",device:"@monitor"}],
+    ]) {
+      host.receive({event:"willAppear",context:"output-key",action:"com.emaspa.openxlr.toggle",payload:{settings:{target}}});
+      host.receive({event:"keyDown",context:"output-key"});
+      const {requestId, ...payload} = daemon.messages.at(-1);
+      assert.deepEqual(payload, expected);
+      daemon.receive({type:"commandResult",requestId});
+      assert.ok(host.messages.some(m => m.event === "showOk" && m.context === "output-key"));
+    }
+    host.receive({event:"willAppear",context:"missing-output",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"outputmute:gone"}}});
+    const beforeMissing = daemon.messages.length;
+    host.receive({event:"keyDown",context:"missing-output"});
+    assert.equal(daemon.messages.length, beforeMissing);
+    assert.ok(host.messages.some(m => m.event === "showAlert" && m.context === "missing-output"));
 
     // A desktop boost must not jump back to 100% on the first dial tick.
     state.mixer.mixes = [

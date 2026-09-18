@@ -50,7 +50,7 @@ public sealed partial record MixerConfig
     {
         if (!Channels.Any(c => c.Id == id && c.InputPair is null))
             throw new InvalidOperationException($"'{id}' is not an application channel");
-        if (Channels.Count(c => c.InputPair is null) == 1)
+        if (Channels.First(c => c.Id == id).IsApplication && Channels.Count(c => c.IsApplication) == 1)
             throw new InvalidOperationException("the last application channel cannot be deleted");
         return this with { Channels = [.. Channels.Where(c => c.Id != id)] };
     }
@@ -115,8 +115,8 @@ public sealed partial record MixerConfig
     /// <summary>Keep obsolete app rules out of hardware inputs after a layout change.</summary>
     public string ResolveApplicationChannel(string requested)
         => requested == StreamMatcher.Ignore ? requested
-            : (Channels.FirstOrDefault(c => c.InputPair is null && c.Id == requested)
-                ?? Channels.FirstOrDefault(c => c.InputPair is null))?.Id ?? StreamMatcher.Ignore;
+            : (Channels.FirstOrDefault(c => c.IsApplication && c.Id == requested)
+                ?? Channels.FirstOrDefault(c => c.IsApplication))?.Id ?? StreamMatcher.Ignore;
 
     /// <summary>
     /// Restore ordered user nodes without replacing hardware or monitor buses.
@@ -131,9 +131,11 @@ public sealed partial record MixerConfig
         var mixEntries = settings?.UserMixes is null
             ? defaults.Mixes.Where(m => m.Kind == MixKind.VirtualMic).Select(m => ((string?)m.Id, (string?)m.Name))
             : settings.UserMixes.Select(m => (m?.Id, m?.Name));
-        var channelEntries = settings?.UserChannels is null
-            ? defaults.Channels.Where(c => c.InputPair is null).Select(c => ((string?)c.Id, (string?)c.Name))
-            : settings.UserChannels.Select(c => (c?.Id, c?.Name));
+        var userChannels = (settings?.UserChannels ?? defaults.Channels.Where(c => c.IsApplication)
+            .Select(c => new UserChannelDefinition(c.Id, c.Name)).ToList())
+            .Where(c => c is not null && (c.CaptureSource is null ? c.CapturePair == 0
+                : CaptureBinding.IsValid(c.CaptureSource, c.CapturePair))).ToList();
+        var channelEntries = userChannels.Select(c => ((string?)c.Id, (string?)c.Name));
 
         var mixes = structuralMixes.Where(m => m.Kind == MixKind.Monitor).ToList();
         mixes.AddRange(ValidEntries(mixEntries, structuralMixes.Select(m => m.Id), MaxVirtualMixes)
@@ -141,11 +143,28 @@ public sealed partial record MixerConfig
         mixes.AddRange(structuralMixes.Where(m => m.Kind == MixKind.AuxPort));
 
         var apps = ValidEntries(channelEntries, hardware.Select(c => c.Id).Append(StreamMatcher.Ignore), MaxApplicationChannels).ToList();
-        if (apps.Count == 0) apps.Add(("system", "System"));
+        string? fallbackId = null;
+        UserChannelDefinition? SavedChannel((string Id, string Name) entry)
+            => entry.Id == fallbackId ? null : userChannels.FirstOrDefault(c => c.Id == entry.Id && c.Name?.Trim() == entry.Name);
+        if (!apps.Any(c => SavedChannel(c)?.CaptureSource is null))
+        {
+            if (apps.Count == MaxApplicationChannels) apps.RemoveAt(apps.Count - 1);
+            // The synthesized destination is always an application channel.
+            // A truncated capture with the same id and label cannot supply
+            // its binding when the accepted entries are materialized below.
+            fallbackId = NewId("system", "system", apps.Select(c => c.Id));
+            apps.Add((fallbackId, "System"));
+        }
         var channels = hardware.Select(Normalize).ToList();
-        channels.AddRange(apps.Select(c => Normalize(
-            (defaults.Channels.FirstOrDefault(d => d.Id == c.Id) ?? new ChannelDefinition(c.Id, c.Name))
-            with { Name = c.Name })));
+        channels.AddRange(apps.Select(c =>
+        {
+            UserChannelDefinition? saved = SavedChannel(c);
+            return Normalize(saved?.CaptureSource is { } source
+                ? new ChannelDefinition(c.Id, c.Name) { CaptureSource = source, CapturePair = saved.CapturePair,
+                    MutedIn = mixes.Select(m => m.Id).ToHashSet() }
+                : (defaults.Channels.FirstOrDefault(d => d.Id == c.Id) ?? new ChannelDefinition(c.Id, c.Name))
+                    with { Name = c.Name });
+        }));
         return new MixerConfig { Mixes = mixes, Channels = channels };
 
         ChannelDefinition Normalize(ChannelDefinition channel)

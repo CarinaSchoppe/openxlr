@@ -74,6 +74,12 @@ does not reach the speakers until unmuted.
 
 ## Submixer
 
+The output matrix sends any mix to any selected output with an independent
+0 to 100% route level. Profiles recall those sends, and an all-Off row stays
+silent. Outputs sharing a hardware bus have one row and one set of sends.
+Mix inserts remain upstream of the matrix. Internal gain nodes are hidden
+from device pickers and do not require a process for each route.
+
 The **Flow** window shows inputs, channels, mixes and outputs in four columns.
 Click a card to trace its signal path, with colours for each routing stage and
 unrelated routes dimmed. Processing stays inside the channel and mix cards;
@@ -95,9 +101,10 @@ Built from PipeWire nodes, no kernel modules or custom drivers:
   while audio plays, as does the API, with stable ids so profiles and
   Stream Deck keys survive a rename. Every change is saved before it is
   confirmed
-- The monitor mixes can play on several outputs at once, hardware
-  outputs included; each output picks which monitor mix feeds it, or
-  both summed (Monitor A+B), so a headset with a game sink and a chat
+- Any mix can play on several outputs at once, hardware outputs included:
+  Monitor A/B, Stream, Chat, Aux and custom virtual microphones. Outputs
+  pick a mix or a sum (Monitor A+B in the picker, any sum through the API),
+  so a headset with a game sink and a chat
   sink hears two selections, and one pair of headphones can hear the
   desktop from A with a separately processed mic from B
 - Level meters throughout, dB-scaled, pushed at 15 Hz
@@ -119,6 +126,14 @@ send carries the microphone to everything instead.
 Channels appear as playback devices in the desktop's audio applet, and
 the virtual microphones (Stream and Chat by default) as recording
 devices; the hardware input channels are hidden from it.
+
+### External capture channels
+
+Additional microphones, headsets, capture cards and attached Wave interfaces
+can feed independent channels from their PipeWire sources. Select a stereo
+pair in the layout editor, then use the existing mix sends, mutes, meters and
+profiles. Exact source bindings survive hotplug; absent inputs stay silent.
+
 
 ## Inserts
 
@@ -291,6 +306,10 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   and browser pages from other origins are refused; see
   [api.md](api.md). The same commands are served over HTTP at `/api/v1`
   with an OpenAPI document ([http-api.md](http-api.md))
+- Registry discovery uses one persistent PipeWire event subscription and
+  an incremental snapshot, without periodically launching full graph dumps.
+  Disconnects discard stale object ids and reconnect with bounded backoff.
+  The routing and device reconciliation timer remains in place.
 - The daemon rebuilds its graph after a pipewire-pulse restart, and
   refuses to grow the layout when pipewire-pulse has no open-file
   headroom left; the packages raise that limit with a systemd drop-in.
@@ -328,3 +347,15 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   plugin scan failure. Enable it, Rescan, collect diagnostics, then disable
   it. Scans get much slower and produce large logs. The switch takes effect
   without a daemon restart and is not saved across restarts
+
+### Desktop routing keys
+
+Focused-application routing is available from OpenDeck Toggle keys and PC
+global shortcuts. The latter use the desktop GlobalShortcuts portal, including
+on Wayland. Focus identity currently comes from KDE Plasma's KWin; ambiguous
+or unavailable process identities are refused instead of guessed.
+
+PipeWire output volume, mute and enforced system-output selection are available
+from the same PC shortcut session and OpenDeck Toggle keys. Volume steps use
+desktop percentages up to 150%; targets can follow the current default or stay
+bound to a named external output or monitor mix.

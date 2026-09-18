@@ -247,6 +247,29 @@ public sealed class ReliabilityFixesTests
         Assert.Equal(["layout"], written);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("disk full")]
+    public void DisposingAPendingWriterSavesOnceAndCannotScheduleAnotherWrite(string? failure)
+    {
+        int writes = 0;
+        var reported = new List<string?>();
+        var saver = new SettingsSaver(() => { writes++; return failure; }, reported.Add);
+        saver.Schedule();
+        saver.Dispose();
+
+        Assert.True(saver.Closed);
+        Assert.False(saver.Pending);
+        Assert.Equal(failure, saver.Error);
+        Assert.Equal(failure is null ? [] : new[] { failure }, reported);
+        saver.Schedule();
+        saver.Flush();
+        saver.Dispose();
+        Assert.Null(saver.Close(write: true));
+        Assert.Throws<InvalidOperationException>(() => saver.RunSaved(() => writes++));
+        Assert.Equal(1, writes);
+    }
+
     // --- a helper that writes to stderr without newlines ------------------------
 
     [Fact]

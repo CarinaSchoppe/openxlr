@@ -1,10 +1,55 @@
 using System.Text;
 using OpenXLR.Core.Mixing;
+using OpenXLR.Daemon;
 
 namespace OpenXLR.Tests;
 
 public sealed class AppIdentityTests
 {
+    [Theory]
+    [InlineData("music")]
+    [InlineData("ignore")]
+    public void AFullRegistryStillAllowsExistingAppsToChange(string channel)
+    {
+        using var mixer = new Mixer();
+        mixer.Matcher.SetOverride("balatro", "game");
+        for (int i = 1; i < CommandValidation.MaxOverrides; i++) mixer.Matcher.SetOverride($"app{i}", "system");
+        var command = new Command { Cmd = "assignApp", Identity = "BALATRO.exe", Channel = channel };
+        Assert.Null(CommandValidation.Check(command, mixer, _ => null));
+        mixer.AssignApp(command.Identity, channel);
+        Assert.Equal(channel, mixer.Matcher.Overrides["balatro"]);
+        Assert.Equal(CommandValidation.MaxOverrides, mixer.OverrideCount);
+        Assert.Throws<InvalidOperationException>(() => mixer.AssignApp("new-app", channel));
+        Assert.False(mixer.Matcher.Overrides.ContainsKey("new-app"));
+        Assert.DoesNotContain(mixer.ExportSettings().KnownApps, app => app.Identity == "new-app");
+    }
+
+    [Fact]
+    public void ConcurrentAssignmentsCannotOverfillTheRegistry()
+    {
+        using var mixer = new Mixer();
+        for (int i = 1; i < CommandValidation.MaxOverrides; i++) mixer.Matcher.SetOverride($"app{i}", "system");
+        int accepted = 0;
+        Parallel.For(0, 32, i =>
+        {
+            try { mixer.AssignApp($"new{i}", "music"); Interlocked.Increment(ref accepted); }
+            catch (InvalidOperationException) { }
+        });
+        Assert.Equal(1, accepted);
+        Assert.Equal(CommandValidation.MaxOverrides, mixer.OverrideCount);
+    }
+
+    [Fact]
+    public void LegacyAssignmentsAboveTheLimitRemainEditable()
+    {
+        using var mixer = new Mixer();
+        for (int i = 0; i <= CommandValidation.MaxOverrides; i++) mixer.Matcher.SetOverride($"app{i}", "system");
+        Assert.Null(CommandValidation.Check(new Command { Cmd = "assignApp", Identity = "APP0", Channel = "music" }, mixer, _ => null));
+        mixer.AssignApp("APP0", "music");
+        Assert.Equal("music", mixer.Matcher.Overrides["app0"]);
+        Assert.Equal(CommandValidation.MaxOverrides + 1, mixer.OverrideCount);
+    }
+
     // Reduced from the live Balatro graph: the process binary belongs to
     // the client, while the playback node only carries the Windows app name.
     private static byte[] BalatroGraph => Encoding.UTF8.GetBytes("""
@@ -19,6 +64,36 @@ public sealed class AppIdentityTests
           }}}
         ]
         """);
+
+    [Fact]
+    public void OneApplicationSnapshotKeepsClientFallbackAndLaterUpdates()
+    {
+        byte[] json = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(BalatroGraph) + """
+            [{"id":650,"type":"PipeWire:Interface:Client","info":{"props":{
+                "application.name":"Player","application.process.binary":"mpv"
+            }}}]
+            """);
+        var (streams, clients) = PipeWireAdapter.ListApplications(json);
+
+        AudioStream stream = Assert.Single(streams);
+        AudioStream client = Assert.Single(clients);
+        Assert.Equal("mpv", stream.Identity);
+        Assert.Equal("mpv", client.Identity);
+        Assert.Equal("Balatro.exe", stream.AppName); // explicit node name wins over the client
+        Assert.Equal("Player", client.AppName);
+        Assert.Equal(43258, stream.Serial);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("[] {}")]
+    [InlineData("[{\"id\":1")]
+    public void InvalidGraphCannotProduceHalfAnApplicationSnapshot(string json)
+    {
+        var (streams, clients) = PipeWireAdapter.ListApplications(Encoding.UTF8.GetBytes(json));
+        Assert.Empty(streams);
+        Assert.Empty(clients);
+    }
 
     [Fact]
     public void PlaybackAndClientShareOneIdentityAndSavedRoute()

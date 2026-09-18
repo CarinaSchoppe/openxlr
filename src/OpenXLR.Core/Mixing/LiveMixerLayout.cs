@@ -47,6 +47,12 @@ public sealed partial class Mixer
     /// send. Readers cannot observe the channel until the save succeeded.
     /// </summary>
     public void CreateApplicationChannel(string name, Func<MixerSettings, string?> persist)
+        => CreateUserChannel(name, null, 0, persist);
+
+    public void CreateCaptureChannel(string name, string source, int pair, Func<MixerSettings, string?> persist)
+        => CreateUserChannel(name, source, pair, persist);
+
+    private void CreateUserChannel(string name, string? source, int pair, Func<MixerSettings, string?> persist)
     {
         ArgumentNullException.ThrowIfNull(persist);
         name = CleanName(name);
@@ -55,15 +61,20 @@ public sealed partial class Mixer
             if (!_built) throw new InvalidOperationException("mixer is not built");
             if (_config.Channels.Count(c => c.InputPair is null) >= MixerConfig.MaxApplicationChannels)
                 throw new InvalidOperationException("application channel limit reached");
+            if (source is not null && (!CaptureBinding.IsValid(source, pair)
+                || !_pw.ListDevices().Any(d => d.Name == source && d.Kind == AudioNodeKind.Source && !d.IsOwn)))
+                throw new InvalidOperationException("select an available external capture source and a pair from 0 to 31");
             EnsurePulseHeadroomLocked(newStreams: _config.Mixes.Count, newNodes: 2);
             string id = NewChannelId(name, _config.Channels.Select(c => c.Id));
             var channel = new ChannelDefinition(id, name)
             {
+                CaptureSource = source,
+                CapturePair = pair,
                 Levels = _config.Mixes.ToDictionary(m => m.Id, _ => 1.0),
                 MutedIn = _config.Mixes.Select(m => m.Id).ToHashSet(),
             };
             MixerConfig previous = _config;
-            uint module = _pw.CreateCombineSink(channel.SinkName, MixSinkPattern, $"OpenXLR {name}");
+            uint module = _pw.CreateCombineSink(channel.SinkName, MixSinkPattern, $"OpenXLR {name}", visible: channel.IsApplication);
             try
             {
                 _config = _config with { Channels = [.. _config.Channels, channel] };
@@ -78,12 +89,14 @@ public sealed partial class Mixer
                 if (!WaitForLegsLocked([module], _config.Mixes.Select(m => m.SinkName)))
                     throw new InvalidOperationException("the channel's sends did not come up within 3 s; nothing was changed");
                 foreach (MixDefinition mix in _config.Mixes) ApplyCellLocked(id, mix.Id);
+                EnsureCaptureFeedsLocked();
                 PersistLocked(persist);
             }
             catch (Exception editError)
             {
                 _config = previous;
                 _combineModules.Remove(id);
+                RemoveCaptureFeedLocked(id);
                 RemoveChannelCellsLocked(id, previous.Mixes);
                 try { _pw.UnloadModule(module); }
                 catch (Exception cleanupError)
@@ -118,7 +131,9 @@ public sealed partial class Mixer
             try { PersistLocked(persist); }
             catch { _config = previous; throw; }
 
-            ReloadChannelSinkLocked(channel with { Name = name }, channel.Name);
+            // Capture sinks are hidden, so their label can change without
+            // interrupting the source or recreating the combine.
+            if (channel.IsApplication) ReloadChannelSinkLocked(channel with { Name = name }, channel.Name);
         }
     }
 
@@ -136,7 +151,7 @@ public sealed partial class Mixer
             if (!_built) throw new InvalidOperationException("mixer is not built");
             MixerConfig previous = _config;
             MixerConfig next = _config.WithoutChannel(id);
-            ChannelDefinition fallback = next.Channels.First(c => c.InputPair is null);
+            ChannelDefinition fallback = next.Channels.First(c => c.IsApplication);
 
             var movedOverrides = Matcher.Overrides.Where(kv => kv.Value == id).Select(kv => kv.Key).ToList();
             var movedApps = _apps.Where(kv => kv.Value.ChannelId == id).ToDictionary(kv => kv.Key, kv => kv.Value);
@@ -170,6 +185,7 @@ public sealed partial class Mixer
                 catch (InvalidOperationException) { /* the stream ended meanwhile */ }
             }
             _meters.Remove($"ch:{id}");
+            RemoveCaptureFeedLocked(id);
             _inserts.Remove(id);
             _insertErrors.Remove(id);
             if (_combineModules.Remove(id, out uint module))
@@ -286,7 +302,18 @@ public sealed partial class Mixer
             _config = _config.WithoutMix(id);
             _inserts.Remove(key, out List<InsertDefinition>? savedInserts);
             string? previousSource = _enforcedSource;
+            var previousFeeds = new Dictionary<string, string>(_monitorFeeds);
+            var previousRouteLevels = new Dictionary<(string Output, string Mix), double>(_outputRouteLevels);
+            foreach (var route in _outputRouteLevels.Keys.Where(route => route.Mix == id).ToArray())
+                _outputRouteLevels.Remove(route);
             if (_enforcedSource == mix.VirtualMicName) _enforcedSource = null;
+            foreach ((string output, string feed) in previousFeeds)
+            {
+                if (!MonitorFeed.Includes(feed, id)) continue;
+                string remaining = MonitorFeed.Join(MonitorFeed.Parts(feed).Where(part => part != id));
+                if (remaining.Length == 0) _monitorFeeds.Remove(output);
+                else _monitorFeeds[output] = remaining;
+            }
             CellSnapshot cells = TakeMixCellsLocked(id);
             try { PersistLocked(persist); }
             catch
@@ -295,9 +322,15 @@ public sealed partial class Mixer
                 cells.Restore(this);
                 if (savedInserts is not null) _inserts[key] = savedInserts;
                 _enforcedSource = previousSource;
+                _monitorFeeds.Clear();
+                foreach (var (output, feed) in previousFeeds) _monitorFeeds[output] = feed;
+                _outputRouteLevels.Clear();
+                foreach (var pair in previousRouteLevels) _outputRouteLevels[pair.Key] = pair.Value;
                 throw;
             }
 
+            if (previousFeeds.Values.Any(feed => MonitorFeed.Includes(feed, id)))
+                SetMonitorOutputsLocked([.. _monitorOutputs]);
             RemoveMixChainLocked(key);
             _meters.Remove($"mix:{id}");
             var errors = new List<string>();

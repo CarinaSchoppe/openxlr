@@ -27,7 +27,11 @@ HTTP's Bearer header does not replace that WebSocket exchange. Ping, close,
 message deadlines and command budgets remain the same on both socket paths.
 
 Commands use the names and fields in [the WebSocket API](api.md), including
-current Monitor A/B feed commands. Both transports share the dispatcher,
+mix-to-output feed commands, which accept any existing mix or a sum of distinct
+mix ids, and `setOutputRoute` for an individual route's level. For example,
+`{"cmd":"setOutputRoute","device":"alsa_output.headset","mix":"chat","value":0.5}`
+adds a 50% Chat feed to an already selected headset; `value:0` disconnects it.
+Both transports share the dispatcher,
 validation and broadcasts. HTTP returns
 `{"apiVersion":"1","ok":true,"messages":[]}` after a successful mutation.
 Read replies are in `messages`; rejected commands return HTTP 400, `ok:false`
@@ -116,3 +120,24 @@ For `setEnforcedDefaults`, `sink: "@monitor"` follows the first selected
 monitor output as the system playback device. The response state retains
 that value; see [the command contract](api.md) for resolution and volume
 synchronization.
+
+Capture channels use the same command endpoint:
+`{"cmd":"createCaptureChannel","name":"Headset mic","source":"alsa_input.usb-headset","capturePair":0}`.
+The source must be present. Success is returned after the layout is saved.
+State channel entries expose `captureSource`, `capturePair` and `captureConnected`;
+a disconnected source retains its binding and reconnects when it returns.
+
+`{"cmd":"routeFocusedApp","channel":"music"}` uses the same focused-application
+routing as PC and OpenDeck keys. Enable **Desktop keys** in the running window.
+KDE Plasma supplies the focused process; GLib's `gdbus` must be installed.
+An unavailable desktop service, absent audio client or ambiguous identity
+returns the normal command error response and does not select a guessed app.
+
+Output keys use the same authenticated command endpoint:
+`{"cmd":"adjustOutputVolume","value":-0.05}` lowers the current system output
+by five percentage points; an optional `device` binds an exact output name.
+`{"cmd":"toggleOutputMute"}` toggles the current output's mute.
+`{"cmd":"setMainOutput","device":"alsa_output.usb-headset"}` selects and enforces
+that output. `@monitor` follows the selected monitor output. Limits, rejected
+targets and linked-monitor behavior match the [WebSocket contract](api.md).
+These commands require the daemon but do not require a running UI or KDE.

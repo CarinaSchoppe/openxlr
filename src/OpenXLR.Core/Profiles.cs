@@ -25,6 +25,9 @@ public sealed record MixerScene
     public List<string>? MonitorOutputs { get; init; }
     /// <summary>Output name to the monitor mix feeding it; null in profiles saved before Monitor B.</summary>
     public Dictionary<string, string>? MonitorFeeds { get; init; }
+
+    /// <summary>Per-route gain exceptions; null belongs to legacy scenes.</summary>
+    public List<OutputRouteLevel>? OutputRoutes { get; init; }
     public bool AuxPortEnabled { get; init; }
     public double? OutputVolume { get; init; }
     /// <summary>Software low cut (0, 80, or 120 Hz); absent in older profiles.</summary>
@@ -83,8 +86,12 @@ public static class ProfileStore
             string proDir = Dir("0fd9:00b4");
             foreach (string f in Directory.EnumerateFiles(Root, "*.json"))
             {
-                OpenXlrPaths.EnsurePrivateDir(proDir);
-                File.Move(f, Path.Combine(proDir, Path.GetFileName(f)), overwrite: false);
+                try
+                {
+                    OpenXlrPaths.EnsurePrivateDir(proDir);
+                    File.Move(f, Path.Combine(proDir, Path.GetFileName(f)), overwrite: false);
+                }
+                catch (IOException) { /* keep this original and migrate the remaining profiles */ }
             }
         }
         catch (IOException) { /* leave stragglers for the next run */ }

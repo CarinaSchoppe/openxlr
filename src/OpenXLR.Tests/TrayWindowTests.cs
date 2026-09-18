@@ -48,6 +48,7 @@ public sealed class TrayWindowTests
                 Environment.SetEnvironmentVariable("XDG_RUNTIME_DIR", config);
                 new UiSettings { MinimizeToTray = true }.Save();
                 AppBuilder.Configure<App>().UseSkia().UseHarfBuzz().UseX11().SetupWithoutStarting();
+                MeterBurstsApplyOnlyTheNewestFrame();
                 window = NewWindow();
                 window.ShowMixer();
                 bool closed = false;
@@ -143,6 +144,38 @@ public sealed class TrayWindowTests
     /// developer's running daemon never takes part in the test.
     /// </summary>
     private static MainWindow NewWindow() => new(new DaemonClient("ws://127.0.0.1:1/ws"));
+
+    private static void MeterBurstsApplyOnlyTheNewestFrame()
+    {
+        var client = new DaemonClient("ws://127.0.0.1:1/ws");
+        try
+        {
+            var model = new MainViewModel(client);
+            var channel = new ChannelViewModel(client, "music", "Music", []);
+            model.Channels.Add(channel);
+            int applied = 0;
+            channel.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(channel.MeterL)) applied++; };
+            var receive = (Action<System.Text.Json.Nodes.JsonNode>)typeof(DaemonClient)
+                .GetField("MetersReceived", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .GetValue(client)!;
+            // The dispatcher is deliberately not pumped while frames arrive,
+            // as when a native dialog or a slow layout occupies the UI thread.
+            for (int i = 0; i < 1000; i++)
+                receive(System.Text.Json.Nodes.JsonNode.Parse(i % 2 == 0
+                    ? "{\"ch:music\":[0.25,0.25]}" : "{\"ch:music\":[0.75,0.75]}")!);
+            Assert.Equal(0, applied);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(1, applied);
+            Assert.Equal(0.75, channel.MeterL);
+            Assert.Equal(0.75, channel.MeterR);
+
+            receive(System.Text.Json.Nodes.JsonNode.Parse("{\"ch:music\":[0.5,0.5]}")!);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(2, applied);
+            Assert.Equal(0.5, channel.MeterL);
+        }
+        finally { client.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+    }
 
     // WindowState is not asserted here: with no window manager under Xvfb the
     // property reads back Normal whatever it is set to, so a minimize and a

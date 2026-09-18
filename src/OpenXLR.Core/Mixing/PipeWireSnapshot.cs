@@ -47,14 +47,23 @@ internal static class PipeWireSnapshot
             throw new JsonException("Expected a PipeWire object array.");
         foreach (JsonElement item in batch.EnumerateArray())
         {
-            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("id", out JsonElement key)
-                || key.ValueKind != JsonValueKind.Number || !key.TryGetUInt32(out uint id))
-                throw new JsonException("PipeWire update has no valid registry id.");
-            if (item.TryGetProperty("info", out JsonElement info) && info.ValueKind == JsonValueKind.Null
-                || item.TryGetProperty("props", out JsonElement props) && props.ValueKind == JsonValueKind.Null)
+            uint id = RegistryId(item);
+            if (IsRemoval(item))
                 objects.Remove(id);
             else
                 objects[id] = item.Clone();
         }
     }
+
+    internal static uint RegistryId(JsonElement item)
+    {
+        if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("id", out JsonElement key)
+            || key.ValueKind != JsonValueKind.Number || !key.TryGetUInt32(out uint id))
+            throw new JsonException("PipeWire update has no valid registry id.");
+        return id;
+    }
+
+    internal static bool IsRemoval(JsonElement item)
+        => item.TryGetProperty("info", out JsonElement info) && info.ValueKind == JsonValueKind.Null
+            || item.TryGetProperty("props", out JsonElement props) && props.ValueKind == JsonValueKind.Null;
 }

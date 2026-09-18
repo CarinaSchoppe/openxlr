@@ -31,7 +31,7 @@ public abstract class ViewModelBase : INotifyPropertyChanged
 /// sends user changes back. A guard flag suppresses echo: while applying a push
 /// we must not re-send the values we just received.
 /// </summary>
-public sealed class MainViewModel : ViewModelBase
+public sealed partial class MainViewModel : ViewModelBase
 {
     public DaemonRestartViewModel DaemonRestart { get; } = new();
     public UpdatesViewModel Updates { get; } = new();
@@ -60,7 +60,8 @@ public sealed class MainViewModel : ViewModelBase
         });
         _client.ErrorReceived += msg => Dispatcher.UIThread.Post(() => Status = msg);
         _client.NativeEditorRulesChanged += () => Dispatcher.UIThread.Post(() => InsertsViewModel.ReloadAll?.Invoke());
-        _client.MetersReceived += levels => Dispatcher.UIThread.Post(() => ApplyMeters(levels));
+        var meters = new MeterUpdates(action => Dispatcher.UIThread.Post(action), ApplyMeters);
+        _client.MetersReceived += meters.Publish;
         InsertsViewModel.ReloadAll = () =>
         {
             InsertsViewModel.ForgetCatalogue();
@@ -550,6 +551,8 @@ public sealed class MainViewModel : ViewModelBase
 
     // --- layout editing: the daemon answers after the new layout is saved ---
 
+    public Task<string?> CreateCaptureChannel(string name, string source, int pair)
+        => Edit(_client.CreateCaptureChannelAsync(name, source, pair));
     public Task<string?> CreateChannel(string name) => Edit(_client.CreateChannelAsync(name));
     public Task<string?> RenameChannel(string id, string name) => Edit(_client.RenameChannelAsync(id, name));
     public Task<string?> DeleteChannel(string id) => Edit(_client.DeleteChannelAsync(id));
@@ -841,21 +844,21 @@ public sealed class MainViewModel : ViewModelBase
                 .Where(n => n is not null).Select(n => n!) ?? []);
         foreach (MonitorOutputItem item in MonitorOutputs) item.Sync(current.Contains(item.Name));
 
-        // Every monitor mix is a possible feed for an output; the first one is
-        // the default for outputs the daemon lists no exception for.
-        var monitorMixes = (mixer?["mixes"] as JsonArray)?
-            .Where(m => m is not null && (m["kind"]?.GetValue<string>() ?? "monitor") == "monitor")
-            .Select(m => new MixOption(m!["id"]!.GetValue<string>(), m["name"]?.GetValue<string>() ?? m["id"]!.GetValue<string>()))
-            .ToList() ?? [];
+        var allMixes = (mixer?["mixes"] as JsonArray)?.Where(m => m is not null).ToList() ?? [];
+        var monitorMixes = allMixes.Where(m => (m!["kind"]?.GetValue<string>() ?? "monitor") == "monitor")
+            .Select(m => new MixOption(m!["id"]!.GetValue<string>(), m["name"]?.GetValue<string>() ?? m["id"]!.GetValue<string>())).ToList();
         // With two or more monitor mixes an output can also hear them all,
         // summed: "Monitor A+B" for headphones that want the desktop from A
         // and a separately processed mic from B.
         if (monitorMixes.Count > 1)
             monitorMixes.Add(new MixOption(string.Join("+", monitorMixes.Select(m => m.Id)), SummedName(monitorMixes.Select(m => m.Name))));
+        monitorMixes.AddRange(allMixes.Where(m => (m!["kind"]?.GetValue<string>() ?? "monitor") != "monitor")
+            .Select(m => new MixOption(m!["id"]!.GetValue<string>(), m["name"]?.GetValue<string>() ?? m["id"]!.GetValue<string>())));
         var feeds = mixer?["monitorFeeds"] as JsonObject;
         string primaryMonitor = monitorMixes.FirstOrDefault()?.Id ?? "monitor";
         foreach (MonitorOutputItem item in MonitorOutputs)
             item.SyncFeed(monitorMixes, feeds?[item.Name]?.GetValue<string>() ?? primaryMonitor);
+        SyncOutputMatrix(mixer);
         Raise(nameof(MonitorSummary));
     }
 
@@ -919,47 +922,56 @@ public sealed class MainViewModel : ViewModelBase
 
     private void ApplyStreams(JsonNode? mixer)
     {
-        if (mixer?["streams"] is not JsonArray arr) { Apps.Clear(); return; }
-        var fresh = new List<(string Identity, string Label, string Channel, bool Active, bool Running)>();
-        foreach (JsonNode? s in arr)
+        if (mixer?["streams"] is not JsonArray arr)
         {
-            if (s is null) continue;
-            fresh.Add((s["identity"]?.GetValue<string>() ?? "?",
-                       s["label"]?.GetValue<string>() ?? "?",
-                       s["channelId"]?.GetValue<string>() ?? "",
-                       s["active"]?.GetValue<bool>() ?? true,
-                       s["running"]?.GetValue<bool>() ?? true));
+            Apps.Clear();
+            ActiveApps.Clear();
+            Raise(nameof(HasApps));
+            return;
         }
         // Apps route to application channels only; "not managed" leaves them to the desktop.
-        List<ChannelChoice> choices = [.. Channels.Where(c => c.IsEditable).Select(c => new ChannelChoice(c.Id, c.Name)),
+        List<ChannelChoice> choices = [.. Channels.Where(c => c.IsApplication).Select(c => new ChannelChoice(c.Id, c.Name)),
             new ChannelChoice(AppStreamViewModel.Ignore, "Not managed")];
         // Update in place so an open dropdown is not closed by a state push.
-        foreach (var f in fresh)
+        var byIdentity = Apps.ToDictionary(a => a.Identity, StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (JsonNode? stream in arr)
         {
-            AppStreamViewModel? existing = Apps.FirstOrDefault(a =>
-                string.Equals(a.Identity, f.Identity, StringComparison.OrdinalIgnoreCase));
-            if (existing is null)
-                Apps.Add(new AppStreamViewModel(_client, f.Identity, f.Label, choices)
-                    { ChannelId = f.Channel, Active = f.Active, Running = f.Running });
+            if (stream is null) continue;
+            string identity = stream["identity"]?.GetValue<string>() ?? "?";
+            string label = stream["label"]?.GetValue<string>() ?? "?";
+            string channel = stream["channelId"]?.GetValue<string>() ?? "";
+            bool active = stream["active"]?.GetValue<bool>() ?? true;
+            bool running = stream["running"]?.GetValue<bool>() ?? true;
+            seen.Add(identity);
+            if (!byIdentity.TryGetValue(identity, out AppStreamViewModel? existing))
+            {
+                existing = new AppStreamViewModel(_client, identity, label, choices);
+                // Initial state is a daemon update too, not a user routing edit.
+                existing.ApplyFromDaemon(channel, active, running);
+                byIdentity.Add(identity, existing);
+                Apps.Add(existing);
+            }
             else
             {
                 existing.SyncChannels(choices);
-                existing.ApplyFromDaemon(f.Channel, f.Active, f.Running, f.Label);
+                existing.ApplyFromDaemon(channel, active, running, label);
             }
         }
         for (int i = Apps.Count - 1; i >= 0; i--)
-            if (!fresh.Any(f => string.Equals(f.Identity, Apps[i].Identity, StringComparison.OrdinalIgnoreCase))) Apps.RemoveAt(i);
+            if (!seen.Contains(Apps[i].Identity)) Apps.RemoveAt(i);
 
         // Maintain the running-apps view without disturbing open dropdowns.
+        var listed = new HashSet<AppStreamViewModel>(ActiveApps);
+        var wanted = new HashSet<AppStreamViewModel>();
         foreach (AppStreamViewModel a in Apps)
         {
-            bool listed = ActiveApps.Contains(a);
-            bool wanted = a.Active || a.Running;
-            if (wanted && !listed) ActiveApps.Add(a);
-            else if (!wanted && listed) ActiveApps.Remove(a);
+            if (!a.Active && !a.Running) continue;
+            wanted.Add(a);
+            if (listed.Add(a)) ActiveApps.Add(a);
         }
         for (int i = ActiveApps.Count - 1; i >= 0; i--)
-            if (!Apps.Contains(ActiveApps[i])) ActiveApps.RemoveAt(i);
+            if (!wanted.Contains(ActiveApps[i])) ActiveApps.RemoveAt(i);
         Raise(nameof(HasApps));
     }
 
@@ -979,6 +991,8 @@ public sealed class MainViewModel : ViewModelBase
         SoftClipGuard = mixer["softClipGuard"]?.GetValue<bool>() ?? false;
         Inserts.Apply(mixer["inserts"]?["xlr1"]);
         Inserts2.Apply(mixer["inserts"]?["xlr2"]);
+        bool auxAudible = mixer["monitorFeeds"] is JsonObject monitorFeeds && monitorFeeds.Any(
+            feed => (feed.Value?.GetValue<string>() ?? "").Split('+').Contains("auxout"));
 
         if (mixer["mixes"] is JsonArray mixes)
         {
@@ -988,11 +1002,14 @@ public sealed class MainViewModel : ViewModelBase
                     { Kind = m["kind"]?.GetValue<string>() ?? "monitor" });
             bool auxOn = mixer["auxPortEnabled"]?.GetValue<bool>() ?? true;
             foreach (MixViewModel mv in Mixes.Where(mv => mv.IsAuxPort)) mv.ApplyAuxPort(auxOn);
-            // The Aux mix only exists to feed the device's USB Aux port; hide
-            // it on hardware without that port (its send rows follow below,
-            // once the channels have synced).
+            // Aux can feed a selected output even without a USB Aux port.
+            // Hide its unused controls on other hardware; send rows follow
+            // the same rule below, once the channels have synced.
             foreach (MixViewModel mv in Mixes.Where(mv => mv.IsAuxPort))
-                mv.Visible = !DeviceConnected || CapOutputRouting;
+            {
+                mv.AuxPortAvailable = !DeviceConnected || CapOutputRouting;
+                mv.Visible = mv.AuxPortAvailable || auxAudible;
+            }
 
             foreach (MixViewModel mv in Mixes)
             {
@@ -1022,25 +1039,40 @@ public sealed class MainViewModel : ViewModelBase
                     _ => true,
                 };
                 foreach (SendViewModel send in c.Sends.Where(s => s.MixId == "auxout"))
-                    send.Visible = !DeviceConnected || CapOutputRouting;
+                    send.Visible = !DeviceConnected || CapOutputRouting || auxAudible;
             }
         }
     }
 
-    /// <summary>Update in place by id so bindings survive; add/remove as needed.</summary>
+    /// <summary>Follow daemon order while retaining existing objects and their bindings.</summary>
     private static void SyncList<T>(ObservableCollection<T> target, JsonArray source,
         Func<JsonNode, string> idOf, Action<JsonNode, T> update, Func<JsonNode, T> create)
         where T : class, IHasId
     {
         var seen = new HashSet<string>();
+        int position = 0;
         foreach (JsonNode? item in source)
         {
             if (item is null) continue;
             string id = idOf(item);
-            seen.Add(id);
-            T? existing = target.FirstOrDefault(x => x.Id == id);
-            if (existing is null) { T made = create(item); update(item, made); target.Add(made); }
-            else update(item, existing);
+            if (!seen.Add(id)) continue;
+            // State pushes normally keep the order, so avoid a list search
+            // for every control on every refresh.
+            T? existing = position < target.Count && target[position].Id == id
+                ? target[position] : target.FirstOrDefault(x => x.Id == id);
+            if (existing is null)
+            {
+                T made = create(item);
+                update(item, made);
+                target.Insert(position, made);
+            }
+            else
+            {
+                update(item, existing);
+                if (!ReferenceEquals(target[position], existing))
+                    target.Move(target.IndexOf(existing), position);
+            }
+            position++;
         }
         for (int i = target.Count - 1; i >= 0; i--)
             if (!seen.Contains(target[i].Id)) target.RemoveAt(i);
@@ -1181,11 +1213,11 @@ public sealed class MonitorOutputItem : ViewModelBase
     public string Name { get; }
     public string Label { get; }
 
-    /// <summary>The monitor mixes this output can be fed by.</summary>
+    /// <summary>The mixes this output can be fed by.</summary>
     public ObservableCollection<MixOption> Feeds { get; } = [];
 
     private MixOption? _feed;
-    /// <summary>The monitor mix feeding this output; picking one tells the daemon.</summary>
+    /// <summary>The mix feeding this output; picking one tells the daemon.</summary>
     public MixOption? Feed
     {
         get => _feed;
@@ -1202,7 +1234,16 @@ public sealed class MonitorOutputItem : ViewModelBase
         _syncing = true;
         try
         {
-            if (!options.Select(o => o.Id).SequenceEqual(Feeds.Select(f => f.Id)))
+            // Preserve an API-selected sum in the picker without offering
+            // every possible combination of the layout's mixes.
+            if (!options.Any(o => o.Id == mixId))
+            {
+                if (mixId.Length == 0) options = [.. options, new MixOption("", "Silent")];
+                string[] ids = mixId.Split('+');
+                if (ids.Length > 1 && ids.All(id => options.Any(o => o.Id == id)))
+                    options = [.. options, new MixOption(mixId, string.Join(" + ", ids.Select(id => options.First(o => o.Id == id).Name)))];
+            }
+            if (!options.Select(o => (o.Id, o.Name)).SequenceEqual(Feeds.Select(f => (f.Id, f.Name))))
             {
                 Feeds.Clear();
                 foreach (MixOption o in options) Feeds.Add(o);
@@ -1285,6 +1326,14 @@ public sealed class MixViewModel : ViewModelBase, IHasId
     /// <summary>Only the Aux mix carries the port toggle.</summary>
     public bool IsAuxPort => Id == "auxout";
 
+    private bool _auxPortAvailable = true;
+    public bool AuxPortAvailable
+    {
+        get => _auxPortAvailable;
+        set { if (Set(ref _auxPortAvailable, value)) Raise(nameof(ShowAuxPortToggle)); }
+    }
+    public bool ShowAuxPortToggle => IsAuxPort && AuxPortAvailable;
+
     private bool _auxPortEnabled = true;
     public bool AuxPortEnabled
     {
@@ -1337,18 +1386,35 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
 
     private bool _isHardware;
     /// <summary>A hardware input (XLR 1, XLR 2, Aux In): structural, not editable.</summary>
-    public bool IsHardware { get => _isHardware; set { if (Set(ref _isHardware, value)) Raise(nameof(IsEditable)); } }
+    public bool IsHardware { get => _isHardware; set { if (Set(ref _isHardware, value)) { Raise(nameof(IsEditable)); Raise(nameof(IsApplication)); } } }
     public bool IsEditable => !IsHardware;
+    private string? _captureSource;
+    public string? CaptureSource { get => _captureSource; set { if (Set(ref _captureSource, value)) Raise(nameof(IsApplication)); } }
+    public bool IsApplication => !IsHardware && CaptureSource is null;
+    public bool CaptureConnected { get; private set; }
+    private string _captureLabel = "";
+    public string CaptureLabel { get => _captureLabel; set => Set(ref _captureLabel, value); }
 
     public ObservableCollection<SendViewModel> Sends { get; } = [];
 
-    /// <summary>Keep one send per mix as mixes come and go.</summary>
+    /// <summary>Keep existing send controls in the current mix order.</summary>
     public void SyncSends(IReadOnlyList<string> mixIds)
     {
+        var wanted = new HashSet<string>(mixIds);
         for (int i = Sends.Count - 1; i >= 0; i--)
-            if (!mixIds.Contains(Sends[i].MixId)) Sends.RemoveAt(i);
+            if (!wanted.Contains(Sends[i].MixId)) Sends.RemoveAt(i);
+        int position = 0;
         foreach (string mixId in mixIds)
-            if (Sends.All(s => s.MixId != mixId)) Sends.Add(new SendViewModel(_client, Id, mixId));
+        {
+            if (!wanted.Remove(mixId)) continue;
+            if (position >= Sends.Count || Sends[position].MixId != mixId)
+            {
+                SendViewModel? existing = Sends.FirstOrDefault(s => s.MixId == mixId);
+                if (existing is null) Sends.Insert(position, new SendViewModel(_client, Id, mixId));
+                else Sends.Move(Sends.IndexOf(existing), position);
+            }
+            position++;
+        }
     }
 
     private bool _visible = true;
@@ -1363,6 +1429,9 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
     {
         if (n["name"]?.GetValue<string>() is { Length: > 0 } name) Name = name;
         IsHardware = n["hardware"]?.GetValue<bool>() ?? false;
+        CaptureSource = n["captureSource"]?.GetValue<string>();
+        CaptureConnected = n["captureConnected"]?.GetValue<bool>() ?? false;
+        CaptureLabel = CaptureSource is null ? "" : $"{(CaptureConnected ? "Connected" : "Offline")} · pair {(n["capturePair"]?.GetValue<int>() ?? 0) + 1}";
         var muted = new HashSet<string>();
         if (n["mutedIn"] is JsonArray arr)
             foreach (JsonNode? m in arr) if (m is not null) muted.Add(m.GetValue<string>());
@@ -1452,6 +1521,12 @@ internal static class SliderSync
     private static DispatcherTimer? _timer;
 
     public static void Touch(string key) => Touched[key] = Environment.TickCount64;
+
+    public static void Forget(string key)
+    {
+        Pending.Remove(key);
+        Touched.Remove(key);
+    }
 
     public static bool RecentlyTouched(string key)
         => Touched.TryGetValue(key, out long t) && Environment.TickCount64 - t < 800;

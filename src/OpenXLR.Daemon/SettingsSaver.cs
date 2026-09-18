@@ -116,18 +116,33 @@ internal sealed class SettingsSaver : IDisposable
         lock (_gate)
         {
             _debounce?.Change(Timeout.Infinite, Timeout.Infinite);
-            string? error = write && !_closed ? _write() : null;
+            bool save = write && !_closed;
             _dirty = false;
             _closed = true;
-            return error;
+            return save ? _write() : null;
         }
     }
 
     public void Dispose()
     {
-        Timer? debounce;
-        lock (_gate) debounce = _debounce;
-        debounce?.Dispose();
-        Flush();
+        string? error;
+        bool changed;
+        lock (_gate)
+        {
+            _debounce?.Dispose();
+            _debounce = null;
+            if (_closed) return;
+            // Disposal is also a final save when hosted-service shutdown did
+            // not call Close. A failed save must not leave a retry or allow a
+            // later caller to export settings from a torn-down mixer.
+            error = Close(write: _dirty);
+            changed = error != _error;
+            _error = error;
+        }
+        if (changed)
+        {
+            _report(error);
+            _changed?.Invoke();
+        }
     }
 }

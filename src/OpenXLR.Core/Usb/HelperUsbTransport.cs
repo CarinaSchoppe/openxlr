@@ -116,25 +116,30 @@ public sealed class HelperUsbTransport : IUsbTransport
     private byte[] Exchange(byte[] request, TimeSpan deadline, Func<Exception> onTimeout)
     {
         Process p = _helper ?? throw new InvalidOperationException("USB helper not running");
+        Task<byte[]?> exchange = Task.Run(() =>
+        {
+            // A helper stuck before reading can fill stdin too. One deadline
+            // covers sending the request as well as receiving the reply.
+            UsbHelperProtocol.WriteFrame(p.StandardInput.BaseStream, request);
+            return UsbHelperProtocol.ReadFrame(p.StandardOutput.BaseStream);
+        });
+        byte[]? reply;
         try
         {
-            UsbHelperProtocol.WriteFrame(p.StandardInput.BaseStream, request);
+            if (!exchange.Wait(deadline))
+            {
+                Kill();
+                _ = exchange.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                throw onTimeout();
+            }
+            reply = exchange.Result;
         }
-        catch (IOException ex)
+        catch (AggregateException ex)
         {
+            // Wait itself propagates a failed read or write, before Result.
             Kill();
-            throw new IOException($"USB helper is gone: {ex.Message}", ex);
+            throw new IOException($"USB helper exchange failed: {ex.InnerException?.Message}", ex.InnerException);
         }
-        Task<byte[]?> read = Task.Run(() => UsbHelperProtocol.ReadFrame(p.StandardOutput.BaseStream));
-        if (!read.Wait(deadline))
-        {
-            Kill();
-            _ = read.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
-            throw onTimeout();
-        }
-        byte[]? reply;
-        try { reply = read.Result; }
-        catch (AggregateException ex) { Kill(); throw new IOException($"USB helper read failed: {ex.InnerException?.Message}", ex.InnerException); }
         if (reply is null || reply.Length < 4)
         {
             Kill();

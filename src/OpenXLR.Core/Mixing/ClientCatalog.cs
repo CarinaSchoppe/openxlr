@@ -13,12 +13,12 @@ namespace OpenXLR.Core.Mixing;
 public static class ClientCatalog
 {
     // What was last built, against the catalogue it was built from. A merge
-    // costs a comparison per plugin per format and a client may ask as often
+    // indexes the plugin names per format and a client may ask as often
     // as its command budget allows, so the answer is kept; it is kept only as
     // long as that catalogue is, so a rescan drops it with the plugins in it.
     private sealed class Sent
     {
-        public string? Key;
+        public HashSet<(string Kind, string Plugin)>? Used;
         public IReadOnlyList<PluginInfo> List = [];
     }
 
@@ -36,10 +36,9 @@ public static class ClientCatalog
         IEnumerable<(string Kind, string Plugin)> inUse)
     {
         HashSet<(string Kind, string Plugin)> used = [.. inUse];
-        string key = string.Join('\n', used.Select(u => u.Kind + ' ' + u.Plugin).Order(StringComparer.Ordinal));
         Sent sent = Recent.GetValue(all, _ => new Sent());
         lock (Gate)
-            if (sent.Key == key) return sent.List;
+            if (sent.Used is not null && sent.Used.SetEquals(used)) return sent.List;
         // LV2 first, then each other format in the order it was scanned in.
         IReadOnlyList<PluginInfo>[] others = [.. all.Where(p => p.Kind != "lv2")
             .GroupBy(p => p.Kind, StringComparer.Ordinal)
@@ -47,7 +46,7 @@ public static class ClientCatalog
         List<PluginInfo> list = Merge(used, [.. all.Where(p => p.Kind == "lv2")], others);
         lock (Gate)
         {
-            sent.Key = key;
+            sent.Used = used;
             sent.List = list;
         }
         return list;
@@ -94,9 +93,9 @@ public static class ClientCatalog
             kept.AddRange(format.Where(pinned.Contains));
             // Distinct plugins first, smallest first, then the copies with
             // whatever room is left; the first that does not fit ends it.
-            var listed = kept.ToList();
+            var listed = new PluginNames(kept);
             foreach (PluginInfo p in format.Where(p => !pinned.Contains(p))
-                .OrderBy(p => listed.Any(k => SamePlugin(k, p))).ThenBy(Lv2Catalog.Footprint))
+                .OrderBy(listed.Contains).ThenBy(Lv2Catalog.Footprint))
             {
                 long size = Lv2Catalog.Footprint(p);
                 if (used + size > Lv2Catalog.CatalogBudgetBytes) break;
@@ -108,16 +107,54 @@ public static class ClientCatalog
     }
 
     /// <summary>
-    /// The same plugin in another format: the same width, and a name that is
-    /// the same or the same behind a vendor prefix, as "LSP Compressor Mono"
-    /// and "Compressor Mono" are.
+    /// Index names once per format, rather than normalizing both names for
+    /// every pair of plugins. A match has the same input/output widths and
+    /// either the same name or a name preceded by a vendor prefix.
     /// </summary>
-    internal static bool SamePlugin(PluginInfo a, PluginInfo b)
+    internal sealed class PluginNames
     {
-        if (a.AudioIns != b.AudioIns || a.AudioOuts != b.AudioOuts) return false;
-        string x = Simplified(a.Name), y = Simplified(b.Name);
-        if (x.Length == 0 || y.Length == 0) return false;
-        return x == y || x.EndsWith(" " + y, StringComparison.Ordinal) || y.EndsWith(" " + x, StringComparison.Ordinal);
+        private readonly HashSet<(int Ins, int Outs, string Name)> _whole = [];
+        private readonly HashSet<(int Ins, int Outs, string Name)> _suffixes = [];
+
+        public PluginNames(IEnumerable<PluginInfo> plugins)
+        {
+            foreach (PluginInfo plugin in plugins)
+            {
+                string name = Simplified(plugin.Name);
+                if (name.Length == 0 || !_whole.Add((plugin.AudioIns, plugin.AudioOuts, name))) continue;
+                foreach (string suffix in Suffixes(name)) _suffixes.Add((plugin.AudioIns, plugin.AudioOuts, suffix));
+            }
+        }
+
+        public bool Contains(PluginInfo plugin)
+        {
+            string name = Simplified(plugin.Name);
+            if (name.Length == 0) return false;
+            // Native metadata need not obey LV2's display-text limit. Keep
+            // exact matching for long names without storing quadratically
+            // many characters in their suffixes.
+            if (name.Length > Lv2Catalog.MaxText)
+                return _whole.Any(key => key.Ins == plugin.AudioIns && key.Outs == plugin.AudioOuts
+                    && (HasSuffix(key.Name, name) || HasSuffix(name, key.Name)));
+            if (_suffixes.Contains((plugin.AudioIns, plugin.AudioOuts, name))) return true;
+            foreach (string suffix in Suffixes(name))
+                if (_whole.Contains((plugin.AudioIns, plugin.AudioOuts, suffix))) return true;
+            return false;
+        }
+
+        // Include the whole name and every suffix starting at a word boundary.
+        // Comparing suffixes to suffixes would wrongly equate different vendors
+        // whose full names merely share a final word.
+        private static IEnumerable<string> Suffixes(string name)
+        {
+            if (name.Length <= Lv2Catalog.MaxText) yield return name;
+            for (int space = name.IndexOf(' '); space >= 0; space = name.IndexOf(' ', space + 1))
+                if (name.Length - space - 1 <= Lv2Catalog.MaxText) yield return name[(space + 1)..];
+        }
+
+        private static bool HasSuffix(string whole, string suffix)
+            => whole == suffix || (whole.Length > suffix.Length && whole[whole.Length - suffix.Length - 1] == ' '
+                && whole.EndsWith(suffix, StringComparison.Ordinal));
     }
 
     private static string Simplified(string name)

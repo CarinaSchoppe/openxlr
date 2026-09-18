@@ -209,6 +209,32 @@ public sealed class WindowLayoutTests
                     page.Offset = default;
                 }
 
+                var matrixRow = new OutputMatrixRow("headset", new DaemonClient()) { Label = "Headphones with a long output name" };
+                matrixRow.Sync(vm.Mixes, _ => .5);
+                vm.OutputMatrix.Add(matrixRow);
+                var matrix = new OutputMatrixWindow { DataContext = vm };
+                windows.Add(matrix);
+                matrix.Show();
+                foreach (double width in new[] { 600d, 1000, 1800 })
+                {
+                    Layout(matrix, width, 550);
+                    var scroll = matrix.GetVisualDescendants().OfType<ScrollViewer>().First();
+                    AssertInside(scroll, matrix);
+                    Assert.True(scroll.Extent.Width > 1000);
+                    var routeCards = matrix.GetVisualDescendants().OfType<Border>()
+                        .Where(border => border.DataContext is OutputRouteViewModel && border.Width == 160).ToArray();
+                    Assert.Equal(8, routeCards.Length);
+                    AssertNoOverlap(routeCards);
+                    foreach (Border card in routeCards)
+                        foreach (Control child in card.GetVisualDescendants().OfType<Control>()
+                            .Where(control => control is Slider or TextBlock)) AssertInside(child, card);
+                    Capture(matrix, "output-matrix-" + width);
+                }
+                var matrixSlider = matrix.GetVisualDescendants().OfType<Slider>().First();
+                matrixSlider.Value = .37;
+                Assert.Equal(.37, matrixRow.Routes[0].Level);
+                matrix.Close();
+
                 var insert = vm.Inserts.Items[0];
                 var controls = new InsertControlsWindow { DataContext = insert };
                 windows.Add(controls);
@@ -268,6 +294,49 @@ public sealed class WindowLayoutTests
                     }
                 }
                 Capture(chain, "chain-440");
+
+                vm.Inputs.Add(new AudioDeviceItem("test_source", "Second microphone", false));
+                vm.Inputs.Add(new AudioDeviceItem("OpenXLR_stream", "Own mix", true));
+                var setup = new MixerSetupWindow { DataContext = vm };
+                windows.Add(setup);
+                setup.Show();
+                Layout(setup, 600, 640);
+                typeof(MixerSetupWindow).GetMethod("OnAddCapture", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(setup, [null, new Avalonia.Interactivity.RoutedEventArgs()]);
+                Dispatcher.UIThread.RunJobs();
+                var captureDialog = Assert.Single(setup.OwnedWindows);
+                windows.Add(captureDialog);
+                Layout(captureDialog, 360, 340);
+                var sourcePicker = captureDialog.GetVisualDescendants().OfType<ComboBox>().Single(c => c.Name == "CaptureSource");
+                Assert.Single(sourcePicker.Items);
+                Assert.Equal("test_source", ((AudioDeviceItem)sourcePicker.Items[0]!).Name);
+                var pairPicker = captureDialog.GetVisualDescendants().OfType<ComboBox>().Single(c => c.Name == "CapturePair");
+                Assert.Equal(32, pairPicker.Items.Count);
+                Assert.Equal(0, pairPicker.SelectedIndex);
+                var addCapture = captureDialog.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "CreateCapture");
+                addCapture.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                Assert.True(captureDialog.IsVisible); // incomplete input cannot submit
+                Capture(captureDialog, "capture-input-360");
+                captureDialog.Close();
+                setup.Close();
+
+                for (int i = 0; i < 32; i++) vm.Channels.Add(new ChannelViewModel(new DaemonClient(), "key-channel" + i, "Shortcut channel " + i, []));
+                vm.Outputs.Add(new AudioDeviceItem("long-output", "Very long headphone and speaker output description for narrow desktop windows", false));
+                using var keys = new DesktopKeys(new DaemonClient());
+                var keyWindow = new DesktopKeysWindow(keys, vm);
+                windows.Add(keyWindow);
+                keyWindow.Show();
+                Layout(keyWindow, 360, 340);
+                var keyScroll = Assert.Single(keyWindow.GetVisualDescendants().OfType<ScrollViewer>(), v => v.Content is StackPanel);
+                Assert.True(keyScroll.Extent.Height > keyScroll.Viewport.Height);
+                Capture(keyWindow, "desktop-keys-360");
+                keyScroll.Offset = new Vector(0, keyScroll.Extent.Height);
+                Layout(keyWindow, 360, 340);
+                Assert.True(keyScroll.Extent.Width <= keyScroll.Viewport.Width + 1);
+                Assert.Contains(keyWindow.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "Current system default output");
+                Assert.DoesNotContain(keyWindow.GetVisualDescendants().OfType<TextBlock>(), t => t.Text?.StartsWith("AudioDeviceItem {") == true);
+                Capture(keyWindow, "desktop-output-keys-360");
+                keyWindow.Close();
 
                 new UiSettings { StartMinimized = true, MinimizeToTray = true }.Save();
                 var optionsVm = new OptionsViewModel(new DaemonClient(), vm);
@@ -450,6 +519,7 @@ public sealed class WindowLayoutTests
                     AssertInside(list, folders);
                     Capture(folders, "plugin-folders-" + width);
                 }
+                AssertLiveLayoutOrder(main, vm);
             }
             catch (Exception ex) { failure = ex; }
             finally
@@ -465,6 +535,29 @@ public sealed class WindowLayoutTests
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(45)), "Window layout hung.");
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    private static void AssertLiveLayoutOrder(MainWindow main, MainViewModel model)
+    {
+        LiveLayoutOrderTests.Apply(model, ["game", "music"], ["monitor", "stream", "chat"]);
+        Layout(main, 1040, 900);
+        LiveLayoutOrderTests.Apply(model, ["music", "game"], ["monitor", "chat", "stream"]);
+        Layout(main, 1040, 900);
+        var channels = main.GetVisualDescendants().OfType<Border>()
+            .Where(b => b.DataContext is ChannelViewModel && b.Width == 132)
+            .OrderBy(b => b.TranslatePoint(default, main)!.Value.X).ToArray();
+        Assert.Equal(["music", "game"], channels.Select(b => ((ChannelViewModel)b.DataContext!).Id));
+        foreach (var channel in channels)
+        {
+            var sliders = channel.GetVisualDescendants().OfType<Slider>()
+                .OrderBy(s => s.TranslatePoint(default, channel)!.Value.Y).ToArray();
+            Assert.Equal(["monitor", "chat", "stream"], sliders.Select(s => ((SendViewModel)s.DataContext!).MixId));
+        }
+        var mixes = main.GetVisualDescendants().OfType<Border>()
+            .Where(b => b.DataContext is MixViewModel && b.Width == 232)
+            .OrderBy(b => b.TranslatePoint(default, main)!.Value.Y)
+            .ThenBy(b => b.TranslatePoint(default, main)!.Value.X).ToArray();
+        Assert.Equal(["monitor", "chat", "stream"], mixes.Select(b => ((MixViewModel)b.DataContext!).Id));
     }
 
     private static void AddInsert(InsertsViewModel owner)

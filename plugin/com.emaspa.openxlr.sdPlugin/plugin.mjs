@@ -4,7 +4,8 @@
 // and dials stay in sync with the UI (and with the hardware) for free.
 
 import process from "node:process";
-import { channelName, mixName, mixShortName, layoutChoices } from "./layout-choices.mjs";
+import { randomUUID } from "node:crypto";
+import { channelName, mixName, mixShortName, layoutChoices, controllableOutputs, outputKey } from "./layout-choices.mjs";
 import fs from "node:fs";
 import os from "node:os";
 
@@ -40,7 +41,7 @@ let daemon = null;
 const layoutInspectors = new Set();
 let lastLayout = "";
 function publishLayout() {
-  const choices = layoutChoices(daemonState?.mixer);
+  const choices = layoutChoices(daemonState?.mixer, daemonState?.devices);
   const serialized = JSON.stringify(choices);
   if (serialized === lastLayout) return;
   lastLayout = serialized;
@@ -54,6 +55,25 @@ let catalog = new Map();  // LV2 plugin URI -> PluginInfo (names and ranges of t
 let reconnectTimer = null;
 let reconnectDelayMs = 500;
 let connectionGeneration = 0;
+const pendingKeys = new Map();
+
+function finishKey(requestId, failed) {
+  const pending = pendingKeys.get(requestId);
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  pendingKeys.delete(requestId);
+  send({event: failed ? "showAlert" : "showOk", context: pending.context});
+}
+
+function keyCommand(context, payload) {
+  if (pendingKeys.size >= 64) { send({event:"showAlert", context}); return; }
+  if ([...pendingKeys.values()].some(p => p.context === context)) return;
+  const requestId = randomUUID();
+  const timer = setTimeout(() => finishKey(requestId, true), 8000);
+  timer.unref();
+  pendingKeys.set(requestId, {context, timer});
+  if (!cmd({...payload, requestId})) finishKey(requestId, true);
+}
 
 function scheduleDaemonReconnect(generation) {
   if (generation !== connectionGeneration || reconnectTimer) return;
@@ -95,11 +115,13 @@ function connectDaemon() {
       catalog = new Map((m.plugins ?? []).map((p) => [p.plugin, p]));
       refreshAll();
     }
+    else if (m.type === "commandResult") finishKey(m.requestId, !!m.error);
     else if (m.type === "error") console.error("OpenXLR daemon:", m.message);
   };
   socket.onclose = (e) => {
     if (daemon !== socket) return;
     if (e && e.code === 1008) console.error("OpenXLR daemon refused the plugin:", e.reason);
+    for (const id of pendingKeys.keys()) finishKey(id, true);
     daemonUp = false; daemonState = null; refreshAll();
     scheduleDaemonReconnect(generation);
   };
@@ -314,7 +336,7 @@ host.onmessage = (e) => {
       if (m.payload?.request === "layout") {
         layoutInspectors.add(m.context);
         send({ event: "sendToPropertyInspector", context: m.context,
-               payload: layoutChoices(daemonState?.mixer) });
+               payload: layoutChoices(daemonState?.mixer, daemonState?.devices) });
       }
       else if (m.payload?.request === "outputs")
         send({ event: "sendToPropertyInspector", context: m.context,
@@ -382,6 +404,14 @@ function deviceTargetSupported(target) {
 // need the key's saved meta for id fallback, so they take the instance.
 function toggleValue(target, inst) {
   if (!target) return null;
+  const output = outputKey(target);
+  if (output) {
+    if (!mixer()) return null;
+    if (output.kind === "main" && output.device === "@monitor")
+      return mixer().monitorOutputs?.length ? mixer().enforcedDefaultSink === "@monitor" : null;
+    if (output.device && !controllableOutputs(mixer(), daemonState?.devices).some(d => d.name === output.device)) return null;
+    return output.kind === "main" ? mixer().enforcedDefaultSink === output.device : false;
+  }
   if (target.startsWith("insert|")) {
     const [, ch, id] = target.split("|");
     const ins = resolveInsert(ch, id, metaOf(inst, target));
@@ -407,6 +437,10 @@ function toggleValue(target, inst) {
   // and leave the deck face out of sync with the audible graph.
   if (target === "softClipGuard")
     return mixer()?.softClipGuardAvailable === true ? mixer()?.softClipGuard ?? false : null;
+  if (target.startsWith("focus:")) {
+    const channel = chOf(target.slice(6));
+    return channel && !channel.hardware && !channel.captureSource ? false : null;
+  }
   if (target.startsWith("monitor:")) {
     const outs = mixer()?.monitorOutputs;
     return outs ? outs.includes(target.slice(8)) : null;
@@ -428,22 +462,37 @@ function toggleValue(target, inst) {
   return dev()?.[target] ?? null;
 }
 
-// An output's feed as the daemon stores it: one monitor mix id, or ids
+// An output's feed as the daemon stores it: any mix id, or ids
 // joined with '+' when the output hears them summed.
 const feedOf = (sink) => mixer()?.monitorFeeds?.[sink] ?? "monitor";
 const FEED_LETTER = { monitor: "A", monitor2: "B" };
-const feedLetters = (feed) => feed.split("+").map((id) => FEED_LETTER[id] ?? id).join("+");
-// The feed key cycles A, B, A+B.
-const nextFeed = (feed) => feed === "monitor" ? "monitor2" : feed === "monitor2" ? "monitor+monitor2" : "monitor";
+const feedLetters = (feed) => feed.split("+").map((id) => FEED_LETTER[id] ?? mixName(mixer(), id)).join("+");
+const feedLabel = (feed) => feed === "" ? "Silent" : feed.split("+").every(id => Object.hasOwn(FEED_LETTER, id))
+  ? `Monitor ${feedLetters(feed)}` : feed.split("+").map(id => mixName(mixer(), id)).join(" + ");
+// Keep A, B, A+B first, then include every other live mix.
+const nextFeed = (feed) => {
+  const mixes = mixer()?.mixes ?? [];
+  const monitors = mixes.filter(m => (m.kind ?? "monitor") === "monitor").map(m => m.id);
+  const choices = [...monitors, ...(monitors.length > 1 ? [monitors.join("+")] : []),
+    ...mixes.filter(m => (m.kind ?? "monitor") !== "monitor").map(m => m.id)];
+  return choices.length ? choices[(choices.indexOf(feed) + 1) % choices.length] : "monitor";
+};
 
 function toggleLabel(target, inst) {
   if (!target) return "OpenXLR";
+  const output = outputKey(target);
+  if (output) {
+    const name = output.device === "@monitor" ? "Follow monitor" : output.device
+      ? daemonState?.devices?.find(d => d.name === output.device)?.description ?? output.device : "System default";
+    return `${({up:"Louder",down:"Quieter",mute:"Toggle mute",main:"System out"})[output.kind]}\n${name}`;
+  }
   if (target.startsWith("insert|")) {
     const [, ch, id] = target.split("|");
     const ins = resolveInsert(ch, id, metaOf(inst, target));
     const name = ins ? pluginShort(ins.label, ins.plugin) : (metaOf(inst, target)?.plugin ? pluginShort(null, metaOf(inst, target).plugin) : "Insert");
     return `${chainShort(ch)}\n${name}`;
   }
+  if (target.startsWith("focus:")) return `Focus\n${channelName(mixer(), target.slice(6))}`;
   if (target.startsWith("inschain|")) return `${chainShort(target.slice(9))}\nInserts`;
   if (isProfileTarget(target)) return `Profile\n${target.slice(8)}`;
   if (target === "auxPort") return "Aux\nPort";
@@ -456,13 +505,13 @@ function toggleLabel(target, inst) {
     const d = daemonState?.devices?.find((x) => x.name === sink);
     const name = d?.description ?? sink.split(".").pop();
     // The output follows Monitor A unless its feed was switched.
-    return `Monitor ${feedLetters(feedOf(sink))}\n${name}`;
+    return `${feedLabel(feedOf(sink))}\n${name}`;
   }
   if (target.startsWith("feed:")) {
     const sink = target.slice(5);
     const d = daemonState?.devices?.find((x) => x.name === sink);
     const name = d?.description ?? sink.split(".").pop();
-    return `${name}\nMonitor ${feedLetters(feedOf(sink))}`;
+    return `${name}\n${feedLabel(feedOf(sink))}`;
   }
   if (target.startsWith("mixmute:")) return `${mixName(mixer(), target.slice(8))}\nMute`;
   if (target.startsWith("sendmute:")) {
@@ -602,7 +651,15 @@ function onKeyDown(context, inst) {
   const t = inst.settings.target;
   const cur = toggleValue(t, inst);
   if (cur === null) { send({ event: "showAlert", context }); return; }
-  if (t.startsWith("insert|")) {
+  const output = outputKey(t);
+  if (output) {
+    const payload = output.kind === "main" ? {cmd:"setMainOutput",device:output.device}
+      : output.kind === "mute" ? {cmd:"toggleOutputMute",device:output.device}
+      : {cmd:"adjustOutputVolume",device:output.device,value:output.kind === "up" ? .05 : -.05};
+    keyCommand(context, payload);
+  }
+  else if (t.startsWith("focus:")) keyCommand(context, { cmd: "routeFocusedApp", channel: t.slice(6) });
+  else if (t.startsWith("insert|")) {
     const [, ch, id] = t.split("|");
     const ins = resolveInsert(ch, id, metaOf(inst, t));
     cmd({ cmd: "setInsertBypass", channel: ch, insertId: ins.id, value: cur });   // cur = active, so bypass it

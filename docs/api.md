@@ -60,7 +60,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 
 | Type | When | Content |
 |---|---|---|
-| `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes), `recallOnConnect` (the profile recalled when the device connects, or null), `warning` (one sentence the user should see, or null: mixer settings that cannot be written to disk, which the daemon keeps retrying with backoff, or a device set aside after three hung USB transfers in one run). In the mixer state, each channel carries `hardware` (true for the fixed input channels), `renamedSinceStart` says a virtual microphone was renamed since the daemon started (its PipeWire device keeps the old name until a restart), and `layoutWarning` is a sentence for the layout editor when pipewire-pulse nears its open-file limit, or null. Each mix carries `id`, `name`, `volume`, `muted` and `kind` (`monitor`, `virtualMic` or `auxPort`), which gives a client the mix's volume ceiling; `outputVolume` is the first selected output's volume, 0 to 1.5, or null with no output selected |
+| `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes), `recallOnConnect` (the profile recalled when the device connects, or null), `warning` (one sentence the user should see, or null: mixer settings that cannot be written to disk, which the daemon keeps retrying with backoff, or a device set aside after three hung USB transfers in one run). In the mixer state, each channel carries `hardware` (true for the fixed input channels), `captureSource` (exact external source name or null), `capturePair` (zero-based pair), and `captureConnected` (its capture route exists). A capture channel is editable but cannot receive application assignments; `renamedSinceStart` says a virtual microphone was renamed since the daemon started (its PipeWire device keeps the old name until a restart), and `layoutWarning` is a sentence for the layout editor when pipewire-pulse nears its open-file limit, or null. Each mix carries `id`, `name`, `volume`, `muted` and `kind` (`monitor`, `virtualMic` or `auxPort`), which gives a client the mix's volume ceiling; `outputVolume` is the first selected output's volume, 0 to 1.5, or null with no output selected |
 | `diagnostics` | in answer to `getDiagnostics` | `blocks`, mapping vendor block names to hex strings or read errors |
 | `meters` | 15 Hz while the mixer is built | live stereo levels per channel and mix |
 | `plugins` | in answer to `listPlugins` | the installed LV2, CLAP and VST3 plugins with their controls, within the message size limit above and always including the plugins the saved chains use; `supported` is false, with `unsupportedFeatures` listed, for a plugin that needs a host feature the PipeWire chain lacks. `audioIns` and `audioOuts` are the plugin's own port counts, or for VST3 its main buses' default width; a VST3 entry also carries `widths`, the chain widths in channels (1 and 2 are the ones the host carries) its main buses accepted when the helper asked the way the host asks at load, so a plugin that reports 2 and lists 1 in `widths` can be inserted on a mono input. An entry without `widths` (LV2, CLAP, or a description an older helper wrote) fits a mono input with one port each way and a stereo mix with two or more |
@@ -96,19 +96,21 @@ that final acknowledgement (or an `error` without a request id):
 | `setLowCutHz` | `value` | software low cut: 0, 80, or 120 |
 | `setSoftClipGuard` | `value` | software ClipGuard (post-ADC limiter at -3 dB); enabling is rejected if `swh-plugins` is unavailable, without replacing or disconnecting the live microphone route |
 | `setLevel` | `channel`, `mix`, `value` | one send fader |
+| `createCaptureChannel` | `name`, `source`, optional `capturePair` | add an external PipeWire capture input, muted in every mix; exact source name, zero-based stereo pair 0 to 31 (default 0). See [capture inputs](mixer-layout.md#capture-inputs) |
 | `createChannel` | `name` | add an application channel, muted in every mix, without touching existing nodes; its generated stable id is in the next state. Undone with an error when its sends have not appeared within 3 s |
 | `renameChannel` | `channel`, `name` | rename an application channel; its playback device is reloaded under the new name and the streams on it are put back (a short gap on that channel only) |
 | `deleteChannel` | `channel` | remove an application channel; apps and remembered assignments on it move to the first remaining application channel. The last application channel cannot be removed |
 | `createMix` | `name` | add a virtual microphone; every channel gets a muted send into it before the capture device is published. Undone with an error when a channel's send has not appeared within 3 s |
 | `renameMix` | `mix`, `name` | rename a virtual microphone in OpenXLR; the PipeWire device keeps its old description until the daemon restarts (reloading it would throw recording apps off), and the mixer state's `renamedSinceStart` says so |
 | `deleteMix` | `mix` | remove a virtual microphone with its sends, inserts and capture device |
-| `setLayoutOrder` | `channels[]`, `mixes[]` | complete ordered lists of application-channel and virtual-microphone ids; structural nodes stay fixed |
+| `setLayoutOrder` | `channels[]`, `mixes[]` | complete ordered lists of editable-channel and virtual-microphone ids; structural nodes stay fixed |
 | `setChannelMuted` | `channel`, `mix`, `value` | one send mute |
 | `setMixVolume` / `setMixMuted` | `mix`, `value` | mix masters; monitor volume range 0 to 1.5, other mixes 0 to 1; values outside the range are clamped |
 | `setMonitorOutputs` | `devices[]` | every sink the monitor mixes feed; a newly listed output is fed by the first monitor mix |
 | `setMonitorOutput` | `device` | a single monitor sink; `null` disconnects the route |
-| `setMonitorFeed` | `device`, `mix` | what feeds one selected output: `monitor` (Monitor A), `monitor2` (Monitor B), or both summed as `monitor+monitor2` (Monitor A+B); the Pro's own jacks follow one feed together. The state's `monitorFeeds` lists the exceptions from the first mix in the same form. An error when the feed names anything but distinct monitor mixes, or the output is not selected |
+| `setMonitorFeed` | `device`, `mix` | what feeds one selected output: any existing mix id, including `stream`, `chat`, `auxout` and custom virtual microphones, or distinct ids joined with `+` to sum them. The Pro's own jacks follow one feed together. The state's `monitorFeeds` lists exceptions from the first monitor mix in layout order. Unknown or repeated mix ids and unselected outputs are rejected. Deleting the last included mix returns that output to the first monitor mix; deliberately silent matrix outputs stay silent |
 | `setAuxPortEnabled` | `value` | send the Aux mix to the USB Aux port |
+| `setOutputRoute` | `device`, `mix`, `value` | one mix's send into a selected output, 0 to 1. A positive value adds or adjusts the route; zero disconnects it. Values outside that range, non-finite values, unknown mixes and unselected outputs are rejected. Physical jacks sharing a bus change together |
 | `setOutputVolume` | `value` | volume of the selected monitor devices, 0 to 1.5; the range the devices themselves take, so a desktop level above unity can be held and written back unchanged. Values outside it are clamped, and the state reports what reached the devices. With no output selected the command succeeds and changes nothing |
 | `listPlugins` | none | the installed LV2, CLAP and VST3 plugins, answered with a `plugins` message |
 | `getPluginDiagnostics` | none | read bridge status and existing native scan evidence without syncing, rescanning or changing inserts; answered with `pluginDiagnostics` |
@@ -129,6 +131,10 @@ that final acknowledgement (or an `error` without a request id):
 | `getNativeEditorRules` | none | read release defaults and explicit user overrides for native editor compatibility |
 | `setNativeEditorRule` | `kind`, `plugin`, `name?`, `blocked?` | set `blocked:true` to use OpenXLR controls, `false` to allow the native editor, or null/absent to remove the override and follow release defaults. Saved atomically before success; answered with `nativeEditorRules` |
 | `showInsertUi` | `channel`, `insertId` | open an enabled insert's native editor when the optional host is installed and the editor policy allows it; a blocked editor is refused without changing the audio instance |
+| `adjustOutputVolume` | optional `device`, `value` | change a PipeWire output by desktop percentage points (`0.05` is 5%). Finite steps from -0.5 to 0.5, final volume clamped to 0 through 1.5. Omit `device` for the current desktop default |
+| `toggleOutputMute` | optional `device` | toggle mute at the audio server; omit `device` for the current desktop default |
+| `setMainOutput` | `device` | select and enforce an available PipeWire output as the system default, or `@monitor` for the first selected monitor output. Retains capture-default policy and mixer feeds |
+| `routeFocusedApp` | `channel` | route the focused KDE application to an application channel and remember the assignment; requires the running UI with Desktop keys enabled and `gdbus`. Missing or ambiguous process identity is an error, with no guessed routing |
 | `assignApp` | `identity`, `channel`, `label?` | route an app (creates a registry entry if unseen); `channel: "ignore"` stops managing it, its streams go back to the system default output and stay wherever the desktop routes them |
 | `assignStream` | `streamId`, `channel` | route one live stream by its PipeWire id; also remembered for the app; `ignore` works here too |
 | `forgetApp` | `identity` | drop an app and its remembered channel |
@@ -145,6 +151,17 @@ profile file that fails validation, or that cannot be parsed, is refused
 before anything is applied; the error starts with `profile '<name>':`. A bad
 mixer field is named; a non-finite device level is reported as `Saved device
 levels must be finite numbers.` without one.
+
+`mixer.outputRoutes` lists per-route gain exceptions as
+`{"device":"alsa_output.headset","mix":"chat","level":0.5}`. A mix included
+in `monitorFeeds` but absent from this list uses unity gain. Shared Pro jack
+gains use `device#bus`. An explicit empty string in `monitorFeeds` means the
+output is silent; it is distinct from an absent entry, which selects the first
+monitor mix. Zero in `setOutputRoute` removes that mix from the feed and its
+gain exception. Removing an output drops its gains. Levels use the desktop
+volume percentage scale, with the same whole-percent precision as `pactl`
+writes elsewhere in the mixer. Profile scenes and mixer settings preserve
+the route gains. Like other fader edits, saving is debounced and retried.
 
 `setEnforcedDefaults` accepts `sink: "@monitor"` to follow the first selected
 monitor output as the system playback device. The state and saved settings
@@ -180,6 +197,18 @@ Windows executable names normalize to the same key as their Wine/Proton
 client, for example `Balatro.exe` becomes `balatro`. `assignApp` and
 `forgetApp` also accept those legacy executable-name identities. When
 loading conflicting old and normalized overrides, the normalized key wins.
+Identity comparisons ignore letter case for live routing as well as saved
+assignments. `forgetApp` discards the cached placement of matching streams,
+so the next sweep reapplies automatic routing even while the app is playing.
+`assignStream` requires a currently tracked PipeWire node id. An unknown id
+returns an error without being treated as a PulseAudio stream serial. A
+refused stream move does not store an unapplied assignment, including an
+`ignore` choice.
+At most 512 application assignments can be added through live commands.
+At that limit, `assignApp` and `assignStream` may still update an existing
+assignment, including an `ignore` choice. A new remembered identity returns
+an error before its live route changes. Older settings with more entries
+are preserved and their existing assignments remain editable.
 
 `pluginSetup` also reports `bridgeProvider` (`openxlr` or `system`),
 `bridgeDirectory` (the selected companion directory, or null), and
@@ -410,3 +439,20 @@ daemon connection is down. Such a query returns null at once and retains no
 pending reply slot. Queries already sent keep their request identity until
 the acknowledgement or disconnect, so a late reply cannot answer a newer
 query.
+
+### Output key targets
+
+Output keys accept exact external sink names and OpenXLR monitor-mix sinks.
+Internal channel, post and non-monitor mix sinks retain unity gain and are
+rejected. Numeric ids, Pulse aliases, shared-jack `#` names and unavailable
+outputs are rejected. `@monitor` is only valid for `setMainOutput` and requires
+a selected, available monitor output. A missing target or audio-server failure
+returns a command error without changing the enforced default policy.
+
+Relative volume reads the audio server at key-press time. It uses the same
+monitor master and linked output synchronization as desktop volume changes;
+it never uses the client's previous slider value. Named keys remain bound to
+that output across default changes. A key with no device resolves the desktop
+default anew on every press. External mute toggles use pipewire-pulse's atomic toggle. Monitor mixes read
+mute directly from the audio server and use the existing mix setter so state
+and graph updates follow the same path as the mixer mute control.

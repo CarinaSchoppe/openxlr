@@ -344,8 +344,22 @@ public sealed class DaemonClient : IAsyncDisposable
     public Task SetMixMutedAsync(string mix, bool muted)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setMixMuted", ["mix"] = mix, ["value"] = muted });
 
+    public Task SetOutputRouteAsync(string device, string mix, double level)
+        => SendAsync(new Dictionary<string, object>
+            { ["cmd"] = "setOutputRoute", ["device"] = device, ["mix"] = mix, ["value"] = level });
+
     // --- layout editing: each call resolves to null on success or the daemon's error ---
 
+    public Task<string?> CreateCaptureChannelAsync(string name, string source, int pair)
+        => EditLayoutAsync(new() { ["cmd"] = "createCaptureChannel", ["name"] = name, ["source"] = source, ["capturePair"] = pair });
+    public Task<string?> AdjustOutputVolumeAsync(string? device, double delta)
+        => EditLayoutAsync(new() { ["cmd"] = "adjustOutputVolume", ["device"] = device!, ["value"] = delta });
+    public Task<string?> ToggleOutputMuteAsync(string? device)
+        => EditLayoutAsync(new() { ["cmd"] = "toggleOutputMute", ["device"] = device! });
+    public Task<string?> SetMainOutputAsync(string device)
+        => EditLayoutAsync(new() { ["cmd"] = "setMainOutput", ["device"] = device });
+    public Task<string?> RouteFocusedAppAsync(string channel)
+        => EditLayoutAsync(new() { ["cmd"] = "routeFocusedApp", ["channel"] = channel });
     public Task<string?> CreateChannelAsync(string name)
         => EditLayoutAsync(new() { ["cmd"] = "createChannel", ["name"] = name });
     public Task<string?> RenameChannelAsync(string channel, string name)

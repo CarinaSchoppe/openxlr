@@ -25,6 +25,34 @@ public sealed class PipeWireAdapter
     private readonly List<Process> _filters = [];
     private readonly HashSet<NativePluginHost> _nativeHosts = [];
     private readonly WineSession _wine;
+    private PipeWireGraph? _graph;
+
+    /// <summary>Use a registry subscription for this adapter until the returned lease is disposed.</summary>
+    public IDisposable WatchGraph(Action<string>? note = null)
+    {
+        lock (DumpGate)
+        {
+            if (_graph is not null) throw new InvalidOperationException("PipeWire registry is already subscribed");
+            _graph = new PipeWireGraph(note);
+            _graph.WaitFor(_ => true, TimeSpan.FromSeconds(5));
+            return new GraphWatch(this, _graph);
+        }
+    }
+
+    private sealed class GraphWatch(PipeWireAdapter owner, PipeWireGraph graph) : IDisposable
+    {
+        private int _disposed;
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            lock (owner.DumpGate)
+            {
+                if (ReferenceEquals(owner._graph, graph)) owner._graph = null;
+                owner._dumpObjects = null;
+            }
+            graph.Dispose();
+        }
+    }
 
     public PipeWireAdapter() => _wine = new WineSession();
 
@@ -166,7 +194,7 @@ public sealed class PipeWireAdapter
     }
 
     /// <summary>Load a null sink; returns its module id for later unload.</summary>
-    public uint CreateNullSink(string nodeName, string description)
+    public uint CreateNullSink(string nodeName, string description, bool visible = true)
     {
         // suspend-on-idle must be off: an idle channel sink would otherwise be
         // suspended by PipeWire and drop the first moment of audio (or all of it)
@@ -181,7 +209,8 @@ public sealed class PipeWireAdapter
             // node.virtual=false: KDE's audio applet hides virtual devices,
             // and these are devices the user assigns applications to.
             "sink_properties=" + PropList($"node.description={PropValue(description)}" +
-            " node.suspend-on-idle=false priority.session=100 node.virtual=false"));
+            " node.suspend-on-idle=false " + (visible ? "priority.session=100 node.virtual=false" :
+                "priority.session=0 node.virtual=true node.hidden=true")));
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;
@@ -247,6 +276,9 @@ public sealed class PipeWireAdapter
         _modules.Remove(id);
     }
 
+    /// <summary>An owned node disappeared externally; its old module id is no longer ours.</summary>
+    internal void ForgetModule(uint id) => _modules.Remove(id);
+
     /// <summary>A "sink#suffix" pseudo-device address without its suffix.</summary>
     private static string BareSink(string sinkName)
     {
@@ -261,48 +293,47 @@ public sealed class PipeWireAdapter
     /// it feeds by 15 dB (seen on a user's machine: all nine channel sinks
     /// restored to 55% by something outside OpenXLR).
     /// </summary>
-    public IReadOnlyList<OwnSinkLevel> OwnSinkLevels() => OwnSinkLevels(DumpJson());
+    public IReadOnlyList<OwnSinkLevel> OwnSinkLevels() => OwnSinkLevels(GraphObjects());
 
     internal static IReadOnlyList<OwnSinkLevel> OwnSinkLevels(byte[] json)
     {
+        return OwnSinkLevels(ParseObjects(json));
+    }
+
+    private static IReadOnlyList<OwnSinkLevel> OwnSinkLevels(IEnumerable<JsonElement> objects)
+    {
         var found = new List<OwnSinkLevel>();
-        JsonDocument doc;
-        try { doc = PipeWireSnapshot.Parse(json); }
-        catch (JsonException) { return found; }
-        using (doc)
+        foreach (JsonElement o in objects)
         {
-            foreach (JsonElement o in doc.RootElement.EnumerateArray())
+            if (!o.TryGetProperty("type", out JsonElement t) ||
+                !(t.GetString()?.EndsWith("Node", StringComparison.Ordinal) ?? false)) continue;
+            if (!o.TryGetProperty("info", out JsonElement info) ||
+                !info.TryGetProperty("props", out JsonElement props)) continue;
+            string? name = props.TryGetProperty("node.name", out JsonElement n) ? n.GetString() : null;
+            if (name is null || !name.StartsWith("OpenXLR_", StringComparison.Ordinal)) continue;
+            if (!props.TryGetProperty("media.class", out JsonElement m) || m.GetString() != "Audio/Sink") continue;
+            if (!info.TryGetProperty("params", out JsonElement pars) ||
+                !pars.TryGetProperty("Props", out JsonElement list) || list.ValueKind != JsonValueKind.Array) continue;
+            foreach (JsonElement p in list.EnumerateArray())
             {
-                if (!o.TryGetProperty("type", out JsonElement t) ||
-                    !(t.GetString()?.EndsWith("Node", StringComparison.Ordinal) ?? false)) continue;
-                if (!o.TryGetProperty("info", out JsonElement info) ||
-                    !info.TryGetProperty("props", out JsonElement props)) continue;
-                string? name = props.TryGetProperty("node.name", out JsonElement n) ? n.GetString() : null;
-                if (name is null || !name.StartsWith("OpenXLR_", StringComparison.Ordinal)) continue;
-                if (!props.TryGetProperty("media.class", out JsonElement m) || m.GetString() != "Audio/Sink") continue;
-                if (!info.TryGetProperty("params", out JsonElement pars) ||
-                    !pars.TryGetProperty("Props", out JsonElement list) || list.ValueKind != JsonValueKind.Array) continue;
-                foreach (JsonElement p in list.EnumerateArray())
-                {
-                    if (!p.TryGetProperty("channelVolumes", out JsonElement cv) || cv.ValueKind != JsonValueKind.Array) continue;
-                    double volume = 1.0, maximum = 0.0;
-                    bool any = false;
-                    foreach (JsonElement v in cv.EnumerateArray())
-                        if (v.ValueKind == JsonValueKind.Number && v.TryGetDouble(out double d) && double.IsFinite(d) && d >= 0)
-                        {
-                            volume = any ? Math.Min(volume, d) : d;
-                            maximum = Math.Max(maximum, d);
-                            any = true;
-                        }
-                    if (!any) continue;
-                    bool muted = p.TryGetProperty("mute", out JsonElement mu) && mu.ValueKind == JsonValueKind.True;
-                    // PipeWire stores linear amplitude; Pulse desktop percentages
-                    // use its cube root. Keep the loudest channel, as desktop
-                    // master controls do, without flattening channel balance.
-                    found.Add(new OwnSinkLevel(name, volume, muted)
-                    { DesktopVolume = Math.Round(Math.Cbrt(maximum) * 100) / 100 });
-                    break;
-                }
+                if (!p.TryGetProperty("channelVolumes", out JsonElement cv) || cv.ValueKind != JsonValueKind.Array) continue;
+                double volume = 1.0, maximum = 0.0;
+                bool any = false;
+                foreach (JsonElement v in cv.EnumerateArray())
+                    if (v.ValueKind == JsonValueKind.Number && v.TryGetDouble(out double d) && double.IsFinite(d) && d >= 0)
+                    {
+                        volume = any ? Math.Min(volume, d) : d;
+                        maximum = Math.Max(maximum, d);
+                        any = true;
+                    }
+                if (!any) continue;
+                bool muted = p.TryGetProperty("mute", out JsonElement mu) && mu.ValueKind == JsonValueKind.True;
+                // PipeWire stores linear amplitude; Pulse desktop percentages
+                // use its cube root. Keep the loudest channel, as desktop
+                // master controls do, without flattening channel balance.
+                found.Add(new OwnSinkLevel(name, volume, muted)
+                { DesktopVolume = Math.Round(Math.Cbrt(maximum) * 100) / 100 });
+                break;
             }
         }
         return found;
@@ -328,12 +359,40 @@ public sealed class PipeWireAdapter
     {
         Run("pactl", "set-sink-volume", BareSink(sinkName), VolumePercent(volume));
         InvalidateDump();
+        WaitForSinkLevel(sinkName, level => Math.Abs(level.DesktopVolume - Math.Round(Math.Clamp(volume, 0, MaxSinkVolume) * 100) / 100) < .005);
     }
 
     /// <summary>Mute or unmute a sink.</summary>
     public void SetSinkMuted(string sinkName, bool muted)
     {
         Run("pactl", "set-sink-mute", BareSink(sinkName), muted ? "1" : "0");
+        InvalidateDump();
+        WaitForSinkLevel(sinkName, level => level.Muted == muted);
+    }
+
+    private void WaitForSinkLevel(string sinkName, Func<OwnSinkLevel, bool> matches)
+    {
+        if (_graph is null || !BareSink(sinkName).StartsWith("OpenXLR_", StringComparison.Ordinal)) return;
+        // pactl and the registry are separate connections. Do not let the next
+        // sweep treat the pre-write snapshot as a new desktop volume change.
+        if (!_graph.WaitFor(objects => OwnSinkLevels(objects).Any(level => level.Name == BareSink(sinkName) && matches(level)),
+            TimeSpan.FromSeconds(1)))
+            throw new InvalidOperationException("PipeWire did not report the updated sink level");
+    }
+
+    /// <summary>Read a sink's mute directly, without a cached graph snapshot.</summary>
+    public bool GetSinkMuted(string sinkName)
+        => Run("pactl", "get-sink-mute", BareSink(sinkName)).Trim() switch
+        {
+            "Mute: yes" => true,
+            "Mute: no" => false,
+            _ => throw new InvalidOperationException("output mute is unavailable"),
+        };
+
+    /// <summary>Toggle a sink's mute atomically at pipewire-pulse.</summary>
+    public void ToggleSinkMuted(string sinkName)
+    {
+        Run("pactl", "set-sink-mute", BareSink(sinkName), "toggle");
         InvalidateDump();
     }
 
@@ -1157,37 +1216,31 @@ public sealed class PipeWireAdapter
         bool exposeHardwareMonitorOutputs = false, string? hardwareSinkHint = null)
     {
         var found = new List<AudioNode>();
-        byte[] json = DumpJson();
-        JsonDocument doc;
-        try { doc = PipeWireSnapshot.Parse(json); }
-        catch (JsonException) { return found; }
-        using (doc)
+        foreach (JsonElement o in GraphObjects())
         {
-            foreach (JsonElement o in doc.RootElement.EnumerateArray())
-            {
-                if (!o.TryGetProperty("type", out JsonElement t) ||
-                    !(t.GetString()?.EndsWith("Node", StringComparison.Ordinal) ?? false)) continue;
-                if (!o.TryGetProperty("info", out JsonElement info) ||
-                    !info.TryGetProperty("props", out JsonElement props)) continue;
+            if (!o.TryGetProperty("type", out JsonElement t) ||
+                !(t.GetString()?.EndsWith("Node", StringComparison.Ordinal) ?? false)) continue;
+            if (!o.TryGetProperty("info", out JsonElement info) ||
+                !info.TryGetProperty("props", out JsonElement props)) continue;
 
-                string? name = props.TryGetProperty("node.name", out JsonElement n) ? n.GetString() : null;
-                if (name is null) continue;
-                string mc = props.TryGetProperty("media.class", out JsonElement m) ? m.GetString() ?? "" : "";
+            string? name = props.TryGetProperty("node.name", out JsonElement n) ? n.GetString() : null;
+            if (name is null) continue;
+            if (name.StartsWith("OpenXLR_route_", StringComparison.Ordinal)) continue;
+            string mc = props.TryGetProperty("media.class", out JsonElement m) ? m.GetString() ?? "" : "";
 
-                bool isSink = mc == "Audio/Sink";
-                bool isSource = mc is "Audio/Source" or "Audio/Source/Virtual";
-                if (!isSink && !isSource) continue;
-                if (isSource && name.EndsWith(".monitor", StringComparison.Ordinal)) continue;
+            bool isSink = mc == "Audio/Sink";
+            bool isSource = mc is "Audio/Source" or "Audio/Source/Virtual";
+            if (!isSink && !isSource) continue;
+            if (isSource && name.EndsWith(".monitor", StringComparison.Ordinal)) continue;
 
-                string desc = props.TryGetProperty("node.description", out JsonElement d)
-                    ? d.GetString() ?? name : name;
-                // Real hardware carries device.api (alsa, bluez5, ...); any
-                // software-created source or sink does not.
-                bool physical = props.TryGetProperty("device.api", out JsonElement api) &&
-                                !string.IsNullOrEmpty(api.GetString());
-                found.Add(new AudioNode(name, desc, isSink ? AudioNodeKind.Sink : AudioNodeKind.Source,
-                    name.StartsWith("OpenXLR", StringComparison.Ordinal), physical));
-            }
+            string desc = props.TryGetProperty("node.description", out JsonElement d)
+                ? d.GetString() ?? name : name;
+            // Real hardware carries device.api (alsa, bluez5, ...); any
+            // software-created source or sink does not.
+            bool physical = props.TryGetProperty("device.api", out JsonElement api) &&
+                            !string.IsNullOrEmpty(api.GetString());
+            found.Add(new AudioNode(name, desc, isSink ? AudioNodeKind.Sink : AudioNodeKind.Source,
+                name.StartsWith("OpenXLR", StringComparison.Ordinal), physical));
         }
 
         // The Pro's physical outputs all share its hardware monitor bus, fed by
@@ -1264,45 +1317,57 @@ public sealed class PipeWireAdapter
         ["wine", "wine64", "wine-preloader", "wine64-preloader", "wineserver",
          "steamwebhelper"];   // superseded identity: its audio now registers as "steam"
 
+    /// <summary>Parse one graph for both halves of the application's sweep.</summary>
+    internal (IReadOnlyList<AudioStream> Streams, IReadOnlyList<AudioStream> Clients) ListApplications()
+    {
+        JsonElement[] objects = GraphObjects();
+        return (ListStreams(objects), ListClients(objects));
+    }
+
+    internal static (IReadOnlyList<AudioStream> Streams, IReadOnlyList<AudioStream> Clients) ListApplications(byte[] json)
+    {
+        JsonElement[] objects = ParseObjects(json);
+        return (ListStreams(objects), ListClients(objects));
+    }
+
     /// <summary>
     /// Every running application that has registered with PipeWire, playing or
     /// not. Browsers, chat apps and players connect as clients the moment they
     /// initialise audio, so this is "audio-capable and running".
     /// </summary>
-    public IReadOnlyList<AudioStream> ListClients() => ListClients(DumpJson());
+    public IReadOnlyList<AudioStream> ListClients() => ListClients(GraphObjects());
 
     internal static IReadOnlyList<AudioStream> ListClients(byte[] json)
     {
+        return ListClients(ParseObjects(json));
+    }
+
+    private static IReadOnlyList<AudioStream> ListClients(IEnumerable<JsonElement> objects)
+    {
         var found = new List<AudioStream>();
-        JsonDocument doc;
-        try { doc = PipeWireSnapshot.Parse(json); }
-        catch (JsonException) { return found; }
-        using (doc)
+        foreach (JsonElement o in objects)
         {
-            foreach (JsonElement o in doc.RootElement.EnumerateArray())
-            {
-                if (!o.TryGetProperty("type", out JsonElement t) ||
-                    t.GetString() != "PipeWire:Interface:Client") continue;
-                if (!o.TryGetProperty("info", out JsonElement info) ||
-                    !info.TryGetProperty("props", out JsonElement props)) continue;
+            if (!o.TryGetProperty("type", out JsonElement t) ||
+                t.GetString() != "PipeWire:Interface:Client") continue;
+            if (!o.TryGetProperty("info", out JsonElement info) ||
+                !info.TryGetProperty("props", out JsonElement props)) continue;
 
-                string? binary = props.TryGetProperty("application.process.binary", out JsonElement b) ? b.GetString() : null;
-                if (binary is not null && binary.EndsWith(" (deleted)", StringComparison.Ordinal))
-                    binary = binary[..^10];
-                string? appName = props.TryGetProperty("application.name", out JsonElement an) ? an.GetString() : null;
-                // Chromium registers its capture-side client as "<name> input";
-                // it is the same application, so drop the suffix.
-                if (appName is not null && appName.EndsWith(" input", StringComparison.Ordinal))
-                    appName = appName[..^6];
-                if (binary is null && appName is null) continue;
-                bool Listed(string[] list, string? v) => v is not null && Array.Exists(list, e =>
-                        v.Equals(e, StringComparison.OrdinalIgnoreCase));
-                if (Listed(PlumbingBinaries, binary) || Listed(PlumbingBinaries, appName)) continue;
-                if (Listed(DesktopServiceBinaries, binary) || Listed(DesktopServiceBinaries, appName)) continue;
-                if (appName is not null && appName.Contains("OpenXLR", StringComparison.Ordinal)) continue;
+            string? binary = props.TryGetProperty("application.process.binary", out JsonElement b) ? b.GetString() : null;
+            if (binary is not null && binary.EndsWith(" (deleted)", StringComparison.Ordinal))
+                binary = binary[..^10];
+            string? appName = props.TryGetProperty("application.name", out JsonElement an) ? an.GetString() : null;
+            // Chromium registers its capture-side client as "<name> input";
+            // it is the same application, so drop the suffix.
+            if (appName is not null && appName.EndsWith(" input", StringComparison.Ordinal))
+                appName = appName[..^6];
+            if (binary is null && appName is null) continue;
+            bool Listed(string[] list, string? v) => v is not null && Array.Exists(list, e =>
+                    v.Equals(e, StringComparison.OrdinalIgnoreCase));
+            if (Listed(PlumbingBinaries, binary) || Listed(PlumbingBinaries, appName)) continue;
+            if (Listed(DesktopServiceBinaries, binary) || Listed(DesktopServiceBinaries, appName)) continue;
+            if (appName is not null && appName.Contains("OpenXLR", StringComparison.Ordinal)) continue;
 
-                found.Add(new AudioStream(0, appName, binary, null));
-            }
+            found.Add(new AudioStream(0, appName, binary, null) { ProcessId = ProcessId(props) });
         }
         return found;
     }
@@ -1312,72 +1377,71 @@ public sealed class PipeWireAdapter
     /// with the identity fields the matcher needs. OpenXLR's own loopbacks are
     /// excluded: they are plumbing, not applications.
     /// </summary>
-    public IReadOnlyList<AudioStream> ListStreams() => ListStreams(DumpJson());
+    public IReadOnlyList<AudioStream> ListStreams() => ListStreams(GraphObjects());
 
     internal static IReadOnlyList<AudioStream> ListStreams(byte[] json)
     {
+        return ListStreams(ParseObjects(json));
+    }
+
+    private static IReadOnlyList<AudioStream> ListStreams(IEnumerable<JsonElement> objects)
+    {
         var found = new List<AudioStream>();
-        JsonDocument doc;
-        try { doc = PipeWireSnapshot.Parse(json); }
-        catch (JsonException) { return found; }
-        using (doc)
+        // Native PipeWire streams can leave process metadata on their
+        // owning client. Read it from this same snapshot, regardless of
+        // whether the client appears before or after its playback node.
+        var clients = new Dictionary<int, JsonElement>();
+        foreach (JsonElement o in objects)
+            if (o.TryGetProperty("type", out JsonElement type) &&
+                type.GetString() == "PipeWire:Interface:Client" &&
+                o.TryGetProperty("id", out JsonElement id) && id.ValueKind == JsonValueKind.Number &&
+                id.TryGetInt32(out int clientId) &&
+                o.TryGetProperty("info", out JsonElement info) && info.ValueKind == JsonValueKind.Object &&
+                info.TryGetProperty("props", out JsonElement props))
+                clients[clientId] = props;
+
+        foreach (JsonElement o in objects)
         {
-            // Native PipeWire streams can leave process metadata on their
-            // owning client. Read it from this same snapshot, regardless of
-            // whether the client appears before or after its playback node.
-            var clients = new Dictionary<int, JsonElement>();
-            foreach (JsonElement o in doc.RootElement.EnumerateArray())
-                if (o.TryGetProperty("type", out JsonElement type) &&
-                    type.GetString() == "PipeWire:Interface:Client" &&
-                    o.TryGetProperty("id", out JsonElement id) && id.ValueKind == JsonValueKind.Number &&
-                    id.TryGetInt32(out int clientId) &&
-                    o.TryGetProperty("info", out JsonElement info) && info.ValueKind == JsonValueKind.Object &&
-                    info.TryGetProperty("props", out JsonElement props))
-                    clients[clientId] = props;
+            if (!o.TryGetProperty("type", out JsonElement t) ||
+                !(t.GetString()?.EndsWith("Node", StringComparison.Ordinal) ?? false)) continue;
+            if (!o.TryGetProperty("info", out JsonElement info) ||
+                !info.TryGetProperty("props", out JsonElement props)) continue;
 
-            foreach (JsonElement o in doc.RootElement.EnumerateArray())
-            {
-                if (!o.TryGetProperty("type", out JsonElement t) ||
-                    !(t.GetString()?.EndsWith("Node", StringComparison.Ordinal) ?? false)) continue;
-                if (!o.TryGetProperty("info", out JsonElement info) ||
-                    !info.TryGetProperty("props", out JsonElement props)) continue;
+            string mc = props.TryGetProperty("media.class", out JsonElement m) ? m.GetString() ?? "" : "";
+            if (mc != "Stream/Output/Audio") continue;
 
-                string mc = props.TryGetProperty("media.class", out JsonElement m) ? m.GetString() ?? "" : "";
-                if (mc != "Stream/Output/Audio") continue;
+            // Exclude the mixer's own plumbing. Filter modules (combine and
+            // remap sinks, loopbacks) run internal streams named things like
+            // "output.OpenXLR_ch_game"; moving those rewires the mixer
+            // itself. Real applications never carry node.link-group.
+            if (props.TryGetProperty("node.link-group", out _)) continue;
 
-                // Exclude the mixer's own plumbing. Filter modules (combine and
-                // remap sinks, loopbacks) run internal streams named things like
-                // "output.OpenXLR_ch_game"; moving those rewires the mixer
-                // itself. Real applications never carry node.link-group.
-                if (props.TryGetProperty("node.link-group", out _)) continue;
+            string? nodeName = props.TryGetProperty("node.name", out JsonElement nn) ? nn.GetString() : null;
+            if (nodeName is not null && nodeName.Contains("OpenXLR", StringComparison.Ordinal)) continue;
 
-                string? nodeName = props.TryGetProperty("node.name", out JsonElement nn) ? nn.GetString() : null;
-                if (nodeName is not null && nodeName.Contains("OpenXLR", StringComparison.Ordinal)) continue;
+            string? mediaName = props.TryGetProperty("media.name", out JsonElement mn) ? mn.GetString() : null;
+            if (mediaName is not null && mediaName.StartsWith("Simultaneous output", StringComparison.Ordinal)) continue;
 
-                string? mediaName = props.TryGetProperty("media.name", out JsonElement mn) ? mn.GetString() : null;
-                if (mediaName is not null && mediaName.StartsWith("Simultaneous output", StringComparison.Ordinal)) continue;
-
-                // object.serial is what PulseAudio exposes as the sink-input
-                // id, and pactl move-sink-input addresses streams by that, not
-                // by the PipeWire node id.
-                int serial = props.TryGetProperty("object.serial", out JsonElement os) &&
-                             os.TryGetInt32(out int sv) ? sv : o.GetProperty("id").GetInt32();
-                // A binary replaced on disk while running (updates) reports
-                // as "name (deleted)"; strip it or the app splits identities.
-                JsonElement client = default;
-                if (props.TryGetProperty("client.id", out JsonElement owner) && owner.ValueKind == JsonValueKind.Number &&
-                    owner.TryGetInt32(out int ownerId))
-                    clients.TryGetValue(ownerId, out client);
-                string? AppProperty(string key) => Str(props, key) ?? Str(client, key);
-                string? binary = AppProperty("application.process.binary");
-                if (binary is not null && binary.EndsWith(" (deleted)", StringComparison.Ordinal))
-                    binary = binary[..^10];
-                found.Add(new AudioStream(
-                    o.GetProperty("id").GetInt32(),
-                    AppProperty("application.name"),
-                    binary,
-                    Str(props, "media.name")) { Serial = serial });
-            }
+            // object.serial is what PulseAudio exposes as the sink-input
+            // id, and pactl move-sink-input addresses streams by that, not
+            // by the PipeWire node id.
+            int serial = props.TryGetProperty("object.serial", out JsonElement os) &&
+                         os.TryGetInt32(out int sv) ? sv : o.GetProperty("id").GetInt32();
+            // A binary replaced on disk while running (updates) reports
+            // as "name (deleted)"; strip it or the app splits identities.
+            JsonElement client = default;
+            if (props.TryGetProperty("client.id", out JsonElement owner) && owner.ValueKind == JsonValueKind.Number &&
+                owner.TryGetInt32(out int ownerId))
+                clients.TryGetValue(ownerId, out client);
+            string? AppProperty(string key) => Str(props, key) ?? Str(client, key);
+            string? binary = AppProperty("application.process.binary");
+            if (binary is not null && binary.EndsWith(" (deleted)", StringComparison.Ordinal))
+                binary = binary[..^10];
+            found.Add(new AudioStream(
+                o.GetProperty("id").GetInt32(),
+                AppProperty("application.name"),
+                binary,
+                Str(props, "media.name")) { Serial = serial, ProcessId = ProcessId(client) is > 0 and var pid ? pid : ProcessId(props) });
         }
         return found;
 
@@ -1387,26 +1451,26 @@ public sealed class PipeWireAdapter
                 ? v.GetString() : null;
     }
 
+    private static int ProcessId(JsonElement props)
+    {
+        if (props.ValueKind != JsonValueKind.Object || !props.TryGetProperty("application.process.id", out var value)) return 0;
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int number)) return Math.Max(0, number);
+        return value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), out int parsed) ? Math.Max(0, parsed) : 0;
+    }
+
     /// <summary>All audio nodes as (id, node.name, media.class).</summary>
     public IEnumerable<(int Id, string Name, string MediaClass)> DumpNodes()
     {
-        byte[] json = DumpJson();
-        JsonDocument doc;
-        try { doc = PipeWireSnapshot.Parse(json); }
-        catch (JsonException) { yield break; }
-        using (doc)
+        foreach (JsonElement o in GraphObjects())
         {
-            foreach (JsonElement o in doc.RootElement.EnumerateArray())
-            {
-                if (!o.TryGetProperty("type", out JsonElement t) ||
-                    !(t.GetString()?.EndsWith("Node", StringComparison.Ordinal) ?? false)) continue;
-                if (!o.TryGetProperty("info", out JsonElement info) ||
-                    !info.TryGetProperty("props", out JsonElement props)) continue;
-                string? name = props.TryGetProperty("node.name", out JsonElement n) ? n.GetString() : null;
-                if (name is null) continue;
-                string mc = props.TryGetProperty("media.class", out JsonElement m) ? m.GetString() ?? "" : "";
-                yield return (o.GetProperty("id").GetInt32(), name, mc);
-            }
+            if (!o.TryGetProperty("type", out JsonElement t) ||
+                !(t.GetString()?.EndsWith("Node", StringComparison.Ordinal) ?? false)) continue;
+            if (!o.TryGetProperty("info", out JsonElement info) ||
+                !info.TryGetProperty("props", out JsonElement props)) continue;
+            string? name = props.TryGetProperty("node.name", out JsonElement n) ? n.GetString() : null;
+            if (name is null) continue;
+            string mc = props.TryGetProperty("media.class", out JsonElement m) ? m.GetString() ?? "" : "";
+            yield return (o.GetProperty("id").GetInt32(), name, mc);
         }
     }
 
@@ -1465,30 +1529,40 @@ public sealed class PipeWireAdapter
         catch (Exception) { /* EndWine swallows its own failures; this is the join */ }
     }
 
-    // The sweep asks for the graph several times a second (streams, devices,
-    // routes); each pw-dump is about 2 MB of JSON, so one snapshot serves a
-    // whole sweep. Staleness is bounded by the window below.
-    private static readonly object DumpGate = new();
-    private static byte[]? _dumpJson;
-    private static long _dumpAt;   // monotonic ms
+    // Standalone callers without a subscription retain a short-lived snapshot.
+    // A daemon subscription owns its cache and never falls back to polling.
+    private readonly object DumpGate = new();
+    private JsonElement[]? _dumpObjects;
+    private long _dumpAt;   // monotonic ms
     private static readonly TimeSpan DumpWindow = TimeSpan.FromMilliseconds(400);
 
-    private static void InvalidateDump()
+    private void InvalidateDump()
     {
-        lock (DumpGate) _dumpJson = null;
+        lock (DumpGate) _dumpObjects = null;
     }
 
-    // Kept as UTF-8 bytes and parsed from them: the string form is twice
-    // the size and was the bulk of the daemon's large-object garbage.
-    private byte[] DumpJson()
+    // Parse only changed batches in the daemon; standalone helpers parse each
+    // one-shot dump once, shared by their devices, streams and volume queries.
+    private JsonElement[] GraphObjects()
     {
         lock (DumpGate)
         {
-            if (_dumpJson is not null && Environment.TickCount64 - _dumpAt < DumpWindow.TotalMilliseconds) return _dumpJson;
-            _dumpJson = RunBytes("pw-dump");
+            if (_graph is not null) return _graph.Read();
+            if (_dumpObjects is not null && Environment.TickCount64 - _dumpAt < DumpWindow.TotalMilliseconds) return _dumpObjects;
+            _dumpObjects = ParseObjects(RunBytes("pw-dump"));
             _dumpAt = Environment.TickCount64;
-            return _dumpJson;
+            return _dumpObjects;
         }
+    }
+
+    private static JsonElement[] ParseObjects(byte[] json)
+    {
+        try
+        {
+            using JsonDocument doc = PipeWireSnapshot.Parse(json);
+            return doc.RootElement.EnumerateArray().Select(item => item.Clone()).ToArray();
+        }
+        catch (JsonException) { return []; }
     }
 
     private byte[] RunBytes(string exe, params string[] args)

@@ -50,6 +50,9 @@ public sealed record MixerSettings
     /// <summary>Output name to the monitor mix feeding it; absent = the first monitor mix.</summary>
     public Dictionary<string, string> MonitorFeeds { get; init; } = [];
 
+    /// <summary>Per-route gain exceptions; unlisted selected feeds use unity.</summary>
+    public List<OutputRouteLevel> OutputRoutes { get; init; } = [];
+
     /// <summary>Application identity to channel id, from manual assignments.</summary>
     public Dictionary<string, string> AppOverrides { get; init; } = [];
 
@@ -163,5 +166,5 @@ public sealed record MixerSettings
 /// <summary>A remembered application: identity, display label, channel.</summary>
 public sealed record SavedApp(string Identity, string Label, string ChannelId);
 
-public sealed record UserChannelDefinition(string Id, string Name);
+public sealed record UserChannelDefinition(string Id, string Name, string? CaptureSource = null, int CapturePair = 0);
 public sealed record UserMixDefinition(string Id, string Name);

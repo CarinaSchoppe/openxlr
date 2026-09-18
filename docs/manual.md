@@ -141,11 +141,16 @@ configuration.
 <a name="monitor"></a>
 ### 3.2 Choose what you hear and how loud
 
+The level meters show the newest reading available. If the window is
+temporarily busy, it keeps one pending meter update and resumes with the
+current levels instead of replaying a backlog of older readings. This
+affects only the display; the daemon continues processing audio.
+
 1. In the MONITOR card, tick every device the monitor mixes should play
    on: your speakers, a headset, or several at once. On the Wave XLR
    Pro its own outputs (Headphones 1, Headphones 2, Line Out) appear
    here too; ticking one switches the hardware's output routing.
-2. Next to a ticked device, the feed picker says which monitor mix it
+2. Next to a ticked device, the feed picker says which mix it
    hears. Leave it on Monitor A, or choose Monitor B for an output that
    should hear a different selection: a headset whose game side and
    chat side are two sinks, for instance, gets the voice channels on
@@ -155,6 +160,16 @@ configuration.
    on B, add a denoiser under the Monitor B master, and one pair of
    headphones hears both, with the plugin touching only your voice.
    The Pro's own jacks share one feed.
+   Stream, Chat, Aux and custom virtual microphones are also available, so
+   you can listen to the mix a recorder or second computer receives, including
+   its inserts and master. This does not move its recording clients. The
+   API can sum any distinct mixes; such a selection is shown in the picker.
+   Deleting a mix removes it from selected feeds; if nothing remains, the
+   output returns to Monitor A. A failed layout save leaves the old feed intact.
+   Listening to a recording or Aux mix on the Pro's jacks uses the software
+   microphone path so its recording feed is never silenced by direct monitoring.
+   On devices without USB Aux, selecting Aux reveals its mix and send faders
+   without showing a switch for a hardware port the device does not have.
 3. Linux lists **OpenXLR Monitor A** and **OpenXLR Monitor B** as separate
    playback devices. Their desktop volume and mute controls correspond to
    the respective SUBMIXER master, in both directions. Selecting one as the
@@ -167,7 +182,20 @@ configuration.
    and recalled after a daemon restart; explicitly loading a profile restores
    the values saved in that profile. A physical device named simply
    "Monitor" (often HDMI audio) is a separate output device, not a third mix.
-4. The Volume slider sets the level of the selected devices. To control this
+4. **Output matrix** opens one row per selected output, with a send for every
+   mix, including Stream, Chat, Aux and custom microphones. Each send runs
+   from Off to 100%, independently of that mix's feeds to other outputs.
+   Off disconnects the route; an output whose sends are all Off stays silent.
+   Mix masters and insert processing still apply before these sends.
+   The percentages use the same PipeWire volume scale as other mixer controls.
+   Summing several loud mixes can exceed unity, so adjust their sends to keep
+   headroom. Settings and profiles remember the matrix.
+
+   Pro jacks that share the USB return bus appear in one row. Their software
+   mix and send levels change together. A route below unity uses software
+   microphone monitoring so the direct hardware path cannot bypass its gain.
+   Independent physical jack mixes require hardware support beyond that bus.
+5. The Volume slider sets the level of the selected devices. To control this
    same level with a keyboard volume wheel, media keys or the Linux audio
    applet, open Options, SYSTEM DEFAULT DEVICES, and choose **Follow MONITOR
    output (system volume controls)** as Default output. Linux then uses the
@@ -237,12 +265,33 @@ PipeWire as an audio client; a green light means it is playing. Manage sits
 beside the APPLICATIONS heading, like Edit layout beside SUBMIXER. The app
 controls wrap onto further rows when the window is narrower.
 
+Opening the window or receiving an updated app list only displays the current
+routing. A remembered routing change is sent when you choose a different
+channel. When the mixer stops supplying an app list, both the APPLICATIONS
+card and the Manage list clear their stale entries.
+
 An app's playback streams and audio client share the same identity even
 when PipeWire puts the process name only on the client. Windows executable
 names such as `Balatro.exe` use the same normalized key as their Wine or
 Proton client, so the app keeps one entry and one channel assignment.
 When older settings contain both that key and a stale executable-name
 alias, the existing normalized assignment takes precedence.
+Identity matching ignores letter case, including live channel changes and
+the running and playing indicators. If PipeWire reuses a node id for a new
+stream, or a stream later reports its actual app identity, the next sweep
+applies that app's routing instead of keeping the previous placement.
+The daemon subscribes to PipeWire registry changes through one persistent
+`pw-dump --monitor --no-colors` process. Devices, running clients, playback
+streams and sink levels share its incremental snapshot. An unchanged graph
+is neither dumped nor parsed again during the one-second routing sweep.
+That sweep still reconciles routing and device state. If the subscription
+ends, its old registry is discarded and a fresh connection is retried with
+backoff, up to five seconds between attempts. The journal reports outages
+and recovery. Each JSON batch is limited to 8 MiB, and the retained registry
+to 16 MiB of decoded text and 65,536 objects, leaving room for parsing within
+the daemon's heap limit;
+invalid or oversized output ends that subscription instead of growing the
+daemon indefinitely.
 
 1. Change the channel in the dropdown next to the app. The move happens
    immediately and is remembered for that app. The channels also appear
@@ -261,12 +310,20 @@ alias, the existing normalized assignment takes precedence.
    with its own game and chat sinks. The app stays listed as ignored so
    you can bring it back by picking a channel.
 4. Forget, in the same window, drops an app and its remembered channel.
-   A running app re-registers on the next sweep and is routed by the
-   rules again; use "Not managed" for a lasting opt-out.
+   A running app, including one already playing audio, re-registers on the
+   next sweep and is routed by the rules again; use "Not managed" for a
+   lasting opt-out.
 
 An app that is missing from the card is not registered with PipeWire
 as a client. That happens with some applications until they start
 playing.
+
+OpenXLR remembers up to 512 explicit app assignments. Once that limit is
+reached, existing assignments can still be changed, including "Not managed".
+Forget an unused assignment before adding a new one. A refused assignment
+leaves the app's live audio route unchanged; the same limit applies to
+commands that assign an individual stream. Older settings with more
+assignments remain readable and editable.
 
 <a name="usb-aux"></a>
 ### 3.4 Feed a second computer over USB Aux (Wave XLR Pro)
@@ -837,6 +894,28 @@ the other formats in the room that is left, with copies of a plugin
 already listed going last; a set installed in two formats shows once
 rather than pushing anything out. Only the list is cut. A chain keeps
 loading, and keeps its controls, whether or not its plugin fits in it.
+Changing the plugins used by your chains refreshes the offered list even
+when their identifiers contain unusual characters. Copies are recognized by
+name, with an optional vendor prefix, and matching input and output widths.
+Two different names sharing only their last word remain separate plugins.
+The message limit includes escaped Unicode names, parameter labels and
+native-plugin metadata such as bundle paths. A large or unusually named
+collection is shortened before sending, so it cannot make the window
+discard the entire list as an oversized message.
+Controls with non-finite ranges or default values are omitted from the
+generated controls; non-finite LV2 scale points are omitted too. Other
+controls and plugins remain available, so malformed plugin metadata cannot
+prevent the whole catalogue from reaching the window.
+Controls whose minimum exceeds their maximum are omitted too. Equal bounds
+remain valid, and finite defaults outside the declared range are limited to
+its nearest endpoint, including when resetting generated controls.
+CLAP and VST3 controls also need a valid, unique numeric parameter id.
+Missing, fractional, negative, overflowing or reserved ids are omitted;
+when a scanner repeats an id, only its first control is offered. Invalid
+ids are never rounded or wrapped into a different control.
+Nested objects or arrays in scalar scanner fields are ignored as a whole,
+so their contents cannot rename a plugin or address another control. Invalid
+plugin-list entries do not hide the valid entries that follow them.
 
 <a name="profiles"></a>
 ### 3.6 Save and recall a scene
@@ -849,6 +928,13 @@ loading, and keeps its controls, whether or not its plugin fits in it.
 Profiles belong to the interface they were saved with; another device
 shows its own list. With the OpenDeck plugin a key can recall a
 profile ([section 4](#stream-deck)).
+
+Legacy profiles directly under `~/.config/openxlr/profiles` are moved into
+the Wave XLR Pro folder, `0fd9-00b4`, at startup. If that folder already
+contains a profile with the same name, both copies are preserved and the
+remaining legacy profiles still migrate. The existing device-specific
+profile is the one shown in the picker; the colliding original remains in
+the legacy folder for manual comparison.
 
 **Recall on connect.** The "On connect" picker under the list names a
 profile the daemon recalls by itself whenever the interface connects
@@ -1063,6 +1149,11 @@ mixes on the right, each with move up and down, Rename and Delete, and a
 box at the bottom to add one. The hardware inputs, Monitor A, Monitor B
 and Aux are listed but fixed.
 
+Reordering updates the open window as soon as the daemon publishes the saved
+layout, including changes made through the API. Channel tiles, mix controls
+and each channel's send rows follow the same order without resetting their
+levels or mute state.
+
 - A new channel appears as a playback device at once and starts muted in
   every mix, so route an app to it and open the sends you want.
 - A new virtual microphone receives nothing until you open a send; then
@@ -1185,7 +1276,7 @@ phantom, low cut, expander, voice tune, ClipGuard, compressor, low
 impedance, the Pro's output selectors, the aux level lock, the gain
 lock), the software low cut (cycling Off, 80, 120), a mix or send mute,
 the monitor output (switching the monitor mixes to one specific device),
-an output's feed (cycling Monitor A, Monitor B and Monitor A+B, lit
+an output's feed (cycling Monitor A, Monitor B, Monitor A+B and the remaining mixes, lit
 when not on A),
 the bypass of one insert or of a whole chain, or a profile to recall.
 The key's LED is green for an engaged feature, red for a mute, and grey
@@ -1220,6 +1311,10 @@ Restart OpenDeck after installing or updating the plugin.
   `journalctl --user -u openxlr-daemon -n 50`. "present but could not
   be opened" can mean missing USB permission or a busy interface; check
   the udev rule and whether another hardware-control program is running.
+- If the desktop audio server is not ready at login, OpenXLR waits up to
+  three seconds each for its initial default-output and default-input
+  queries. A failed query leaves that default unknown and the daemon still
+  starts; select your preferred desktop default afterwards.
 - With more than one supported interface attached, the header shows a
   picker; the mixer's input channels follow the chosen one.
 
@@ -1319,6 +1414,11 @@ daemon, to try again. A helper whose device could not be opened at all
 killed straight away and the daemon tries again two seconds later.
 Collect diagnostics afterwards ([section 5.10](#reporting)): the archive contains the
 exact transfer, and that is what makes the report actionable.
+
+The USB deadline covers both sending a request and receiving its reply, so
+a helper that stops reading commands cannot block a large transfer indefinitely.
+Malformed replies also discard the helper; the next connection starts a fresh
+process instead of reusing a broken protocol stream.
 
 <a name="open-files"></a>
 ### 5.8 Channels or mixes vanish after adding one
@@ -1454,6 +1554,11 @@ Review plugin names, paths and scanner output before sharing the archive.
 | `/usr/lib/systemd/user/pipewire-pulse.service.d/openxlr.conf` | installed by the packages: raises pipewire-pulse's open-file limit ([section 5.8](#open-files)) |
 | `ws://127.0.0.1:37890/ws` | the daemon's API, documented in [api.md](api.md); the same commands over HTTP at `/api/v1` ([http-api.md](http-api.md)) |
 
+The daemon makes a final attempt to save pending mixer settings when it
+shuts down, including when startup fails after the mixer changed. If that
+write fails, the last file on disk remains in use. Later cleanup cannot
+schedule another save from a mixer that is already being dismantled.
+
 Saved mixer and hardware data are checked before restoration. A null entry
 or a number that is not finite (`1e999`) counts as a bad entry. What happens
 next depends on the file:
@@ -1485,3 +1590,93 @@ an interrupted write leaves the previous file in place.
 
 Uninstalling a package leaves `~/.config/openxlr` in place; remove it
 by hand if you want a clean slate.
+
+## Additional capture inputs
+
+Open **Edit layout**, then **Add capture input**. Enter a channel name,
+choose an available microphone, capture card or another Wave interface, and
+select its stereo pair. Pair 1 works for ordinary mono and stereo sources.
+The new channel starts muted in every mix. Open only the sends you need.
+
+Capture channels can be renamed, reordered and deleted like application
+channels. Their layout row shows the connection state and pair; hover over
+it to see the exact source name. An offline input stays silent and reconnects
+with its saved faders when the same source returns. A different source or
+pair needs a new capture channel. Profile recall changes its sends, not its
+source binding. Application routing never targets capture inputs.
+
+Several Wave interfaces can supply capture audio at once. The active-device
+picker still chooses the single interface whose hardware controls OpenXLR
+shows. The software input effects and XLR inserts retain their existing scope;
+additional capture inputs can use the effects on the mixes they feed.
+
+## Desktop keys and focused application routing
+
+Open **Desktop keys** and enable desktop integration. For PC shortcuts, select
+the application channels you want, then choose **Apply and configure keys**.
+The desktop portal asks for the shortcuts and permission to use them. For an
+OpenDeck key, choose **Route focused application** and the destination channel
+in the Toggle inspector. No PC shortcut needs to be selected for OpenDeck.
+Keep the OpenXLR window process running; hiding it in the tray keeps the keys
+active. The daemon alone does not own a desktop shortcut session.
+
+The GlobalShortcuts portal registers keys on Wayland. It does not expose the
+focused application's identity. Focused routing therefore currently requires
+KDE Plasma, where a short-lived KWin script reads the active process id. It
+reads no window titles and removes its script after the query. The daemon
+uses `gdbus`, supplied by the GLib command-line tools, to ask the window for it.
+On unsupported desktops or when the window is closed, routing reports an error.
+
+The exact process, or a unique audio identity among its child processes,
+must appear in PipeWire. The existing application assignment is then updated
+and remembered for the next launch. A stream that is still starting joins
+that channel when the daemon next discovers it. Multiple possible identities, stopped
+processes, unavailable clients and deleted target channels produce an error.
+Titles and executable names are not guessed. A PC error is shown in Desktop
+keys; OpenDeck flashes an alert for a failed or unanswered command.
+
+Bindings are stored in `desktop-keys.json` independently of profiles. Renaming
+a channel keeps its key identity; deleting it makes its key fail until it is
+removed from the configured list. After a portal or session-bus restart, open
+Desktop keys and apply again to reconnect. A method call that times out or is
+cancelled also closes the desktop connection, releasing outstanding replies;
+apply again once the desktop service is responsive. Cancelling the permission dialog
+leaves the requested preferences saved, with a visible inactive error state;
+apply again to retry or disable the integration.
+
+Disabling or replacing a shortcut session stops further activations. A
+command already sent to the daemon may still finish; its delayed reply
+does not replace the status of the disabled, closed or replacement session.
+
+### Output volume, mute and system output keys
+
+In **Desktop keys**, select **Add volume and mute keys** and choose the current
+system default or a named output. Each volume press moves five percentage
+points within 0 to 150%. Mute toggles at the audio server. Monitor A and B
+update their corresponding mix masters; a selected external monitor output
+uses the existing linked monitor-volume behavior. Other external outputs
+change independently. Ordinary internal OpenXLR application sinks are not
+volume targets because their gains must stay at unity.
+
+Select **Switch system output** entries to register keys which select and
+enforce that default sink. **Follow selected monitor output** follows the
+first output in the monitor selection. These keys keep the configured capture
+default and mixer routing intact. Unplugged named outputs report an error;
+their bindings remain saved for reconnection. At most 16 output-selection
+shortcuts and 32 focused-channel shortcuts are retained.
+
+For OpenDeck, use the Toggle inspector's **System output controls** and
+**Enforced system output** groups. Volume and mute keys are momentary actions;
+they acknowledge the command without displaying a persistent mute indicator.
+Output-selection keys indicate the enforced choice. These Deck actions only
+need the daemon. PC shortcuts also need the running UI and a desktop supporting
+the GlobalShortcuts portal, but do not need KDE's focused-window integration.
+Desktop shortcuts are explicitly selected in the portal; existing media-key
+bindings are not replaced automatically.
+
+PC shortcut presses are processed in order, including quick volume repeats.
+Up to 16 presses can wait behind the active command. If that queue fills,
+Desktop keys reports that the additional press was not queued. Disabling or
+reconfiguring the shortcuts discards their waiting commands; an already sent
+command may still finish. This queue also preserves the order of an output
+switch followed by a volume change.

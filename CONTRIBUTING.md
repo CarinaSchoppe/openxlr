@@ -41,6 +41,7 @@ tools/check-openapi.py docs/openapi-v1.json     # the HTTP API document keeps it
 tools/check-spec.py packaging/rpm/openxlr.spec  # every installed file is in %files
 make -C native  # C/C++, PipeWire, lilv, LV2 and X11 development headers
 make -C native test-audio test-clap test-vst3  # audio bounds, stall detection, CLAP bus layouts and VST3 parameter and stream checks
+dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~Lv2BundleTests  # run with lilv installed, even if the earlier suite ran without it
 python3 tools/test-monitor-volume.py  # private PipeWire server; pipewire-pulse, wireplumber, pactl
 xvfb-run -a make -C native test-editor  # also needs Xvfb and xauth
 OPENXLR_TEST_DESKTOP=1 xvfb-run -a dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~TrayWindowTests
@@ -61,6 +62,15 @@ ClipGuard with recorded test audio, low cut and a native LSP gate, run
 `OPENXLR_TEST_DSP=1 python3 tools/test-monitor-volume.py` after a native-enabled
 build, with swh-plugins and LSP LV2 plugins installed. The runner isolates
 plugin scans from user-installed CLAP and VST3 bundles.
+For a focused rerun on the same private server, set `OPENXLR_TEST_FILTER` to
+the desired `dotnet test` filter instead of passing a second `--filter`.
+
+Application routing tests run the normal mixer sweep while waiting for the
+destination to settle. PipeWire's move acknowledgement can arrive before
+the session manager publishes the new link. Check both the tracked channel
+and the real stream destination instead of assuming they change together.
+The capture, output-route and key-control audio tests enable the registry
+subscription so they exercise the daemon's normal discovery path.
 
 The window layout test runs in its own process using X11 and isolated
 configuration, runtime and session-bus settings. It checks narrow plugin
@@ -95,6 +105,10 @@ those checks. The optional Windows bridge has a separate artifact workflow
 and [package checks](packaging/yabridge/README.md).
 
 ## Pull requests
+
+CI and CodeQL run for pull requests and for direct pushes to `main` and
+`development`, so changes integrated directly into development get the same
+checks as a pull request.
 
 - **Branch from `main`** and keep one topic per pull request. Split an
   independent part out into its own request when you can; small ones

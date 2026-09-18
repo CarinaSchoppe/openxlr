@@ -130,6 +130,7 @@ that final acknowledgement (or an `error` without a request id):
 | `getNativeEditorRules` | none | read release defaults and explicit user overrides for native editor compatibility |
 | `setNativeEditorRule` | `kind`, `plugin`, `name?`, `blocked?` | set `blocked:true` to use OpenXLR controls, `false` to allow the native editor, or null/absent to remove the override and follow release defaults. Saved atomically before success; answered with `nativeEditorRules` |
 | `showInsertUi` | `channel`, `insertId` | open an enabled insert's native editor when the optional host is installed and the editor policy allows it; a blocked editor is refused without changing the audio instance |
+| `routeFocusedApp` | `channel` | route the focused KDE application to an application channel and remember the assignment; requires the running UI with Desktop keys enabled and `gdbus`. Missing or ambiguous process identity is an error, with no guessed routing |
 | `assignApp` | `identity`, `channel`, `label?` | route an app (creates a registry entry if unseen); `channel: "ignore"` stops managing it, its streams go back to the system default output and stay wherever the desktop routes them |
 | `assignStream` | `streamId`, `channel` | route one live stream by its PipeWire id; also remembered for the app; `ignore` works here too |
 | `forgetApp` | `identity` | drop an app and its remembered channel |

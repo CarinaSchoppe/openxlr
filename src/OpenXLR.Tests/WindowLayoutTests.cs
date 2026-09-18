@@ -294,6 +294,17 @@ public sealed class WindowLayoutTests
                 captureDialog.Close();
                 setup.Close();
 
+                for (int i = 0; i < 32; i++) vm.Channels.Add(new ChannelViewModel(new DaemonClient(), "key-channel" + i, "Shortcut channel " + i, []));
+                using var keys = new DesktopKeys(new DaemonClient());
+                var keyWindow = new DesktopKeysWindow(keys, vm);
+                windows.Add(keyWindow);
+                keyWindow.Show();
+                Layout(keyWindow, 360, 340);
+                var keyScroll = Assert.Single(keyWindow.GetVisualDescendants().OfType<ScrollViewer>(), v => v.Content is StackPanel);
+                Assert.True(keyScroll.Extent.Height > keyScroll.Viewport.Height);
+                Capture(keyWindow, "desktop-keys-360");
+                keyWindow.Close();
+
                 new UiSettings { StartMinimized = true, MinimizeToTray = true }.Save();
                 var optionsVm = new OptionsViewModel(new DaemonClient(), vm);
                 var options = new OptionsWindow { DataContext = optionsVm };

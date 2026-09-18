@@ -77,6 +77,9 @@ public static class CommandValidation
                 return cmd.Cmd == "setMixVolume" ? Finite(cmd, "value") : null;
             case "setOutputVolume":
                 return Finite(cmd, "value");
+            case "routeFocusedApp":
+                return cmd.Channel is { Length: > 0 and <= 36 } && layout.HasApplicationChannel(cmd.Channel)
+                    ? null : "routeFocusedApp: select an application channel";
             case "assignStream":
                 if (cmd.Channel is not null && !IsChannelOrIgnore(layout, cmd.Channel)) return $"assignStream: unknown channel '{Short(cmd.Channel)}'";
                 return null;

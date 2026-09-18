@@ -4,6 +4,7 @@
 // and dials stay in sync with the UI (and with the hardware) for free.
 
 import process from "node:process";
+import { randomUUID } from "node:crypto";
 import { channelName, mixName, mixShortName, layoutChoices } from "./layout-choices.mjs";
 import fs from "node:fs";
 import os from "node:os";
@@ -54,6 +55,25 @@ let catalog = new Map();  // LV2 plugin URI -> PluginInfo (names and ranges of t
 let reconnectTimer = null;
 let reconnectDelayMs = 500;
 let connectionGeneration = 0;
+const pendingKeys = new Map();
+
+function finishKey(requestId, failed) {
+  const pending = pendingKeys.get(requestId);
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  pendingKeys.delete(requestId);
+  send({event: failed ? "showAlert" : "showOk", context: pending.context});
+}
+
+function keyCommand(context, payload) {
+  if (pendingKeys.size >= 64) { send({event:"showAlert", context}); return; }
+  if ([...pendingKeys.values()].some(p => p.context === context)) return;
+  const requestId = randomUUID();
+  const timer = setTimeout(() => finishKey(requestId, true), 8000);
+  timer.unref();
+  pendingKeys.set(requestId, {context, timer});
+  if (!cmd({...payload, requestId})) finishKey(requestId, true);
+}
 
 function scheduleDaemonReconnect(generation) {
   if (generation !== connectionGeneration || reconnectTimer) return;
@@ -95,11 +115,13 @@ function connectDaemon() {
       catalog = new Map((m.plugins ?? []).map((p) => [p.plugin, p]));
       refreshAll();
     }
+    else if (m.type === "commandResult") finishKey(m.requestId, !!m.error);
     else if (m.type === "error") console.error("OpenXLR daemon:", m.message);
   };
   socket.onclose = (e) => {
     if (daemon !== socket) return;
     if (e && e.code === 1008) console.error("OpenXLR daemon refused the plugin:", e.reason);
+    for (const id of pendingKeys.keys()) finishKey(id, true);
     daemonUp = false; daemonState = null; refreshAll();
     scheduleDaemonReconnect(generation);
   };
@@ -407,6 +429,10 @@ function toggleValue(target, inst) {
   // and leave the deck face out of sync with the audible graph.
   if (target === "softClipGuard")
     return mixer()?.softClipGuardAvailable === true ? mixer()?.softClipGuard ?? false : null;
+  if (target.startsWith("focus:")) {
+    const channel = chOf(target.slice(6));
+    return channel && !channel.hardware && !channel.captureSource ? false : null;
+  }
   if (target.startsWith("monitor:")) {
     const outs = mixer()?.monitorOutputs;
     return outs ? outs.includes(target.slice(8)) : null;
@@ -444,6 +470,7 @@ function toggleLabel(target, inst) {
     const name = ins ? pluginShort(ins.label, ins.plugin) : (metaOf(inst, target)?.plugin ? pluginShort(null, metaOf(inst, target).plugin) : "Insert");
     return `${chainShort(ch)}\n${name}`;
   }
+  if (target.startsWith("focus:")) return `Focus\n${channelName(mixer(), target.slice(6))}`;
   if (target.startsWith("inschain|")) return `${chainShort(target.slice(9))}\nInserts`;
   if (isProfileTarget(target)) return `Profile\n${target.slice(8)}`;
   if (target === "auxPort") return "Aux\nPort";
@@ -553,7 +580,8 @@ function onKeyDown(context, inst) {
   const t = inst.settings.target;
   const cur = toggleValue(t, inst);
   if (cur === null) { send({ event: "showAlert", context }); return; }
-  if (t.startsWith("insert|")) {
+  if (t.startsWith("focus:")) keyCommand(context, { cmd: "routeFocusedApp", channel: t.slice(6) });
+  else if (t.startsWith("insert|")) {
     const [, ch, id] = t.split("|");
     const ins = resolveInsert(ch, id, metaOf(inst, t));
     cmd({ cmd: "setInsertBypass", channel: ch, insertId: ins.id, value: cur });   // cur = active, so bypass it

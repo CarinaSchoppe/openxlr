@@ -34,6 +34,13 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
     host.receive({event:"sendToPlugin",context:"qa",payload:{request:"layout"}});
     assert.ok(host.messages.at(-1).payload.levelGroups.flatMap(g => g.items)
       .some(item => item.target === "send:system:monitor2"));
+    host.receive({event:"willAppear",context:"focus-key",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"focus:system"}}});
+    host.receive({event:"keyDown",context:"focus-key"});
+    const focus = daemon.messages.at(-1);
+    assert.deepEqual({...focus, requestId:undefined}, {cmd:"routeFocusedApp",channel:"system",requestId:undefined});
+    assert.equal(typeof focus.requestId, "string");
+    daemon.receive({type:"commandResult",requestId:focus.requestId,error:"ambiguous application"});
+    assert.ok(host.messages.some(m => m.event === "showAlert" && m.context === "focus-key"));
     host.receive({event:"willAppear",context:"feed-key",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"feed:qa-output"}}});
     host.receive({event:"keyDown",context:"feed-key"});
     assert.deepEqual(daemon.messages.at(-1), {cmd:"setMonitorFeed",device:"qa-output",mix:"monitor2"});

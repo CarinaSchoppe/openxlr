@@ -446,6 +446,9 @@ public sealed class MixerService : IHostedService, IDisposable
                     if (cmd.Mix is null) return "setMixMuted: need 'mix'";
                     _mixer.SetMixMuted(cmd.Mix, cmd.Value.GetBoolean());
                     break;
+                case "routeFocusedApp":
+                    _mixer.RouteFocusedApplication(DesktopFocusQuery.Read(), cmd.Channel!);
+                    break;
                 case "assignStream":
                     if (cmd.Channel is null || cmd.StreamId is null) return "assignStream: need 'channel' and 'streamId'";
                     // Also remembered per application, so it sticks next launch.

@@ -35,3 +35,14 @@ test("deleted layout entries disappear from new choices", () => {
   };
   assert.doesNotMatch(JSON.stringify(layoutChoices(afterDelete)), /broadcast-vod|alerts-new/);
 });
+
+
+test("focus keys only target application channels and follow renames", () => {
+  const state = { ...mixer, channels: [
+    {id:"mic", name:"Mic", hardware:true},
+    {id:"capture", name:"Capture", captureSource:"external"},
+    {id:"apps", name:"Renamed apps", hardware:false},
+  ]};
+  assert.deepEqual(layoutChoices(state).toggleGroups.find(g => g.id === "layout-focus").items,
+    [{target:"focus:apps", label:"Focused app to Renamed apps"}]);
+});

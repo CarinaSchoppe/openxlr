@@ -332,6 +332,7 @@ public sealed class WebSocketHub
             case "setChannelMuted":
             case "setMixVolume":
             case "setMixMuted":
+            case "routeFocusedApp":
             case "assignStream":
             case "assignApp":
             case "forgetApp":

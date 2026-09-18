@@ -1673,3 +1673,10 @@ need the daemon. PC shortcuts also need the running UI and a desktop supporting
 the GlobalShortcuts portal, but do not need KDE's focused-window integration.
 Desktop shortcuts are explicitly selected in the portal; existing media-key
 bindings are not replaced automatically.
+
+PC shortcut presses are processed in order, including quick volume repeats.
+Up to 16 presses can wait behind the active command. If that queue fills,
+Desktop keys reports that the additional press was not queued. Disabling or
+reconfiguring the shortcuts discards their waiting commands; an already sent
+command may still finish. This queue also preserves the order of an output
+switch followed by a volume change.

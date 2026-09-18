@@ -15,6 +15,7 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
     private DBusConnection? _connection;
     private IDisposable? _activated, _closed;
     private int _invoking;
+    private readonly Queue<(KeyAction Action, Func<bool> IsActive)> _pending = new();
     internal string Status { get; private set; } = "Desktop keys are disabled.";
     internal event Action? Changed;
 
@@ -125,14 +126,40 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
 
     private async Task InvokeAsync(KeyAction action, Func<bool> isActive)
     {
-        if (!isActive() || Interlocked.Exchange(ref _invoking, 1) != 0) return;
-        try
+        bool full;
+        lock (_pending)
         {
-            string? error = await action.Invoke();
-            if (isActive()) SetStatus(error ?? "Completed: " + action.Description + ".");
+            if (!isActive()) return;
+            full = _pending.Count >= 16;
+            if (!full)
+            {
+                _pending.Enqueue((action, isActive));
+                if (_invoking != 0) return;
+                Volatile.Write(ref _invoking, 1);
+            }
         }
-        catch (Exception ex) { if (isActive()) SetStatus(ex.Message); }
-        finally { Volatile.Write(ref _invoking, 0); }
+        if (full)
+        {
+            if (isActive()) SetStatus("Desktop key queue is full; this press was not queued. Wait for the daemon before retrying.");
+            return;
+        }
+        // One consumer preserves output-switch/volume order without losing
+        // ordinary key repeats or accumulating unbounded daemon requests.
+        while (true)
+        {
+            lock (_pending)
+            {
+                if (_pending.Count == 0) { Volatile.Write(ref _invoking, 0); return; }
+                (action, isActive) = _pending.Dequeue();
+            }
+            if (!isActive()) continue;
+            try
+            {
+                string? error = await action.Invoke();
+                if (isActive()) SetStatus(error ?? "Completed: " + action.Description + ".");
+            }
+            catch (Exception ex) { if (isActive()) SetStatus(ex.Message); }
+        }
     }
 
     private void SetStatus(string text) { Status = text; Changed?.Invoke(); }
@@ -140,6 +167,7 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
     {
         DBusConnection? connection = _connection;
         _connection = null; // invalidate queued callbacks before disposing their observers
+        lock (_pending) _pending.Clear();
         _activated?.Dispose(); _activated = null;
         _closed?.Dispose(); _closed = null;
         // A portal session is owned by this connection and closes with it.

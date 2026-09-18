@@ -1610,3 +1610,7 @@ cancelled also closes the desktop connection, releasing outstanding replies;
 apply again once the desktop service is responsive. Cancelling the permission dialog
 leaves the requested preferences saved, with a visible inactive error state;
 apply again to retry or disable the integration.
+
+Disabling or replacing a shortcut session stops further activations. A
+command already sent to the daemon may still finish; its delayed reply
+does not replace the status of the disabled, closed or replacement session.

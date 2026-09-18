@@ -49,22 +49,30 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
             string session = created["session_handle"].GetString();
             var channels = settings.FocusChannels.ToHashSet(StringComparer.Ordinal);
             int active = 0; // 0 binding, 1 active, -1 closed
+            bool IsCurrent() => ReferenceEquals(_connection, connection) && !_lifetime.IsCancellationRequested;
+            Func<bool> isActive = () => IsCurrent() && Volatile.Read(ref active) == 1;
             _activated = await connection.AddMatchAsync(new MatchRule { Type = MessageType.Signal, Sender = DesktopBus.Portal,
                 Path = DesktopBus.PortalPath, Interface = DesktopBus.Shortcuts, Member = "Activated" },
                 static (message, _) => { var r = message.GetBodyReader(); return (r.ReadObjectPath().ToString(), r.ReadString()); },
                 notification =>
                 {
-                    if (notification.IsCompletion) { SetStatus("Desktop connection lost. Open Desktop keys and apply to reconnect."); return; }
+                    if (!IsCurrent()) return;
+                    if (notification.IsCompletion)
+                    {
+                        Interlocked.Exchange(ref active, -1);
+                        SetStatus("Desktop connection lost. Open Desktop keys and apply to reconnect.");
+                        return;
+                    }
                     var (activeSession, id) = notification.Value;
-                    if (Volatile.Read(ref active) == 1 && ReferenceEquals(_connection, connection) && activeSession == session && id.StartsWith("focus_", StringComparison.Ordinal)
-                        && channels.Contains(id[6..])) _ = InvokeAsync(id[6..]);
+                    if (isActive() && activeSession == session && id.StartsWith("focus_", StringComparison.Ordinal)
+                        && channels.Contains(id[6..])) _ = InvokeAsync(id[6..], isActive);
                 }, emitOnCapturedContext: false, flags: ObserverFlags.EmitOnConnectionClosed | ObserverFlags.EmitOnReaderFailed);
             _closed = await connection.AddMatchAsync(new MatchRule { Type = MessageType.Signal, Sender = DesktopBus.Portal,
                 Path = session, Interface = "org.freedesktop.portal.Session", Member = "Closed" },
                 static (_, _) => true, _ =>
                 {
                     Interlocked.Exchange(ref active, -1);
-                    SetStatus("Shortcut session closed. Open Desktop keys and apply to reconnect.");
+                    if (IsCurrent()) SetStatus("Shortcut session closed. Open Desktop keys and apply to reconnect.");
                 }, emitOnCapturedContext: false, flags: ObserverFlags.EmitOnConnectionClosed | ObserverFlags.EmitOnReaderFailed);
             await bus.Request("BindShortcuts", "oa(sa{sv})sa{sv}", token => (ref MessageWriter w) =>
             {
@@ -98,25 +106,27 @@ internal sealed class DesktopKeys(DaemonClient client) : IDisposable
             SetStatus("Desktop connection lost. Open Desktop keys and apply to reconnect.");
     }
 
-    private async Task InvokeAsync(string channel)
+    private async Task InvokeAsync(string channel, Func<bool> isActive)
     {
-        if (Interlocked.Exchange(ref _invoking, 1) != 0) return;
+        if (!isActive() || Interlocked.Exchange(ref _invoking, 1) != 0) return;
         try
         {
             string? error = await client.RouteFocusedAppAsync(channel);
-            SetStatus(error ?? "Focused application routed to " + channel + ".");
+            if (isActive()) SetStatus(error ?? "Focused application routed to " + channel + ".");
         }
-        catch (Exception ex) { SetStatus(ex.Message); }
+        catch (Exception ex) { if (isActive()) SetStatus(ex.Message); }
         finally { Volatile.Write(ref _invoking, 0); }
     }
 
     private void SetStatus(string text) { Status = text; Changed?.Invoke(); }
     private void Stop()
     {
+        DBusConnection? connection = _connection;
+        _connection = null; // invalidate queued callbacks before disposing their observers
         _activated?.Dispose(); _activated = null;
         _closed?.Dispose(); _closed = null;
         // A portal session is owned by this connection and closes with it.
-        _connection?.Dispose(); _connection = null;
+        connection?.Dispose();
     }
     public void Dispose() { _lifetime.Cancel(); Stop(); }
 }

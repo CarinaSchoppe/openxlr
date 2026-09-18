@@ -162,7 +162,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 }
                 _combineModules[ch.Id] = _pw.CreateCombineSink(ch.SinkName, MixSinkPattern,
                     $"OpenXLR {ch.Name}",
-                    visible: ch.InputPair is null);   // hardware inputs are not playback devices
+                    visible: ch.IsApplication);   // hardware inputs are not playback devices
             }
             DiscoverLegsLocked();
 
@@ -189,6 +189,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             _ = previousDefaultSource;   // defaults are governed by enforcement only
             _ = defaultSource;           // input channels are hardware-wired, not selectable
             WireInputFeedsLocked();
+            EnsureCaptureFeedsLocked();
             WireAuxRouteLocked();
             foreach (MixDefinition mix in config.Mixes) WireMixChainLocked(mix);
         }
@@ -543,7 +544,8 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     // ILayoutInfo, for command validation ahead of the mixer methods.
     public bool HasChannel(string id) { lock (_gate) return _config.Channels.Any(c => c.Id == id); }
     public bool HasMix(string id) { lock (_gate) return _config.Mixes.Any(m => m.Id == id); }
-    public bool HasApplicationChannel(string id) { lock (_gate) return _config.Channels.Any(c => c.Id == id && c.InputPair is null); }
+    public bool HasApplicationChannel(string id) { lock (_gate) return _config.Channels.Any(c => c.Id == id && c.IsApplication); }
+    public bool HasEditableChannel(string id) { lock (_gate) return _config.Channels.Any(c => c.Id == id && c.InputPair is null); }
     public bool HasVirtualMix(string id) { lock (_gate) return _config.Mixes.Any(m => m.Id == id && m.Kind == MixKind.VirtualMic); }
     public bool IsMonitorFeed(string feed) { lock (_gate) return NormalizeFeedLocked(feed) is not null; }
 
@@ -983,14 +985,15 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         lock (_gate)
         {
             if (!_built) return false;
+            bool captureChanged = EnsureCaptureFeedsLocked();
             // No feeds at all (device absent at build), or feeds whose source
             // node has since vanished (a card profile change renames every
             // node under it): both mean re-resolve the input and re-wire.
             bool broken = _inputFeeds.Count == 0
                 || _inputFeeds.Values.Any(f => _pw.EnsureLinks(f) == LinkHealth.Broken);
-            if (!broken) return false;
+            if (!broken) return captureChanged;
             WireInputFeedsLocked();
-            return _inputFeeds.Count > 0;
+            return captureChanged || _inputFeeds.Count > 0;
         }
     }
 
@@ -1009,7 +1012,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             return new MixerSettings
             {
                 UserChannels = [.. _config.Channels.Where(c => c.InputPair is null)
-                    .Select(c => new UserChannelDefinition(c.Id, c.Name))],
+                    .Select(c => new UserChannelDefinition(c.Id, c.Name, c.CaptureSource, c.CapturePair))],
                 UserMixes = [.. _config.Mixes.Where(m => m.Kind == MixKind.VirtualMic)
                     .Select(m => new UserMixDefinition(m.Id, m.Name))],
                 MixVolumes = new Dictionary<string, double>(_mixVolume),
@@ -1827,8 +1830,8 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                     changed = true;
                     continue;
                 }
-                ChannelDefinition? ch = _config.Channels.FirstOrDefault(c => c.Id == channelId)
-                                        ?? _config.Channels.FirstOrDefault(c => c.InputPair is null);
+                ChannelDefinition? ch = _config.Channels.FirstOrDefault(c => c.Id == channelId && c.IsApplication)
+                                        ?? _config.Channels.FirstOrDefault(c => c.IsApplication);
                 if (ch is null) continue;
 
                 try
@@ -1967,7 +1970,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                     _apps[identity] = new StreamAssignment(0, 0, label ?? identity, identity, StreamMatcher.Ignore) { Active = false, Running = false };
                 return;
             }
-            ChannelDefinition? ch = _config.Channels.FirstOrDefault(c => c.Id == channelId);
+            ChannelDefinition? ch = _config.Channels.FirstOrDefault(c => c.Id == channelId && c.IsApplication);
             if (ch is null) return;
             EnsureOverrideCapacity(identity);
             Matcher.SetOverride(identity, channelId);
@@ -2009,7 +2012,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 _streams.Remove(streamId);   // the next sweep lists it as unmanaged
                 return;
             }
-            ChannelDefinition? ch = _config.Channels.FirstOrDefault(c => c.Id == channelId);
+            ChannelDefinition? ch = _config.Channels.FirstOrDefault(c => c.Id == channelId && c.IsApplication);
             if (ch is null) return;
 
             EnsureOverrideCapacity(existing.Identity);
@@ -2034,7 +2037,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                     c.Id, c.Name,
                     _config.Mixes.ToDictionary(m => m.Id, m => _levels.GetValueOrDefault(Cell(c.Id, m.Id), 0.0)),
                     [.. _config.Mixes.Where(m => _muted.Contains(Cell(c.Id, m.Id))).Select(m => m.Id)],
-                    c.InputPair is not null))],
+                    c.InputPair is not null, c.CaptureSource, c.CapturePair, _captureFeeds.ContainsKey(c.Id)))],
                 RenamedSinceStart = _renamedSinceBuild,
                 MonitorOutput = _monitorOutputs.FirstOrDefault(),
                 MonitorOutputs = [.. _monitorOutputs],
@@ -2199,6 +2202,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         if (_auxRoute is not null) { _pw.Unlink(_auxRoute); _auxRoute = null; }
         foreach (PortLink feed in _inputFeeds.Values) _pw.Unlink(feed);
         _inputFeeds.Clear();
+        foreach (string id in _captureFeeds.Keys.ToArray()) RemoveCaptureFeedLocked(id);
         RemoveInputChainsLocked();
         RemoveMixChainsLocked();
         _inputDevice = null;

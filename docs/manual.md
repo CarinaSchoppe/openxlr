@@ -1580,3 +1580,22 @@ an interrupted write leaves the previous file in place.
 
 Uninstalling a package leaves `~/.config/openxlr` in place; remove it
 by hand if you want a clean slate.
+
+## Additional capture inputs
+
+Open **Edit layout**, then **Add capture input**. Enter a channel name,
+choose an available microphone, capture card or another Wave interface, and
+select its stereo pair. Pair 1 works for ordinary mono and stereo sources.
+The new channel starts muted in every mix. Open only the sends you need.
+
+Capture channels can be renamed, reordered and deleted like application
+channels. Their layout row shows the connection state and pair; hover over
+it to see the exact source name. An offline input stays silent and reconnects
+with its saved faders when the same source returns. A different source or
+pair needs a new capture channel. Profile recall changes its sends, not its
+source binding. Application routing never targets capture inputs.
+
+Several Wave interfaces can supply capture audio at once. The active-device
+picker still chooses the single interface whose hardware controls OpenXLR
+shows. The software input effects and XLR inserts retain their existing scope;
+additional capture inputs can use the effects on the mixes they feed.

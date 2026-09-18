@@ -4,7 +4,7 @@ using OpenXLR.Core.Mixing;
 namespace OpenXLR.Tests;
 
 [Collection("xdg-config")]
-public sealed class MonitorVolumeIntegrationTests
+public sealed partial class MonitorVolumeIntegrationTests
 {
     [MonitorPipeWireFact]
     public void OutputMatrixKeepsIndependentGainsAcrossRecallDeletionAndHotplug()

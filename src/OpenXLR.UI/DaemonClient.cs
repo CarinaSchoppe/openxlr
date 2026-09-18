@@ -350,6 +350,8 @@ public sealed class DaemonClient : IAsyncDisposable
 
     // --- layout editing: each call resolves to null on success or the daemon's error ---
 
+    public Task<string?> CreateCaptureChannelAsync(string name, string source, int pair)
+        => EditLayoutAsync(new() { ["cmd"] = "createCaptureChannel", ["name"] = name, ["source"] = source, ["capturePair"] = pair });
     public Task<string?> CreateChannelAsync(string name)
         => EditLayoutAsync(new() { ["cmd"] = "createChannel", ["name"] = name });
     public Task<string?> RenameChannelAsync(string channel, string name)

@@ -4,7 +4,7 @@ The daemon reads the layout from `mixer.json` before building its graph.
 Stop the daemon before editing this file manually: while running, its normal
 settings saves overwrite the file with the live configuration.
 
-`userChannels` is an ordered list of application channels and `userMixes` an
+`userChannels` is an ordered list of application and capture channels and `userMixes` an
 ordered list of virtual microphones. Each entry has a stable `id` and a display
 `name`. For example:
 
@@ -27,7 +27,7 @@ Hardware inputs, Monitor A (`monitor`), Monitor B (`monitor2`) and Aux
 (`auxout`) remain structural. The `ignore` application target is reserved.
 Invalid or duplicate entries are ignored. IDs contain at most 36 lowercase
 ASCII letters, digits, underscores or hyphens, beginning with a letter. Names
-contain 1 to 60 printable characters. At most 32 application channels and 16
+contain 1 to 60 printable characters. At most 32 editable channels and 16
 virtual microphones are restored.
 
 Node names derive from IDs, not labels. The list order survives a settings
@@ -87,6 +87,39 @@ afterwards, so node names, profiles and Stream Deck keys survive a rename.
 
 Other manual changes, including external PipeWire descriptions, take effect
 at startup.
+
+## Capture inputs
+
+`createCaptureChannel {name, source, capturePair}` adds a channel from an external
+PipeWire capture source. `source` is its exact `node.name`, at most 256 printable
+characters. `capturePair` is a zero-based stereo pair from 0 to 31 and defaults
+to 0. Mono sources feed both sides. A missing pair stays silent. The source must
+be present when creating the channel. OpenXLR's own devices and sink monitor
+sources are not capture inputs, to avoid direct feedback.
+
+Capture channels share the editable-channel limit of 32. They start muted in
+all mixes. Their hidden combine sink supports the existing sends, faders,
+meters and scene recall. They are excluded from application-routing choices.
+At least one application channel must remain; restoring a layout containing
+only capture inputs reserves a slot for a System application channel. Its
+application identity is retained even if a discarded capture entry had the
+same id and display name.
+
+Bindings are stored in `userChannels`, for example
+`{"id":"second-mic","name":"Second microphone","captureSource":"alsa_input.usb-headset","capturePair":0}`.
+An entry without `captureSource` is an application channel, as in older files.
+Invalid capture bindings are discarded, not converted into application channels.
+The binding belongs to the layout, not a profile. Rename, reorder and delete
+use the existing channel commands. Renaming leaves the capture graph running.
+To use a different source or pair, create a new capture channel and remove the old one.
+
+Disconnected sources retain their exact binding and faders. They reconnect
+when that node and pair return, without falling back to another microphone.
+Multiple interfaces can therefore supply audio simultaneously, independently
+of the interface selected for hardware controls. Hardware controls and the
+built-in input DSP still belong to the selected Wave interface. Capture inputs
+can feed mix insert chains; per-input insert hosting remains limited to the
+existing XLR channels.
 
 ## Output routes
 

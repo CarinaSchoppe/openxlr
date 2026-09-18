@@ -18,7 +18,7 @@ public static class CommandValidation
     public const int MaxInsertsPerChannel = 16;
     public const int MaxInsertId = 64;
     public const int MaxParamsPerInsert = InsertDefinition.MaxParams;
-    public const int MaxOverrides = 512;     // remembered app assignments
+    public const int MaxOverrides = Mixer.MaxAppOverrides;
 
     public static string? Check(Command cmd, ILayoutInfo layout, Func<InsertDefinition, PluginInfo?> findPlugin)
         => Check(cmd, layout, findPlugin, nativeHostInstalled: null);
@@ -81,7 +81,8 @@ public static class CommandValidation
                 if (cmd.Channel is not null && !IsChannelOrIgnore(layout, cmd.Channel)) return $"assignApp: unknown channel '{Short(cmd.Channel)}'";
                 if (TooLong(cmd.Identity, MaxText)) return "assignApp: identity too long";
                 if (TooLong(cmd.Label, MaxText)) return "assignApp: label too long";
-                if (layout.OverrideCount >= MaxOverrides) return $"assignApp: {MaxOverrides} remembered applications already; forget some first";
+                if (layout.OverrideCount >= MaxOverrides && (cmd.Identity is null || !layout.HasOverride(cmd.Identity)))
+                    return $"assignApp: {MaxOverrides} remembered applications already; forget some first";
                 return null;
             case "forgetApp":
                 return TooLong(cmd.Identity, MaxText) ? "forgetApp: identity too long" : null;

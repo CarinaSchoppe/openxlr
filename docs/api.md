@@ -180,6 +180,11 @@ Windows executable names normalize to the same key as their Wine/Proton
 client, for example `Balatro.exe` becomes `balatro`. `assignApp` and
 `forgetApp` also accept those legacy executable-name identities. When
 loading conflicting old and normalized overrides, the normalized key wins.
+At most 512 application assignments can be added through live commands.
+At that limit, `assignApp` and `assignStream` may still update an existing
+assignment, including an `ignore` choice. A new remembered identity returns
+an error before its live route changes. Older settings with more entries
+are preserved and their existing assignments remain editable.
 
 `pluginSetup` also reports `bridgeProvider` (`openxlr` or `system`),
 `bridgeDirectory` (the selected companion directory, or null), and

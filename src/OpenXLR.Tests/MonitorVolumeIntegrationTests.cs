@@ -7,6 +7,66 @@ namespace OpenXLR.Tests;
 public sealed class MonitorVolumeIntegrationTests
 {
     [MonitorPipeWireFact]
+    public void StreamAssignmentsCannotBypassTheAppLimitOrPartiallyMoveAudio()
+    {
+        var pw = new PipeWireAdapter();
+        using var mixer = new Mixer(pw);
+        mixer.Build(new MixerConfig
+        {
+            Channels = [new("system", "System"), new("music", "Music")],
+            Mixes = [new("monitor", "Monitor", MixKind.Monitor)],
+        });
+        using var stop = new CancellationTokenSource();
+        Task<ProcessResult> playback = ProcessRunner.RunAsync("python3", ["-c", """
+            import subprocess
+            args = ['--format=f32', '--rate=48000', '--channels=2']
+            if '--raw' in subprocess.check_output(['pw-cat', '--help'], text=True):
+                args.append('--raw')
+            # A real application playback stream, not a loopback: the mixer
+            # deliberately excludes loopbacks from application routing.
+            with open('/dev/zero', 'rb') as silence:
+                subprocess.run(['pw-cat', '--playback', *args, '--target', 'OpenXLR_ch_system',
+                    '--properties={ application.name = assignment-test application.process.binary = assignment-test }', '-'],
+                    stdin=silence, check=True)
+            """],
+            TimeSpan.FromSeconds(30), cancel: stop.Token);
+        try
+        {
+            Assert.True(SpinWait.SpinUntil(() =>
+            {
+                mixer.SyncStreams();
+                return mixer.Streams.Any(s => s.Identity == "assignment-test");
+            }, TimeSpan.FromSeconds(5)));
+            StreamAssignment stream = mixer.Streams.Single(s => s.Identity == "assignment-test");
+            for (int i = 0; i < Mixer.MaxAppOverrides; i++) mixer.Matcher.SetOverride($"app{i}", "system");
+            foreach (string channel in new[] { "music", StreamMatcher.Ignore })
+            {
+                Assert.Throws<InvalidOperationException>(() => mixer.AssignStream(stream.Id, channel));
+                Assert.Equal("OpenXLR_ch_system", pw.StreamSinkName(stream.Serial));
+                Assert.False(mixer.Matcher.Overrides.ContainsKey(stream.Identity));
+                Assert.Contains(mixer.Streams, s => s.Id == stream.Id);
+            }
+            mixer.ForgetApp("app0");
+            mixer.AssignStream(stream.Id, "music");
+            Assert.True(SpinWait.SpinUntil(() => pw.StreamSinkName(stream.Serial) == "OpenXLR_ch_music", TimeSpan.FromSeconds(3)));
+            Assert.Equal(Mixer.MaxAppOverrides, mixer.OverrideCount);
+            Assert.True(SpinWait.SpinUntil(() =>
+            {
+                mixer.SyncStreams();
+                return mixer.Streams.Any(s => s.Identity == stream.Identity);
+            }, TimeSpan.FromSeconds(3)));
+            mixer.AssignStream(stream.Id, StreamMatcher.Ignore);
+            Assert.Equal(StreamMatcher.Ignore, mixer.Matcher.Overrides[stream.Identity]);
+            Assert.Equal(Mixer.MaxAppOverrides, mixer.OverrideCount);
+        }
+        finally
+        {
+            stop.Cancel();
+            playback.GetAwaiter().GetResult();
+        }
+    }
+
+    [MonitorPipeWireFact]
     public void DesktopAndMixerShareTheSelectedOutputVolume()
     {
         // The runner creates a private PipeWire server. Never build or unload

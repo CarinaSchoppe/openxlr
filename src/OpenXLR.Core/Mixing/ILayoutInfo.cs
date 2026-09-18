@@ -30,4 +30,6 @@ public interface ILayoutInfo
     InsertDefinition? InsertInChain(string key, string id) => null;
     /// <summary>Remembered application identities (pinned assignments).</summary>
     int OverrideCount { get; }
+    /// <summary>Whether this application already has a remembered assignment, including legacy aliases.</summary>
+    bool HasOverride(string identity) => false;
 }

@@ -268,6 +268,13 @@ An app that is missing from the card is not registered with PipeWire
 as a client. That happens with some applications until they start
 playing.
 
+OpenXLR remembers up to 512 explicit app assignments. Once that limit is
+reached, existing assignments can still be changed, including "Not managed".
+Forget an unused assignment before adding a new one. A refused assignment
+leaves the app's live audio route unchanged; the same limit applies to
+commands that assign an individual stream. Older settings with more
+assignments remain readable and editable.
+
 <a name="usb-aux"></a>
 ### 3.4 Feed a second computer over USB Aux (Wave XLR Pro)
 

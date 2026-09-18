@@ -576,6 +576,21 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
 
     public InsertDefinition? InsertInChain(string key, string id) { lock (_gate) return InsertsFor(key).FirstOrDefault(i => i.Id == id); }
     public int OverrideCount { get { lock (_gate) return Matcher.Overrides.Count; } }
+    public bool HasOverride(string identity)
+    {
+        lock (_gate) return Matcher.Overrides.ContainsKey(StreamMatcher.MigrateIdentity(identity));
+    }
+
+    /// <summary>Live assignments may update existing entries but cannot grow the registry past this count.</summary>
+    public const int MaxAppOverrides = 512;
+
+    // Called under the state lock, before either the remembered choice or its
+    // live route changes. Restoring older saved assignments stays lossless.
+    private void EnsureOverrideCapacity(string identity)
+    {
+        if (Matcher.Overrides.Count >= MaxAppOverrides && !Matcher.Overrides.ContainsKey(identity))
+            throw new InvalidOperationException($"{MaxAppOverrides} remembered applications already; forget some first");
+    }
 
     private MixDefinition? MixForKey(string key)
         => key.StartsWith("mix:", StringComparison.Ordinal) ? _config.Mixes.FirstOrDefault(m => m.Id == key[4..]) : null;
@@ -1878,6 +1893,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             {
                 // Stop managing the app: remember the choice, hand its live
                 // streams back to the desktop, keep it listed as ignored.
+                EnsureOverrideCapacity(identity);
                 Matcher.SetOverride(identity, StreamMatcher.Ignore);
                 foreach ((int id, StreamAssignment placed) in _streams.ToList())
                     if (placed.Identity == identity)
@@ -1894,6 +1910,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             }
             ChannelDefinition? ch = _config.Channels.FirstOrDefault(c => c.Id == channelId);
             if (ch is null) return;
+            EnsureOverrideCapacity(identity);
             Matcher.SetOverride(identity, channelId);
 
             foreach ((int id, StreamAssignment placed) in _streams.ToList())
@@ -1924,6 +1941,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             if (channelId == StreamMatcher.Ignore)
             {
                 if (!_streams.TryGetValue(streamId, out StreamAssignment? managed)) return;
+                EnsureOverrideCapacity(managed.Identity);
                 Matcher.SetOverride(managed.Identity, StreamMatcher.Ignore);
                 ReleaseStreamLocked(managed.Serial);
                 _streams.Remove(streamId);   // the next sweep lists it as unmanaged
@@ -1934,6 +1952,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
 
             if (_streams.TryGetValue(streamId, out StreamAssignment? existing))
             {
+                EnsureOverrideCapacity(existing.Identity);
                 _pw.MoveStreamToSink(existing.Serial, ch.SinkName);
                 Matcher.SetOverride(existing.Identity, channelId);
                 _streams.Remove(streamId); // the next sweep confirms the destination

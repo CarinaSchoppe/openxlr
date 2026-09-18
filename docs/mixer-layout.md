@@ -98,7 +98,9 @@ Capture channels share the editable-channel limit of 32. They start muted in
 all mixes. Their hidden combine sink supports the existing sends, faders,
 meters and scene recall. They are excluded from application-routing choices.
 At least one application channel must remain; restoring a layout containing
-only capture inputs reserves a slot for a System application channel.
+only capture inputs reserves a slot for a System application channel. Its
+application identity is retained even if a discarded capture entry had the
+same id and display name.
 
 Bindings are stored in `userChannels`, for example
 `{"id":"second-mic","name":"Second microphone","captureSource":"alsa_input.usb-headset","capturePair":0}`.

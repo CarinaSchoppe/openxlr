@@ -143,12 +143,17 @@ public sealed partial record MixerConfig
         mixes.AddRange(structuralMixes.Where(m => m.Kind == MixKind.AuxPort));
 
         var apps = ValidEntries(channelEntries, hardware.Select(c => c.Id).Append(StreamMatcher.Ignore), MaxApplicationChannels).ToList();
+        string? fallbackId = null;
         UserChannelDefinition? SavedChannel((string Id, string Name) entry)
-            => userChannels.FirstOrDefault(c => c.Id == entry.Id && c.Name?.Trim() == entry.Name);
+            => entry.Id == fallbackId ? null : userChannels.FirstOrDefault(c => c.Id == entry.Id && c.Name?.Trim() == entry.Name);
         if (!apps.Any(c => SavedChannel(c)?.CaptureSource is null))
         {
             if (apps.Count == MaxApplicationChannels) apps.RemoveAt(apps.Count - 1);
-            apps.Add((NewId("system", "system", apps.Select(c => c.Id)), "System"));
+            // The synthesized destination is always an application channel.
+            // A truncated capture with the same id and label cannot supply
+            // its binding when the accepted entries are materialized below.
+            fallbackId = NewId("system", "system", apps.Select(c => c.Id));
+            apps.Add((fallbackId, "System"));
         }
         var channels = hardware.Select(Normalize).ToList();
         channels.AddRange(apps.Select(c =>

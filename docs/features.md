@@ -291,6 +291,10 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   and browser pages from other origins are refused; see
   [api.md](api.md). The same commands are served over HTTP at `/api/v1`
   with an OpenAPI document ([http-api.md](http-api.md))
+- Registry discovery uses one persistent PipeWire event subscription and
+  an incremental snapshot, without periodically launching full graph dumps.
+  Disconnects discard stale object ids and reconnect with bounded backoff.
+  The routing and device reconciliation timer remains in place.
 - The daemon rebuilds its graph after a pipewire-pulse restart, and
   refuses to grow the layout when pipewire-pulse has no open-file
   headroom left; the packages raise that limit with a systemd drop-in.

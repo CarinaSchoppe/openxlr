@@ -7,6 +7,65 @@ namespace OpenXLR.Tests;
 public sealed partial class MonitorVolumeIntegrationTests
 {
     [MonitorPipeWireFact]
+    public void IncompleteCaptureLinksStayDisconnectedAndRetryBothSides()
+    {
+        var pw = new PipeWireAdapter();
+        using var mixer = new Mixer(pw);
+        mixer.Build(new MixerConfig { Channels = [new("system", "System")],
+            Mixes = [new("monitor", "Monitor", MixKind.Monitor)] });
+        pw.CreateNullSink("test_capture_partial", "Partial test input");
+        pw.CreateVirtualMic("test_source_partial", "test_capture_partial.monitor", "Partial source");
+        Assert.True(SpinWait.SpinUntil(() => pw.ListDevices().Any(d => d.Name == "test_source_partial"), TimeSpan.FromSeconds(5)));
+        string directory = Path.Combine(Path.GetTempPath(), "openxlr-partial-link-" + Guid.NewGuid());
+        Directory.CreateDirectory(directory);
+        string? path = Environment.GetEnvironmentVariable("PATH");
+        string realLink = (path ?? "").Split(Path.PathSeparator).Select(p => Path.GetFullPath(Path.Combine(p, "pw-link"))).First(File.Exists);
+        string rejected = Path.Combine(directory, "rejected");
+        try
+        {
+            ExecutableScript.Write(Path.Combine(directory, "pw-link"), $$"""
+                #!/bin/sh
+                exec python3 - "$@" <<'PY'
+                import os, pathlib, sys
+                args = sys.argv[1:]
+                rejected = pathlib.Path({{System.Text.Json.JsonSerializer.Serialize(rejected)}})
+                if len(args) == 2 and args[0].startswith('test_source_partial:') and args[1].endswith(':playback_FR') and not rejected.exists():
+                    rejected.touch()
+                    sys.exit(1)
+                os.execv({{System.Text.Json.JsonSerializer.Serialize(realLink)}}, ['pw-link', *args])
+                PY
+                """);
+            try
+            {
+                Environment.SetEnvironmentVariable("PATH", directory + Path.PathSeparator + path);
+                mixer.CreateCaptureChannel("Partial", "test_source_partial", 0, _ => null);
+            }
+            finally { Environment.SetEnvironmentVariable("PATH", path); }
+            Assert.True(File.Exists(rejected));
+            Assert.False(mixer.Snapshot().Channels.Single(c => c.Id == "partial").CaptureConnected);
+            Assert.Equal(0, Links());
+            Assert.True(SpinWait.SpinUntil(() =>
+            {
+                mixer.EnsureInputFeeds();
+                return mixer.Snapshot().Channels.Single(c => c.Id == "partial").CaptureConnected && Links() == 2;
+            }, TimeSpan.FromSeconds(5)));
+        }
+        finally { Directory.Delete(directory, true); }
+
+        int Links()
+        {
+            using var graph = System.Text.Json.JsonDocument.Parse(ProcessRunner.Run("pw-dump", []).Stdout);
+            int node = graph.RootElement.EnumerateArray().Single(item =>
+                item.GetProperty("type").GetString() == "PipeWire:Interface:Node"
+                && item.GetProperty("info").GetProperty("props").TryGetProperty("node.name", out var name)
+                && name.GetString() == "OpenXLR_ch_partial").GetProperty("id").GetInt32();
+            return graph.RootElement.EnumerateArray().Count(item =>
+                item.GetProperty("type").GetString() == "PipeWire:Interface:Link"
+                && item.GetProperty("info").GetProperty("input-node-id").GetInt32() == node);
+        }
+    }
+
+    [MonitorPipeWireFact]
     public void IndependentCaptureSourcesSurviveRecallRenameAndHotplug()
     {
         var pw = new PipeWireAdapter();

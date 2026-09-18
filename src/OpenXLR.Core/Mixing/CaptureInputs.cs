@@ -43,7 +43,9 @@ public sealed partial class Mixer
             // External sources need not use the hardware driver's capture_
             // prefix. Direction and the exact node name identify their ports.
             PortLink feed = _pw.LinkNodes(channel.CaptureSource!, "", channel.SinkName, "playback", fromPairOffset: channel.CapturePair);
-            if (feed.Pairs.Count == 0) continue;
+            // Capture channels have stereo sinks; mono sources also need a
+            // link to each side. Do not retain a partial route as healthy.
+            if (feed.Pairs.Count < 2) { _pw.Unlink(feed); continue; }
             _captureFeeds[channel.Id] = feed;
             changed = true;
         }

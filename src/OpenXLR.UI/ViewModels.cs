@@ -1028,20 +1028,35 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Update in place by id so bindings survive; add/remove as needed.</summary>
+    /// <summary>Follow daemon order while retaining existing objects and their bindings.</summary>
     private static void SyncList<T>(ObservableCollection<T> target, JsonArray source,
         Func<JsonNode, string> idOf, Action<JsonNode, T> update, Func<JsonNode, T> create)
         where T : class, IHasId
     {
         var seen = new HashSet<string>();
+        int position = 0;
         foreach (JsonNode? item in source)
         {
             if (item is null) continue;
             string id = idOf(item);
-            seen.Add(id);
-            T? existing = target.FirstOrDefault(x => x.Id == id);
-            if (existing is null) { T made = create(item); update(item, made); target.Add(made); }
-            else update(item, existing);
+            if (!seen.Add(id)) continue;
+            // State pushes normally keep the order, so avoid a list search
+            // for every control on every refresh.
+            T? existing = position < target.Count && target[position].Id == id
+                ? target[position] : target.FirstOrDefault(x => x.Id == id);
+            if (existing is null)
+            {
+                T made = create(item);
+                update(item, made);
+                target.Insert(position, made);
+            }
+            else
+            {
+                update(item, existing);
+                if (!ReferenceEquals(target[position], existing))
+                    target.Move(target.IndexOf(existing), position);
+            }
+            position++;
         }
         for (int i = target.Count - 1; i >= 0; i--)
             if (!seen.Contains(target[i].Id)) target.RemoveAt(i);
@@ -1343,13 +1358,24 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
 
     public ObservableCollection<SendViewModel> Sends { get; } = [];
 
-    /// <summary>Keep one send per mix as mixes come and go.</summary>
+    /// <summary>Keep existing send controls in the current mix order.</summary>
     public void SyncSends(IReadOnlyList<string> mixIds)
     {
+        var wanted = new HashSet<string>(mixIds);
         for (int i = Sends.Count - 1; i >= 0; i--)
-            if (!mixIds.Contains(Sends[i].MixId)) Sends.RemoveAt(i);
+            if (!wanted.Contains(Sends[i].MixId)) Sends.RemoveAt(i);
+        int position = 0;
         foreach (string mixId in mixIds)
-            if (Sends.All(s => s.MixId != mixId)) Sends.Add(new SendViewModel(_client, Id, mixId));
+        {
+            if (!wanted.Remove(mixId)) continue;
+            if (position >= Sends.Count || Sends[position].MixId != mixId)
+            {
+                SendViewModel? existing = Sends.FirstOrDefault(s => s.MixId == mixId);
+                if (existing is null) Sends.Insert(position, new SendViewModel(_client, Id, mixId));
+                else Sends.Move(Sends.IndexOf(existing), position);
+            }
+            position++;
+        }
     }
 
     private bool _visible = true;

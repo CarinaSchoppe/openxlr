@@ -450,6 +450,7 @@ public sealed class WindowLayoutTests
                     AssertInside(list, folders);
                     Capture(folders, "plugin-folders-" + width);
                 }
+                AssertLiveLayoutOrder(main, vm);
             }
             catch (Exception ex) { failure = ex; }
             finally
@@ -465,6 +466,29 @@ public sealed class WindowLayoutTests
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(45)), "Window layout hung.");
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    private static void AssertLiveLayoutOrder(MainWindow main, MainViewModel model)
+    {
+        LiveLayoutOrderTests.Apply(model, ["game", "music"], ["monitor", "stream", "chat"]);
+        Layout(main, 1040, 900);
+        LiveLayoutOrderTests.Apply(model, ["music", "game"], ["monitor", "chat", "stream"]);
+        Layout(main, 1040, 900);
+        var channels = main.GetVisualDescendants().OfType<Border>()
+            .Where(b => b.DataContext is ChannelViewModel && b.Width == 132)
+            .OrderBy(b => b.TranslatePoint(default, main)!.Value.X).ToArray();
+        Assert.Equal(["music", "game"], channels.Select(b => ((ChannelViewModel)b.DataContext!).Id));
+        foreach (var channel in channels)
+        {
+            var sliders = channel.GetVisualDescendants().OfType<Slider>()
+                .OrderBy(s => s.TranslatePoint(default, channel)!.Value.Y).ToArray();
+            Assert.Equal(["monitor", "chat", "stream"], sliders.Select(s => ((SendViewModel)s.DataContext!).MixId));
+        }
+        var mixes = main.GetVisualDescendants().OfType<Border>()
+            .Where(b => b.DataContext is MixViewModel && b.Width == 232)
+            .OrderBy(b => b.TranslatePoint(default, main)!.Value.Y)
+            .ThenBy(b => b.TranslatePoint(default, main)!.Value.X).ToArray();
+        Assert.Equal(["monitor", "chat", "stream"], mixes.Select(b => ((MixViewModel)b.DataContext!).Id));
     }
 
     private static void AddInsert(InsertsViewModel owner)

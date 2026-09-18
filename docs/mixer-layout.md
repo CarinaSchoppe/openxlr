@@ -71,6 +71,8 @@ error. Ordinary fader saves keep their debounced, retried behaviour.
 - `setLayoutOrder {channels, mixes}` reorders the editable ids. Supply every
   application-channel id and every virtual-microphone id exactly once;
   hardware inputs, Monitor A/B and Aux keep their positions. No node changes.
+  Open windows apply the published order to channel tiles, mix controls and
+  send rows while retaining the existing controls and their values.
 
 Every added channel or mix costs pipewire-pulse a few dozen open files;
 the daemon refuses an addition the server has no room for, and the packages

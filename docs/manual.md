@@ -1111,6 +1111,11 @@ mixes on the right, each with move up and down, Rename and Delete, and a
 box at the bottom to add one. The hardware inputs, Monitor A, Monitor B
 and Aux are listed but fixed.
 
+Reordering updates the open window as soon as the daemon publishes the saved
+layout, including changes made through the API. Channel tiles, mix controls
+and each channel's send rows follow the same order without resetting their
+levels or mute state.
+
 - A new channel appears as a playback device at once and starts muted in
   every mix, so route an app to it and open the sends you want.
 - A new virtual microphone receives nothing until you open a send; then

@@ -9,6 +9,9 @@ Filters = [
     # generator never sees them and the explicit Requires are the only thing
     # that pulls them in.
     "explicit-lib-dependency (libusb1|lilv-libs|pulseaudio-libs|libX11|libSM|libICE)",
+    # glib2 is required for the gdbus tool the daemon runs for focused
+    # routing, not for a library, so the generator cannot find it either.
+    "explicit-lib-dependency glib2",
     # The %post scriptlet prints instructions for the user; the 'cp' and the
     # '~' rpmlint flags are inside the here-document text, not executed.
     "use-of-home-in-%post",

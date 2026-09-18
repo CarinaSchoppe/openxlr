@@ -403,6 +403,7 @@ internal static class HostScan
         string? id = null, name = null, layoutRefused = null;
         var features = new List<string>();
         var parameters = new List<PluginParam>();
+        var parameterIds = new HashSet<string>(StringComparer.Ordinal);
         List<int>? widths = null;
         int ins = 0, outs = 0;
         bool gui = false;
@@ -450,7 +451,7 @@ internal static class HostScan
                 while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
                 {
                     if (reader.TokenType != JsonTokenType.StartObject || parameters.Count >= Lv2Catalog.MaxControls) { reader.Skip(); continue; }
-                    if (ReadParam(ref reader) is PluginParam param) parameters.Add(param);
+                    if (ReadParam(ref reader) is PluginParam param && parameterIds.Add(param.Symbol)) parameters.Add(param);
                 }
             }
             else { reader.Read(); reader.Skip(); }
@@ -469,14 +470,22 @@ internal static class HostScan
     /// <summary>One parameter, addressed by its id, which is how the helper takes it.</summary>
     private static PluginParam? ReadParam(ref Utf8JsonReader reader)
     {
-        long id = 0;
+        uint? id = null;
         string name = "";
         double min = 0, max = 1;
         double? initial = null;
         bool stepped = false, enumeration = false;
         while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
         {
-            if (reader.ValueTextEquals("id"u8)) { reader.Read(); id = (long)Number(ref reader); }
+            if (reader.ValueTextEquals("id"u8))
+            {
+                reader.Read();
+                // Both hosts address controls by uint32, reserving UINT32_MAX
+                // for an invalid id. Never round or wrap scanner metadata.
+                id = reader.TokenType == JsonTokenType.Number && reader.TryGetUInt32(out uint value)
+                    && value != uint.MaxValue ? value : null;
+                reader.Skip();
+            }
             else if (reader.ValueTextEquals("name"u8)) { reader.Read(); name = Text(ref reader) ?? ""; }
             else if (reader.ValueTextEquals("min"u8)) { reader.Read(); min = Number(ref reader); }
             else if (reader.ValueTextEquals("max"u8)) { reader.Read(); max = Number(ref reader, 1); }
@@ -488,10 +497,10 @@ internal static class HostScan
         // A valid JSON number such as 1e999 can still overflow a double.
         // Omit only that control so one bad range cannot prevent every
         // plugin from being serialized to the window.
-        if (!double.IsFinite(min) || !double.IsFinite(max) || (initial.HasValue && !double.IsFinite(initial.Value)))
+        if (id is null || !double.IsFinite(min) || !double.IsFinite(max) || (initial.HasValue && !double.IsFinite(initial.Value)))
             return null;
         return new PluginParam(
-            id.ToString(CultureInfo.InvariantCulture), name, min, max, initial ?? min,
+            id.Value.ToString(CultureInfo.InvariantCulture), name, min, max, initial ?? min,
             Toggled: stepped && min == 0 && max == 1,
             Integer: stepped,
             Logarithmic: false,

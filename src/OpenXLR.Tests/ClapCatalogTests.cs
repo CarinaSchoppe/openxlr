@@ -8,6 +8,37 @@ namespace OpenXLR.Tests;
 public sealed class ClapCatalogTests
 {
     [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"id\":null}")]
+    [InlineData("{\"id\":\"0\"}")]
+    [InlineData("{\"id\":-1}")]
+    [InlineData("{\"id\":0.5}")]
+    [InlineData("{\"id\":4294967296}")]
+    [InlineData("{\"id\":4294967295}")]
+    [InlineData("{\"id\":1e999}")]
+    [InlineData("{\"id\":{\"nested\":1}}")]
+    [InlineData("{\"id\":[0]}")]
+    public void InvalidParameterIdsCannotAliasARealControl(string invalid)
+    {
+        string description = "{\"plugins\":[{\"id\":\"test\",\"params\":[" + invalid
+            + ",{\"id\":0,\"name\":\"Zero\"},{\"id\":4294967294,\"name\":\"High\"}]}]}";
+        foreach (IReadOnlyList<PluginInfo> plugins in new[] { ClapCatalog.Parse(description), Vst3Catalog.Parse(description) })
+            Assert.Equal(["0", "4294967294"], Assert.Single(plugins).Params.Select(p => p.Symbol));
+    }
+
+    [Fact]
+    public void DuplicateParameterIdsKeepOnlyTheFirstControl()
+    {
+        const string description = """
+            {"plugins":[{"id":"test","params":[
+                {"id":7,"name":"First"},{"id":7,"name":"Duplicate"},{"id":9,"name":"Other"}
+            ]}]}
+            """;
+        foreach (IReadOnlyList<PluginInfo> plugins in new[] { ClapCatalog.Parse(description), Vst3Catalog.Parse(description) })
+            Assert.Equal(["First", "Other"], Assert.Single(plugins).Params.Select(p => p.Name));
+    }
+
+    [Theory]
     [InlineData("min")]
     [InlineData("max")]
     [InlineData("default")]

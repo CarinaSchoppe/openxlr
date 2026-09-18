@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version:        0.1.40
+Version:        0.1.41
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -153,6 +153,10 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Fri Sep 18 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.41-1
+- The XLR Dock connects when the kernel dropped its capture volume control: gain, mute and headphone volume each use the ALSA control when present and the dock's config block when not, and a control the block cannot reach is reported instead of failing the connection.
+- The Windows bridge companion carries revision 2 so its packages and the Options window agree on the baseline x86-64 build.
+
 * Fri Sep 18 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.40-1
 - Any mix can feed the selected outputs, with a level per route in the new output matrix window, and extra PipeWire capture sources can be added as input channels.
 - Desktop keys through the desktop portal: route the focused application, adjust or mute an output, and switch the enforced system output; the same actions on OpenDeck keys and dials.

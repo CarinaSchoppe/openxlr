@@ -3,7 +3,7 @@ openxlr (0.1.41) resolute; urgency=medium
   * The XLR Dock connects when the kernel dropped its capture volume control: gain, mute and headphone volume each use the ALSA control when present and the dock's config block when not, and a control the block cannot reach is reported instead of failing the connection.
   * The Windows bridge companion carries revision 2 so its packages and the Options window agree on the baseline x86-64 build.
 
- -- Emanuele Sparvoli <sparvoli@gmail.com>  Fri, 18 Sep 2026 19:06:23 +0100
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Fri, 18 Sep 2026 22:00:00 +0100
 
 openxlr (0.1.40) resolute; urgency=medium
 

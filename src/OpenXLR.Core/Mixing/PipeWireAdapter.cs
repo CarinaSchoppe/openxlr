@@ -676,8 +676,8 @@ public sealed class PipeWireAdapter
     /// mic into it) and a source half (link onward to the channel).
     /// </summary>
     public FilterHandle CreateMicFilter(string id, int lowCutHz, bool clipGuard,
-        IReadOnlyList<InsertDefinition>? inserts = null)
-        => CreateFilterChain($"OpenXLR_lc_{id}_in", $"OpenXLR_lc_{id}_out", "OpenXLR Mic Filter", 1, lowCutHz, clipGuard, inserts);
+        IReadOnlyList<InsertDefinition>? inserts = null, int channels = 1)
+        => CreateFilterChain($"OpenXLR_lc_{id}_in", $"OpenXLR_lc_{id}_out", "OpenXLR Mic Filter", channels, lowCutHz, clipGuard, inserts);
 
     /// <summary>A stereo insert chain for a mix, spliced between the mix and its consumers.</summary>
     public FilterHandle CreateMixChain(string id, string description, IReadOnlyList<InsertDefinition> inserts)
@@ -1235,7 +1235,8 @@ public sealed class PipeWireAdapter
 
             string? name = props.TryGetProperty("node.name", out JsonElement n) ? n.GetString() : null;
             if (name is null) continue;
-            if (name.StartsWith("OpenXLR_route_", StringComparison.Ordinal)) continue;
+            if (name.StartsWith("OpenXLR_route_", StringComparison.Ordinal)
+                || name.StartsWith("OpenXLR_bus_", StringComparison.Ordinal)) continue;
             string mc = props.TryGetProperty("media.class", out JsonElement m) ? m.GetString() ?? "" : "";
 
             bool isSink = mc == "Audio/Sink";

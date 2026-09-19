@@ -35,6 +35,11 @@ public static class CommandValidation
             case "setMixLatencyCompensation":
                 return cmd.Value.ValueKind is JsonValueKind.True or JsonValueKind.False
                     ? null : "setMixLatencyCompensation: value must be a boolean";
+
+            case "soundCheck":
+                return cmd.Channel is "xlr1" or "xlr2" && layout.HasChannel(cmd.Channel)
+                    && cmd.Action is "record" or "loop" or "live" or "stop" ? null
+                    : "soundCheck: need an XLR channel and record, loop, live or stop action";
             case "getNativeEditorRules":
                 return null;
             case "setNativeEditorRule":

@@ -126,6 +126,8 @@ public sealed record MixerState
     public Dictionary<string, double> MixDelayMilliseconds { get; init; } = [];
     public string? MixLatencyError { get; init; }
 
+
+    public SoundCheckState SoundCheck { get; init; } = new(null, "idle", 0);
     public required IReadOnlyList<MixStatus> Mixes { get; init; }
     public required IReadOnlyList<ChannelStatus> Channels { get; init; }
 

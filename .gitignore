@@ -14,6 +14,8 @@ native/tests/vst3
 native/tests/lifecycle
 native/tests/scan-plugin.so
 native/tests/latency.lv2/latency.so
+
+native/tests/sound-check
 # nix build output symlink
 result
 

@@ -356,6 +356,8 @@ public sealed class WebSocketHub
             case "setOutputVolume":
             case "setEnforcedDefaults":
             case "setMixLatencyCompensation":
+
+            case "soundCheck":
             case "setAuxPortEnabled":
             case "setLowCutHz":
             case "setSoftClipGuard":

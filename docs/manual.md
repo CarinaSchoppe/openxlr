@@ -1755,3 +1755,24 @@ This aligns mix-insert algorithmic delay, not the device's round-trip latency,
 the hardware direct-monitor path, PipeWire resampling offsets, or different
 microphones' input chains. An intentional echo is an effect, not processing
 latency, unless the plugin explicitly reports it as latency.
+
+## Sound Check
+
+Open **Inserts** on XLR 1 or XLR 2, then **Sound Check**. Press **Record** and
+speak for up to ten seconds. **Loop sample** repeatedly sends that dry sample
+through the current software processing and effect chain, so you can adjust
+processing without speaking again. At least a tenth of a second is required.
+The interface's hardware gain and processing are already in the sample;
+changing those while looping cannot change the recorded signal.
+
+**Hear live mic** returns to the microphone but keeps the sample. **Record**
+replaces it. **Stop and discard** or closing the window returns to the live
+microphone and releases the sample. Effect edits remain. A loop can include a
+small transition at its boundary; record with a quiet beginning and end.
+
+One microphone session can run at a time. Sound Check needs the bundled native
+host. Audio stays in memory, never in a recording file or profile. The session
+ends on device changes, audio-helper failure, daemon restart or after ten
+minutes. If the UI loses its connection, closing it cannot deliver a stop;
+reconnect and stop the session, or it will end at that limit. The loop follows
+the normal microphone routing, including any live call or recording using it.

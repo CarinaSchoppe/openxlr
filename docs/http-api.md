@@ -159,3 +159,11 @@ Send `{"cmd":"setMixLatencyCompensation","value":true}` through the command
 endpoint to opt in. Check `mixer.mixLatencyError` and
 `mixer.mixDelayMilliseconds` for the actual alignment, including unavailable
 reports. The option is off by default. See [api.md](api.md#plugin-latency-and-optional-mix-alignment).
+
+### Sound Check
+
+`POST /api/v1/commands` also accepts `soundCheck` with `channel` (`xlr1` or `xlr2`)
+and `action` (`record`, `loop`, `live`, `stop`). It uses the same validation and
+acknowledgement as the WebSocket command. See [Sound Check state](api.md#sound-check-state)
+for limits and the transient `mixer.soundCheck` object. Recordings never leave
+the helper's memory through this API.

@@ -272,3 +272,13 @@ does not restart the processor.
 After a native-enabled managed build, `OPENXLR_TEST_FILTER=FullyQualifiedName~PluginLatencyIntegrationTests python3 tools/test-monitor-volume.py`
 checks live reports, parameter changes, bypass, failed delay-node recovery and
 sample-accurate delay using synthetic audio on private PipeWire sockets.
+
+### Sound Check helper
+
+The `soundcheck` backend uses the same isolated host, ports and control protocol
+as native inserts. It preallocates ten seconds of mono floating-point samples
+at the graph rate. The audio callback does not allocate, lock or access files.
+`command` selects live (0), record (1) or loop (2); output meters `frames` and
+`mode` report progress. Recording has both a sample-count and a monotonic-time
+limit. `make test-sound-check` checks replacement, bounds and replay; the managed
+`SoundCheckIntegrationTests` exercise a private PipeWire graph and real audio.

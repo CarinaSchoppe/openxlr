@@ -366,3 +366,6 @@ Mixer presentation supports per-channel and per-mix icons, colours and display
 order, channel hiding without routing changes, and a compact selected-channel
 view. Stream Deck keys follow the same icons and colours. See
 [mixer presentation](mixer-layout.md#mixer-presentation).
+
+The plugin manager combines effective LV2, CLAP and VST3 search paths, extra
+folders, all-format rescanning and the existing Windows-plugin controls.

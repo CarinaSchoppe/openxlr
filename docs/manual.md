@@ -1850,3 +1850,6 @@ It never replays a held key after reconnecting. Manual bypass, chain replacement
 and profile recall take precedence over an old key release. Held states are
 not saved in settings or profiles. Loading and bypassing effects can still
 cause the same short audio gap as the existing insert controls.
+
+Changing latency compensation also rebuilds existing supported input chains,
+so their latency reporting follows the new setting without re-adding effects.

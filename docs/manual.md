@@ -1706,3 +1706,6 @@ latency, unless the plugin explicitly reports it as latency.
 
 Changing latency compensation also rebuilds existing supported input chains,
 so their latency reporting follows the new setting without re-adding effects.
+
+Live insert status uses one format-and-identifier index per catalogue refresh;
+large plugin libraries are not rescanned for each latency reading.

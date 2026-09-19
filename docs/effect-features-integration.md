@@ -8,10 +8,10 @@ merged into development by this work. The shared base is `7adb041`.
 | --- | --- | --- |
 | #156 | Channel and mix appearance | `17148bb` |
 | #157 | Plugin manager | `819b485` |
-| #158 | Plugin latency and optional mix compensation | `4124e9e` |
-| #159 | Sound Check | `e19c5ae` |
+| #158 | Plugin latency and optional mix compensation | `a6e854c` |
+| #159 | Sound Check | `9bd2a5d` |
 | #160 | Inserts on every channel | `d3b6e9e` |
-| #161 | Copy, presets, rename and A/B | `015565c` |
+| #161 | Copy, presets, rename and A/B | `cbc8117` |
 | #162 | Momentary effect keys | `91d224f` |
 
 ## Combined behavior
@@ -38,7 +38,7 @@ feature tests because it needs both APIs in one build.
 ## Validation on 19 September 2026
 
 - Locked restore and native-enabled Release build: zero warnings and errors.
-- General suite: 1,109 passed, 26 environment-gated cases skipped.
+- General suite: 1,114 passed, 26 environment-gated cases skipped.
 - Private PipeWire suite: 48 passed. Its separately gated ClipGuard case was
   then explicitly enabled and passed with the installed SWH limiter and LSP
   native LV2 gate, both with and without low cut.
@@ -69,6 +69,31 @@ make -C native tests/gain.lv2/gain.so tests/latency.lv2/latency.so
 LV2_PATH="$PWD/native/tests" python3 tools/test-monitor-volume.py
 OPENXLR_TEST_DSP=1 OPENXLR_TEST_FILTER=FullyQualifiedName~DspAudioIntegrationTests LV2_PATH=/usr/lib/lv2 python3 tools/test-monitor-volume.py
 ```
+
+## Follow-up review of every feature head
+
+The review reproduced and fixed four faults before repeating the combined build,
+general suite, private PipeWire suite, ClipGuard audio check, window layout test,
+Deck tests, metadata checks and package advisory scan:
+
+- Invalid or duplicate preset names and malformed preset files escaped the UI's
+  error handling. A view-model regression now covers save, read, delete and apply.
+- Replies from an earlier Sound Check connection could overwrite current errors
+  or interfere with a pending command. Four delayed-response cases exercise old
+  successes and failures during both normal commands and window close.
+- A closing Sound Check window accepted further actions while waiting for stop.
+  A real X11 window and delayed WebSocket reply now verify disabled controls
+  until the window closes.
+- A transient PipeWire delay-control failure left mix compensation disabled.
+  The private audio test injects the failure, verifies bounded recovery and
+  checks that the healthy plugin keeps its node identity. Delay-only repair now
+  reuses the routing helper without restarting healthy plugin instances or
+  losing their private state.
+
+Each new regression failed before its corresponding correction. The updated
+feature commits are signed. The other four feature heads remain unchanged.
+No additional exploitable security issue was confirmed by this review; this is
+not a claim that arbitrary plugin code or the entire application is bug-free.
 
 ## Remaining acceptance
 

@@ -1709,3 +1709,7 @@ so their latency reporting follows the new setting without re-adding effects.
 
 Live insert status uses one format-and-identifier index per catalogue refresh;
 large plugin libraries are not rescanned for each latency reading.
+
+A transient delay-control failure retries through the existing bounded recovery
+policy. Repairing a compensation stage retains healthy plugin instances,
+including their private state. Repeated failures still stop automatic retries.

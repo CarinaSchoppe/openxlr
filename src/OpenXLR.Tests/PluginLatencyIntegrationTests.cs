@@ -43,13 +43,43 @@ public sealed class PluginLatencyIntegrationTests
                     p.wait()
                 """], TimeSpan.FromSeconds(55), cancel: stop.Token);
             WaitForDelay(10);
+            var liveHost = pw.DumpNodes().Single(n => n.Name.StartsWith("OpenXLR_ins_chat_", StringComparison.Ordinal) && n.Name.EndsWith("_stage_0", StringComparison.Ordinal));
             mixer.SetInsertParam("mix:chat", "delay", "delay", 960);
-            WaitForDelay(20);
+            string commands = Directory.CreateTempSubdirectory("openxlr-delay-control-").FullName;
+            string? originalPath = Environment.GetEnvironmentVariable("PATH");
+            string? originalCli = Environment.GetEnvironmentVariable("OPENXLR_TEST_REAL_CLI");
+            string realCli = originalPath!.Split(Path.PathSeparator).Select(dir => Path.Combine(dir, "pw-cli")).First(File.Exists);
+            try
+            {
+                // Fail only delay control writes. The plugin host, graph and
+                // other PipeWire commands stay alive throughout the fault.
+                ExecutableScript.Write(Path.Combine(commands, "pw-cli"), """
+                    case "$*" in *'left:Delay (s)'*) echo 'transient delay write failure' >&2; exit 1;; esac
+                    exec "$OPENXLR_TEST_REAL_CLI" "$@"
+                    """);
+                Environment.SetEnvironmentVariable("OPENXLR_TEST_REAL_CLI", realCli);
+                Environment.SetEnvironmentVariable("PATH", commands + Path.PathSeparator + originalPath);
+                Assert.True(SpinWait.SpinUntil(() =>
+                {
+                    mixer.EnsureFilterRoutes();
+                    return mixer.Snapshot().MixLatencyError?.Contains("transient delay write failure", StringComparison.Ordinal) == true;
+                }, TimeSpan.FromSeconds(5)));
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("PATH", originalPath);
+                Environment.SetEnvironmentVariable("OPENXLR_TEST_REAL_CLI", originalCli);
+                Directory.Delete(commands, true);
+            }
+            WaitForDelay(20); // A temporary write error must heal without toggling the option.
+            Assert.Equal(liveHost.Id, pw.FindNodeId(liveHost.Name));
+
             mixer.SetInsertBypass("mix:chat", "delay", true);
             WaitForDelay(0);
             mixer.SetInsertBypass("mix:chat", "delay", false);
             WaitForDelay(20);
             // Destroy a compensation stage while the inserts keep processing.
+            int? hostBeforeFailure = pw.FindNodeId(liveHost.Name);
             var failed = pw.DumpNodes().Single(n => n.Name == "OpenXLR_delay_monitor_in");
             pw.Run("pw-cli", "destroy", failed.Id.ToString());
             Assert.True(SpinWait.SpinUntil(() =>
@@ -59,6 +89,7 @@ public sealed class PluginLatencyIntegrationTests
             }, TimeSpan.FromSeconds(8)));
             WaitForDelay(20);
             Assert.Null(mixer.Snapshot().MixLatencyError);
+            Assert.Equal(hostBeforeFailure, pw.FindNodeId(liveHost.Name));
             Assert.False(mixer.EnsureFilterRoutes()); // An unchanged report does not keep broadcasting.
         }
         finally

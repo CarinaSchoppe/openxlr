@@ -28,6 +28,10 @@ public sealed class SoundCheckIntegrationTests
         Task<ProcessResult>? second = null;
         try
         {
+            // Observe the generator in the live output before recording. On
+            // slower session managers a newly launched stream first carries
+            // silence; recording that startup is valid, but not this fixture.
+            AssertSound(.25);
             mixer.SoundCheck("xlr1", "record");
             Assert.True(SpinWait.SpinUntil(() =>
             {

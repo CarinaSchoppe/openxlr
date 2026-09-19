@@ -1708,3 +1708,8 @@ window sizes.
 
 Invalid preset names, duplicate names and damaged preset data are shown in
 the chain window as errors. They do not close the window or replace the file.
+
+Effect control windows belong to their channel and effect instance. Removing or
+replacing an effect closes its old control window and discards queued parameter
+changes. Controls on different channels stay independent even when a profile
+uses the same effect ID in both. Disconnecting discards queued parameter changes.

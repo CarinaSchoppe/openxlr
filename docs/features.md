@@ -369,3 +369,7 @@ view. Stream Deck keys follow the same icons and colours. See
 
 The plugin manager combines effective LV2, CLAP and VST3 search paths, extra
 folders, all-format rescanning and the existing Windows-plugin controls.
+
+Plugin controls display reported algorithmic latency. Optional mix-insert
+alignment delays faster mixes to the slowest valid report, with a two-second
+limit and explicit unavailable status. It defaults to off; see the manual.

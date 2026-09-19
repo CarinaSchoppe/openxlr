@@ -31,6 +31,10 @@ public static class CommandValidation
             case "addPluginSearchPath":
             case "removePluginSearchPath":
                 return PluginSearchPaths.Valid(cmd.Kind, cmd.Path) ? null : "invalid plugin format or search path";
+
+            case "setMixLatencyCompensation":
+                return cmd.Value.ValueKind is JsonValueKind.True or JsonValueKind.False
+                    ? null : "setMixLatencyCompensation: value must be a boolean";
             case "getNativeEditorRules":
                 return null;
             case "setNativeEditorRule":

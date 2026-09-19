@@ -153,3 +153,9 @@ Plugin search-path commands (`addPluginSearchPath` and `removePluginSearchPath`)
 use the same command endpoint, validation and `pluginInstall` replies as the
 WebSocket API. A failed operation returns `ok:false`. `getPluginSetup` includes
 the effective search directories and any saved-path warning.
+
+Plugin latency is included in each insert's `latencyMilliseconds` state field.
+Send `{"cmd":"setMixLatencyCompensation","value":true}` through the command
+endpoint to opt in. Check `mixer.mixLatencyError` and
+`mixer.mixDelayMilliseconds` for the actual alignment, including unavailable
+reports. The option is off by default. See [api.md](api.md#plugin-latency-and-optional-mix-alignment).

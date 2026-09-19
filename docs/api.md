@@ -488,3 +488,28 @@ before the existing catalogue refresh runs, under the installation lock.
 Both commands return the existing `pluginInstall` result and correlated error
 handling. A failed save leaves the old paths intact; a corrupt configuration
 must be repaired before editing it. No plugin file is removed.
+
+### Plugin latency and optional mix alignment
+
+`setMixLatencyCompensation` takes a boolean `value`. It saves the mixer-wide
+preference before acknowledgement; it defaults to false and is not part of a
+profile scene. Changing it rebuilds plugin paths and briefly interrupts audio.
+The same command is available over the HTTP command transport.
+
+Each insert status includes nullable `latencyMilliseconds`: the plugin's live
+algorithmic latency, or null while not reported, stopped or unavailable. A bypass
+reports zero. LV2 metadata can declare that a plugin has no latency port; those
+running inserts report zero. Native LV2, CLAP and VST3 hosts report samples at
+their active sample rate. LV2 latency ports are measured in an isolated host
+when compensation is enabled and that host supports the plugin's required
+features. The saved native-editor preference is not changed.
+
+Mixer state exposes `compensateMixLatency`, `mixDelayMilliseconds` (mix id to
+applied delay) and nullable `mixLatencyError`. With valid reports from every
+active mix insert, each mix receives the difference between its total insert
+latency and the slowest mix's total. Unknown reports or a total above 2000 ms
+disable alignment for all mixes and expose a reason, rather than treating
+unknown as zero or truncating the requested delay. Input inserts precede the
+fan-out and are reported but are not separately aligned against other inputs.
+Device latency, transport/resampler offsets, intentional echo effects and the
+hardware direct-monitor path are outside this algorithmic mix alignment.

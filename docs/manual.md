@@ -1705,3 +1705,6 @@ errors and leaves the channel's direct audio route in place.
 
 A successful native fallback is remembered for that plugin during the current
 daemon run, avoiding repeated failed loader probes on subsequent edits.
+
+New channel links wait up to three seconds for both stereo sides after a
+sink reload. A failed attempt removes its partial links before retrying.

@@ -54,7 +54,30 @@ public sealed class ChannelInsertIntegrationTests
             AssertSound(.25);
             mixer.SetInsertBypass("software", "gain", true);
             AssertSound(1);
+            // A held key activates the actual software-channel DSP, and only
+            // the final overlapping release restores its original bypass.
+            string firstHold = Guid.NewGuid().ToString("N"), secondHold = Guid.NewGuid().ToString("N");
+            mixer.HoldInsert(firstHold, "begin", "software", "gain");
+            AssertSound(.25);
+            mixer.HoldInsert(secondHold, "begin", "software", "gain");
+            mixer.HoldInsert(firstHold, "end", null, null);
+            AssertSound(.25);
+            Assert.True(mixer.ExportScene().Inserts!["software"][0].Bypass);
+            mixer.HoldInsert(secondHold, "end", null, null);
+            AssertSound(1);
             mixer.SetInsertBypass("software", "gain", false);
+            AssertSound(.25);
+            mixer.SetInserts("software", [new() { Id = "latency", Kind = "lv2", Plugin = "urn:openxlr:test:latency", Params = new() { ["delay"] = 480 } }]);
+            mixer.SetMixLatencyCompensation(true);
+            Assert.True(SpinWait.SpinUntil(() =>
+            {
+                mixer.EnsureFilterRoutes();
+                return mixer.Snapshot().Inserts["software"].Single().LatencyMilliseconds == 10;
+            }, TimeSpan.FromSeconds(5)));
+            Assert.False(mixer.InsertInChain("software", "latency")!.NativeHost);
+            AssertSound(1);
+            mixer.SetMixLatencyCompensation(false);
+            mixer.SetInserts("software", [Gain(.25)]);
             AssertSound(.25);
             // Losing the Wave interface must not remove unrelated software chains.
             mixer.SetInputDeviceHint("absent-interface");

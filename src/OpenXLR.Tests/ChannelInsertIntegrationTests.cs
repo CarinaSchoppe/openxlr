@@ -37,7 +37,8 @@ public sealed class ChannelInsertIntegrationTests
         {
             AssertSound(1);
             mixer.SetInserts("software", [Gain(.5)]);
-            Assert.Null(Assert.Single(mixer.Snapshot().Inserts["software"]).Error);
+            string? error = Assert.Single(mixer.Snapshot().Inserts["software"]).Error;
+            Assert.True(error is null, error);
             AssertSound(.5);
             Assert.Equal(identity, pw.FindNodeId("OpenXLR_ch_software"));
             Assert.DoesNotContain(pw.ListDevices(), d => d.Name.StartsWith("OpenXLR_bus_", StringComparison.Ordinal));

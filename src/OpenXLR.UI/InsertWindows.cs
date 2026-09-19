@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia.Controls;
 
 namespace OpenXLR.UI;
@@ -25,6 +26,17 @@ public static class InsertWindows
     internal static void CloseControls(InsertViewModel insert)
     {
         if (Controls.TryGetValue(insert, out var window)) window.Close();
+    }
+
+    internal static void CloseChain(InsertsViewModel chain)
+    {
+        // A layout item can disappear while its chain or controls are open.
+        // Clear its session and queued edits before its ID can be reused.
+        chain.ResetForNewConnection();
+        foreach (var window in Controls.Values.Where(w => w.DataContext is InsertViewModel insert
+            && ReferenceEquals(insert.Owner, chain)).ToArray()) window.Close();
+        foreach (var window in Chains.Values.Where(w => ReferenceEquals(w.DataContext, chain)).ToArray()) window.Close();
+        chain.Apply(null);
     }
 
     public static void OpenChain(Window owner, InsertsViewModel chain, string key)

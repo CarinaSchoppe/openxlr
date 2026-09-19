@@ -1882,3 +1882,7 @@ Effect control windows belong to their channel and effect instance. Removing or
 replacing an effect closes its old control window and discards queued parameter
 changes. Controls on different channels stay independent even when a profile
 uses the same effect ID in both. Disconnecting discards queued parameter changes.
+
+Deleting a channel or mix also closes its effect-chain and control windows.
+Recreating the same layout ID opens a fresh chain instead of reusing stale
+controls from the removed item.

@@ -552,6 +552,7 @@ public sealed class WindowLayoutTests
                 PluginCatalogueUiTests.CheckStaleReplies();
                 SoundCheckWindowTests.CheckPendingClose();
                 EffectWorkflowWindowTests.CheckControlOwnership(main, vm.Inserts.Client);
+                ChannelWindowLifetimeTests.CheckRemoval(main, vm.Inserts.Client);
             }
             catch (Exception ex) { failure = ex; }
             finally

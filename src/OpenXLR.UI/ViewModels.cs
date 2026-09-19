@@ -1015,7 +1015,8 @@ public sealed partial class MainViewModel : ViewModelBase
             SyncList(Mixes, mixes, m => m["id"]!.GetValue<string>(),
                 (m, vm) => vm.ApplyFromDaemon(m),
                 m => new MixViewModel(_client, m["id"]!.GetValue<string>(), m["name"]!.GetValue<string>())
-                    { Kind = m["kind"]?.GetValue<string>() ?? "monitor" });
+                    { Kind = m["kind"]?.GetValue<string>() ?? "monitor" },
+                vm => InsertWindows.CloseChain(vm.Inserts));
             bool auxOn = mixer["auxPortEnabled"]?.GetValue<bool>() ?? true;
             foreach (MixViewModel mv in Mixes.Where(mv => mv.IsAuxPort)) mv.ApplyAuxPort(auxOn);
             // Aux can feed a selected output even without a USB Aux port.
@@ -1040,7 +1041,8 @@ public sealed partial class MainViewModel : ViewModelBase
             SyncList(Channels, channels, c => c["id"]!.GetValue<string>(),
                 (c, vm) => { vm.SyncSends(mixIds); vm.ApplyFromDaemon(c); },
                 c => new ChannelViewModel(_client, c["id"]!.GetValue<string>(), c["name"]!.GetValue<string>(), mixIds,
-                    c["id"]!.GetValue<string>() switch { "xlr1" => Inserts, "xlr2" => Inserts2, _ => null }));
+                    c["id"]!.GetValue<string>() switch { "xlr1" => Inserts, "xlr2" => Inserts2, _ => null }),
+                vm => InsertWindows.CloseChain(vm.Inserts));
             // Send rows carry the mix's name, not its id.
             foreach (ChannelViewModel c in Channels)
                 foreach (SendViewModel send in c.Sends)
@@ -1066,7 +1068,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
     /// <summary>Follow daemon order while retaining existing objects and their bindings.</summary>
     private static void SyncList<T>(ObservableCollection<T> target, JsonArray source,
-        Func<JsonNode, string> idOf, Action<JsonNode, T> update, Func<JsonNode, T> create)
+        Func<JsonNode, string> idOf, Action<JsonNode, T> update, Func<JsonNode, T> create, Action<T> remove)
         where T : class, IHasId
     {
         var seen = new HashSet<string>();
@@ -1095,7 +1097,11 @@ public sealed partial class MainViewModel : ViewModelBase
             position++;
         }
         for (int i = target.Count - 1; i >= 0; i--)
-            if (!seen.Contains(target[i].Id)) target.RemoveAt(i);
+            if (!seen.Contains(target[i].Id))
+            {
+                remove(target[i]);
+                target.RemoveAt(i);
+            }
     }
 }
 

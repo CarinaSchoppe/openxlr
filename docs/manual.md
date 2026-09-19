@@ -1862,3 +1862,6 @@ large plugin libraries are not rescanned for each latency reading.
 
 New channel links wait up to three seconds for both stereo sides after a
 sink reload. A failed attempt removes its partial links before retrying.
+
+Invalid preset names, duplicate names and damaged preset data are shown in
+the chain window as errors. They do not close the window or replace the file.

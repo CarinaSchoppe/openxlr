@@ -167,3 +167,8 @@ and `action` (`record`, `loop`, `live`, `stop`). It uses the same validation and
 acknowledgement as the WebSocket command. See [Sound Check state](api.md#sound-check-state)
 for limits and the transient `mixer.soundCheck` object. Recordings never leave
 the helper's memory through this API.
+
+The existing insert commands accept every current channel id, including
+software, Aux and external-capture channels, as well as `mix:<id>`. Stereo
+channels require a stereo-compatible plugin; XLR 1 and XLR 2 remain mono.
+Validation and effect status are shared with the WebSocket transport.

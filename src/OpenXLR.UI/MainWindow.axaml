@@ -640,6 +640,9 @@
                   <StackPanel Spacing="8">
                     <TextBlock Text="{Binding Appearance.Icon}" Classes.layoutAccent="{Binding Appearance.HasColour}" HorizontalAlignment="Center" IsVisible="{Binding Appearance.Icon, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                     <TextBlock Text="{Binding Name}" Classes.layoutAccent="{Binding Appearance.HasColour}" Classes="strip" HorizontalAlignment="Center"/>
+                    <Button Content="{Binding Inserts.ButtonText}" Click="OnChannelInserts"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                            ToolTip.Tip="Effects before this channel reaches the mixes"/>
                     <!-- stereo level meter (L over R), dB scale -->
                     <StackPanel Spacing="1">
                       <skin:LevelMeter Level="{Binding MeterL}" AutomationProperties.Name="Left level"/>

@@ -175,3 +175,11 @@ metadata. This is global layout configuration, not part of an audio profile.
 Saving a failed edit restores the previous presentation. No PipeWire nodes
 are rebuilt by these edits. `setLayoutOrder` remains the legacy editable-only
 layout command; `setDisplayOrder` overrides its visual order for all items.
+
+### Channel insert paths
+
+All channel ids are valid insert keys. Software and external-capture channels
+retain the public `OpenXLR_ch_<id>` sink while inserts change; their hidden
+`OpenXLR_bus_<id>` combine distributes the processed signal to the mixes. Display
+order does not alter effect order or sends. Deleting a user channel removes its
+insert definition in the same saved settings change as its routing.

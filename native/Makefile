@@ -82,7 +82,7 @@ test-vst3: tests/vst3
 	./tests/vst3
 
 clean:
-	rm -f openxlr-lv2-host $(OBJECTS) tests/editor tests/editor.o tests/audio tests/audio.o tests/clap tests/clap.o tests/lifecycle tests/lifecycle.o tests/vst3 tests/vst3.o tests/host.o tests/scan-plugin.so tests/latency.lv2/latency.so tests/sound-check tests/sound-check.o
+	rm -f openxlr-lv2-host $(OBJECTS) tests/editor tests/editor.o tests/audio tests/audio.o tests/clap tests/clap.o tests/lifecycle tests/lifecycle.o tests/vst3 tests/vst3.o tests/host.o tests/scan-plugin.so tests/latency.lv2/latency.so tests/sound-check tests/sound-check.o tests/gain.lv2/gain.so
 
 # Used by the private PipeWire latency integration test.
 tests/latency.lv2/latency.so: tests/latency.lv2/latency.c
@@ -98,3 +98,6 @@ tests/sound-check: tests/sound-check.o lv2.o clap.o vst3.o
 .PHONY: test-sound-check
 test-sound-check: tests/sound-check
 	./tests/sound-check
+# Deterministic stereo fixture for private PipeWire channel routing tests.
+tests/gain.lv2/gain.so: tests/gain.lv2/gain.c
+	$(CC) -shared -fPIC $(shell pkg-config --cflags lv2) $< -o $@

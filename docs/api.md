@@ -129,6 +129,8 @@ that final acknowledgement (or an `error` without a request id):
 | `rescanPlugins` | none | read the plugin directories again, for plugins installed by other means; answered with `pluginInstall` |
 | `soundCheck` | `channel`, `action` | use `xlr1` or `xlr2` and `record`, `loop`, `live` or `stop`. One microphone session at a time; recording replaces the sample and ends after ten seconds, looping needs at least 0.1 seconds. Live keeps the sample, stop discards it. Requires the native helper and a connected microphone. Commands acknowledge with `requestId` using the normal command reply. |
 | `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is `xlr1`, `xlr2` or `mix:<id>`, each insert is `{id, kind, plugin, label?, bypass?, params?}` where `kind` is `"lv2"` with the plugin URI, `"clap"` with the plugin's id, or `"vst3"` with the class id as 32 hex digits; a CLAP or VST3 insert always runs in the native host, so its `nativeHost` reads true whatever was sent. An insert being added is refused when its plugin cannot run at the chain's width (one channel on an input, two on a mix, by `widths` or the port counts as `plugins` describes them); an insert already in the chain, the same plugin under the same id, is left to the chain builder, so one can always be removed; an id kept while its `kind` or `plugin` changes counts as an addition |
+
+| `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is any existing channel id (hardware, software or external capture), or `mix:<id>`, each insert is `{id, kind, plugin, label?, bypass?, params?}` where `kind` is `"lv2"` with the plugin URI, `"clap"` with the plugin's id, or `"vst3"` with the class id as 32 hex digits; a CLAP or VST3 insert always runs in the native host, so its `nativeHost` reads true whatever was sent. An insert being added is refused when its plugin cannot run at the chain's width (one channel on XLR 1/2, two on Aux, software/capture channels and mixes, by `widths` or the port counts as `plugins` describes them); an insert already in the chain, the same plugin under the same id, is left to the chain builder, so one can always be removed; an id kept while its `kind` or `plugin` changes counts as an addition |
 | `setInsertBypass` | `channel`, `insertId`, `value` | bypass one insert |
 | `setInsertParam` | `channel`, `insertId`, `symbol`, `value` | one plugin control, by the catalogue's `symbol` (LV2 port symbol or decimal CLAP/VST3 parameter id); use catalogue ranges and scale points. Refused when the insert is not in the chain or the catalogue does not declare the symbol for its plugin |
 | `getNativeEditorRules` | none | read release defaults and explicit user overrides for native editor compatibility |
@@ -525,3 +527,10 @@ hardware gain and processing. No recording or session state is saved in profiles
 Device changes, helper failure, daemon restart and a ten-minute session limit
 end replay and restore the physical input. `stop` is idempotent; commands for
 another microphone are refused while a session is active.
+
+Channel inserts process the signal before its per-mix sends. Software and
+external-capture channels retain their public sink while an insert chain is
+replaced or bypassed. Hidden `OpenXLR_bus_*` sinks carry the post-insert fan-out
+and are excluded from device selection. The existing parameter, bypass and
+native-editor commands use the same channel ids. Channel deletion also removes
+its saved inserts; a failed layout save restores the previous chain definition.

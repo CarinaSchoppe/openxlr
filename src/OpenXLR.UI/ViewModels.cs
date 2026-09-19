@@ -56,6 +56,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 Inserts.ResetForNewConnection(); Inserts2.ResetForNewConnection();
                 Inserts.SoundCheck.Apply(null); Inserts2.SoundCheck.Apply(null);
                 foreach (MixViewModel mv in Mixes) mv.Inserts.ResetForNewConnection();
+                foreach (ChannelViewModel channel in Channels) channel.Inserts.ResetForNewConnection();
             }
             else { Inserts.EnsurePluginsLoaded(); Inserts2.EnsurePluginsLoaded(); }
         });
@@ -68,6 +69,7 @@ public sealed partial class MainViewModel : ViewModelBase
             InsertsViewModel.ForgetCatalogue();
             Inserts.Refetch(); Inserts2.Refetch();
             foreach (MixViewModel mv in Mixes) mv.Inserts.Refetch();
+            foreach (ChannelViewModel channel in Channels.Where(c => c.Id is not ("xlr1" or "xlr2"))) channel.Inserts.Refetch();
         };
     }
 
@@ -1037,7 +1039,8 @@ public sealed partial class MainViewModel : ViewModelBase
             string[] mixIds = [.. Mixes.Select(m => m.Id)];
             SyncList(Channels, channels, c => c["id"]!.GetValue<string>(),
                 (c, vm) => { vm.SyncSends(mixIds); vm.ApplyFromDaemon(c); },
-                c => new ChannelViewModel(_client, c["id"]!.GetValue<string>(), c["name"]!.GetValue<string>(), mixIds));
+                c => new ChannelViewModel(_client, c["id"]!.GetValue<string>(), c["name"]!.GetValue<string>(), mixIds,
+                    c["id"]!.GetValue<string>() switch { "xlr1" => Inserts, "xlr2" => Inserts2, _ => null }));
             // Send rows carry the mix's name, not its id.
             foreach (ChannelViewModel c in Channels)
                 foreach (SendViewModel send in c.Sends)
@@ -1046,6 +1049,8 @@ public sealed partial class MainViewModel : ViewModelBase
             // device has; without a device, show everything as before.
             foreach (ChannelViewModel c in Channels)
             {
+                c.Inserts.Apply(mixer["inserts"]?[c.Id]);
+                c.Inserts.EnsurePluginsLoaded();
                 c.Visible = c.Id switch
                 {
                     "xlr2" => !DeviceConnected || HasXlr2,
@@ -1389,18 +1394,20 @@ public sealed class MixViewModel : ViewModelBase, IHasId
 public sealed class ChannelViewModel : ViewModelBase, IHasId
 {
     public LayoutAppearanceViewModel Appearance { get; } = new();
-    public ChannelViewModel(DaemonClient client, string id, string name, IReadOnlyList<string> mixIds)
+    public ChannelViewModel(DaemonClient client, string id, string name, IReadOnlyList<string> mixIds, InsertsViewModel? inserts = null)
     {
         _client = client; Id = id; _name = name;
+        Inserts = inserts ?? new InsertsViewModel(client, id, id is "xlr1" or "xlr2" ? 1 : 2, name);
         foreach (string mixId in mixIds) Sends.Add(new SendViewModel(client, id, mixId));
     }
 
+    public InsertsViewModel Inserts { get; }
     private readonly DaemonClient _client;
     public string Id { get; }
 
     private string _name;
     /// <summary>Display name; the daemon renames application channels live.</summary>
-    public string Name { get => _name; set => Set(ref _name, value); }
+    public string Name { get => _name; set { if (Set(ref _name, value)) Inserts.Title = value; } }
 
     private bool _isHardware;
     /// <summary>A hardware input (XLR 1, XLR 2, Aux In): structural, not editable.</summary>

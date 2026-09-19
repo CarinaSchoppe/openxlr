@@ -405,6 +405,8 @@ public sealed class SkinWindowTests
             ("native-editors", new NativeEditorRulesWindow()),
             ("plugin-folders", new PluginFoldersWindow()),
             ("sound-check", new SoundCheckWindow { DataContext = vm.Inserts.SoundCheck }),
+
+            ("effect-workflow", new EffectWorkflowWindow { DataContext = vm.Inserts }),
             ("updates", new UpdatesWindow { DataContext = vm.Updates }),
         ];
         try

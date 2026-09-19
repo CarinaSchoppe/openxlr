@@ -294,6 +294,17 @@ public sealed class WindowLayoutTests
                     }
                 }
                 Capture(chain, "chain-440");
+                var workflow = new EffectWorkflowWindow { DataContext = vm.Inserts };
+                windows.Add(workflow);
+                workflow.Show();
+                Layout(workflow, workflow.MinWidth, workflow.MinHeight);
+                foreach (var actions in workflow.GetVisualDescendants().OfType<WrapPanel>())
+                {
+                    AssertNoOverlap(actions.Children.ToArray());
+                    foreach (var action in actions.Children) AssertInside(action, actions);
+                }
+                Assert.True(((ScrollViewer)workflow.Content!).Bounds.Height > 50);
+                Capture(workflow, "effect-workflow-minimum");
 
                 var soundCheck = new SoundCheckWindow { DataContext = vm.Inserts.SoundCheck };
                 windows.Add(soundCheck);

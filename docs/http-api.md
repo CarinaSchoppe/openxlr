@@ -172,3 +172,9 @@ The existing insert commands accept every current channel id, including
 software, Aux and external-capture channels, as well as `mix:<id>`. Stereo
 channels require a stereo-compatible plugin; XLR 1 and XLR 2 remain mono.
 Validation and effect status are shared with the WebSocket transport.
+
+`renameInsert` through `POST /api/v1/commands` takes `channel`, `insertId` and
+`name`. It changes an existing instance's label without rebuilding its audio
+path. Effect-chain paste and recall use the existing `setInserts` command and
+its normal validation; the UI's preset library and comparison slots are local
+UI state, not new HTTP resources.

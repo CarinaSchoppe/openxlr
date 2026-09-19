@@ -128,6 +128,8 @@ that final acknowledgement (or an `error` without a request id):
 | `syncWindowsPlugins` | none | run yabridge's sync over the folders it knows, clean missing-source wrappers belonging to those folders unless inserts still use them, then read the catalogues again; answered with `pluginInstall` |
 | `rescanPlugins` | none | read the plugin directories again, for plugins installed by other means; answered with `pluginInstall` |
 | `soundCheck` | `channel`, `action` | use `xlr1` or `xlr2` and `record`, `loop`, `live` or `stop`. One microphone session at a time; recording replaces the sample and ends after ten seconds, looping needs at least 0.1 seconds. Live keeps the sample, stop discards it. Requires the native helper and a connected microphone. Commands acknowledge with `requestId` using the normal command reply. |
+
+| `renameInsert` | `channel`, `insertId`, `name` | rename an existing instance with 1 to 256 characters and no control characters. Only its label changes; the running plugin, parameters and ports are retained. |
 | `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is `xlr1`, `xlr2` or `mix:<id>`, each insert is `{id, kind, plugin, label?, bypass?, params?}` where `kind` is `"lv2"` with the plugin URI, `"clap"` with the plugin's id, or `"vst3"` with the class id as 32 hex digits; a CLAP or VST3 insert always runs in the native host, so its `nativeHost` reads true whatever was sent. An insert being added is refused when its plugin cannot run at the chain's width (one channel on an input, two on a mix, by `widths` or the port counts as `plugins` describes them); an insert already in the chain, the same plugin under the same id, is left to the chain builder, so one can always be removed; an id kept while its `kind` or `plugin` changes counts as an addition |
 
 | `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is any existing channel id (hardware, software or external capture), or `mix:<id>`, each insert is `{id, kind, plugin, label?, bypass?, params?}` where `kind` is `"lv2"` with the plugin URI, `"clap"` with the plugin's id, or `"vst3"` with the class id as 32 hex digits; a CLAP or VST3 insert always runs in the native host, so its `nativeHost` reads true whatever was sent. An insert being added is refused when its plugin cannot run at the chain's width (one channel on XLR 1/2, two on Aux, software/capture channels and mixes, by `widths` or the port counts as `plugins` describes them); an insert already in the chain, the same plugin under the same id, is left to the chain builder, so one can always be removed; an id kept while its `kind` or `plugin` changes counts as an addition |
@@ -534,3 +536,11 @@ replaced or bypassed. Hidden `OpenXLR_bus_*` sinks carry the post-insert fan-out
 and are excluded from device selection. The existing parameter, bypass and
 native-editor commands use the same channel ids. Channel deletion also removes
 its saved inserts; a failed layout save restores the previous chain definition.
+
+### Effect chain workflows
+
+Copy, paste, presets and A/B in the UI use the existing `setInserts` command
+with `requestId`. Every plugin and parameter is checked by the daemon before
+the chain is replaced. Pasting and loading presets allocate fresh slot ids;
+A/B snapshots retain their ids within one chain. `renameInsert` updates only
+the saved label and state, so a display edit does not rebuild audio.

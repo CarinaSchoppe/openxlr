@@ -1703,3 +1703,6 @@ This aligns mix-insert algorithmic delay, not the device's round-trip latency,
 the hardware direct-monitor path, PipeWire resampling offsets, or different
 microphones' input chains. An intentional echo is an effect, not processing
 latency, unless the plugin explicitly reports it as latency.
+
+Changing latency compensation also rebuilds existing supported input chains,
+so their latency reporting follows the new setting without re-adding effects.

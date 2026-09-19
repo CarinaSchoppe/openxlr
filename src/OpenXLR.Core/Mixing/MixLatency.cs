@@ -50,6 +50,11 @@ public sealed partial class Mixer
                     if (persist is not null) PersistLocked(persist);
                     throw;
                 }
+                // Use the same insert dispatch as ordinary edits, including
+                // software and external channels when the layout supports them.
+                foreach (ChannelDefinition channel in _config.Channels)
+                    if (channel.InputPair is null && IsInsertChannel(channel.Id))
+                        RewireInsertKeyLocked(channel.Id);
                 foreach (MixDefinition mix in _config.Mixes)
                 {
                     _restarts.Forget("delay:" + mix.Id);

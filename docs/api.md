@@ -130,6 +130,8 @@ that final acknowledgement (or an `error` without a request id):
 | `soundCheck` | `channel`, `action` | use `xlr1` or `xlr2` and `record`, `loop`, `live` or `stop`. One microphone session at a time; recording replaces the sample and ends after ten seconds, looping needs at least 0.1 seconds. Live keeps the sample, stop discards it. Requires the native helper and a connected microphone. Commands acknowledge with `requestId` using the normal command reply. |
 
 | `renameInsert` | `channel`, `insertId`, `name` | rename an existing instance with 1 to 256 characters and no control characters. Only its label changes; the running plugin, parameters and ports are retained. |
+
+| `holdInsert` | `holdId`, `action`, `channel?`, `insertId?` | temporarily activate effects while a key is held. `holdId` is a UUID without separators; `action` is `begin`, `renew` or `end`. Begin needs a channel and optionally an insert id, otherwise it selects the whole chain. Renew and end need only the hold id. |
 | `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is `xlr1`, `xlr2` or `mix:<id>`, each insert is `{id, kind, plugin, label?, bypass?, params?}` where `kind` is `"lv2"` with the plugin URI, `"clap"` with the plugin's id, or `"vst3"` with the class id as 32 hex digits; a CLAP or VST3 insert always runs in the native host, so its `nativeHost` reads true whatever was sent. An insert being added is refused when its plugin cannot run at the chain's width (one channel on an input, two on a mix, by `widths` or the port counts as `plugins` describes them); an insert already in the chain, the same plugin under the same id, is left to the chain builder, so one can always be removed; an id kept while its `kind` or `plugin` changes counts as an addition |
 
 | `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is any existing channel id (hardware, software or external capture), or `mix:<id>`, each insert is `{id, kind, plugin, label?, bypass?, params?}` where `kind` is `"lv2"` with the plugin URI, `"clap"` with the plugin's id, or `"vst3"` with the class id as 32 hex digits; a CLAP or VST3 insert always runs in the native host, so its `nativeHost` reads true whatever was sent. An insert being added is refused when its plugin cannot run at the chain's width (one channel on XLR 1/2, two on Aux, software/capture channels and mixes, by `widths` or the port counts as `plugins` describes them); an insert already in the chain, the same plugin under the same id, is left to the chain builder, so one can always be removed; an id kept while its `kind` or `plugin` changes counts as an addition |
@@ -544,3 +546,22 @@ with `requestId`. Every plugin and parameter is checked by the daemon before
 the chain is replaced. Pasting and loading presets allocate fresh slot ids;
 A/B snapshots retain their ids within one chain. `renameInsert` updates only
 the saved label and state, so a display edit does not rebuild audio.
+
+### Held effects
+
+`holdInsert` restores each insert's original bypass value when its last hold
+ends. Overlapping keys share that original state. Begin is idempotent for the
+same id and target; reusing an id for another target is rejected. At most 128
+holds are active. Renew within five seconds; expired or cancelled holds cannot
+be recreated by renewal. End and renewal of an unknown hold are harmless.
+
+The live insert state shows the effective bypass state. Settings and profile
+exports retain the original values, and these commands do not schedule disk
+writes. A manual bypass change or chain replacement cancels its holds; profile
+recall and teardown cancel all holds. Parameter edits and renaming do not need
+to cancel a hold. A chain replacement preserving a held instance also preserves
+its original bypass, so reordering it cannot accidentally save a pressed key.
+
+The deadline starts after effects finish loading. Expiry is handled by the
+normal daemon sweep, so a lost client restores effects after five seconds plus
+sweep and graph-rewire time. No new polling process is needed.

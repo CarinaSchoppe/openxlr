@@ -156,6 +156,14 @@ public static class CommandValidation
                     || layout.InsertInChain(cmd.Channel, cmd.InsertId) is null) return "renameInsert: select an existing insert";
                 return string.IsNullOrWhiteSpace(cmd.Name) || cmd.Name.Length > MaxText || cmd.Name.Any(char.IsControl)
                     ? "renameInsert: name must be 1 to 256 characters without control characters" : null;
+
+            case "holdInsert":
+                if (!Guid.TryParseExact(cmd.HoldId, "N", out _)) return "holdInsert: holdId must be a UUID without separators";
+                if (cmd.Action is not ("begin" or "renew" or "end")) return "holdInsert: action must be begin, renew or end";
+                if (cmd.Action != "begin") return null;
+                if (cmd.Channel is null || !layout.IsInsertKey(cmd.Channel)) return "holdInsert: select an existing chain";
+                return cmd.InsertId is not null && layout.InsertInChain(cmd.Channel, cmd.InsertId) is null
+                    ? "holdInsert: select an existing insert" : null;
             case "setInserts":
                 if (cmd.Channel is null || cmd.Inserts is null) return "setInserts: need 'channel' and 'inserts'";
                 if (!layout.IsInsertKey(cmd.Channel)) return $"setInserts: '{Short(cmd.Channel)}' has no insert chain";

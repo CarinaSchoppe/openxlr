@@ -178,3 +178,9 @@ Validation and effect status are shared with the WebSocket transport.
 path. Effect-chain paste and recall use the existing `setInserts` command and
 its normal validation; the UI's preset library and comparison slots are local
 UI state, not new HTTP resources.
+
+`holdInsert` is also available through `POST /api/v1/commands`. Supply a UUID
+without separators as `holdId` and `action` (`begin`, `renew`, `end`). Begin takes
+`channel` and an optional `insertId`; omit the latter for the whole chain.
+The five-second lease, overlap and persistence rules are described in
+[Held effects](api.md#held-effects). Renewal must not be treated as a new begin.

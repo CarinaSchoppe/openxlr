@@ -319,6 +319,8 @@ public sealed class WebSocketHub
                 await ReplyOperationAsync(await Task.Run(() => InstallPlugin(_ => new OpenXLR.Core.Mixing.InstallOutcome(true, "", []))));
                 break;
             case "renameInsert":
+
+            case "holdInsert":
             case "setInserts":
                 // A folder cannot be removed between checking its users and
                 // creating an insert from it on another client.

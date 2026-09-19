@@ -1708,3 +1708,7 @@ daemon run, avoiding repeated failed loader probes on subsequent edits.
 
 New channel links wait up to three seconds for both stereo sides after a
 sink reload. A failed attempt removes its partial links before retrying.
+
+Deleting a channel or mix also closes its effect-chain and control windows.
+Recreating the same layout ID opens a fresh chain instead of reusing stale
+controls from the removed item.

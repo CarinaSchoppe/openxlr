@@ -1176,6 +1176,23 @@ public sealed class PipeWireAdapter
         return new PortLink(pairs);
     }
 
+    /// <summary>Wait for both sides of an owned stereo route after asynchronous node creation.</summary>
+    internal PortLink LinkStereoNodes(string fromNode, string fromPrefix, string toNode, string toPrefix,
+        TimeSpan? timeout = null)
+    {
+        long deadline = Environment.TickCount64 + (long)(timeout ?? TimeSpan.FromSeconds(3)).TotalMilliseconds;
+        do
+        {
+            var link = LinkNodes(fromNode, fromPrefix, toNode, toPrefix);
+            if (link.Pairs.Count == 2) return link;
+            // Never leave one side attached across retries or on failure.
+            Unlink(link);
+            if (Environment.TickCount64 >= deadline)
+                throw new InvalidOperationException($"The stereo route from {fromNode} to {toNode} is incomplete.");
+            Thread.Sleep(25);
+        } while (true);
+    }
+
     /// <summary>
     /// Select a stereo pair from an ordered port list. Missing pairs never
     /// fall back to pair zero; a final mono port is kept so mono devices can

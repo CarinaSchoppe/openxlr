@@ -1859,3 +1859,6 @@ the current plugin list or re-enable an outdated picker selection.
 
 Live insert status uses one format-and-identifier index per catalogue refresh;
 large plugin libraries are not rescanned for each latency reading.
+
+New channel links wait up to three seconds for both stereo sides after a
+sink reload. A failed attempt removes its partial links before retrying.

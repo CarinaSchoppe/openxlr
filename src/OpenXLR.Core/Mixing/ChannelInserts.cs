@@ -50,10 +50,8 @@ public sealed partial class Mixer
             {
                 var chain = _pw.CreateMixChain($"channel_{key}", $"OpenXLR {channel.Name} Inserts", inserts);
                 _chains[key] = chain;
-                _channelTaps[key] = _pw.LinkNodes(channel.SinkName, "monitor", chain.SinkName, "playback");
-                _channelOuts[key] = _pw.LinkNodes(chain.SourceName, "capture", ChannelBus(channel), "playback");
-                if (_channelTaps[key].Pairs.Count != 2 || _channelOuts[key].Pairs.Count != 2)
-                    throw new InvalidOperationException("The channel's stereo insert path is incomplete.");
+                _channelTaps[key] = _pw.LinkStereoNodes(channel.SinkName, "monitor", chain.SinkName, "playback");
+                _channelOuts[key] = _pw.LinkStereoNodes(chain.SourceName, "capture", ChannelBus(channel), "playback");
                 return;
             }
             catch (Exception ex)
@@ -64,9 +62,7 @@ public sealed partial class Mixer
         }
         // Failed or bypassed effects leave the channel audible. Keep this link
         // tracked too, so a session manager removing it cannot silence the bus.
-        _channelTaps[key] = _pw.LinkNodes(channel.SinkName, "monitor", ChannelBus(channel), "playback");
-        if (_channelTaps[key].Pairs.Count != 2)
-            throw new InvalidOperationException("The channel's stereo feed is incomplete.");
+        _channelTaps[key] = _pw.LinkStereoNodes(channel.SinkName, "monitor", ChannelBus(channel), "playback");
     }
 
     private bool EnsureChannelChainsLocked()

@@ -10,7 +10,7 @@ merged into development by this work. The shared base is `7adb041`.
 | #157 | Plugin manager | `19cdb53` |
 | #158 | Plugin latency and optional mix compensation | `a6e854c` |
 | #159 | Sound Check | `a89d3c7` |
-| #160 | Inserts on every channel | `24e5f98` |
+| #160 | Inserts on every channel | `d200566` |
 | #161 | Copy, presets, rename and A/B | `b755b8b` |
 | #162 | Momentary effect keys | `87c76db` |
 
@@ -137,11 +137,39 @@ suite passed 1,036 cases with 20 environment-gated skips; the workflow suite
 passed 1,031 with 20 skips. Final documentation merges do not alter the tested
 source, native code or Deck code.
 
+## Layout removal and real desktop follow-up
+
+Removing an entire channel or mix could leave its chain and control windows
+alive. Recreating the same layout ID then reused the old window. The layout
+reconciliation now retires the removed item's session and windows, clears its
+chain and preserves surviving items. The X11 regression failed before the fix
+and passes for channel removal, mix removal, reuse of the ID and an unaffected
+mix. The independent channel branch passed 1,028 general tests with 21 gated
+skips; the combined layout and skin checks also passed.
+
+A real LSP Gate Mono LV2 instance was exercised on the user's Wayland/XWayland
+desktop against PipeWire 1.6.8. The optional desktop test passed host-driven
+parameter repainting at its initial size, after large resize requests and
+restoration, after moving the editor, and after closing and reopening it.
+It used an isolated, unlinked instance. The native lifecycle check also passed
+30 synthetic audio cycles, editor opening, reactivation and unloading, with
+`g_out=0.5` producing the expected 0.125 peak from the fixture's input.
+
+Reproduce the additional checks with python-xlib and LSP Gate Mono installed:
+
+```sh
+python3 native/tests/lsp-editor.py
+make -C native tests/lifecycle
+native/tests/lifecycle lv2 http://lsp-plug.in/plugins/lv2/gate_mono --channels 1 --cycles 30 --editor-at 2 --reactivate-at 15 --set g_out=0.5
+```
+
 ## Remaining acceptance
 
-Physical interfaces, real listening, interactive third-party editor controls,
-moving/resizing/reopening editors on the user's desktop, and Windows bridge
-acceptance were not run. Xvfb and synthetic audio do not replace those checks.
+An XLR Dock was detected, but physical device-control changes and real listening
+were not tested. The desktop result covers LSP Gate Mono and host-driven
+parameter changes, not pointer/keyboard operation of every plugin control,
+other manufacturers' editors or Windows bridge acceptance. Xvfb and synthetic
+audio do not replace those remaining checks.
 Other environment-gated tests, such as live compositor focus routing, are not
 claimed as covered by this work. Passing tests and advisory scans do not prove
 that arbitrary plugins or every configuration are free from defects.

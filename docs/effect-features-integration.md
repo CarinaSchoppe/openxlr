@@ -7,12 +7,12 @@ merged into development by this work. The shared base is `7adb041`.
 | Pull request | Feature | Tested head |
 | --- | --- | --- |
 | #156 | Channel and mix appearance | `17148bb` |
-| #157 | Plugin manager | `819b485` |
+| #157 | Plugin manager | `19cdb53` |
 | #158 | Plugin latency and optional mix compensation | `a6e854c` |
-| #159 | Sound Check | `9bd2a5d` |
-| #160 | Inserts on every channel | `d3b6e9e` |
-| #161 | Copy, presets, rename and A/B | `cbc8117` |
-| #162 | Momentary effect keys | `91d224f` |
+| #159 | Sound Check | `a89d3c7` |
+| #160 | Inserts on every channel | `24e5f98` |
+| #161 | Copy, presets, rename and A/B | `b755b8b` |
+| #162 | Momentary effect keys | `87c76db` |
 
 ## Combined behavior
 
@@ -91,9 +91,51 @@ Deck tests, metadata checks and package advisory scan:
   losing their private state.
 
 Each new regression failed before its corresponding correction. The updated
-feature commits are signed. The other four feature heads remain unchanged.
+feature commits are signed. The other four feature heads were unchanged in that first follow-up.
 No additional exploitable security issue was confirmed by this review; this is
 not a claim that arbitrary plugin code or the entire application is bug-free.
+
+## Control lifecycle and maintainability review
+
+The next pass inspected all seven diffs against development, concentrating on:
+
+| PR | Reviewed boundaries |
+| --- | --- |
+| #156 | Presentation validation, SVG values, display order, persistence rollback and hidden-channel routing |
+| #157 | Search-path bounds, file preservation, host environment, catalogue generations and open parameter controls |
+| #158 | Latency units and invalid reports, bounded delay recovery, retained plugin state and catalogue lookup cost |
+| #159 | Recording bounds, lost input paths, session expiry, stale replies and pending window closure |
+| #160 | Stable public sinks, both stereo links, failed creation/deletion rollback, native fallback and resource accounting |
+| #161 | Snapshot ownership, preset bounds, corrupt-file preservation, effect identity, window ownership and queued edits |
+| #162 | Overlapping holds, lease expiry, manual overrides, baseline persistence, disconnects and bounded held actions |
+
+A pending catalogue used to initialize controls on the first unrelated plugin
+entry. Open controls could also retain old metadata after rescanning. They now
+refresh after the complete catalogue is available, retaining parameter values
+and removing stale controls. The per-insert collection subscriptions and their
+unused catalogue-ready property were removed. A delayed catalogue test covers
+repeated opening, a target after an unrelated entry, changed metadata and a
+missing target after rescan.
+
+Effect-control windows were indexed only by insert ID, although those IDs are
+unique within a chain. Two channels with the same ID opened one window. Windows
+now follow the actual instance, and removing or replacing it closes its window.
+Parameter throttling likewise includes the channel; queued edits are discarded
+on removal, replacement and disconnect. An X11 test checks independent windows,
+and a real WebSocket test checks both channels' commands and the absence of
+stale queued edits. The original catalogue and window-identity tests failed
+before their fixes.
+
+The standalone workflow suite also exposed the old allocation probe's runner
+interference. It now uses the same dedicated-thread, warmed probe already in
+#158, retaining the exact zero-byte assertion. The feature overview and channel
+architecture description now match the new routing and documented limitations.
+
+The combined validation listed above was repeated after these code changes,
+including all four Xvfb suites and the advisory scan. The standalone manager
+suite passed 1,036 cases with 20 environment-gated skips; the workflow suite
+passed 1,031 with 20 skips. Final documentation merges do not alter the tested
+source, native code or Deck code.
 
 ## Remaining acceptance
 

@@ -1856,3 +1856,6 @@ so their latency reporting follows the new setting without re-adding effects.
 
 An unfinished catalogue request from an old daemon connection cannot replace
 the current plugin list or re-enable an outdated picker selection.
+
+Live insert status uses one format-and-identifier index per catalogue refresh;
+large plugin libraries are not rescanned for each latency reading.

@@ -1797,6 +1797,15 @@ a direct route, and broken routes are repaired by the daemon's existing sweep.
 The extra internal bus consumes PipeWire resources, included in the live-layout
 file-limit check. Internal buses are not offered as output or capture devices.
 
+If PipeWire cannot create an LV2 filter chain, OpenXLR can retry it in the
+bundled native DSP host when that host supports every active plugin's required
+features. This also covers distributions without PipeWire's optional LV2
+module. The saved host/editor choice is kept. A failed fallback reports both
+errors and leaves the channel's direct audio route in place.
+
+A successful native fallback is remembered for that plugin during the current
+daemon run, avoiding repeated failed loader probes on subsequent edits.
+
 ## Copying, presets and A/B comparison
 
 In the insert editor, **Copy** copies one effect into OpenXLR's internal

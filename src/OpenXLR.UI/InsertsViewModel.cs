@@ -23,7 +23,7 @@ public sealed record PluginChoice(string Uri, string Name, string Category, Json
 /// picker to add more. Edits go to the daemon as a whole new chain (order
 /// matters); parameter moves go live one control at a time.
 /// </summary>
-public sealed class InsertsViewModel : ViewModelBase
+public sealed partial class InsertsViewModel : ViewModelBase
 {
     private readonly DaemonClient _client;
     private readonly string _channel;
@@ -144,7 +144,7 @@ public sealed class InsertsViewModel : ViewModelBase
         return channels == 1 ? ins == 1 && outs == 1 : ins >= 2 && outs >= 2;
     }
 
-    public void ResetForNewConnection() { _pluginsRequested = false; _catalogTask = null; }
+    public void ResetForNewConnection() { _pluginsRequested = false; _catalogTask = null; ResetEffectWorkflow(); }
 
     /// <summary>
     /// After a plugin was installed: every chain fetches the catalogue
@@ -275,7 +275,8 @@ public sealed class InsertViewModel : ViewModelBase
 
     public string Id { get; }
     public string Plugin { get; }
-    public string Label { get; }
+    private string _label = "";
+    public string Label { get => _label; private set => Set(ref _label, value); }
     public string Kind { get; }
     public string Format => Kind.ToUpperInvariant();
 
@@ -443,6 +444,7 @@ public sealed class InsertViewModel : ViewModelBase
     public void ApplyFromDaemon(JsonNode ins, string? error, bool nativeHostRunning,
         bool nativeUiBlocked = false, string? nativeUiBlockReason = null)
     {
+        Label = ins["label"]?.GetValue<string>() ?? Plugin;
         _nativeUiBlocked = nativeUiBlocked;
         _nativeUiBlockReason = nativeUiBlockReason;
         _bypass = ins["bypass"]?.GetValue<bool>() ?? false;

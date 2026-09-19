@@ -383,3 +383,10 @@ instances, save reusable named chain presets and store A/B snapshots for live
 comparison. Snapshots preserve exposed parameters, order, bypass and host choices;
 they do not contain plugin-private binary state or external samples. Replacing
 a chain can briefly interrupt audio. A/B snapshots clear on reconnect.
+
+### Sound Check
+
+Record up to ten seconds from an XLR microphone and loop the dry sample through
+the current software processing and insert chain. Live mode retains the sample;
+stop discards it and restores the microphone. The session stays in memory and
+ends after ten minutes or a lost audio path. Hardware processing remains upstream.

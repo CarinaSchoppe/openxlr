@@ -1703,3 +1703,7 @@ filter chains receive the same extra LV2 paths as discovery.
 If the saved path file is corrupt, normal paths remain usable and the manager
 shows a warning. Repair that file before editing paths so a partial read cannot
 overwrite your configuration. Scanning reports failed bundles as before.
+
+The LV2 default list also includes the common Debian multiarch library
+directories for the running architecture. An explicit `LV2_PATH` keeps its
+precedence; custom folders are appended to it.

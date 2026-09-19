@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace OpenXLR.Core.Mixing;
@@ -77,7 +78,23 @@ public static class PluginSearchPaths
         return Include("lv2", !string.IsNullOrWhiteSpace(configured)
             ? configured.Split(':', StringSplitOptions.RemoveEmptyEntries)
             : [Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".lv2"),
-                "/usr/lib/lv2", "/usr/local/lib/lv2", "/usr/lib64/lv2", "/usr/local/lib64/lv2"]);
+                "/usr/lib/lv2", "/usr/local/lib/lv2", "/usr/lib64/lv2", "/usr/local/lib64/lv2",
+                .. MultiarchLv2Paths(RuntimeInformation.ProcessArchitecture)]);
+    }
+
+    // Debian-family packages may install bundles under the architecture's
+    // library directory. Adding a custom path must not hide those bundles.
+    internal static string[] MultiarchLv2Paths(Architecture architecture)
+    {
+        string? triplet = architecture switch
+        {
+            Architecture.X64 => "x86_64-linux-gnu",
+            Architecture.X86 => "i386-linux-gnu",
+            Architecture.Arm64 => "aarch64-linux-gnu",
+            Architecture.Arm => "arm-linux-gnueabihf",
+            _ => null,
+        };
+        return triplet is null ? [] : [$"/usr/lib/{triplet}/lv2", $"/usr/local/lib/{triplet}/lv2"];
     }
 
     // Only override lilv's compiled-in defaults when the user adds an LV2 path.

@@ -117,6 +117,23 @@ public sealed class PluginSearchPathTests : IDisposable
         Assert.True(File.Exists(Path.Combine(bundle, "manifest.ttl")));
     }
 
+    [Theory]
+    [InlineData(Architecture.X64, "x86_64-linux-gnu")]
+    [InlineData(Architecture.Arm64, "aarch64-linux-gnu")]
+    [InlineData(Architecture.X86, "i386-linux-gnu")]
+    [InlineData(Architecture.Arm, "arm-linux-gnueabihf")]
+    public void CustomLv2PathsKeepCommonMultiarchBundleDirectories(Architecture architecture, string triplet)
+    {
+        Assert.Contains($"/usr/lib/{triplet}/lv2", PluginSearchPaths.MultiarchLv2Paths(architecture));
+        Environment.SetEnvironmentVariable("LV2_PATH", null);
+        Assert.True(PluginSearchPaths.Change("lv2", _directory, true).Ok);
+        var paths = PluginSearchPaths.Lv2Override()!.Split(':');
+        Assert.Contains("/usr/lib/lv2", paths);
+        Assert.Contains(_directory, paths);
+        foreach (string path in PluginSearchPaths.MultiarchLv2Paths(RuntimeInformation.ProcessArchitecture))
+            Assert.Contains(path, paths);
+    }
+
     public void Dispose()
     {
         foreach (var (key, value) in _environment) Environment.SetEnvironmentVariable(key, value);

@@ -104,6 +104,32 @@ public sealed class EffectWorkflowTests : IDisposable
     }
 
     [Fact]
+    public async Task InvalidPresetActionsBecomeVisibleErrorsWithoutEscapingTheViewModel()
+    {
+        await using var client = new DaemonClient();
+        var view = new InsertsViewModel(client, "mix:monitor", 2);
+        view.PresetName = "";
+        view.SavePreset();
+        Assert.NotNull(view.WorkflowError);
+        view.PresetName = "Speech";
+        view.SavePreset();
+        Assert.Null(view.WorkflowError);
+        view.SavePreset();
+        Assert.Contains("already exists", view.WorkflowError);
+        Assert.False(await view.ApplyEffectsAsync(Chain() with { Version = 42 }));
+        Assert.Contains("Unsupported", view.WorkflowError);
+
+        string path = OpenXLR.Core.OpenXlrPaths.ConfigFile("effect-chain-presets.json");
+        File.WriteAllText(path, "null");
+        view.ReadPresets();
+        Assert.NotNull(view.WorkflowError);
+        view.SelectedPreset = new("Speech", Chain());
+        view.DeletePreset();
+        Assert.NotNull(view.WorkflowError);
+        Assert.Equal("null", File.ReadAllText(path));
+    }
+
+    [Fact]
     public async Task ReplacingAPluginUnderTheSameSlotIdReplacesItsControlsAndFormatMetadata()
     {
         await using var client = new DaemonClient();

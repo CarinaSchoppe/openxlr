@@ -68,20 +68,20 @@ public sealed partial class InsertsViewModel
             Raise(nameof(SelectedPreset));
             WorkflowError = null;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or JsonException)
         { WorkflowError = ex.Message; }
     }
     public void SavePreset()
     {
         try { EffectChainPresets.Save(PresetName, CaptureChain()); ReadPresets(); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or JsonException)
         { WorkflowError = ex.Message; }
     }
     public void DeletePreset()
     {
         if (SelectedPreset is not { } preset) return;
         try { EffectChainPresets.Delete(preset.Name); ReadPresets(); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or JsonException)
         { WorkflowError = ex.Message; }
     }
     public async Task LoadPresetAsync()
@@ -92,7 +92,7 @@ public sealed partial class InsertsViewModel
     {
         if (_workflowBusy) return false;
         try { data.Validate(); }
-        catch (Exception ex) when (ex is IOException or JsonException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException)
         { WorkflowError = ex.Message; return false; }
         // The daemon validates each plugin against the target width. Mono and
         // stereo presets may contain plugins supporting both, so do not guess.

@@ -1705,3 +1705,6 @@ The clipboard and A/B slots are in memory. Up to 64 named presets are saved in
 Corrupt or oversized data is reported and preserved instead of overwritten.
 The controls use the existing application skin and remain scrollable at small
 window sizes.
+
+Invalid preset names, duplicate names and damaged preset data are shown in
+the chain window as errors. They do not close the window or replace the file.

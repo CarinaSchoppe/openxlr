@@ -103,6 +103,24 @@ public sealed class EffectWorkflowTests : IDisposable
         Assert.Equal("New name", insert.Label);
     }
 
+    [Fact]
+    public async Task ReplacingAPluginUnderTheSameSlotIdReplacesItsControlsAndFormatMetadata()
+    {
+        await using var client = new DaemonClient();
+        var view = new InsertsViewModel(client, "xlr1");
+        view.PluginChoices.Add(new PluginChoice("shared-id", "LV2", "", new JsonArray(), NativeEditorAvailable: true, Kind: "lv2"));
+        view.PluginChoices.Add(new PluginChoice("shared-id", "CLAP", "", new JsonArray(), Kind: "clap"));
+        view.Apply(JsonNode.Parse("""[{"insert":{"id":"one","kind":"lv2","plugin":"shared-id","label":"Old"}}]"""));
+        var old = Assert.Single(view.Items);
+        Assert.True(old.NativeHostInstalled);
+        view.Apply(JsonNode.Parse("""[{"insert":{"id":"one","kind":"clap","plugin":"shared-id","label":"New"}}]"""));
+        var current = Assert.Single(view.Items);
+        Assert.NotSame(old, current);
+        Assert.Equal("clap", current.Kind);
+        Assert.False(current.NativeHostInstalled);
+        Assert.False(current.NativeEditorSupported);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

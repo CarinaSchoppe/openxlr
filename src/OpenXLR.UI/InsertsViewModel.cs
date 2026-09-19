@@ -183,7 +183,9 @@ public sealed partial class InsertsViewModel : ViewModelBase
                 JsonNode? ins = entry?["insert"];
                 if (ins is null) continue;
                 string id = ins["id"]!.GetValue<string>();
-                if (!byId.TryGetValue(id, out InsertViewModel? vm))
+                if (!byId.TryGetValue(id, out InsertViewModel? vm)
+                    || vm.Plugin != ins["plugin"]!.GetValue<string>()
+                    || vm.Kind != (ins["kind"]?.GetValue<string>() ?? "lv2"))
                     vm = new InsertViewModel(this, id, ins["plugin"]!.GetValue<string>(), ins["label"]?.GetValue<string>() ?? id,
                         ins["kind"]?.GetValue<string>() ?? "lv2");
                 vm.ApplyFromDaemon(ins, entry?["error"]?.GetValue<string>(),
@@ -262,7 +264,7 @@ public sealed partial class InsertsViewModel : ViewModelBase
         => [.. (order ?? Items).Where(i => i.Id != skip).Select(i => (object)i.ToPayload())];
 
     /// <summary>Parameter metadata for a plugin uri, from the catalog.</summary>
-    internal JsonNode? ParamsFor(string uri) => PluginChoices.FirstOrDefault(p => p.Uri == uri)?.Params;
+    internal JsonNode? ParamsFor(string kind, string uri) => PluginChoices.FirstOrDefault(p => p.Kind == kind && p.Uri == uri)?.Params;
 }
 
 public sealed class InsertViewModel : ViewModelBase
@@ -301,10 +303,10 @@ public sealed class InsertViewModel : ViewModelBase
     /// it calls available is by definition supported.
     /// </summary>
     public bool NativeEditorSupported => _owner.PluginChoices.Any(
-        p => p.Uri == Plugin && (p.NativeEditorSupported || p.NativeEditorAvailable));
+        p => p.Kind == Kind && p.Uri == Plugin && (p.NativeEditorSupported || p.NativeEditorAvailable));
 
     /// <summary>The helper is here too, so turning the host on can work.</summary>
-    public bool NativeHostInstalled => _owner.PluginChoices.Any(p => p.Uri == Plugin && p.NativeEditorAvailable);
+    public bool NativeHostInstalled => _owner.PluginChoices.Any(p => p.Kind == Kind && p.Uri == Plugin && p.NativeEditorAvailable);
 
     private bool _nativeUiBlocked;
     private string? _nativeUiBlockReason;
@@ -493,7 +495,7 @@ public sealed class InsertViewModel : ViewModelBase
     private void BuildParams()
     {
         RaiseNativeFlags();
-        if (_owner.ParamsFor(Plugin) is not JsonArray arr) return;
+        if (_owner.ParamsFor(Kind, Plugin) is not JsonArray arr) return;
         foreach (JsonNode? p in arr)
         {
             if (p is null) continue;

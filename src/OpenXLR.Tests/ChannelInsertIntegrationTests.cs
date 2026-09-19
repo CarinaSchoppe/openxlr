@@ -42,12 +42,12 @@ public sealed class ChannelInsertIntegrationTests
             AssertSound(.5);
             Assert.Equal(identity, pw.FindNodeId("OpenXLR_ch_software"));
             Assert.DoesNotContain(pw.ListDevices(), d => d.Name.StartsWith("OpenXLR_bus_", StringComparison.Ordinal));
-            int failed = pw.FindNodeId("OpenXLR_ins_channel_software_in")!.Value;
-            pw.Run("pw-cli", "destroy", failed.ToString());
+            var failed = pw.DumpNodes().First(n => n.Name.StartsWith("OpenXLR_ins_channel_software_", StringComparison.Ordinal));
+            pw.Run("pw-cli", "destroy", failed.Id.ToString());
             Assert.True(SpinWait.SpinUntil(() =>
             {
                 mixer.EnsureFilterRoutes();
-                return pw.FindNodeId("OpenXLR_ins_channel_software_in") is int node && node != failed;
+                return pw.FindNodeId(failed.Name) is int node && node != failed.Id;
             }, TimeSpan.FromSeconds(5)));
             AssertSound(.5);
             mixer.SetInsertParam("software", "gain", "gain", .25);

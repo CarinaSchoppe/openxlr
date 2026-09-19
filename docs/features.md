@@ -373,3 +373,11 @@ folders, all-format rescanning and the existing Windows-plugin controls.
 Plugin controls display reported algorithmic latency. Optional mix-insert
 alignment delays faster mixes to the slowest valid report, with a two-second
 limit and explicit unavailable status. It defaults to off; see the manual.
+
+### Effect chains and comparison
+
+Copy individual effects or complete chains between compatible channels, rename
+instances, save reusable named chain presets and store A/B snapshots for live
+comparison. Snapshots preserve exposed parameters, order, bypass and host choices;
+they do not contain plugin-private binary state or external samples. Replacing
+a chain can briefly interrupt audio. A/B snapshots clear on reconnect.

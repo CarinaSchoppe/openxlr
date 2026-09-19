@@ -550,6 +550,7 @@ public sealed class WindowLayoutTests
                 }
                 AssertLiveLayoutOrder(main, vm);
                 PluginCatalogueUiTests.CheckStaleReplies();
+                SoundCheckWindowTests.CheckPendingClose();
             }
             catch (Exception ex) { failure = ex; }
             finally

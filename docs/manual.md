@@ -1865,3 +1865,6 @@ sink reload. A failed attempt removes its partial links before retrying.
 
 Invalid preset names, duplicate names and damaged preset data are shown in
 the chain window as errors. They do not close the window or replace the file.
+Sound Check ignores command replies from an earlier daemon connection. Closing
+its window disables further actions while the stop command is pending, so a
+new recording cannot be queued behind that stop.

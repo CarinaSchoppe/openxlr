@@ -20,6 +20,7 @@ public partial class SoundCheckWindow : Window
             e.Cancel = true;
             if (_closing) return;
             _closing = true;
+            IsEnabled = false; // Do not queue a new recording behind the pending stop.
             await vm.StopOnCloseAsync();
             _closed = true;
             Close();

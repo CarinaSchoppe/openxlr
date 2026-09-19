@@ -1873,3 +1873,7 @@ new recording cannot be queued behind that stop.
 A transient delay-control failure retries through the existing bounded recovery
 policy. Repairing a compensation stage retains healthy plugin instances,
 including their private state. Repeated failures still stop automatic retries.
+
+Open effect controls refresh after a complete plugin rescan. They retain current
+parameter values and replace old control definitions when a plugin changes.
+An unavailable plugin leaves no stale parameter controls in its window.

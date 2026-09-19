@@ -1710,3 +1710,7 @@ precedence; custom folders are appended to it.
 
 An unfinished catalogue request from an old daemon connection cannot replace
 the current plugin list or re-enable an outdated picker selection.
+
+Open effect controls refresh after a complete plugin rescan. They retain current
+parameter values and replace old control definitions when a plugin changes.
+An unavailable plugin leaves no stale parameter controls in its window.

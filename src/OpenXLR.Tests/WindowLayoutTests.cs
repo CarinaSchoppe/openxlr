@@ -549,6 +549,7 @@ public sealed class WindowLayoutTests
                     Capture(folders, "plugin-folders-" + width);
                 }
                 AssertLiveLayoutOrder(main, vm);
+                PluginCatalogueUiTests.CheckStaleReplies();
             }
             catch (Exception ex) { failure = ex; }
             finally

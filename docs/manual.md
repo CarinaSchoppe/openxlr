@@ -1853,3 +1853,6 @@ cause the same short audio gap as the existing insert controls.
 
 Changing latency compensation also rebuilds existing supported input chains,
 so their latency reporting follows the new setting without re-adding effects.
+
+An unfinished catalogue request from an old daemon connection cannot replace
+the current plugin list or re-enable an outdated picker selection.

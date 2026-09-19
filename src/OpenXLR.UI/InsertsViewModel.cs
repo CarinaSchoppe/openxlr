@@ -30,6 +30,7 @@ public sealed partial class InsertsViewModel : ViewModelBase
     private readonly int _channels;
     private bool _applying;
     private bool _pluginsRequested;
+    private int _catalogGeneration;
 
     /// <param name="channel">Insert key: "xlr1", "xlr2", or "mix:&lt;id&gt;".</param>
     /// <param name="channels">1 for the mono mic path, 2 for a stereo mix.</param>
@@ -99,16 +100,28 @@ public sealed partial class InsertsViewModel : ViewModelBase
         => _catalogTask ??= client.RequestPluginsAsync(TimeSpan.FromSeconds(20));
 
     /// <summary>Fetch the catalog once per connection (lilv's scan can take a moment).</summary>
-    public async void EnsurePluginsLoaded()
+    public void EnsurePluginsLoaded() => _ = LoadPluginsAsync();
+
+    internal async Task LoadPluginsAsync()
     {
         if (_pluginsRequested) return;
         _pluginsRequested = true;
         Note = "Scanning plugins…";
-        JsonNode? plugins = await CatalogAsync(_client);
-        Dispatcher.UIThread.Post(() =>
+        int generation = ++_catalogGeneration;
+        Task<JsonNode?> request = CatalogAsync(_client);
+        JsonNode? plugins = await request.ConfigureAwait(false);
+        await Dispatcher.UIThread.InvokeAsync(() =>
         {
+            if (generation != _catalogGeneration) return;
             PluginChoices.Clear();
-            if (plugins is not JsonArray arr) { Note = "Plugin list unavailable"; _pluginsRequested = false; _catalogTask = null; return; }
+            SelectedPlugin = null;
+            if (plugins is not JsonArray arr)
+            {
+                Note = "Plugin list unavailable";
+                _pluginsRequested = false;
+                if (ReferenceEquals(_catalogTask, request)) _catalogTask = null;
+                return;
+            }
             foreach (JsonNode? p in arr)
             {
                 if (p is null) continue;
@@ -148,7 +161,16 @@ public sealed partial class InsertsViewModel : ViewModelBase
         return channels == 1 ? ins == 1 && outs == 1 : ins >= 2 && outs >= 2;
     }
 
-    public void ResetForNewConnection() { _pluginsRequested = false; _catalogTask = null; ResetEffectWorkflow(); }
+    public void ResetForNewConnection()
+    {
+        _catalogGeneration++;
+        _pluginsRequested = false;
+        _catalogTask = null;
+        PluginChoices.Clear();
+        SelectedPlugin = null;
+        Note = null;
+        ResetEffectWorkflow();
+    }
 
     /// <summary>
     /// After a plugin was installed: every chain fetches the catalogue

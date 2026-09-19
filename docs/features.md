@@ -390,3 +390,10 @@ Record up to ten seconds from an XLR microphone and loop the dry sample through
 the current software processing and insert chain. Live mode retains the sample;
 stop discards it and restores the microphone. The session stays in memory and
 ends after ten minutes or a lost audio path. Hardware processing remains upstream.
+
+### Held effect keys in OpenDeck
+
+Effect and whole-chain keys can activate processing only while held. Overlapping
+holds restore the original bypass states after the last release. Lost releases
+expire after five seconds plus graph reconciliation; manual edits and profile
+recall take precedence. Temporary held states are not saved in profiles.

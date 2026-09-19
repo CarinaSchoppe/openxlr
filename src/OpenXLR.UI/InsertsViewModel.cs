@@ -169,6 +169,7 @@ public sealed partial class InsertsViewModel : ViewModelBase
         PluginChoices.Clear();
         SelectedPlugin = null;
         Note = null;
+        foreach (var insert in Items) insert.ForgetPendingParameters();
         ResetEffectWorkflow();
     }
 
@@ -216,6 +217,7 @@ public sealed partial class InsertsViewModel : ViewModelBase
             }
             if (!next.SequenceEqual(Items))
             {
+                foreach (var removed in Items.Except(next)) removed.Detach();
                 Items.Clear();
                 foreach (InsertViewModel vm in next) Items.Add(vm);
                 Raise(nameof(HasItems));
@@ -266,10 +268,14 @@ public sealed partial class InsertsViewModel : ViewModelBase
     internal void SendParam(InsertViewModel item, string symbol, double value)
     {
         if (_applying) return;
-        string key = $"ins:{item.Id}:{symbol}";
+        string key = ParameterKey(item.Id, symbol);
         SliderSync.Touch(key);
         SliderSync.Send(key, () => _ = _client.SetInsertParamAsync(_channel, item.Id, symbol, value));
     }
+
+    // Channel and insert IDs cannot contain '/', so each control has one key
+    // even when a profile uses the same insert ID in several channels.
+    internal string ParameterKey(string id, string symbol) => $"ins:{_channel}/{id}/{symbol}";
 
     internal bool Applying => _applying;
 
@@ -500,7 +506,7 @@ public sealed class InsertViewModel : ViewModelBase
             // While a control is being dragged the daemon's echo lags the
             // slider; applying it would make the thumb jitter (the mixer's
             // faders use the same guard).
-            if (SliderSync.RecentlyTouched($"ins:{Id}:{p.Symbol}")) continue;
+            if (SliderSync.RecentlyTouched(_owner.ParameterKey(Id, p.Symbol))) continue;
             if (_params.TryGetValue(p.Symbol, out double v)) p.ApplyFromDaemon(v);
         }
     }
@@ -532,8 +538,22 @@ public sealed class InsertViewModel : ViewModelBase
         RebuildGroups();
     }
 
+    private readonly HashSet<string> _editedParameters = [];
+    internal void ForgetPendingParameters()
+    {
+        foreach (string symbol in _editedParameters) SliderSync.Forget(_owner.ParameterKey(Id, symbol));
+        _editedParameters.Clear();
+    }
+
+    internal void Detach()
+    {
+        ForgetPendingParameters();
+        InsertWindows.CloseControls(this);
+    }
+
     internal void SendParam(string symbol, double value)
     {
+        _editedParameters.Add(symbol);
         _params[symbol] = value;
         _owner.SendParam(this, symbol, value);
     }

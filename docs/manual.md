@@ -1877,3 +1877,8 @@ including their private state. Repeated failures still stop automatic retries.
 Open effect controls refresh after a complete plugin rescan. They retain current
 parameter values and replace old control definitions when a plugin changes.
 An unavailable plugin leaves no stale parameter controls in its window.
+
+Effect control windows belong to their channel and effect instance. Removing or
+replacing an effect closes its old control window and discards queued parameter
+changes. Controls on different channels stay independent even when a profile
+uses the same effect ID in both. Disconnecting discards queued parameter changes.

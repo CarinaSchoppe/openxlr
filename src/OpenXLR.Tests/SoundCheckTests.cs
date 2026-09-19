@@ -8,6 +8,56 @@ namespace OpenXLR.Tests;
 public sealed class SoundCheckTests
 {
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task OldRepliesCannotChangeANewSessionsErrorOrUnlockItsPendingCommand(bool closing, bool failed)
+    {
+        var received = new[] { new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously), new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var release = new[] { new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously), new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) };
+        await using var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            var replies = new List<Task>();
+            for (int i = 0; i < 2;)
+            {
+                var command = await SocketTestServer.Receive(socket, stop);
+                if (command["cmd"]!.GetValue<string>() == "auth") continue;
+                int index = i++;
+                received[index].TrySetResult();
+                replies.Add(Reply());
+                async Task Reply()
+                {
+                    await release[index].Task.WaitAsync(stop);
+                    await SocketTestServer.Send(socket, new { type = "commandResult", requestId = command["requestId"]!.GetValue<string>(), error = index == 1 ? "current failure" : failed ? "old failure" : null }, stop);
+                }
+            }
+            await Task.WhenAll(replies);
+            await Task.Delay(Timeout.Infinite, stop);
+        });
+        await using var client = new DaemonClient(server.Url);
+        var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.ConnectionChanged += up => { if (up) connected.TrySetResult(); };
+        client.Start();
+        await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var view = new SoundCheckViewModel(client, "xlr1");
+        Task old = closing ? view.StopOnCloseAsync() : view.RunAsync("record");
+        await received[0].Task.WaitAsync(TimeSpan.FromSeconds(5));
+        view.Apply(null);
+        Task current = view.RunAsync("record");
+        await received[1].Task.WaitAsync(TimeSpan.FromSeconds(5));
+        view.Apply(JsonNode.Parse("""{"channel":"xlr1","mode":"live","seconds":1,"error":"current state"}"""));
+        release[0].SetResult();
+        await old;
+        Assert.Equal("current state", view.Error);
+        Assert.False(view.CanRecord);
+        release[1].SetResult();
+        await current;
+        Assert.Equal("current failure", view.Error);
+        Assert.True(view.CanRecord);
+    }
+
+    [Theory]
     [InlineData("xlr1", "record", true)]
     [InlineData("xlr2", "loop", true)]
     [InlineData("xlr1", "live", true)]

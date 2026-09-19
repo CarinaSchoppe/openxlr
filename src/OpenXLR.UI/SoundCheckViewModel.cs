@@ -8,6 +8,7 @@ namespace OpenXLR.UI;
 public sealed class SoundCheckViewModel(DaemonClient client, string channel) : ViewModelBase
 {
     private bool _busy, _active;
+    private int _connectionEpoch;
     private string _mode = "idle";
     private double _seconds;
     private string? _error;
@@ -26,6 +27,7 @@ public sealed class SoundCheckViewModel(DaemonClient client, string channel) : V
 
     public void Apply(JsonNode? state)
     {
+        if (state is null) { _connectionEpoch++; _busy = false; }
         _active = state?["channel"]?.GetValue<string>() == channel;
         _mode = _active ? state?["mode"]?.GetValue<string>() ?? "idle" : "idle";
         _seconds = _active ? state?["seconds"]?.GetValue<double>() ?? 0 : 0;
@@ -36,12 +38,25 @@ public sealed class SoundCheckViewModel(DaemonClient client, string channel) : V
     public async Task RunAsync(string action)
     {
         if (_busy) return;
+        int epoch = _connectionEpoch;
         _busy = true; RaiseButtons();
-        try { Error = await client.SoundCheckAsync(channel, action); }
-        finally { _busy = false; RaiseButtons(); }
+        try
+        {
+            string? error = await client.SoundCheckAsync(channel, action);
+            if (epoch == _connectionEpoch) Error = error;
+        }
+        finally
+        {
+            if (epoch == _connectionEpoch) { _busy = false; RaiseButtons(); }
+        }
     }
 
     // Closing can follow a pending record command; send stop behind it rather
     // than dropping it because the buttons are temporarily disabled.
-    public async Task StopOnCloseAsync() => Error = await client.SoundCheckAsync(channel, "stop");
+    public async Task StopOnCloseAsync()
+    {
+        int epoch = _connectionEpoch;
+        string? error = await client.SoundCheckAsync(channel, "stop");
+        if (epoch == _connectionEpoch) Error = error;
+    }
 }

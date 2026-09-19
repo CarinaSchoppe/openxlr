@@ -1697,3 +1697,7 @@ ends on device changes, audio-helper failure, daemon restart or after ten
 minutes. If the UI loses its connection, closing it cannot deliver a stop;
 reconnect and stop the session, or it will end at that limit. The loop follows
 the normal microphone routing, including any live call or recording using it.
+
+Sound Check ignores command replies from an earlier daemon connection. Closing
+its window disables further actions while the stop command is pending, so a
+new recording cannot be queued behind that stop.

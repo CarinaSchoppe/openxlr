@@ -1707,3 +1707,6 @@ overwrite your configuration. Scanning reports failed bundles as before.
 The LV2 default list also includes the common Debian multiarch library
 directories for the running architecture. An explicit `LV2_PATH` keeps its
 precedence; custom folders are appended to it.
+
+An unfinished catalogue request from an old daemon connection cannot replace
+the current plugin list or re-enable an outdated picker selection.

@@ -441,10 +441,11 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             foreach (MixDefinition mix in _config.Mixes)
                 if (_compensateMixLatency && !_restarts.Blocked("delay:" + mix.Id) &&
                     (!_mixDelays.TryGetValue(mix.Id, out FilterHandle? delay) ||
-                    !delay.IsAlive || _pw.EnsureLinks(_mixDelayInputs[mix.Id]) == LinkHealth.Broken))
+                    !delay.IsAlive || _mixDelayErrors.ContainsKey(mix.Id) ||
+                    _pw.EnsureLinks(_mixDelayInputs[mix.Id]) == LinkHealth.Broken))
                 {
                     _restarts.Failed("delay:" + mix.Id);
-                    WireMixChainLocked(mix);
+                    WireMixConsumersLocked(mix);
                     changed = true;
                 }
             changed |= UpdateMixLatencyLocked();
@@ -639,9 +640,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     private void WireMixChainLocked(MixDefinition mix)
     {
         string key = MixKey(mix);
-        RemoveMixDelayLocked(mix.Id);
         if (_mixTaps.Remove(key, out PortLink? tap)) _pw.Unlink(tap);
-        if (_mixPostLinks.Remove(key, out PortLink? post)) _pw.Unlink(post);
         if (_chains.Remove(key, out FilterHandle? old)) _pw.StopFilter(old);
         _insertErrors.Remove(key);
 
@@ -661,6 +660,15 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 _insertErrors[key] = ex.Message;   // the mix keeps flowing without its inserts
             }
         }
+        WireMixConsumersLocked(mix);
+    }
+
+    // Delay repair must not restart healthy plugins or reset their private state.
+    private void WireMixConsumersLocked(MixDefinition mix)
+    {
+        string key = MixKey(mix);
+        RemoveMixDelayLocked(mix.Id);
+        if (_mixPostLinks.Remove(key, out PortLink? post)) _pw.Unlink(post);
         WireMixDelayLocked(mix);
         (string node, string prefix) = MixTapLocked(mix);
         switch (mix.Kind)

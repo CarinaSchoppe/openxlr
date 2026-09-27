@@ -120,7 +120,10 @@ controls, resizing, moving and reopening editors; Xvfb tests do not replace
 those checks. The optional Windows bridge has a separate artifact workflow
 and [package checks](packaging/yabridge/README.md).
 
-## NuGet dependency updates
+## Dependency updates
+
+The CodeQL init and analyze steps must use the same pinned commit. Dependabot
+groups these actions so a version update changes both steps in one pull request.
 
 Dependabot groups Avalonia packages because the window uses them as one
 framework. A grouped update can still leave a referencing project's lock

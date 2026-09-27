@@ -120,6 +120,11 @@ controls, resizing, moving and reopening editors; Xvfb tests do not replace
 those checks. The optional Windows bridge has a separate artifact workflow
 and [package checks](packaging/yabridge/README.md).
 
+## Dependency updates
+
+The CodeQL init and analyze steps must use the same pinned commit. Dependabot
+groups these actions so a version update changes both steps in one pull request.
+
 ## Pull requests
 
 CI and CodeQL run for pull requests and for direct pushes to `main` and

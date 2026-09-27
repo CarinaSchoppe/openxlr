@@ -7,6 +7,11 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      avalonia:
+        patterns:
+          - "Avalonia"
+          - "Avalonia.*"
   - package-ecosystem: github-actions
     directory: /
     schedule:

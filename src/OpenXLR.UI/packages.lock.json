@@ -29,11 +29,11 @@
       },
       "Avalonia.Fonts.Inter": {
         "type": "Direct",
-        "requested": "[12.1.2, )",
-        "resolved": "12.1.2",
-        "contentHash": "pFkrNWecSX3wP9kTsMyLKyP29/8T7cYywKuE+DC9HN+BstmcIx5iOi6ZZLYAK1HkNTAGjF+oQf5wpTj3gnkWXA==",
+        "requested": "[12.1.3, )",
+        "resolved": "12.1.3",
+        "contentHash": "kNh670aMSkTk/2gA0F1rnghio4PL4op89Ypreq2BL9J/A/3PYxhoMfTPEgHUjOcPliPOyXsk5/86WzlJNeeETA==",
         "dependencies": {
-          "Avalonia": "12.1.2"
+          "Avalonia": "12.1.3"
         }
       },
       "Avalonia.Themes.Fluent": {

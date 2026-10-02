@@ -94,6 +94,7 @@ struct Host {
   void *in_ports[MAX_CHANNELS], *out_ports[MAX_CHANNELS];
   float *silence, *scratch;  // for a channel PipeWire gave no buffer this cycle
   _Atomic bool audio_error;
+  _Atomic bool failure_explained;  // host_fail has written the reason
   _Atomic bool monitor_stop;
   unsigned heartbeat_ticks;
   // Audio-callback progress. The audio thread bumps entered before the

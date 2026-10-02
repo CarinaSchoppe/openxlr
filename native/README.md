@@ -109,6 +109,9 @@ can still interrupt that insert's chain.
   within five minutes; then it is left off with the reason on the insert,
   because every rebuild of an input chain interrupts the microphone. Changing
   or bypassing the chain starts it over.
+- A VST3 plugin that reports a latency change keeps running. The host does
+  no delay compensation, so only a reload or a changed bus layout
+  (`kReloadComponent`, `kIoChanged`) ends the process for a fresh one.
 
 ## Session environment
 

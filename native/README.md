@@ -62,9 +62,12 @@ display or installed plugin. The normal host build still uses C++17.
 `python3 native/tests/lsp-editor.py` is an opt-in desktop regression using
 an isolated LSP Gate Mono LV2 instance. It needs python-xlib, the installed
 plugin, a running PipeWire server and a display large enough for the tested
-sizes. It drags the editor to large sizes and back, checking that changed
+sizes. It drags the editor to large sizes and back, moves it, closes and reopens
+it, checking that changed
 parameters still repaint. `--host PATH` selects another build; `--opengl`
-tests the explicit OpenGL override. It creates no audio links.
+tests the explicit OpenGL override. The display must fit the largest tested
+window (6000 by 2400 pixels), including its chosen position. A hidden editor
+is not treated as an open window. It creates no audio links.
 
 ## What it does
 
@@ -105,7 +108,12 @@ can still interrupt that insert's chain.
 - A chain that dies on its own is rebuilt, until it has failed three times
   within five minutes; then it is left off with the reason on the insert,
   because every rebuild of an input chain interrupts the microphone. Changing
-  or bypassing the chain starts it over.
+  or bypassing the chain starts it over. The last line the helper wrote to
+  stderr goes to the daemon's log at each death and is shown with that
+  reason, so a helper that gives up says why in its final line.
+- A VST3 plugin that reports a latency change keeps running. The host does
+  no delay compensation, so only a reload or a changed bus layout
+  (`kReloadComponent`, `kIoChanged`) ends the process for a fresh one.
 
 ## Session environment
 
@@ -131,9 +139,11 @@ Use the session's own value rather than a copy, and never `xhost +`.
 ## Tracing a VST3 plugin
 
 With `OPENXLR_HOST_TRACE` set in the helper's environment, the VST3 backend
-writes the plugin's bus layout, the result of switching processing on and the
-first four audio cycles to stderr, which the daemon forwards to its log. Run
-the helper by hand for a quick look:
+writes the plugin's bus layout, the result of switching processing on, the
+first four audio cycles and each `restartComponent` request to stderr. The
+daemon forwards the lines that start with `trace: ` to its log, up to 64 for
+each helper process, so set the variable on the service to see them in the
+journal. Run the helper by hand for a quick look:
 
 ```sh
 OPENXLR_HOST_TRACE=1 native/openxlr-lv2-host vst3 /usr/lib/vst3/Plugin.vst3 <class-id> test 2 48000

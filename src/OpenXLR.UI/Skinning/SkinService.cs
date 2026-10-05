@@ -205,7 +205,7 @@ public static class SkinService
     public static IReadOnlyList<string> Choose(string id)
     {
         SkinEntry entry = SkinCatalog.Find(id) ?? new SkinEntry(SkinPackage.Default, []);
-        (UiSettings.Load() with { Skin = entry.Id == SkinPackage.DefaultId ? null : entry.Id }).Save();
+        (UiSettings.Load() with { Skin = entry.Id == SkinPackage.DefaultId ? null : entry.Id }).SaveChecked();
         return Apply(entry);
     }
 

@@ -275,21 +275,6 @@ public sealed class OptionsViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// Put a rejected toggle back where it was. The check box has already
-    /// drawn itself in the new state, and a notification carrying the value
-    /// the property already had does not move it: the binding compares
-    /// against what it last wrote and pushes nothing. Publishing the rejected
-    /// value and then the real one does move it.
-    /// </summary>
-    private void Reject(ref bool field, bool rejected, string name)
-    {
-        field = rejected;
-        Raise(name);
-        field = !rejected;
-        Raise(name);
-    }
-
     private string? _startupError;
     public string? StartupError { get => _startupError; private set => Set(ref _startupError, value); }
 
@@ -429,8 +414,17 @@ public sealed class OptionsViewModel : ViewModelBase
         get => _selectedSkin;
         set
         {
+            SkinChoice? previous = _selectedSkin;
             if (!Set(ref _selectedSkin, value) || _applying || value is null) return;
-            ReportSkin(Skinning.SkinService.Choose(value.Id));
+            try { ReportSkin(Skinning.SkinService.Choose(value.Id)); }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+            {
+                _selectedSkin = previous;
+                // Finish the selection binding's source write before restoring
+                // it, so the same choice can be retried after the file is fixed.
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => Reject(ref _selectedSkin, value, nameof(SelectedSkin)));
+                SkinError = "The skin could not be saved: " + ex.Message;
+            }
         }
     }
 

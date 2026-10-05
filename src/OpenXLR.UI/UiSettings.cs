@@ -62,9 +62,11 @@ public sealed record UiSettings
         return new UiSettings();
     }
 
+    internal void SaveChecked() => OpenXlrPaths.WriteAtomicJson(FilePath, this, Json);
+
     public void Save()
     {
-        try { OpenXlrPaths.WriteAtomicJson(FilePath, this, Json); }
+        try { SaveChecked(); }
         catch (Exception) { /* best effort */ }
     }
 }

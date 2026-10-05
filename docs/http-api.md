@@ -43,6 +43,11 @@ This reports execution, not a new durability guarantee: saving follows each
 existing command's behavior. Never automatically retry a mutation after losing
 the connection; it may already have executed.
 
+An unreadable profile directory or recall marker is reported in the state's
+`warning`, not as an HTTP failure. Device and mixer state remain available;
+unavailable profile metadata uses the empty/null values documented in
+[the state contract](api.md).
+
 Error status codes: 400 a body that is not valid UTF-8, or a plain request
 on the events route without a WebSocket upgrade; 401 missing/wrong token;
 403 foreign Origin; 408 body-read deadline; 413 body over 64 KiB; 415 wrong

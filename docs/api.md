@@ -196,6 +196,12 @@ before anything is applied; the error starts with `profile '<name>':`. A bad
 mixer field is named; a non-finite device level is reported as `Saved device
 levels must be finite numbers.` without one.
 
+An unreadable profile directory or recall marker does not prevent a `state`
+reply. `warning` describes the read failure; unavailable profile names are
+empty and an unavailable recall choice is null. Device and mixer state and
+the last active profile remain available. A later successful read clears
+the profile warning without restarting the daemon.
+
 An output's feed names one mix or several joined with `+`, every one at
 unity; a blend at other levels is a mix of its own. An absent entry in
 `monitorFeeds` selects the first monitor mix. The per-route levels of

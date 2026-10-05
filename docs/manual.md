@@ -941,6 +941,11 @@ instead of saving the device's boot values over them.
 If a profile's device settings apply but its mixer settings fail, the error
 says so and gives the mixer failure.
 
+If the profile folder or its recall marker cannot be read, the window still
+receives device and mixer state and shows a warning. Only unavailable profile
+choices are left empty. Repairing the file or its permissions clears the
+warning on the next state update; the daemon does not need a restart.
+
 Loading a named profile, by clicking it or on connect, restores its saved
 gain even when the gain lock is on. The lock remains on and still blocks
 ordinary gain changes. A profile is a saved snapshot: changing a control

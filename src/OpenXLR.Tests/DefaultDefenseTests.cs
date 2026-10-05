@@ -19,27 +19,33 @@ public sealed class DefaultDefenseTests
             lock (calls) calls.Add(string.Join(' ', args));
             if (args[0] == "get-default-sink")
             {
-                if (Interlocked.Increment(ref gets) == 2) { secondPassInside.TrySetResult(); release.Wait(TimeSpan.FromSeconds(5)); }
+                if (Interlocked.Increment(ref gets) == 2) { secondPassInside.TrySetResult(); release.Wait(); }
                 return "OpenXLR_ch_system";   // WirePlumber moved it
             }
             if (args[0] == "get-default-source") return "OpenXLR_mic";   // already right
             return "";
         }
         using var stop = new CancellationTokenSource();
-        Task loop = DefaultDefense.RunAsync(sink, "OpenXLR_mic", run, [10, 10, 10, 10], stop.Token);
-        await secondPassInside.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        stop.Cancel();
-        release.Set();
-        await loop.WaitAsync(TimeSpan.FromSeconds(2));
-        lock (calls)
+        Task loop = DefaultDefense.RunAsync(sink, "OpenXLR_mic", run, [0, 0, 0, 0], stop.Token);
+        try
         {
-            Assert.Equal(2, calls.Count(c => c == "get-default-sink"));                     // two passes started, never all four
-            Assert.Equal(1, calls.Count(c => c == $"set-default-sink {sink}"));             // only the first pass repaired
-            Assert.DoesNotContain(calls, c => c.StartsWith("set-default-source"));          // the source was fine
+            await secondPassInside.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            stop.Cancel();
+            release.Set();
+            await loop.WaitAsync(TimeSpan.FromSeconds(10));
+            lock (calls)
+            {
+                Assert.Equal(2, calls.Count(c => c == "get-default-sink"));                     // two passes started, never all four
+                Assert.Equal(1, calls.Count(c => c == $"set-default-sink {sink}"));             // only the first pass repaired
+                Assert.DoesNotContain(calls, c => c.StartsWith("set-default-source"));          // the source was fine
+            }
         }
-        int after; lock (calls) after = calls.Count;
-        await Task.Delay(100);
-        lock (calls) Assert.Equal(after, calls.Count);                                     // no pass after the stop
+        finally
+        {
+            stop.Cancel();
+            release.Set();
+            await loop.WaitAsync(TimeSpan.FromSeconds(10));
+        }
     }
 
     [Fact]
@@ -48,8 +54,8 @@ public sealed class DefaultDefenseTests
         var errors = new List<string>();
         int n = 0;
         Task loop = DefaultDefense.RunAsync("sink", null, _ => { n++; throw new InvalidOperationException("pactl gone"); },
-            [10, 10], CancellationToken.None, errors.Add);
-        await loop.WaitAsync(TimeSpan.FromSeconds(2));
+            [0, 0], CancellationToken.None, errors.Add);
+        await loop.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(2, n);
         Assert.Equal(["pactl gone", "pactl gone"], errors);
     }

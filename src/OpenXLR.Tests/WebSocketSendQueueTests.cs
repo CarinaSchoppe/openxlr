@@ -14,6 +14,24 @@ namespace OpenXLR.Tests;
 public sealed class WebSocketSendQueueTests
 {
     [Fact]
+    public async Task StoppingABlockedReceiveClosesThePausedSocketWithItsReason()
+    {
+        using var socket = new PausedSocket();
+        using var stop = new CancellationTokenSource();
+        Task<(SocketGuard.Outcome Outcome, byte[]? Message)> receive = SocketGuard.ReceiveMessageAsync(
+            socket, new byte[64], 1024, SocketGuard.MessageDeadline, stop.Token);
+        await socket.Receiving.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        stop.Cancel();
+
+        var result = await receive.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(SocketGuard.Outcome.Stopping, result.Outcome);
+        Assert.Null(result.Message);
+        Assert.Equal(WebSocketState.Closed, socket.State);
+        Assert.Equal(WebSocketCloseStatus.EndpointUnavailable, socket.CloseStatus);
+        Assert.Equal("daemon stopping", socket.CloseStatusDescription);
+    }
+
+    [Fact]
     public async Task ChangesDuringTheInitialSendFollowTheInitialState()
     {
         string directory = Directory.CreateTempSubdirectory("openxlr-socket-start-").FullName;
@@ -124,14 +142,17 @@ public sealed class WebSocketSendQueueTests
         private readonly CancellationTokenSource _aborted = new();
         private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _state = (int)WebSocketState.Open;
+        private WebSocketCloseStatus? _closeStatus;
+        private string? _closeDescription;
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Receiving { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Drained { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource RulesChanged { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public byte[]? Authentication { get; set; }
         public ConcurrentQueue<byte[]> Messages { get; } = new();
         public override WebSocketState State => (WebSocketState)Volatile.Read(ref _state);
-        public override WebSocketCloseStatus? CloseStatus => null;
-        public override string? CloseStatusDescription => null;
+        public override WebSocketCloseStatus? CloseStatus => _closeStatus;
+        public override string? CloseStatusDescription => _closeDescription;
         public override string? SubProtocol => null;
 
         public void Resume() => _release.TrySetResult();
@@ -156,7 +177,15 @@ public sealed class WebSocketSendQueueTests
 
         public override void Dispose() => Abort();
         public override Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _closeStatus = closeStatus;
+            _closeDescription = statusDescription;
+            Volatile.Write(ref _state, (int)WebSocketState.Closed);
+            _aborted.Cancel();
+            return Task.CompletedTask;
+        }
         public override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string? statusDescription,
             CancellationToken cancellationToken) => throw new NotSupportedException();
         public override async Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer,
@@ -169,7 +198,9 @@ public sealed class WebSocketSendQueueTests
                 return new(auth.Length, WebSocketMessageType.Text, true);
             }
             using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _aborted.Token);
-            await Task.Delay(Timeout.Infinite, stop.Token);
+            Task pending = Task.Delay(Timeout.Infinite, stop.Token);
+            Receiving.TrySetResult();
+            await pending;
             throw new InvalidOperationException("unreachable");
         }
     }

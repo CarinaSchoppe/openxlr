@@ -941,11 +941,8 @@ function sevenSegText(text, x, y, h, color) {
 }
 
 function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null) {
-  // The keys speak the touch strips' hardware language: the same faceplate
-  // material (the strip tiles' #383838 with the side-lit gradient and #505050
-  // border), a machined round button cap like the dial knob, a status LED,
-  // and for the low cut an inset LED display window. offColor lights the
-  // OFF state too (an insert's bypass shows red, like the UI's LED).
+  // The skin colours the owned faceplate, cap and glyph. An insert's bypass
+  // uses the alert colour, and a mute keeps its visible slash and status lamp.
   const accent = !known ? null : on ? (muteLike ? skinPalette.colours["Ox.Led.Alert"] : skinPalette.colours["Ox.Led.On"]) : offColor;
   const ink = !known ? skinPalette.colours["Ox.Text.Muted"] : accent ?? skinPalette.colours["Ox.Text.Primary"];
   const lines = label ? label.split("\n").slice(0, 2) : [];
@@ -957,7 +954,7 @@ function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null) {
     const glyph = GLYPHS[glyphName].replaceAll("currentColor", ink);
     face = `
       <circle cx="72" cy="${capY}" r="38" fill="none" stroke="#000" stroke-opacity="0.4" stroke-width="6"/>
-      <circle cx="72" cy="${capY}" r="34" fill="url(#cap)" stroke="${skinPalette.colours["Ox.Text.Muted"]}" stroke-width="4"/>
+      <circle cx="72" cy="${capY}" r="34" fill="${skinPalette.colours["Ox.Card.Background"]}" stroke="${skinPalette.colours["Ox.Text.Muted"]}" stroke-width="4"/>
       ${accent ? `<circle cx="72" cy="${capY}" r="37" fill="none" stroke="${accent}" stroke-width="6" opacity="0.6" filter="url(#bloom)"/>` : ""}
       <g transform="translate(72 ${capY}) scale(0.62) translate(-72 -72)">${glyph}</g>`;
   } else if (badge) {
@@ -969,7 +966,7 @@ function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null) {
     const lamp = !known ? skinPalette.colours["Ox.Led.Off"] : accent ?? skinPalette.colours["Ox.Text.Muted"];
     face = `
       <circle cx="72" cy="${capY}" r="38" fill="none" stroke="#000" stroke-opacity="0.4" stroke-width="6"/>
-      <circle cx="72" cy="${capY}" r="34" fill="url(#cap)" stroke="${skinPalette.colours["Ox.Text.Muted"]}" stroke-width="4"/>
+      <circle cx="72" cy="${capY}" r="34" fill="${skinPalette.colours["Ox.Card.Background"]}" stroke="${skinPalette.colours["Ox.Text.Muted"]}" stroke-width="4"/>
       ${accent ? `<circle cx="72" cy="${capY}" r="15" fill="${lamp}" filter="url(#bloom)" opacity="0.8"/>` : ""}
       <circle cx="72" cy="${capY}" r="12" fill="${lamp}" stroke="${skinPalette.colours["Ox.Card.Background"]}" stroke-width="4"/>`;
   }
@@ -999,11 +996,6 @@ function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null) {
         <linearGradient id="side" x1="138" y1="72" x2="6" y2="72" gradientUnits="userSpaceOnUse">
           <stop stop-opacity="0"/><stop offset="1" stop-opacity="0.2"/>
         </linearGradient>
-        <radialGradient id="cap" cx="0.5" cy="0.3" r="0.9">
-          <stop offset="0" stop-color="${skinPalette.colours["Ox.Card.Background"]}"/>
-          <stop offset="0.7" stop-color="${skinPalette.colours["Ox.Card.Background"]}"/>
-          <stop offset="1" stop-color="${skinPalette.colours["Ox.Card.Background"]}"/>
-        </radialGradient>
         <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
           <feGaussianBlur stdDeviation="3"/>
         </filter>

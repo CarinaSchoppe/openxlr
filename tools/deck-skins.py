@@ -21,7 +21,7 @@ def generate():
         match = re.search(r'(?:SolidBrush|Brush)\("' + re.escape(token) + r'", "(#[0-9a-fA-F]+)"', source)
         if match:
             defaults[token] = match[1]
-    # SkinPackageTests holds these two against the actual numeric defaults.
+    # SkinDocumentTests holds these two against the actual numeric defaults.
     defaults.update({'Ox.Meter.WarningLevel': .7, 'Ox.Meter.HotLevel': .9})
     if set(defaults) != set(TOKENS):
         raise ValueError('A Deck default is missing; check SkinTokens')

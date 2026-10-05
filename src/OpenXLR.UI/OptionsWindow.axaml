@@ -195,6 +195,19 @@
     <Border Classes="card">
       <StackPanel Spacing="6">
         <TextBlock Text="APPEARANCE" Classes="h"/>
+        <Grid ColumnDefinitions="110,*">
+          <TextBlock Text="Mixer controls" Classes="h" VerticalAlignment="Center"/>
+          <ComboBox Name="ControlSizingPicker" Grid.Column="1" HorizontalAlignment="Stretch"
+                    ItemsSource="{Binding ControlSizingChoices}"
+                    SelectedItem="{Binding SelectedControlSizing, Mode=TwoWay}"
+                    AutomationProperties.Name="Mixer control size">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:ControlSizingChoice"><TextBlock Text="{Binding Label}"/></DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </Grid>
+        <TextBlock Classes="note" TextWrapping="Wrap"
+                   Text="Touch enlarges mixer buttons and faders. Compact view still selects which channel is visible. Profiles save both choices."/>
         <Grid ColumnDefinitions="110,*,Auto">
           <TextBlock Text="Skin" Classes="h" VerticalAlignment="Center"/>
           <ComboBox Name="SkinPicker" Grid.Column="1" HorizontalAlignment="Stretch"

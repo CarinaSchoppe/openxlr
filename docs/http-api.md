@@ -150,3 +150,7 @@ sink that mix.
 that output. `@monitor` follows the selected monitor output. Limits, rejected
 targets and linked-monitor behavior match the [WebSocket contract](api.md).
 These commands require the daemon but do not require a running UI or KDE.
+
+The optional `saveProfile.presentation.touchControls` boolean records main mixer
+control sizing. Omission or null preserves local sizing on recall. The field
+uses the same validation as the socket command documented in [api.md](api.md).

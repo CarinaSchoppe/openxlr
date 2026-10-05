@@ -558,6 +558,48 @@
         "Ox.Flow.NodeHoverBorderBrush": {
           "$ref": "#/$defs/brush",
           "description": "that node's outline"
+        },
+        "Ox.Mixer.ControlMinSize": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 64,
+          "description": "minimum mixer control width and height"
+        },
+        "Ox.Mixer.SliderMinHeight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 96,
+          "description": "minimum mixer slider height"
+        },
+        "Ox.Mixer.SmallControlMinSize": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 64,
+          "description": "minimum compact mixer control size"
+        },
+        "Ox.Mixer.InsertControlMinSize": {
+          "type": "number",
+          "minimum": 16,
+          "maximum": 64,
+          "description": "minimum inline insert control size"
+        },
+        "Ox.Mixer.ChannelWidth": {
+          "type": "number",
+          "minimum": 132,
+          "maximum": 400,
+          "description": "mixer channel strip width"
+        },
+        "Ox.Mixer.MixWidth": {
+          "type": "number",
+          "minimum": 232,
+          "maximum": 500,
+          "description": "mix master tile width"
+        },
+        "Ox.Mixer.DeviceSliderHeight": {
+          "type": "number",
+          "minimum": 30,
+          "maximum": 96,
+          "description": "slider height in device control rows"
         }
       }
     }

@@ -10,6 +10,8 @@ public sealed record DeviceChoice(string? Name, string Label);
 /// <summary>One skin in the appearance picker; the id is what ui.json keeps.</summary>
 public sealed record SkinChoice(string Id, string Label);
 
+public sealed record ControlSizingChoice(bool Touch, string Label);
+
 /// <summary>
 /// Backs the Options window. Startup toggles apply immediately to the system
 /// (systemd unit, autostart entry) and persist in ui.json; the enforced-default
@@ -49,6 +51,7 @@ public sealed class OptionsViewModel : ViewModelBase
         _applying = true;
         try
         {
+            SelectedControlSizing = ControlSizingChoices.First(c => c.Touch == Skinning.SkinService.TouchControls);
             SelectedSkin = SkinChoices.FirstOrDefault(c => c.Id == Skinning.SkinService.Current.Id) ?? SkinChoices[0];
             EnforcedOutput = OutputChoices.FirstOrDefault(c => c.Name == main.EnforcedDefaultSink) ?? OutputChoices[0];
             EnforcedInput = InputChoices.FirstOrDefault(c => c.Name == main.EnforcedDefaultSource) ?? InputChoices[0];
@@ -400,6 +403,44 @@ public sealed class OptionsViewModel : ViewModelBase
         => _ = _client.SetEnforcedDefaultsAsync(_enforcedOutput?.Name, _enforcedInput?.Name);
 
     // --- appearance ---
+
+    public System.Collections.Generic.IReadOnlyList<ControlSizingChoice> ControlSizingChoices { get; } =
+        [new(false, "Standard"), new(true, "Touch")];
+
+    private ControlSizingChoice? _selectedControlSizing;
+    public ControlSizingChoice? SelectedControlSizing
+    {
+        get => _selectedControlSizing;
+        set
+        {
+            var previous = _selectedControlSizing;
+            if (!Set(ref _selectedControlSizing, value) || _applying || value is null) return;
+            try
+            {
+                Skinning.SkinService.ChooseControlSizing(value.Touch);
+                ReportSkin(Skinning.SkinService.Errors);
+            }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+            {
+                _selectedControlSizing = previous;
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    Reject(ref _selectedControlSizing, value, nameof(SelectedControlSizing)));
+                SkinError = $"Control sizing could not be saved: {ex.Message}";
+            }
+        }
+    }
+
+    internal void RefreshAppearance()
+    {
+        _applying = true;
+        try
+        {
+            SelectedSkin = SkinChoices.FirstOrDefault(c => c.Id == Skinning.SkinService.Current.Id) ?? SkinChoices[0];
+            SelectedControlSizing = ControlSizingChoices.First(c => c.Touch == Skinning.SkinService.TouchControls);
+        }
+        finally { _applying = false; }
+        ReportSkin(Skinning.SkinService.Errors);
+    }
 
     public ObservableCollection<SkinChoice> SkinChoices { get; } = [];
 

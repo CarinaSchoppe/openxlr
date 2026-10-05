@@ -192,12 +192,15 @@ that final acknowledgement (or an `error` without a request id):
 | `getDiagnostics` | none | vendor block dump for bug reports |
 
 `saveProfile` accepts an optional `presentation` object containing
-`compactMixer` (boolean), `compactChannel` (nullable ID, at most 36 characters),
+`touchControls` (optional boolean), `compactMixer` (boolean), `compactChannel` (nullable ID, at most 36 characters),
 `skin` (nullable ID, at most 64 characters), `collapsedSections` and
 `sectionOrder` (distinct lists of at most 16 nonempty IDs, at most 64 characters
-each). Identifiers cannot contain control characters. An empty object restores
-default presentation. Omission preserves presentation already saved in that
-profile, allowing older clients to update audio without discarding it.
+each). Identifiers cannot contain control characters. Missing or null
+`touchControls` preserves local sizing, true selects Touch and false selects
+Standard. A wrong field type rejects the profile. An empty object restores
+default presentation except optional choices that preserve the local value.
+Omission preserves presentation already saved in that profile, allowing older
+clients to update audio without discarding it.
 
 A successful profile recall publishes `state.profilePresentation` as
 `{ "revision": "<32-character recall ID>", "settings": { ... } }`, or null for

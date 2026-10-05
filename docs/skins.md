@@ -429,6 +429,26 @@ Cells are laid out on whole pixels, and a ladder too narrow to draw is
 drawn as one continuous bar instead, so a segmented meter never comes out
 as a smear.
 
+### Mixer control sizing
+
+Options offers Standard and Touch mixer controls independently of the Compact
+single-channel view. Standard uses the skin values below. Touch uses minimum
+44-unit control targets, 180-unit channel strips and 280-unit mix tiles. Larger
+skin values remain larger. With Touch or an explicit control-size minimum, a
+taller custom fader cap raises the slider minimum to contain it. These resources
+affect the main mixer, including its inline insert actions; plugin-native windows
+retain their own controls.
+
+| Token | Kind | Default | Range | What it paints |
+|---|---|---|---|---|
+| `Ox.Mixer.ControlMinSize` | number | framework | 0 to 64 | minimum mixer control width and height |
+| `Ox.Mixer.SliderMinHeight` | number | framework | 0 to 96 | minimum mixer slider height |
+| `Ox.Mixer.DeviceSliderHeight` | number | 30 | 30 to 96 | slider height in device control rows |
+| `Ox.Mixer.SmallControlMinSize` | number | 0 | 0 to 64 | minimum compact mixer control size |
+| `Ox.Mixer.InsertControlMinSize` | number | 24 | 16 to 64 | minimum inline insert control size |
+| `Ox.Mixer.ChannelWidth` | number | 132 | 132 to 400 | mixer channel strip width |
+| `Ox.Mixer.MixWidth` | number | 232 | 232 to 500 | mix master tile width |
+
 ### The meter's scale
 
 A meter reads **RMS dBFS**: 0 is -60 dBFS and below, 1 is 0 dBFS, so a

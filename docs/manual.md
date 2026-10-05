@@ -1920,6 +1920,17 @@ monitor mix is displayed first. Stream Deck feed keys also use that default.
 The combined Monitor A+B feed stays one choice, and a Deck key advances past
 it even when the monitor mixes are displayed in a different order.
 
+Options, APPEARANCE, **Mixer controls** selects **Standard** or **Touch**.
+Touch enlarges the main mixer's buttons, dropdowns and slider rows and widens
+channel and mix tiles; it keeps skin colours and larger custom skin sizes.
+The page and channel row use their existing scrolling when space is tight.
+Compact view remains a separate choice for showing one selected channel.
+The sizing choice is saved locally as `touchControls` and captured by profiles.
+Older profiles without it keep the current sizing; an explicit false restores
+Standard. A failed save keeps the previous controls and selection, displays an
+error and allows the same choice to be retried after the file problem is fixed.
+Native plugin editors control their own sizing.
+
 If a compact-mode or selected-channel preference cannot be saved, its control
 returns to the previous choice and the window reports the error. The displayed
 channels and audio routing stay as they were; retry after fixing the save error.

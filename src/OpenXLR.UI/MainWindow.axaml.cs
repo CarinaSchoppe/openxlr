@@ -38,6 +38,9 @@ public partial class MainWindow : Window
         DataContext = _vm;
         _client.Start();          // connects, and keeps retrying if the daemon isn't up yet
         HeaderVersion.Text = $"v{AppVersion.Current}";
+        UpdateControlSizing();
+        Skinning.SkinService.Changed += UpdateControlSizing;
+        Closed += (_, _) => Skinning.SkinService.Changed -= UpdateControlSizing;
         SetupTray();
         RestoreSectionState();
         _vm.PresentationRecalled += OnPresentationRecalled;
@@ -276,12 +279,18 @@ public partial class MainWindow : Window
         ["InputsTile", "HeadphonesTile", "MonitorTile", "ApplicationsTile", "SubmixerTile"];
     private bool _restoringSections;
 
+    private void UpdateControlSizing() => Classes.Set("large-targets",
+        Skinning.SkinService.TouchControls ||
+        Skinning.SkinService.Current.Package.Tokens.GetValueOrDefault("Ox.Mixer.ControlMinSize") is Skinning.SkinNumber { Value: > 0 });
+
     private void OnPresentationRecalled()
     {
         ApplySectionState();
+        UiSettings settings = UiSettings.Load();
+        Skinning.SkinService.ApplyControlSizing(settings.TouchControls);
         if (!Skinning.SkinService.Overridden)
         {
-            string? id = UiSettings.Load().Skin;
+            string? id = settings.Skin;
             var entry = Skinning.SkinCatalog.Find(id);
             var errors = Skinning.SkinService.Apply(entry ?? new Skinning.SkinEntry(Skinning.SkinPackage.Default, []));
             if (entry is null) _vm.ReportPresentationError($"Profile skin '{id}' is unavailable; using the default skin.");

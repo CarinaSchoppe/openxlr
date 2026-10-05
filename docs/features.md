@@ -462,3 +462,8 @@ order, channel hiding without routing changes, and a compact selected-channel
 view. Profiles recall this presentation and, when saved from the window,
 its skin and compact view. Stream Deck keys follow the same icons and colours. See
 [mixer presentation](manual.md#mixer-presentation).
+
+The main mixer also offers Standard or Touch control sizing in Options. Touch
+uses larger button targets and strip widths with every skin, independently of
+the single-channel Compact view. Profiles capture the sizing preference; older
+profiles leave it unchanged. Plugin-native editors retain their own sizing.

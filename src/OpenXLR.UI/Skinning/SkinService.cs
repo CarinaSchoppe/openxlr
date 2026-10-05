@@ -66,6 +66,9 @@ public static class SkinService
     /// <summary>True when the launch override decided the appearance, so Options can say so.</summary>
     public static bool Overridden { get; private set; }
 
+    /// <summary>Whether mixer controls use the larger touch targets.</summary>
+    public static bool TouchControls { get; private set; }
+
     /// <summary>Raised on the UI thread after a skin is applied, for what resources cannot reach.</summary>
     public static event Action? Changed;
 
@@ -95,9 +98,11 @@ public static class SkinService
     /// </summary>
     public static void Initialize()
     {
+        UiSettings settings = UiSettings.Load();
+        TouchControls = settings.TouchControls;
         string? id = Environment.GetEnvironmentVariable(OverrideVariable);
         Overridden = id is { Length: > 0 };
-        if (!Overridden) id = UiSettings.Load().Skin;
+        if (!Overridden) id = settings.Skin;
         Apply(SkinCatalog.Find(id) ?? new SkinEntry(SkinPackage.Default, []));
     }
 
@@ -130,6 +135,7 @@ public static class SkinService
             // A value the realizer refused falls back to the default, so one
             // bad image never leaves a hole in the window.
             realized ??= token.Default;
+            realized = SizedValue(token.Name, realized);
 
             if (IsLive(token))
             {
@@ -206,6 +212,44 @@ public static class SkinService
         SkinEntry entry = SkinCatalog.Find(id) ?? new SkinEntry(SkinPackage.Default, []);
         (UiSettings.Load() with { Skin = entry.Id == SkinPackage.DefaultId ? null : entry.Id }).SaveChecked();
         return Apply(entry);
+    }
+
+    /// <summary>Persist sizing before changing live resources; skin overrides remain intact.</summary>
+    public static void ChooseControlSizing(bool touch)
+    {
+        (UiSettings.Load() with { TouchControls = touch }).SaveChecked();
+        ApplyControlSizing(touch);
+    }
+
+    internal static void ApplyControlSizing(bool touch)
+    {
+        if (TouchControls == touch) return;
+        TouchControls = touch;
+        if (Application.Current is { } application)
+            foreach (string name in SkinTokens.TouchMinimums.Keys)
+            {
+                object? value = Current.Package.Tokens.GetValueOrDefault(name) is SkinNumber number
+                    ? number.Value : SkinTokens.Find(name)!.Default;
+                value = SizedValue(name, value);
+                if (value is null) application.Resources.Remove(name);
+                else application.Resources[name] = value;
+            }
+        Changed?.Invoke();
+    }
+
+    private static object? SizedValue(string name, object? value)
+    {
+        double minimum = TouchControls && SkinTokens.TouchMinimums.TryGetValue(name, out double floor) ? floor : 0;
+        if (name is "Ox.Mixer.SliderMinHeight" or "Ox.Mixer.DeviceSliderHeight")
+        {
+            // The draggable target can be larger than the skin's drawn cap.
+            // Keep either inside its row, including explicit Standard sizing.
+            if (Current.Package.Tokens.GetValueOrDefault("Ox.Mixer.ControlMinSize") is SkinNumber control)
+                minimum = Math.Max(minimum, control.Value);
+            if (minimum > 0 && Current.Package.Tokens.GetValueOrDefault("Ox.Fader.Thumb.Height") is SkinNumber thumb)
+                minimum = Math.Max(minimum, thumb.Value);
+        }
+        return minimum > 0 ? Math.Max(value is double size ? size : 0, minimum) : value;
     }
 
     /// <summary>Read the skin folders again and put the current choice back on.</summary>

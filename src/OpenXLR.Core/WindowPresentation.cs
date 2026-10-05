@@ -16,6 +16,8 @@ namespace OpenXLR.Core;
 /// </summary>
 public sealed record WindowPresentation
 {
+    /// <summary>Missing in older profiles means keep the local control sizing.</summary>
+    public bool? TouchControls { get; init; }
     public bool CompactMixer { get; init; }
     public string? CompactChannel { get; init; }
     public string? Skin { get; init; }

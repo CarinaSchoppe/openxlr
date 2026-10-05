@@ -206,3 +206,7 @@ current presentation; `{}` clears it. Entries for deleted channels or mixes
 are dropped when recalling. Malformed entries reject the whole profile before
 hardware or mixer settings change. Presentation ordering never changes the
 routing order of channels and mixes.
+
+Control sizing is a window preference, not routing or layout metadata. Profiles
+can store it as `presentation.touchControls`: true selects Touch, false selects
+Standard, and an absent or null field keeps the local preference.

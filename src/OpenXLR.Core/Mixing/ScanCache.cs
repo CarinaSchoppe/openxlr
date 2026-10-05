@@ -201,7 +201,7 @@ public sealed class ScanCache
             long total = 0;
             using var stamp = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             byte[] numbers = new byte[16];
-            foreach (string file in Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+            foreach (string file in BundleFiles(bundle).Order(StringComparer.Ordinal))
             {
                 FileIdentity identity = FileStamp(file);
                 // The newest file alone can hide an updated Windows source
@@ -218,6 +218,35 @@ public sealed class ScanCache
             return (BinaryPrimitives.ReadInt64LittleEndian(stamp.GetHashAndReset()), total, DirectoryTarget(bundle));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    /// <summary>
+    /// Keep valid resource aliases, but reject directory cycles before they
+    /// multiply the file list. A shared entry budget also bounds an acyclic
+    /// tree with many aliases. Such a bundle can still run without a cache.
+    /// </summary>
+    internal static IEnumerable<string> BundleFiles(string bundle, int entryBudget = 100_000)
+    {
+        var pending = new Stack<(string Path, bool Leaving)>();
+        var ancestors = new HashSet<string>(StringComparer.Ordinal);
+        pending.Push((bundle, false));
+        while (pending.TryPop(out var next))
+        {
+            if (next.Leaving)
+            {
+                ancestors.Remove(next.Path);
+                continue;
+            }
+            string canonical = WindowsPluginWrappers.Canonical(next.Path);
+            if (!ancestors.Add(canonical)) throw new IOException("A plugin bundle contains a directory link cycle.");
+            pending.Push((canonical, true));
+            foreach (string entry in Directory.EnumerateFileSystemEntries(next.Path))
+            {
+                if (entryBudget-- <= 0) throw new IOException("A plugin bundle exceeds the cache directory entry limit.");
+                if (Directory.Exists(entry)) pending.Push((entry, false));
+                else yield return entry;
+            }
+        }
     }
 
     /// <summary>

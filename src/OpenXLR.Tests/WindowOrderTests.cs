@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using OpenXLR.UI;
@@ -386,7 +387,24 @@ public sealed class WindowOrderTests
         Button Handle(string id) => Ui(() => main!.GetVisualDescendants().OfType<Button>()
             .Single(b => b.Classes.Contains("reorderHandle") && (b.Tag switch
             { string name => name, ChannelViewModel c => c.Id, MixViewModel m => m.Id, _ => "" }) == id));
-        PixelPoint Center(Control c) => Ui(() => c.PointToScreen(new Point(c.Bounds.Width / 2, c.Bounds.Height / 2)));
+        PixelPoint Center(Control control)
+        {
+            PixelPoint center = default;
+            // The committed input tree can lag behind layout after expanding a
+            // tile or reopening the window, especially at fractional scale.
+            Wait(() => Ui(() =>
+            {
+                if (!control.IsEffectivelyVisible || !control.IsArrangeValid
+                    || control.Bounds.Width <= 0 || control.Bounds.Height <= 0) return false;
+                var local = new Point(control.Bounds.Width / 2, control.Bounds.Height / 2);
+                if (control.TranslatePoint(local, main!) is not { } point) return false;
+                var hit = main!.InputHitTest(point) as Visual;
+                if (hit != control && hit?.GetVisualAncestors().Contains(control) != true) return false;
+                center = control.PointToScreen(local);
+                return true;
+            }));
+            return center;
+        }
         void Move(PixelPoint point) { pointer.MoveTo(point.X, point.Y); Thread.Sleep(80); }
         void Click(Control control) { Move(Center(control)); pointer.Click(); Thread.Sleep(100); }
         void Drag(string source, string destination, bool after, bool cancel = false)

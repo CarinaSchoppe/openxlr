@@ -1038,7 +1038,8 @@ Under WINDOW:
   hide the current window or enable autostart. "Tray only" starts with no
   window at all; the tray icon shows it the first time you click it. For
   a tray icon at login, enable "Start the OpenXLR app" and choose "Tray
-  only".
+  only". The tray icon is registered even before the mixer window has
+  been shown and stays registered while the window is hidden.
 - "When closing" chooses "Keep running in tray" or "Quit app" and takes
   effect immediately. Keeping the app in the tray hides the window
   instead of quitting; the tray icon's "Show mixer" menu item restores it,

@@ -472,7 +472,9 @@ Without the companion, a distribution yabridge works only with Wine older
 than 9.22. From 9.22 an embedded plugin window never learns where it is,
 so every click lands as far from the pointer as the window is from the
 corner of the screen, and the plugin ignores the mouse entirely. Options
-says so when it sees that pair of versions.
+says so when it sees that pair of versions. An unreadable or out-of-range
+Wine version number leaves the setup information available but cannot
+establish that this editor compatibility warning applies.
 
 The companion keeps those wrappers in
 `~/.local/share/openxlr/yabridge/{vst3,clap}` and its directory registry in

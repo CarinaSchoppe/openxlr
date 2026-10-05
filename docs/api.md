@@ -46,7 +46,10 @@ characters, more than 4096 ports, or one that would push the message
 past 7 MiB is left out of `plugins` altogether, and at most 512
 controls, 256 scale points and 64 required features are read per plugin;
 a plugin that is listed with `supported: false` is a different case, one
-the chain host cannot run. The native host's own protocol is bounded the
+the chain host cannot run. The window and terminal accept only text messages
+up to 8 MiB, including all fragments. They reconnect when a binary or
+oversized message arrives. The terminal ignores malformed message envelopes
+without stopping its receive loop. The native host's own protocol is bounded the
 same way: a line from the helper is at most 4096 characters and a control
 or meter symbol at most 255, and a plugin can hold at most 4096 pending
 control changes or live meters at once; a meter whose symbol the catalogue

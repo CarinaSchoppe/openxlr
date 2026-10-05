@@ -308,7 +308,8 @@ internal static class TouchControlsWindowTests
 
     private static void CheckLargerSkin(MainWindow main)
     {
-        var targetOnly = SkinPackage.Default with { Tokens = new Dictionary<string, SkinValue>
+        var targetOnly = SkinPackage.Default with { Id = "touch-large-targets", Origin = SkinOrigin.User,
+            Tokens = new Dictionary<string, SkinValue>
         {
             ["Ox.Mixer.ControlMinSize"] = new SkinNumber(64),
         } };
@@ -324,7 +325,8 @@ internal static class TouchControlsWindowTests
             CheckThumbCorners(main, targetSlider);
         }
         SkinService.ApplyControlSizing(true);
-        var custom = SkinPackage.Default with { Tokens = new Dictionary<string, SkinValue>
+        var custom = SkinPackage.Default with { Id = "touch-large-faders", Origin = SkinOrigin.User,
+            Tokens = new Dictionary<string, SkinValue>
         {
             ["Ox.Mixer.ControlMinSize"] = new SkinNumber(60),
             ["Ox.Mixer.InsertControlMinSize"] = new SkinNumber(60),

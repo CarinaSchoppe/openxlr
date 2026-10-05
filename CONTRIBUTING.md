@@ -71,6 +71,11 @@ The idle graph allocation check measures reads on a dedicated warmed thread,
 so test-runner diagnostic allocations are outside the measured interval. It
 still requires zero bytes and the same cached snapshot across 10,000 reads.
 
+Plugin-host diagnostics arrive through an asynchronous stderr reader. A
+fixture waiting for the host process to exit must also wait for its expected
+terminal diagnostic, within a deadline. Process exit alone does not join
+that reader, and the production accessor intentionally bounds its wait.
+
 The private PipeWire runner also checks profile startup ordering. To exercise
 ClipGuard with recorded test audio, low cut and a native LSP gate, run
 `OPENXLR_TEST_DSP=1 python3 tools/test-monitor-volume.py` after a native-enabled

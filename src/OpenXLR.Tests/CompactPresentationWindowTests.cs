@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
@@ -27,6 +29,10 @@ internal static class CompactPresentationWindowTests
                     var second = new ChannelViewModel(client, "second", "Second", []);
                     vm.Channels.Add(first);
                     vm.Channels.Add(second);
+                    var third = new ChannelViewModel(client, "third", "Third", []);
+                    var fourth = new ChannelViewModel(client, "fourth", "Fourth", []);
+                    vm.Channels.Add(third);
+                    vm.Channels.Add(fourth);
                     vm.SelectedCompactChannel = first;
                     var toggle = new ToggleButton { DataContext = vm };
                     var picker = new ComboBox { DataContext = vm, ItemsSource = vm.Channels };
@@ -59,6 +65,30 @@ internal static class CompactPresentationWindowTests
                     Assert.Equal(!initial, UiSettings.Load().CompactMixer);
                     Assert.True(UiSettings.Load().CompactChannel == "second",
                         $"Retry: vm={vm.SelectedCompactChannel?.Id}, picker={(picker.SelectedItem as ChannelViewModel)?.Id}, index={picker.SelectedIndex}, config={UiSettings.Load().CompactChannel}");
+
+                    // A profile can replace the selection while older failed
+                    // picker edits are still queued on the dispatcher.
+                    File.Move(path, path + ".saved");
+                    Directory.CreateDirectory(path);
+                    try
+                    {
+                        picker.SelectedItem = first;
+                        picker.SelectedItem = third;
+                    }
+                    finally
+                    {
+                        Directory.Delete(path);
+                        File.Move(path + ".saved", path);
+                    }
+                    var recall = new JsonObject { ["revision"] = Guid.NewGuid().ToString("N"),
+                        ["settings"] = new JsonObject { ["compactChannel"] = "fourth", ["compactMixer"] = initial } };
+                    typeof(MainViewModel).GetMethod("ApplyProfilePresentation", BindingFlags.Instance | BindingFlags.NonPublic)!
+                        .Invoke(vm, [recall]);
+                    Dispatcher.UIThread.RunJobs();
+                    Assert.Same(fourth, vm.SelectedCompactChannel);
+                    Assert.Same(fourth, picker.SelectedItem);
+                    Assert.Equal("fourth", UiSettings.Load().CompactChannel);
+                    Assert.Equal(initial, toggle.IsChecked);
                 }
                 finally { client.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
             }

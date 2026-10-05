@@ -50,6 +50,29 @@ internal static class SkinChoiceWindowTests
             Assert.Same(after, options.SelectedSkin);
             Assert.Same(after, picker.SelectedItem);
             Assert.Null(options.SkinError);
+
+            // Older rejected writes must not undo a later successful choice
+            // when several selection changes occur before dispatch resumes.
+            var other = options.SkinChoices.Where(choice => choice.Id != after.Id).Take(3).ToArray();
+            File.Move(path, path + ".saved");
+            Directory.CreateDirectory(path);
+            try
+            {
+                picker.SelectedItem = other[0];
+                picker.SelectedItem = other[1];
+            }
+            finally
+            {
+                Directory.Delete(path);
+                File.Move(path + ".saved", path);
+            }
+            picker.SelectedItem = other[2];
+            Dispatcher.UIThread.RunJobs();
+            Assert.Same(other[2], options.SelectedSkin);
+            Assert.Same(other[2], picker.SelectedItem);
+            Assert.Equal(other[2].Id, SkinService.Current.Id);
+            Assert.Equal(other[2].Id, UiSettings.Load().Skin);
+            Assert.Null(options.SkinError);
         }
         finally
         {

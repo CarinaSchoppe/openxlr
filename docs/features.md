@@ -343,7 +343,9 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   in the other. Console faders, cap keys and lamps follow the skin's
   control choices, and every meter is a solid bar that blends the skin's
   fill, warning and hot colours along its scale. Light skins use their own
-  colours for the selection and cap lettering. `--skin <id>` tries one for a single run.
+  colours for the selection and cap lettering. Material follows the saved
+  System, Light or Dark mode; System subscribes to desktop portal changes
+  when available, with Dark as its fallback. `--skin <id>` tries one for a single run.
   A terminal without true colour gets xterm-256 colours
 - It draws its own cells rather than taking a widget toolkit, so it adds no
   dependency to any package. A frame writes only the cells that changed
@@ -419,7 +421,7 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   the application: Material, the window's own, Deck, built from the
   OpenDeck plugin's key and dial art, and one for each of the eleven
   Omarchy palettes, two of them light. The picker is in Options, the
-  choice lives in `ui.json` alone, and switching
+  choice lives in `ui.json` and window-saved profiles, and switching
   repaints open windows without touching audio or the layout. A skin is
   data. It carries no markup and no code, reaches no file outside its own
   folder, makes no network request, and its images are bounded and measured
@@ -427,6 +429,11 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   console fader is the framework's slider with OpenXLR's drawing over it,
   and a plugin's own editor window is drawn by the plugin and is not
   skinned. [skins.md](skins.md) is the contract
+- Material has System, Light and Dark modes, shared by the window and
+  terminal. System follows desktop changes without polling. Custom skins
+  keep their own colours; changing the mode does not change the layout or
+  audio. Profiles saved from the window restore the mode, while older
+  profiles without one preserve the current choice.
 - One window per user: a second launch brings the running window to the
   front, out of the tray if it is hidden there, and exits
 - Tray icon, start-minimized option, daemon and window autostart from
@@ -460,5 +467,6 @@ reports that it cannot identify the application. See
 Mixer presentation supports per-channel and per-mix icons, colours and display
 order, channel hiding without routing changes, and a compact selected-channel
 view. Profiles recall this presentation and, when saved from the window,
-its skin and compact view. Stream Deck keys follow the same icons and colours. See
+its skin, appearance mode and compact view. Stream Deck keys follow the same
+icons and colours. See
 [mixer presentation](manual.md#mixer-presentation).

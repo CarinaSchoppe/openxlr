@@ -9,6 +9,7 @@ public sealed record DeviceChoice(string? Name, string Label);
 
 /// <summary>One skin in the appearance picker; the id is what ui.json keeps.</summary>
 public sealed record SkinChoice(string Id, string Label);
+public sealed record AppearanceModeChoice(string Id, string Label);
 
 /// <summary>
 /// Backs the Options window. Startup toggles apply immediately to the system
@@ -50,6 +51,7 @@ public sealed class OptionsViewModel : ViewModelBase
         try
         {
             SelectedSkin = SkinChoices.FirstOrDefault(c => c.Id == Skinning.SkinService.Current.Id) ?? SkinChoices[0];
+            SelectedAppearanceMode = AppearanceModeChoices.First(c => c.Id == Skinning.SkinService.Mode);
             EnforcedOutput = OutputChoices.FirstOrDefault(c => c.Name == main.EnforcedDefaultSink) ?? OutputChoices[0];
             EnforcedInput = InputChoices.FirstOrDefault(c => c.Name == main.EnforcedDefaultSource) ?? InputChoices[0];
         }
@@ -416,6 +418,44 @@ public sealed class OptionsViewModel : ViewModelBase
 
     // --- appearance ---
 
+    public System.Collections.Generic.IReadOnlyList<AppearanceModeChoice> AppearanceModeChoices { get; } =
+        [new(AppearanceModes.System, "System"), new(AppearanceModes.Light, "Light"), new(AppearanceModes.Dark, "Dark")];
+
+    private AppearanceModeChoice? _selectedAppearanceMode;
+    public AppearanceModeChoice? SelectedAppearanceMode
+    {
+        get => _selectedAppearanceMode;
+        set
+        {
+            AppearanceModeChoice? previous = _selectedAppearanceMode;
+            if (!Set(ref _selectedAppearanceMode, value) || _applying || value is null) return;
+            try { ReportSkin(Skinning.SkinService.ChooseMode(value.Id)); }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+            {
+                Set(ref _selectedAppearanceMode, previous);
+                SkinError = $"Appearance mode could not be saved: {ex.Message}";
+            }
+        }
+    }
+
+    public bool CanChooseAppearanceMode => Skinning.SkinService.CanChooseMode;
+    public string AppearanceModeNote => Skinning.SkinService.Overridden
+        ? "The launch override keeps its appearance until a new skin is chosen."
+        : CanChooseAppearanceMode ? "System follows the desktop. This choice is included when saving a profile."
+        : "This skin supplies its own colours. The mode applies when Material is selected.";
+
+    internal void RefreshAppearance()
+    {
+        _applying = true;
+        try
+        {
+            SelectedSkin = SkinChoices.FirstOrDefault(c => c.Id == Skinning.SkinService.Current.Id) ?? SkinChoices[0];
+            SelectedAppearanceMode = AppearanceModeChoices.First(c => c.Id == Skinning.SkinService.Mode);
+        }
+        finally { _applying = false; }
+        ReportSkin(Skinning.SkinService.Errors);
+    }
+
     public ObservableCollection<SkinChoice> SkinChoices { get; } = [];
 
     private SkinChoice? _selectedSkin;
@@ -487,6 +527,8 @@ public sealed class OptionsViewModel : ViewModelBase
             note = (note.Length == 0 ? "" : note + " ")
                 + $"This run was started with {Skinning.SkinService.OverrideVariable} set, so the launch chose it.";
         SkinNote = note;
+        Raise(nameof(CanChooseAppearanceMode));
+        Raise(nameof(AppearanceModeNote));
         SkinError = errors.Count == 0 ? null : string.Join("\n", errors);
     }
 

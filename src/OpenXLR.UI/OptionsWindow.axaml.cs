@@ -37,6 +37,8 @@ public partial class OptionsWindow : Window
     public OptionsWindow(OptionsViewModel vm) : this()
     {
         DataContext = vm;
+        Skinning.SkinService.Changed += vm.RefreshAppearance;
+        Closed += (_, _) => Skinning.SkinService.Changed -= vm.RefreshAppearance;
         Opened += async (_, _) => await vm.LoadPluginSetupAsync();
     }
 

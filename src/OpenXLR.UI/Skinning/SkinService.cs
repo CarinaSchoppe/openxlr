@@ -52,6 +52,26 @@ public static class SkinService
     private static readonly Dictionary<string, SolidColorBrush> LiveBrushes = new(StringComparer.Ordinal);
 
     private static readonly List<IDisposable> Images = [];
+    private static readonly Lazy<SkinEntry> LightMaterial = new(ReadLightMaterial);
+    private static Application? _application;
+    private static bool _settingVariant;
+
+    /// <summary>The saved Material mode. Installed skins retain their own colours.</summary>
+    public static string Mode { get; private set; } = AppearanceModes.System;
+
+    public static bool CanChooseMode => !Overridden && Current.Id == SkinPackage.DefaultId;
+
+    internal static SkinEntry MaterialLight => LightMaterial.Value;
+
+    private static SkinEntry ReadLightMaterial()
+    {
+        using Stream? stream = typeof(SkinService).Assembly.GetManifestResourceStream(
+            "OpenXLR.UI.Assets.Appearance.material-light.json");
+        if (stream is null) return new(SkinPackage.Default, ["The Material light palette is missing."]);
+        using var reader = new StreamReader(stream);
+        SkinReadResult result = SkinReader.Read("material-light", reader.ReadToEnd(), SkinOrigin.BuiltIn, null);
+        return new(result.Package ?? SkinPackage.Default, result.Errors);
+    }
 
     /// <summary>The skin in force.</summary>
     public static SkinEntry Current { get; private set; } = new(SkinPackage.Default, []);
@@ -97,8 +117,40 @@ public static class SkinService
     {
         string? id = Environment.GetEnvironmentVariable(OverrideVariable);
         Overridden = id is { Length: > 0 };
-        if (!Overridden) id = UiSettings.Load().Skin;
-        Apply(SkinCatalog.Find(id) ?? new SkinEntry(SkinPackage.Default, []));
+        UiSettings settings = UiSettings.Load();
+        if (!Overridden) id = settings.Skin;
+        if (!ReferenceEquals(_application, Application.Current))
+        {
+            if (_application is not null) _application.ActualThemeVariantChanged -= OnThemeVariantChanged;
+            _application = Application.Current;
+            if (_application is not null) _application.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+        ApplyPreference(settings.AppearanceMode, SkinCatalog.Find(id) ?? new SkinEntry(SkinPackage.Default, []));
+    }
+
+    private static void OnThemeVariantChanged(object? sender, EventArgs args)
+    {
+        if (!_settingVariant && CanChooseMode && Mode == AppearanceModes.System) Apply(Current);
+    }
+
+    /// <summary>Restore an already saved preference without writing settings again.</summary>
+    internal static IReadOnlyList<string> ApplyPreference(string? mode, SkinEntry entry)
+    {
+        Mode = AppearanceModes.Normalize(mode);
+        if (Application.Current is { } application)
+        {
+            _settingVariant = true;
+            try
+            {
+                // A forced default skin remains the known dark recovery appearance.
+                // Other explicit skins keep their own palette over the desktop's controls.
+                application.RequestedThemeVariant = entry.Id != SkinPackage.DefaultId ? ThemeVariant.Default
+                    : Overridden || Mode == AppearanceModes.Dark ? ThemeVariant.Dark
+                    : Mode == AppearanceModes.Light ? ThemeVariant.Light : ThemeVariant.Default;
+            }
+            finally { _settingVariant = false; }
+        }
+        return Apply(entry);
     }
 
     /// <summary>
@@ -121,11 +173,18 @@ public static class SkinService
         List<IDisposable> previous = [.. Images];
         Images.Clear();
 
-        var realizer = new Realizer(entry.Package, errors);
+        SkinPackage palette = entry.Package;
+        if (entry.Id == SkinPackage.DefaultId && !Overridden &&
+            (Mode == AppearanceModes.Light || Mode == AppearanceModes.System && application.ActualThemeVariant == ThemeVariant.Light))
+        {
+            palette = MaterialLight.Package;
+            errors.AddRange(MaterialLight.Errors);
+        }
+        var realizer = new Realizer(palette, errors);
         IResourceDictionary resources = application.Resources;
         foreach (SkinToken token in SkinTokens.All)
         {
-            SkinValue? value = entry.Package.Tokens.GetValueOrDefault(token.Name);
+            SkinValue? value = palette.Tokens.GetValueOrDefault(token.Name);
             object? realized = value is null ? token.Default : realizer.Realize(token, value);
             // A value the realizer refused falls back to the default, so one
             // bad image never leaves a hole in the window.
@@ -143,7 +202,7 @@ public static class SkinService
             ApplyBridges(token, realized, resources, errors);
         }
 
-        ApplyControls(entry.Package, application, resources, errors);
+        ApplyControls(palette, application, resources, errors);
 
         Images.AddRange(realizer.Bitmaps);
         foreach (IDisposable image in previous) image.Dispose();
@@ -204,12 +263,24 @@ public static class SkinService
     public static IReadOnlyList<string> Choose(string id)
     {
         SkinEntry entry = SkinCatalog.Find(id) ?? new SkinEntry(SkinPackage.Default, []);
-        (UiSettings.Load() with { Skin = entry.Id == SkinPackage.DefaultId ? null : entry.Id }).SaveChecked();
-        return Apply(entry);
+        UiSettings settings = UiSettings.Load() with { Skin = entry.Id == SkinPackage.DefaultId ? null : entry.Id };
+        settings.SaveChecked();
+        Overridden = false;
+        return ApplyPreference(settings.AppearanceMode, entry);
+    }
+
+    /// <summary>Persist a Material mode before changing any visible resources.</summary>
+    public static IReadOnlyList<string> ChooseMode(string mode)
+    {
+        if (!AppearanceModes.IsValid(mode)) throw new ArgumentException("Unknown appearance mode.", nameof(mode));
+        (UiSettings.Load() with { AppearanceMode = mode }).SaveChecked();
+        Overridden = false;
+        return ApplyPreference(mode, Current);
     }
 
     /// <summary>Read the skin folders again and put the current choice back on.</summary>
-    public static IReadOnlyList<string> Reload() => Apply(SkinCatalog.Find(Current.Id) ?? new SkinEntry(SkinPackage.Default, []));
+    public static IReadOnlyList<string> Reload() =>
+        ApplyPreference(Mode, SkinCatalog.Find(Current.Id) ?? new SkinEntry(SkinPackage.Default, []));
 
     /// <summary>Turns validated values into the Avalonia objects the resources hold.</summary>
     private sealed class Realizer(SkinPackage package, List<string> errors)

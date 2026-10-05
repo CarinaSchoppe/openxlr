@@ -206,3 +206,9 @@ current presentation; `{}` clears it. Entries for deleted channels or mixes
 are dropped when recalling. Malformed entries reject the whole profile before
 hardware or mixer settings change. Presentation ordering never changes the
 routing order of channels and mixes.
+
+Window-saved profiles also carry the separate window presentation, including
+skin, System/Light/Dark appearance mode, collapsed sections and compact view.
+Those preferences are stored locally in `ui.json`, not as mixer layout values;
+changing them never rebuilds audio routes. An older profile without a mode
+preserves the current mode. See [profile presentation](api.md).

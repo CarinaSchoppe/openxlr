@@ -105,8 +105,9 @@ lands in Voice Chat. An app you move to another channel is remembered
 
 **Profiles** are named scenes: the interface's hardware settings plus
 the whole submixer (sends, masters, monitor outputs, aux state, insert
-chains), channel and mix presentation, and the window's skin, collapsed
-sections and compact view. They are saved per interface. Application routing and the
+chains), channel and mix presentation, and the window's skin, appearance
+mode, collapsed sections and compact view. They are saved per interface.
+Application routing and the
 system default devices are not part of a profile, so recalling one
 does not rewire the desktop.
 
@@ -1070,8 +1071,7 @@ their header, across restarts.
 Options, APPEARANCE picks a skin. OpenXLR ships thirteen, all built into
 the application, so a package brings them with it:
 
-- **Material**, the default, which is what the window has always looked
-  like;
+- **Material**, the default, with System, Light and Dark modes;
 - **Deck**, which dresses the window in the visual language of the
   OpenDeck keys and the Wave interfaces: near-black faceplates, black keys
   whose lettering is backlit green when a control is on and red when
@@ -1085,8 +1085,14 @@ the application, so a package brings them with it:
 
 The choice takes effect at once. Windows that are already open repaint;
 audio, the mixer, the routing and the layout are untouched, and nothing is
-restarted. The choice is saved in `~/.config/openxlr/ui.json` and is not
-part of a profile or of the mixer layout.
+restarted. For Material, **Mode** chooses **System**, **Light** or **Dark**.
+System follows the desktop while the window is open. The other skins keep
+their own colours, so their mode picker is unavailable. Changing the mode
+keeps the mixer layout, control sizes and routing intact.
+
+The skin and mode are saved in `~/.config/openxlr/ui.json`. Profiles saved
+from the window also restore them. Older profiles without a mode preserve
+the current one. Neither choice belongs to the audio mixer layout.
 
 Anything wrong with a skin is listed under the picker, not in the mixer
 window. A skin that sets only part of the appearance keeps the default for
@@ -1108,7 +1114,9 @@ If a skin makes something unreadable, start the window once with
 OPENXLR_SKIN=default openxlr
 ```
 
-which ignores the saved choice for that run and lets you pick another one.
+which starts in the known dark Material appearance. A successful new choice
+in Options replaces this launch override; a failed save keeps it. Desktop
+changes and profile recalls do not override this recovery choice.
 
 <a name="upgrade"></a>
 ### 3.11 Upgrade
@@ -1758,7 +1766,7 @@ Eight sections are reachable with `1` to `8`, Tab and Shift+Tab:
 | 5 Apps | every known application and its channel assignment, including the desktop's own routing |
 | 6 Inserts | the chain on each input and mix, its order, bypass and status; add a plugin from the catalogue, narrowed by typing, of those that fit the chain's width; open a plugin's native editor or edit its generated controls when the editor is blocked or refused |
 | 7 Profiles | load, save over, save as, delete and recall on connect; interface selection and recorded device defaults |
-| 8 Options | the skin picker, connection status, daemon version and fresh state request |
+| 8 Options | Material mode, the skin picker, connection status, daemon version and fresh state request |
 
 The bottom line shows the current section's keys, with help and quit at
 its right end when there is room.
@@ -1794,7 +1802,7 @@ Controls below the visible hardware cards appear as the selection moves.
 | Insert controls | Up/Down, PageUp/PageDown, Left/Right, Space, Enter | select a control, change a number or choice, or toggle a switch |
 | Insert controls | `-`, `+`, `[`, `]`, Home, End | lower or raise a number, take a fine step, or set the minimum or maximum; Ctrl+Left/Right also takes a fine step |
 | Profiles, on a profile | Enter, `s`, `r`, `d` | load, overwrite, recall on connect, or delete |
-| Options | Enter, `R` | use a skin or reload the skin list |
+| Options | Left/Right, Enter, `R` | change Material mode, use a skin or reload the skin list |
 | Text prompts | Enter, Escape | accept or cancel |
 
 Anything that cannot be undone, such as deleting a channel or resetting
@@ -1823,6 +1831,12 @@ and persistence as the window.
 The terminal mixer wears the same skins as the window. It reads the same
 files, in the same order, and the choice in Options is the same choice, so
 picking Gruvbox in one picks it in the other ([skins.md](skins.md)).
+Material mode uses the same saved System, Light or Dark preference and
+palette. In System it follows the desktop portal's colour-scheme events;
+without the optional `gdbus` helper or an available preference it uses Dark.
+It does not change the terminal emulator's own theme. Other skins retain
+their own colours. A successful Options choice replaces a launch override;
+a failed save leaves the active appearance unchanged.
 `--skin <id>` uses one appearance for this run without saving it, and
 `--list-skins` prints what this machine has. Deck and the Omarchy skins get
 console fader caps, bracketed keys and lamps; flat skins get plain ones.
@@ -1907,11 +1921,11 @@ monitor mix is displayed first. Stream Deck feed keys also use that default.
 The combined Monitor A+B feed stays one choice, and a Deck key advances past
 it even when the monitor mixes are displayed in a different order.
 
-Profiles saved from the window also recall its skin, collapsed sections,
-compact view and selected compact channel. Channel and mix icons, colours,
+Profiles saved from the window also recall its skin, appearance mode,
+collapsed sections, compact view and selected compact channel. Channel and mix icons, colours,
 hidden channels and display order are saved in the mixer scene. Older profiles
-that have no presentation leave it unchanged. A missing skin uses the shipped
-default; a missing compact channel falls back to an available channel without
+that have no presentation leave it unchanged; an omitted mode keeps the current
+mode. A missing skin uses the shipped default; a missing compact channel falls back to an available channel without
 forgetting the saved selection. Startup, tray, update and security preferences
 remain local. A recall is applied once, including after reconnecting to the
 daemon; subsequent manual edits remain until another profile is loaded.

@@ -34,6 +34,9 @@ makes an already selected headset hear Monitor A and Chat summed.
 `setLayoutAppearance` and `setDisplayOrder` also use this endpoint. Their
 changes are acknowledged only after the layout settings are saved; rejected
 appearance values or incomplete ID lists return an error without changing audio.
+`saveProfile.presentation` also accepts the optional Material `appearanceMode`
+(`system`, `light` or `dark`). The validation and legacy-preserve behaviour are
+identical to [the profile presentation contract](api.md).
 Both transports share the dispatcher,
 validation and broadcasts. HTTP returns
 `{"apiVersion":"1","ok":true,"messages":[]}` after a successful mutation.

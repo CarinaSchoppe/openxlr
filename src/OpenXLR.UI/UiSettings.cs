@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace OpenXLR.UI;
 
@@ -44,6 +45,8 @@ public sealed record UiSettings
     /// appearance itself cannot disturb what is playing.
     /// </summary>
     public string? Skin { get; init; }
+    [JsonConverter(typeof(LocalAppearanceModeConverter))]
+    public string AppearanceMode { get; init; } = AppearanceModes.System;
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -69,12 +72,14 @@ public sealed record UiSettings
     public WindowPresentation ExportPresentation() => new()
     {
         CompactMixer = CompactMixer, CompactChannel = CompactChannel, Skin = Skin,
+        AppearanceMode = AppearanceModes.Normalize(AppearanceMode),
         CollapsedSections = (CollapsedSections ?? []).ToArray(), SectionOrder = (SectionOrder ?? []).ToArray(),
     };
 
     internal UiSettings WithPresentation(WindowPresentation value, string revision) => this with
     {
         CompactMixer = value.CompactMixer, CompactChannel = value.CompactChannel, Skin = value.Skin,
+        AppearanceMode = value.AppearanceMode ?? AppearanceModes.Normalize(AppearanceMode),
         CollapsedSections = value.CollapsedSections.ToArray(), SectionOrder = value.SectionOrder.ToArray(),
         AppliedPresentation = revision,
     };

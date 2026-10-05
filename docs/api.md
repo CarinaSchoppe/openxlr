@@ -183,11 +183,15 @@ that final acknowledgement (or an `error` without a request id):
 
 `saveProfile` accepts an optional `presentation` object containing
 `compactMixer` (boolean), `compactChannel` (nullable ID, at most 36 characters),
-`skin` (nullable ID, at most 64 characters), `collapsedSections` and
-`sectionOrder` (distinct lists of at most 16 nonempty IDs, at most 64 characters
-each). Identifiers cannot contain control characters. An empty object restores
-default presentation. Omission preserves presentation already saved in that
-profile, allowing older clients to update audio without discarding it.
+`skin` (nullable ID, at most 64 characters), optional `appearanceMode`
+(`"system"`, `"light"` or `"dark"`), `collapsedSections` and `sectionOrder`
+(distinct lists of at most 16 nonempty IDs, at most 64 characters each).
+Identifiers cannot contain control characters. An omitted or null mode preserves
+the window's current mode when recalled, so older profiles retain their behaviour.
+An invalid explicit mode rejects the profile before applying it. An empty object
+restores the other presentation defaults while preserving the mode. Omitting
+`presentation` preserves presentation already saved in that profile, allowing
+older clients to update audio without discarding it.
 
 A successful profile recall publishes `state.profilePresentation` as
 `{ "revision": "<32-character recall ID>", "settings": { ... } }`, or null for
@@ -197,8 +201,8 @@ and applies it only once, including across window restarts. A fresh explicit or
 on-connect recall gets a new ID even for the same profile. Failed recalls do not
 publish new presentation. Unknown section IDs are retained but not displayed;
 unavailable skins use the window's default. These choices affect no startup,
-update or security preferences. The current window uses compact view, skin and
-collapsed sections; `sectionOrder` is also retained for windows with tile ordering.
+update or security preferences. The current window uses compact view, skin,
+appearance mode and collapsed sections; `sectionOrder` is also retained for windows with tile ordering.
 The mixer scene separately stores `appearance` as described in
 [mixer presentation](mixer-layout.md#presentation).
 

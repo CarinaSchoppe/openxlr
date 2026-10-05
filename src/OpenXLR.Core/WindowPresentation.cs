@@ -19,14 +19,17 @@ public sealed record WindowPresentation
     public bool CompactMixer { get; init; }
     public string? CompactChannel { get; init; }
     public string? Skin { get; init; }
+    /// <summary>Null preserves the local mode when recalling an older profile.</summary>
+    public string? AppearanceMode { get; init; }
     public IReadOnlyList<string> CollapsedSections { get; init; } = [];
     public IReadOnlyList<string> SectionOrder { get; init; } = [];
 
     public void Validate()
     {
-        if (!Text(CompactChannel, 36) || !Text(Skin, 64) ||
+        if ((AppearanceMode is not null && !AppearanceModes.IsValid(AppearanceMode)) ||
+            !Text(CompactChannel, 36) || !Text(Skin, 64) ||
             !Sections(CollapsedSections) || !Sections(SectionOrder))
-            throw new JsonException("Invalid profile presentation: use bounded identifiers and distinct section lists.");
+            throw new JsonException("Invalid profile presentation: use a supported appearance mode, bounded identifiers and distinct section lists.");
     }
 
     private static bool Text(string? value, int limit) =>

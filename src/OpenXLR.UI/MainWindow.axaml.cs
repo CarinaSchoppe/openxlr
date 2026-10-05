@@ -281,9 +281,11 @@ public partial class MainWindow : Window
         ApplySectionState();
         if (!Skinning.SkinService.Overridden)
         {
-            string? id = UiSettings.Load().Skin;
+            UiSettings settings = UiSettings.Load();
+            string? id = settings.Skin;
             var entry = Skinning.SkinCatalog.Find(id);
-            var errors = Skinning.SkinService.Apply(entry ?? new Skinning.SkinEntry(Skinning.SkinPackage.Default, []));
+            var errors = Skinning.SkinService.ApplyPreference(settings.AppearanceMode,
+                entry ?? new Skinning.SkinEntry(Skinning.SkinPackage.Default, []));
             if (entry is null) _vm.ReportPresentationError($"Profile skin '{id}' is unavailable; using the default skin.");
             else if (errors.Count > 0) _vm.ReportPresentationError($"Profile skin '{id}': {string.Join(" ", errors)}");
         }

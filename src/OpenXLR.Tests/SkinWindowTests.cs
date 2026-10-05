@@ -52,6 +52,7 @@ public sealed class SkinWindowTests
             TheOptionsColumnsCarryABalancedShareOfTheCards(options);
             TheWindowActuallyRepaintsWhenTheSkinChanges(main);
             ProfileRecallReportsAnInvalidInstalledSkin(main);
+            AppearanceModeWindowTests.Check(main, options, flow);
         });
     }
 

@@ -8,8 +8,8 @@ cannot reach a file outside its own folder.
 OpenXLR ships thirteen appearances, all compiled into the application, so
 every package has them and there is nothing to install:
 
-- **Material**, the default, which is what the window has always looked
-  like. It is what every unset value falls back to.
+- **Material**, the default, with System, Light and Dark modes. Its dark
+  values are the fallback for tokens a custom skin leaves unset.
 - **Deck**, which dresses the window in the visual language of the
   OpenDeck keys and the Wave interfaces: near-black faceplates, black keys
   whose lettering is backlit green when a control is on and red when
@@ -33,13 +33,24 @@ meter is a solid bar in eighth blocks whichever appearance is named, and
 its colour blends from `Ox.Meter.Fill` through `Ox.Meter.Warning` to
 `Ox.Meter.Hot` along the scale, anchored at the warning and hot levels.
 
-The choice is saved in
-`~/.config/openxlr/ui.json` as `"skin": "<id>"`. Profiles saved from the
-window also capture this ID, so recalling a profile can restore its skin.
+Material has a **Mode** choice: **System** (the default), **Light** or
+**Dark**. System follows desktop appearance changes while the window is open;
+it does not poll. Light and Dark keep the selected appearance. Material's
+light palette uses the existing skin tokens and does not add another skin to
+the picker. Deck, Omarchy and installed skins keep their own colours; choose
+Material to use the mode again.
+
+The choices are saved in `~/.config/openxlr/ui.json` as `"skin": "<id>"`
+and `"appearanceMode": "system"`, `"light"` or `"dark"`. Missing or invalid
+local mode values use System without discarding other window preferences.
+Profiles saved from the window capture both values. Older profiles with no
+mode keep the current mode when recalled.
 A skin unavailable on this installation falls back to the shipped default.
 A recalled skin with invalid values uses the same validation fallbacks as
 manually choosing it, and the window reports the errors.
-The command-line skin override still takes precedence. Changing a skin
+The launch skin override takes precedence until a new skin or mode is
+explicitly chosen and saved in Options. Desktop changes and profile recalls
+do not clear it. A failed save keeps the previous appearance. Changing a skin
 never touches audio. Windows that are already open repaint;
 nothing is rebuilt and nothing is restarted.
 
@@ -49,10 +60,20 @@ If a skin ever makes something unreadable, start the window once with
 OPENXLR_SKIN=default openxlr
 ```
 
-which ignores the saved choice for that run and leaves it saved, so you
-can pick another one from Options. Options says when a run was started
-that way. Any id works there, not only `default`, which is the quickest
+which starts with the known dark Material appearance and leaves the saved
+choice intact, so you can pick another one from Options. Options says when a
+run was started that way. Any id works there, not only `default`, which is the quickest
 way to try a skin without selecting it.
+
+The terminal uses the same mode and Material palette. Its Options tab changes
+**Material mode** with Left/Right. System reads and subscribes to the desktop
+portal's [colour-scheme setting](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Settings.html)
+through `gdbus`; the helper is optional, and no portal or no preference falls
+back to Dark. The subscription runs only for System with Material and stops
+when another mode or skin is chosen. `--skin` and `OPENXLR_SKIN` keep their
+explicit palette until a successful Options choice. The terminal does not
+consume the window's profile-presentation receipt; the window remains the
+client that applies those profile preferences.
 
 ## Getting started
 
@@ -618,11 +639,10 @@ six flat indicator colours.
 - It cannot change the OpenDeck plugin's key art. The plugin draws its own
   images on the device; the Deck skin borrows that visual language for the
   window, not the other way round.
-- It cannot hold a light and a dark version of itself, or follow the
-  desktop's preference. A skin is one set of values. OpenXLR's own values
-  are dark, and the toolkit values a skin leaves at `framework` are the
-  ones that follow the desktop. A light appearance of OpenXLR's own is on
-  the roadmap, not in this format.
+- It cannot hold a light and a dark version of itself. A skin is one set
+  of values; only Material selects its internal light or dark palette.
+  The toolkit values a custom skin leaves at `framework` still follow
+  the desktop.
 - It cannot skin the tray icon, the desktop notification or any window
   another application draws.
 
@@ -672,12 +692,10 @@ chosen one leaves the window on Material, and `ui.json` keeps the name
 until you choose something else, so putting the folder back brings it
 straight back.
 
-To reset the appearance completely, choose Material in Options, or close
-the window and delete the `"skin"` line from
-`~/.config/openxlr/ui.json`. That line is the whole of the skin's presence
-on your machine, and nothing about the mixer, the daemon or your audio
-devices is kept in that file at all, so neither route can disturb what is
-playing.
+To reset the appearance completely, choose Material and System in Options,
+or close the window and remove `skin` and `appearanceMode` from
+`~/.config/openxlr/ui.json`. These preferences do not change the mixer,
+the daemon or audio devices, so neither route disturbs what is playing.
 
 ## Adding a token
 

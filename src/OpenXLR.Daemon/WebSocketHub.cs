@@ -99,8 +99,12 @@ public sealed class WebSocketHub
             // The first thing a client reads is a whole state: register it
             // for broadcasts only once that is queued, so no meters frame
             // can slip in ahead of it.
-            await client.SendAsync(Serialize(Snapshot()));
+            Task initialState = client.SendAsync(Serialize(Snapshot()));
             _clients[client.Id] = client;
+            // Include changes made while the first snapshot was being built,
+            // and subscribe before waiting for its network write to finish.
+            _stateBroadcasts.Signal();
+            await initialState;
             await ReceiveLoop(client);
         }
         catch (Exception ex) when (ex is WebSocketException or OperationCanceledException
@@ -615,7 +619,7 @@ public sealed class WebSocketHub
         }
     }
 
-    private void Broadcast(object message)
+    internal void Broadcast(object message)
     {
         byte[] text;
         try { text = Serialize(message); }
@@ -628,11 +632,11 @@ public sealed class WebSocketHub
         }
         foreach (Client c in _clients.Values)
         {
-            // State is level-triggered and meters are transient, so dropping a
-            // frame for a client that cannot keep up is safer than accumulating
-            // unbounded tasks and memory. Its next state frame catches it up.
-            if (!c.TrySend(text))
-                _log.LogDebug("client {id} send queue full; dropping {type}",
+            // Meter frames expire immediately. State and rule changes may be
+            // the last update, so a client that misses one must reconnect for
+            // a fresh snapshot instead of remaining silently out of sync.
+            if (!c.TrySend(text, transient: message is MetersMessage))
+                _log.LogDebug("client {id} could not queue {type}",
                     c.Id, message.GetType().Name);
         }
     }
@@ -649,7 +653,7 @@ public sealed class WebSocketHub
     /// sends; the bounded channel also prevents a slow or suspended local
     /// client from growing the daemon's memory indefinitely.
     /// </summary>
-    private sealed class Client : IDisposable
+    internal sealed class Client : IDisposable
     {
         private const int QueueCapacity = 32;
         private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(5);
@@ -674,21 +678,26 @@ public sealed class WebSocketHub
             _sendPump = Task.Run(SendPumpAsync);
         }
 
-        public bool TrySend(byte[] payload)
-            => Socket.State == WebSocketState.Open &&
-               _outgoing.Writer.TryWrite(new PendingSend(payload, null));
+        public bool TrySend(byte[] payload, bool transient = false)
+            => TryQueue(new PendingSend(payload, null), transient);
 
         public Task SendAsync(byte[] payload)
         {
-            if (Socket.State != WebSocketState.Open) return Task.CompletedTask;
             var sent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (_outgoing.Writer.TryWrite(new PendingSend(payload, sent))) return sent.Task;
+            return TryQueue(new PendingSend(payload, sent), transient: false) ? sent.Task : Task.CompletedTask;
+        }
+
+        private bool TryQueue(PendingSend pending, bool transient)
+        {
+            if (Socket.State != WebSocketState.Open) return false;
+            if (_outgoing.Writer.TryWrite(pending)) return true;
+            if (transient) return false;
             // The queue holds about two seconds of meter frames. A client that
             // has not drained it is stuck; drop it rather than let the send
             // fault propagate through the command pipeline. The receive loop
             // ends on the aborted socket and the handler cleans up.
             try { Socket.Abort(); } catch (ObjectDisposedException) { }
-            return Task.CompletedTask;
+            return false;
         }
 
         private async Task SendPumpAsync()

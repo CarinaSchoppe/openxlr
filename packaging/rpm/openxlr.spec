@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name:           openxlr
-Version: 0.1.46
+Version: 0.1.47
 Release:        1%{?dist}
 Summary:        Control suite and PipeWire submixer for Elgato XLR interfaces
 License:        GPL-3.0-only
@@ -162,6 +162,13 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Fri Oct 02 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.47-1
+- Plugin inserts: a VST3 plugin that reports a latency change after it starts now runs. The host took the report as a request for a fresh process, so a plugin that sizes its lookahead on activation, as many denoisers and FFT plugins do, was restarted three times and then switched off. Reported and diagnosed by @onlykshitij (#205).
+- Plugin inserts: a plugin host that stops after it has started says why. Its last message is written to the daemon's log each time the chain stops and is shown on the insert after the "kept failing" reason. With OPENXLR_HOST_TRACE set on the service, the host's trace lines reach the log, up to 64 for each host process.
+- Window: slider edits that are still queued are sent before a profile is saved or recalled.
+- Mixer: a send's pending volume and mute writes are kept when a failed settings save restores a deleted layout cell, so a write PipeWire refused for a moment still reaches it.
+- Project: Avalonia moves to 12.1.3.
+
 * Mon Sep 21 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.1.46-1
 - Devices: the XLR Dock MK.2 works on both of the revisions in the field. They answer their settings on different USB addresses, and the daemon now works out which one a dock uses every time it connects. A dock that failed every settings read with a pipe error, and so never connected, works on this release.
 - Devices: a backend for the Wave:3, coded from public protocol research. Gain, mute, ClipGuard, headphone volume and the direct monitor balance are mapped, and the low cut stays the submixer's. Nobody on the project owns a Wave:3, so no control has been run on the hardware; docs/hardware-support.md names the bytes the sources dispute and lists the checks an owner runs.

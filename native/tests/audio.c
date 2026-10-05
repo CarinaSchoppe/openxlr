@@ -95,5 +95,12 @@ int main(void) {
   ++entered;
   assert(!host_audio_stuck(entered, left, &last, &outstanding, window));
   puts("PASS: a callback that comes back is healthy again");
+
+  // A failure a backend explains is marked, so the exit path does not write
+  // the audio thread's reason over it; the audio thread's own stays unmarked.
+  assert(!atomic_load(&h.audio_error) && !atomic_load(&h.failure_explained));
+  host_fail(&h, "the plugin asked to be reloaded");
+  assert(atomic_load(&h.audio_error) && atomic_load(&h.failure_explained));
+  puts("PASS: an explained failure keeps its own reason");
   return 0;
 }

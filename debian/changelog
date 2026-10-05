@@ -1,3 +1,13 @@
+openxlr (0.1.47) resolute; urgency=medium
+
+  * Plugin inserts: a VST3 plugin that reports a latency change after it starts now runs. The host took the report as a request for a fresh process, so a plugin that sizes its lookahead on activation, as many denoisers and FFT plugins do, was restarted three times and then switched off. Reported and diagnosed by @onlykshitij (#205).
+  * Plugin inserts: a plugin host that stops after it has started says why. Its last message is written to the daemon's log each time the chain stops and is shown on the insert after the "kept failing" reason. With OPENXLR_HOST_TRACE set on the service, the host's trace lines reach the log, up to 64 for each host process.
+  * Window: slider edits that are still queued are sent before a profile is saved or recalled.
+  * Mixer: a send's pending volume and mute writes are kept when a failed settings save restores a deleted layout cell, so a write PipeWire refused for a moment still reaches it.
+  * Project: Avalonia moves to 12.1.3.
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Fri, 02 Oct 2026 19:45:00 +0100
+
 openxlr (0.1.46) resolute; urgency=medium
 
   * Devices: the XLR Dock MK.2 works on both of the revisions in the field. They answer their settings on different USB addresses, and the daemon now works out which one a dock uses every time it connects. A dock that failed every settings read with a pipe error, and so never connected, works on this release.

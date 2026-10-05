@@ -31,6 +31,42 @@ public sealed class TuiScreenTests
     }
 
     [Fact]
+    public void LabelsCannotInjectTerminalControlSequences()
+    {
+        Screen screen = Grid(60, 2);
+        Rgb foreground = Rgb.Parse("#ffffff"), background = Rgb.Parse("#000000");
+        screen.Clear(background);
+        screen.Text(0, 0, "Mic \u001b]52;c;AAAA\u0007 \u009b2J\nx", foreground, background);
+        screen.Set(0, 1, '\u001b', foreground, background);
+
+        string rendered = screen.Render();
+        Assert.DoesNotContain("\u001b]52;", rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain('\u0007', rendered);
+        Assert.DoesNotContain('\u009b', rendered);
+        Assert.Equal(' ', screen.At(0, 1).Ch);
+        for (int row = 0; row < screen.Height; row++)
+            for (int column = 0; column < screen.Width; column++)
+                Assert.False(char.IsControl(screen.At(column, row).Ch));
+        Assert.Contains("Mic ", rendered, StringComparison.Ordinal);
+        Assert.Contains("\u001b[38;2;255;255;255m", rendered, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData('\0')]
+    [InlineData('\t')]
+    [InlineData('\r')]
+    [InlineData('\n')]
+    [InlineData('\u007f')]
+    [InlineData('\u0080')]
+    [InlineData('\u009f')]
+    public void AControlCharacterOccupiesOneHarmlessCell(char control)
+    {
+        Screen screen = Grid(3, 1);
+        screen.Text(0, 0, $"A{control}B", Theme.Material.TextPrimary, Theme.Material.Window);
+        Assert.Equal("A B", Line(screen, 0));
+    }
+
+    [Fact]
     public void TextNeverRunsOffTheEdge()
     {
         Screen screen = Grid(10, 3);

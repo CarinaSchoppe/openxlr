@@ -59,6 +59,13 @@ plugin against everything installed. A plugin missing from `plugins` can
 still be named by an insert that already holds it; it cannot be picked
 from the list, which is the only place its absence shows.
 
+Each connection has a bounded outgoing queue. A client that falls behind
+may miss transient `meters` frames. If a state update, rule notification or
+command reply cannot be queued, the daemon disconnects that client so it
+cannot silently retain stale state. Reconnect and authenticate again to
+receive a fresh snapshot; reload any cached plugin catalogue and editor rules.
+The window, terminal mixer and OpenDeck plugin reconnect automatically.
+
 Messages from the daemon, each a JSON object with a `type` field:
 
 | Type | When | Content |

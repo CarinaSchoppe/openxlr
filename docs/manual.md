@@ -903,6 +903,11 @@ the catalogue remain available.
 2. Header, Profiles: type a name and press Save.
 3. To recall: Profiles, then the name. To remove: the cross next to it.
 
+Saving or loading from the window first sends any waiting slider edits.
+Saving immediately after a drag therefore includes its last value. Loading
+then restores the selected snapshot, and an older queued edit cannot overwrite
+it. If loading fails, the preceding edits remain in place.
+
 Profiles belong to the interface they were saved with; another device
 shows its own list. With the OpenDeck plugin a key can recall a
 profile ([section 4](#stream-deck)).
@@ -1034,7 +1039,8 @@ Under WINDOW:
   hide the current window or enable autostart. "Tray only" starts with no
   window at all; the tray icon shows it the first time you click it. For
   a tray icon at login, enable "Start the OpenXLR app" and choose "Tray
-  only".
+  only". The tray icon is registered even before the mixer window has
+  been shown and stays registered while the window is hidden.
 - "When closing" chooses "Keep running in tray" or "Quit app" and takes
   effect immediately. Keeping the app in the tray hides the window
   instead of quitting; the tray icon's "Show mixer" menu item restores it,
@@ -1238,7 +1244,9 @@ same way a crashed one is, since an instance that is neither dead nor
 processing would otherwise sit there silent. A plugin that keeps crashing
 has its chain switched off after it has failed three times in five
 minutes, with the reason on the insert;
-changing or bypassing that chain starts it over.
+changing or bypassing that chain starts it over. When the plugin host said
+why it stopped, its last message is shown after that reason and written to
+the daemon's log each time the chain stops.
 
 A VST3 scan that says the original Windows plugin is missing usually means
 its yabridge wrapper still exists under `~/.vst3/yabridge`, but the source

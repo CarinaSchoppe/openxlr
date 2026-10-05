@@ -545,8 +545,12 @@ class ComponentHandler final : public IComponentHandler,
   tresult PLUGIN_API performEdit(ParamID id, ParamValue normalized) override;
   tresult PLUGIN_API endEdit(ParamID) override { return kResultOk; }
   tresult PLUGIN_API restartComponent(int32 flags) override {
-    if (flags & (RestartFlags::kReloadComponent | RestartFlags::kIoChanged |
-                 RestartFlags::kLatencyChanged))
+    if (trace_enabled)
+      fprintf(stderr, "trace: restartComponent flags %#x\n", (unsigned)flags);
+    // A latency change needs no reload: the host does no delay compensation,
+    // so the new figure changes nothing it does. Plugins that size their
+    // lookahead on activation report one every time they start.
+    if (flags & (RestartFlags::kReloadComponent | RestartFlags::kIoChanged))
       v_->restart_requested = true;
     if (flags & RestartFlags::kParamValuesChanged)
       v_->values_changed = true;

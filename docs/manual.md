@@ -1106,6 +1106,9 @@ shares the colours it actually applied, including the active light or dark
 palette. Without the window, the plugin uses the saved skin and its built-in
 palette or installed skin file. See [skins.md](skins.md) for details.
 
+OpenDeck uses the target's default glyph when a saved icon name is unknown
+or has the wrong type. Supported icon selections remain available.
+
 Anything wrong with a skin is listed under the picker, not in the mixer
 window. A skin that sets only part of the appearance keeps the default for
 everything else.

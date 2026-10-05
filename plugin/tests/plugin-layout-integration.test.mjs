@@ -237,6 +237,15 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
     daemon.receive(state);
     host.receive({event:"dialDown",context:"monitor-dial"});
     assert.deepEqual(daemon.messages.at(-1), {cmd:"setMixMuted",mix:"monitor2",value:false});
+    // Persisted settings can carry old or malformed icon values.
+    for (const icon of ["constructor", "__proto__", "toString", "<svg/>", "", 12, true, {}, [], {toString:null,valueOf:null}, null]) {
+      assert.doesNotThrow(() => host.receive({event:"willAppear",context:"icon-settings",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"mixmute:monitor",icon}}}));
+      const image = host.messages.filter(m => m.event === "setImage" && m.context === "icon-settings").at(-1).payload.image;
+      assert.ok(Buffer.from(image.split(",")[1], "base64").toString().includes('M42 58'), "invalid icons retain the target's speaker glyph");
+    }
+    host.receive({event:"willAppear",context:"icon-settings",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"mixmute:monitor",icon:"mic"}}});
+    const chosen = host.messages.filter(m => m.event === "setImage" && m.context === "icon-settings").at(-1).payload.image;
+    assert.ok(Buffer.from(chosen.split(",")[1], "base64").toString().includes('x="58" y="30"'));
   }
   finally {
     if (oldSkin === undefined) delete process.env.OPENXLR_SKIN;

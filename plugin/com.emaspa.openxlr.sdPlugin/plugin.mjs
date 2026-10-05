@@ -1157,7 +1157,8 @@ function refresh(context) {
     // The user can pick a glyph per key (a monitor output may be headphones
     // rather than speakers); "auto" or unset keeps the target's default.
     const iconChoice = inst.settings.icon;
-    const glyphName = iconChoice && GLYPHS[iconChoice] ? iconChoice : glyphFor(t);
+    const hasIcon = typeof iconChoice === "string" && Object.hasOwn(GLYPHS, iconChoice);
+    const glyphName = hasIcon ? iconChoice : glyphFor(t);
     const offColor = isInsertTarget(t) ? skinPalette.colours["Ox.Led.Alert"] : null;   // bypassed = red, as in the UI
     send({ event: "setImage", context,
            payload: { image: keySvg(v === true, isMuteLike(t), v !== null && daemonUp, glyphName, badge, label, offColor) } });

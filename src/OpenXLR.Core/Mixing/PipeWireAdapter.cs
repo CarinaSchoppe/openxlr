@@ -257,7 +257,12 @@ public sealed class PipeWireAdapter
     /// stream (leg) without reloading the combine, and a removed mix drops
     /// its leg. Verified on PipeWire 1.6 through pactl.
     /// </param>
-    public uint CreateCombineSink(string nodeName, string slaves, string description, bool visible = true)
+    /// <param name="initiallyMuted">
+    /// Keep a replacement channel closed from creation, including before
+    /// session policy reconnects applications. The caller opens it only after
+    /// restoring its sends; remembered sink props must not open it sooner.
+    /// </param>
+    public uint CreateCombineSink(string nodeName, string slaves, string description, bool visible = true, bool initiallyMuted = false)
     {
         string outp = Run("pactl",
             "load-module", "module-combine-sink",
@@ -267,7 +272,8 @@ public sealed class PipeWireAdapter
             // a suspended monitor makes the channel's level meter read silence
             // even while audio flows through the sink.
             "sink_properties=" + PropList($"node.description={PropValue(description)}" +
-            $" priority.session=100 node.suspend-on-idle=false node.virtual={(visible ? "false" : "true")}"));
+            $" priority.session=100 node.suspend-on-idle=false node.virtual={(visible ? "false" : "true")}" +
+            (initiallyMuted ? " state.restore-props=false node.param.Props=" + PropValue("{ mute = true }") : "")));
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;

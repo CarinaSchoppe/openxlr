@@ -1894,15 +1894,16 @@ does not remove its chain. Removing a user channel removes its saved chain too.
 A channel without effects keeps its normal direct sends and adds no hidden
 bus. Adding the first effect or removing the last one recreates that channel's
 sink under the same name and restores its application and capture feeds.
-These changes can briefly interrupt that channel. Editing or bypassing effects
-within an existing chain keeps its public sink. Recalling unchanged processing
-keeps the running plugin instances, including when only an effect's display name
-changes. Failed effects report an error and use a
-direct audio route when available. OpenXLR retries failed processing within
+These changes can briefly interrupt that channel. Muted sends stay muted while
+the effect path changes or the channel is renamed. If PipeWire rejects restoring
+a send, the replacement stays silent until the stored sends can be restored.
+Editing or bypassing effects within an existing chain keeps its public sink.
+Recalling unchanged processing keeps the running plugin instances, including
+when only an effect's display name changes. Failed effects report an error and
+use a direct audio route when available. OpenXLR retries failed processing within
 its recovery limit, even while direct audio is working. Other channels continue
 independently.
 
 Deleting a channel or mix also closes its effect-chain and control windows.
 Recreating the same layout ID opens a fresh chain instead of reusing stale
 controls from the removed item.
-

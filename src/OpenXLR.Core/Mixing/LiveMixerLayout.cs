@@ -195,6 +195,7 @@ public sealed partial class Mixer
             if (_channelInputModules.Remove(id, out uint input)) _pw.UnloadModule(input);
             _inserts.Remove(id);
             _insertErrors.Remove(id);
+            _pendingChannelActivations.Remove(id);
             if (_combineModules.Remove(id, out uint module))
             {
                 try { _pw.UnloadModule(module); }
@@ -399,10 +400,10 @@ public sealed partial class Mixer
         _meters.Remove($"ch:{id}");
         if ((split ? _channelInputModules : _combineModules).Remove(id, out uint old)) _pw.UnloadModule(old);
         uint fresh;
-        try { fresh = split ? _pw.CreateNullSink(channel.SinkName, $"OpenXLR {channel.Name}") : _pw.CreateCombineSink(channel.SinkName, MixSinkPattern, $"OpenXLR {channel.Name}"); }
+        try { fresh = split ? _pw.CreateNullSink(channel.SinkName, $"OpenXLR {channel.Name}") : _pw.CreateCombineSink(channel.SinkName, MixSinkPattern, $"OpenXLR {channel.Name}", initiallyMuted: true); }
         catch (Exception renameError)
         {
-            try { fresh = split ? _pw.CreateNullSink(channel.SinkName, oldDescription) : _pw.CreateCombineSink(channel.SinkName, MixSinkPattern, oldDescription); }
+            try { fresh = split ? _pw.CreateNullSink(channel.SinkName, oldDescription) : _pw.CreateCombineSink(channel.SinkName, MixSinkPattern, oldDescription, initiallyMuted: true); }
             catch (Exception restoreError)
             { throw new AggregateException("the channel's sink could not be reloaded or restored", renameError, restoreError); }
             FinishReloadLocked(channel, fresh, onIt, split);
@@ -415,8 +416,10 @@ public sealed partial class Mixer
     private void FinishReloadLocked(ChannelDefinition channel, uint module, IEnumerable<int> streamSerials, bool split)
     {
         (split ? _channelInputModules : _combineModules)[channel.Id] = module;
+        if (!split) _pendingChannelActivations.Add(channel.Id);
         bool complete = split || WaitForLegsLocked([module], _config.Mixes.Select(m => m.SinkName));
         foreach (MixDefinition mix in _config.Mixes) ApplyCellLocked(channel.Id, mix.Id);
+        ActivateReadyChannelsLocked();
         foreach (int serial in streamSerials)
         {
             try { _pw.MoveStreamToSink(serial, channel.SinkName); }

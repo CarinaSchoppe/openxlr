@@ -1481,6 +1481,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         foreach (OwnSinkLevel sink in levels)
         {
             if (_config.Mixes.Any(m => m.Kind == MixKind.Monitor && m.SinkName == sink.Name)) continue;
+            if (_pendingChannelActivations.Count > 0 && _config.Channels.Any(c => _pendingChannelActivations.Contains(c.Id) && ChannelBus(c) == sink.Name)) continue;
             bool off = Math.Abs(sink.Volume - 1.0) > 0.01;
             if (!off && !sink.Muted) continue;
             try
@@ -2222,16 +2223,17 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     /// defaults, full level and unmuted. A cell stays on this list until its
     /// fader is on the leg or the cell itself is gone, on the backoff
     /// <see cref="CellRoundGap"/> sets. Called from the sweep, and free
-    /// while nothing is waiting.
+    /// while nothing is waiting. A replaced channel stays muted until its
+    /// cells have applied; a rejected master unmute uses the same backoff.
     /// </summary>
     public bool EnsureCellLevels()
     {
         lock (_gate)
         {
             ForgetRemovedCells(_pendingCells, _cells);
-            if (!_built || _pendingCells.Count == 0) { _cellRounds = _cellWait = 0; return false; }
+            if (!_built || (_pendingCells.Count == 0 && _pendingChannelActivations.Count == 0)) { _cellRounds = _cellWait = 0; return false; }
             if (_cellWait > 0) { _cellWait--; return false; }
-            DiscoverLegsLocked();
+            if (_pendingCells.Count > 0) DiscoverLegsLocked();
             bool applied = false;
             foreach (string cell in _pendingCells.ToList())
             {
@@ -2245,7 +2247,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             // The gap is a distance between rounds; the wait counts the
             // sweeps skipped in between, which is one fewer.
             _cellWait = Math.Max(0, CellRoundGap(_cellRounds) - 1);
-            return applied;
+            return ActivateReadyChannelsLocked() || applied;
         }
     }
 
@@ -2286,6 +2288,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         _pw.TearDown();     // unloads modules in reverse order: combines, then mixes
         _combineModules.Clear();
         _channelInputModules.Clear();
+        _pendingChannelActivations.Clear();
         _mixModules.Clear();
         _postModules.Clear();
         _virtualMicModules.Clear();

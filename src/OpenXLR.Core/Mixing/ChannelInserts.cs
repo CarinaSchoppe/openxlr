@@ -7,11 +7,14 @@ public sealed partial class Mixer
     private readonly Dictionary<string, uint> _channelInputModules = [];
     private readonly Dictionary<string, PortLink> _channelTaps = [];
     private readonly Dictionary<string, PortLink> _channelOuts = [];
+    // A replacement can receive application audio before its send controls
+    // return. Keep its master closed until every stored cell was applied.
+    private readonly HashSet<string> _pendingChannelActivations = [];
     private string ChannelBus(ChannelDefinition channel)
         => _channelInputModules.ContainsKey(channel.Id) ? $"OpenXLR_bus_{channel.Id}" : channel.SinkName;
     private bool IsHardwareInsert(string key) => _config.Channels.Any(c => c.Id == key && c.InputPair is not null);
 
-    private uint CreateChannelNodesLocked(ChannelDefinition channel, bool? split = null)
+    private uint CreateChannelNodesLocked(ChannelDefinition channel, bool? split = null, bool initiallyMuted = false)
     {
         bool effects = split ?? (channel.InputPair is null && InsertsFor(channel.Id).Count > 0);
         uint? input = null;
@@ -19,8 +22,9 @@ public sealed partial class Mixer
         {
             if (effects) input = _pw.CreateNullSink(channel.SinkName, $"OpenXLR {channel.Name}", visible: channel.IsApplication);
             uint combine = _pw.CreateCombineSink(effects ? $"OpenXLR_bus_{channel.Id}" : channel.SinkName,
-                MixSinkPattern, $"OpenXLR {channel.Name}", visible: !effects && channel.IsApplication);
+                MixSinkPattern, $"OpenXLR {channel.Name}", visible: !effects && channel.IsApplication, initiallyMuted: initiallyMuted);
             if (input is uint module) _channelInputModules[channel.Id] = module;
+            if (initiallyMuted) _pendingChannelActivations.Add(channel.Id);
             return combine;
         }
         catch
@@ -53,12 +57,12 @@ public sealed partial class Mixer
         _meters.Remove($"ch:{channel.Id}");
         if (_combineModules.Remove(channel.Id, out uint combine)) _pw.UnloadModule(combine);
         if (_channelInputModules.Remove(channel.Id, out uint input)) _pw.UnloadModule(input);
-        try { _combineModules[channel.Id] = CreateChannelNodesLocked(channel, split); }
+        try { _combineModules[channel.Id] = CreateChannelNodesLocked(channel, split, initiallyMuted: true); }
         catch (Exception failure)
         {
             try
             {
-                _combineModules[channel.Id] = CreateChannelNodesLocked(channel, before);
+                _combineModules[channel.Id] = CreateChannelNodesLocked(channel, before, initiallyMuted: true);
                 RestoreChannelFeedsLocked(channel, streams);
             }
             catch (Exception rollback) { throw new AggregateException("The channel nodes could not be replaced or restored.", failure, rollback); }
@@ -71,6 +75,7 @@ public sealed partial class Mixer
     {
         bool ready = WaitForLegsLocked([_combineModules[channel.Id]], _config.Mixes.Select(m => m.SinkName));
         foreach (MixDefinition mix in _config.Mixes) ApplyCellLocked(channel.Id, mix.Id);
+        ActivateReadyChannelsLocked();
         foreach (int serial in streams)
         {
             try { _pw.MoveStreamToSink(serial, channel.SinkName); }
@@ -79,6 +84,28 @@ public sealed partial class Mixer
         _meters.Add($"ch:{channel.Id}", ChannelBus(channel));
         EnsureCaptureFeedsLocked();
         if (!ready) throw new InvalidOperationException("The channel's sends did not return after changing its effect path.");
+    }
+
+    private bool ActivateReadyChannelsLocked()
+    {
+        bool changed = false;
+        foreach (string id in _pendingChannelActivations.ToArray())
+        {
+            if (_config.Channels.FirstOrDefault(c => c.Id == id) is not { } channel)
+            {
+                _pendingChannelActivations.Remove(id);
+                continue;
+            }
+            if (_config.Mixes.Any(m => _pendingCells.Contains(Cell(id, m.Id)))) continue;
+            try
+            {
+                _pw.SetSinkMuted(ChannelBus(channel), false);
+                _pendingChannelActivations.Remove(id);
+                changed = true;
+            }
+            catch (InvalidOperationException) { /* Keep it closed until the next reconciliation. */ }
+        }
+        return changed;
     }
 
     private void WireChannelChainLocked(ChannelDefinition channel)

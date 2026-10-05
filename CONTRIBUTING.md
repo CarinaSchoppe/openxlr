@@ -55,6 +55,12 @@ OPENXLR_TEST_TOOLTIP=1 xvfb-run -a -s '-screen 0 1600x1000x24' dotnet test src/O
 OPENXLR_TEST_SKIN=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~SkinWindowTests
 ```
 
+Run the general suite and private audio suite sequentially when they share
+one build output directory. Native-helper fixtures temporarily replace the
+helper beside the test assembly and restore it afterward. Another test
+process can otherwise execute that fixture instead of the real audio host.
+Separate worktrees with separate build outputs can run concurrently.
+
 The monitor gain test plays a constant 0.1 signal, not a sine. On PipeWire
 1.0.x the two combine legs of a summed monitor feed are not sample-aligned,
 so a 1 kHz sine summed from Monitor A and B reads below the expected level

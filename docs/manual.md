@@ -1100,6 +1100,9 @@ audio, the mixer, the routing and the layout are untouched, and nothing is
 restarted. The choice is saved in `~/.config/openxlr/ui.json` and is not
 part of a profile or of the mixer layout.
 
+OpenDeck uses the target's default glyph when a saved icon name is unknown
+or has the wrong type. Supported icon selections remain available.
+
 Anything wrong with a skin is listed under the picker, not in the mixer
 window. A skin that sets only part of the appearance keeps the default for
 everything else.

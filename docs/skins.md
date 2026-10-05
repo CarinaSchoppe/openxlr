@@ -37,10 +37,16 @@ apply. Names use the same bounded, control-free text in the skin picker and
 the loaded palette.
 
 The choice is saved in
-`~/.config/openxlr/ui.json` as `"skin": "<id>"` and nowhere else: it is not
-part of the mixer layout, the daemon's preferences or a profile, and
-changing it never touches audio. Windows that are already open repaint;
-nothing is rebuilt and nothing is restarted.
+`~/.config/openxlr/ui.json` as `"skin": "<id>"`. Profiles saved from the
+window also capture this ID, so recalling a profile can restore its skin.
+A skin unavailable on this installation falls back to the shipped default.
+A recalled skin with invalid values uses the same validation fallbacks as
+manually choosing it, and the window reports the errors.
+The command-line skin override still takes precedence. Changing a skin
+never touches audio. Windows that are already open repaint;
+nothing is rebuilt and nothing is restarted. If the window cannot save a new
+choice, the previous skin and picker selection stay active and Options shows
+the error. Fix the permissions or file problem, then select the skin again.
 
 If a skin ever makes something unreadable, start the window once with
 

@@ -182,5 +182,37 @@ public sealed class ScanCacheSafetyTests : IDisposable
         Assert.Null(cache.Lookup(bundle));
     }
 
+    [Fact]
+    public void HiddenResourcesAreIncludedInTheBundleIdentity()
+    {
+        string bundle = Directory.CreateDirectory(Path.Combine(_root, "Effect.vst3")).FullName;
+        string resources = Directory.CreateDirectory(Path.Combine(bundle, ".resources")).FullName;
+        string file = Path.Combine(resources, ".preset");
+        File.WriteAllText(file, "fixture");
+        var cache = new ScanCache(CacheDirectory, "scanner");
+        cache.Store(bundle, "{}"u8.ToArray());
+        Assert.Equal("{}"u8.ToArray(), cache.Lookup(bundle));
+        File.WriteAllText(file, "changed fixture");
+        Assert.Null(cache.Lookup(bundle));
+    }
+
+    [Fact]
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    public void AnUnreadableResourceDirectoryDoesNotProduceAPartialFingerprint()
+    {
+        if (!OperatingSystem.IsLinux() || Environment.IsPrivilegedProcess) return;
+        string bundle = Directory.CreateDirectory(Path.Combine(_root, "Effect.vst3")).FullName;
+        File.WriteAllText(Path.Combine(bundle, "module.so"), "fixture");
+        string resources = Directory.CreateDirectory(Path.Combine(bundle, "resources")).FullName;
+        File.WriteAllText(Path.Combine(resources, "preset"), "fixture");
+        UnixFileMode mode = File.GetUnixFileMode(resources);
+        try
+        {
+            File.SetUnixFileMode(resources, UnixFileMode.None);
+            Assert.Null(ScanCache.Stamp(bundle));
+        }
+        finally { File.SetUnixFileMode(resources, mode); }
+    }
+
     public void Dispose() => Directory.Delete(_root, recursive: true);
 }

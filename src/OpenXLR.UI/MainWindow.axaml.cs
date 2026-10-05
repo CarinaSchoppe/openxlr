@@ -52,7 +52,7 @@ public partial class MainWindow : Window
         // the window unshown; it is never mapped and unmapped, which is what
         // produced a hollow frame at login.
         //
-        // There is no check for a usable tray here because Avalonia 12.1.2
+        // There is no check for a usable tray here because Avalonia 12.1.3
         // offers none on Linux: constructing a TrayIcon always succeeds, and
         // the implementation behind it either talks to a StatusNotifier host
         // over D-Bus or, with no session bus, is a stub that swallows every
@@ -90,7 +90,7 @@ public partial class MainWindow : Window
             _reallyExit = true;
             _hideToTrayPending = false;
             _lifetime.Cancel();
-            _tray?.Dispose();
+            DisposeTray();
             _desktopKeys.Dispose();
             await _client.DisposeAsync();
             _lifetime.Dispose();
@@ -141,13 +141,27 @@ public partial class MainWindow : Window
                 Menu = menu,
             };
             _tray.Clicked += (_, _) => Dispatcher.UIThread.Post(ShowMixer);
+            // Avalonia creates the native icon only after it is attached to
+            // the application, including when the mixer starts unshown.
+            var app = Avalonia.Application.Current!;
+            if (TrayIcon.GetIcons(app) is { } icons) icons.Add(_tray);
+            else TrayIcon.SetIcons(app, new TrayIcons { _tray });
         }
         catch (Exception)
         {
             // Only the icon asset or the menu can fail here; the tray
             // implementation itself never reports a missing host.
-            _tray = null;
+            DisposeTray();
         }
+    }
+
+    private void DisposeTray()
+    {
+        if (_tray is null) return;
+        if (Avalonia.Application.Current is { } app)
+            TrayIcon.GetIcons(app)?.Remove(_tray);
+        _tray.Dispose();
+        _tray = null;
     }
 
     private async void OnDesktopKeys(object? sender, RoutedEventArgs e)

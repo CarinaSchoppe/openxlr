@@ -41,7 +41,9 @@ happen on your system:
   If you set defaults in Options ([section 3.7](#default-devices)), those are held instead.
 - On the Wave XLR Pro the daemon parks the card on its pro-audio
   profile while it runs, so the raw multichannel device is available to
-  the mixer, and restores the previous profile when it stops.
+  the mixer, and restores the previous profile when it stops. A reconnect
+  during profile discovery uses the card's current profiles; a disconnected
+  card is left alone.
 
 The window's header shows the connected interface with a green dot.
 "No device" means the daemon cannot open the interface: replug it once

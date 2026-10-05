@@ -190,6 +190,35 @@ public sealed class PluginInstallerTests : IDisposable
         Assert.Equal(Elf.Length + 3, new FileInfo(Path.Combine(_clap, "Hall.clap")).Length);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void InstallingKeepsUnrelatedFilesBesideTheDestination(bool bundle, bool replacing)
+    {
+        string source = bundle ? Lv2("gate.lv2") : File_("Hall.clap", Elf);
+        string directory = bundle ? _lv2 : _clap;
+        string destination = Path.Combine(directory, Path.GetFileName(source));
+        var installer = Installer();
+        if (replacing) Assert.True(installer.Install(source).Ok);
+        Directory.CreateDirectory(directory);
+        string oldFile = destination + ".openxlr-old";
+        string newDirectory = destination + ".openxlr-new";
+        File.WriteAllText(oldFile, "user backup");
+        Directory.CreateDirectory(newDirectory);
+        File.WriteAllText(Path.Combine(newDirectory, "notes"), "user files");
+
+        InstallOutcome result = installer.Install(source);
+
+        Assert.True(result.Ok, result.Message);
+        Assert.Equal("user backup", File.ReadAllText(oldFile));
+        Assert.Equal("user files", File.ReadAllText(Path.Combine(newDirectory, "notes")));
+        Assert.Equal(3, Directory.GetFileSystemEntries(directory).Length);
+        Assert.Equal(bundle ? PluginItemKind.Lv2Bundle : PluginItemKind.ClapBundle,
+            PluginInstaller.Inspect(destination).Kind);
+    }
+
     [Fact]
     [System.Runtime.Versioning.SupportedOSPlatform("linux")]   // file modes are a Unix matter; the daemon only runs there
     public void AFailedReplacementLeavesTheInstalledPluginWhereItWas()

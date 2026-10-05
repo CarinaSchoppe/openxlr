@@ -376,13 +376,14 @@ public sealed class PluginInstaller
         // and the swap is two renames inside one directory. A failure anywhere
         // puts the old bundle back and leaves nothing half-written behind: an
         // unreadable file or a full disk costs the update, not the plugin.
-        string staged = destination + ".openxlr-new";
-        string retired = destination + ".openxlr-old";
+        // Fixed suffixes can belong to someone else's backup or interrupted
+        // work. Each operation owns only its two unique sibling paths.
+        string temporary = Path.Combine(directory, ".openxlr-" + Guid.NewGuid().ToString("N"));
+        string staged = temporary + ".new";
+        string retired = temporary + ".old";
         try
         {
             Directory.CreateDirectory(directory);
-            Remove(staged);
-            Remove(retired);
             if (linkSource)
             {
                 if (Directory.Exists(source)) Directory.CreateSymbolicLink(staged, Path.GetFullPath(source));
@@ -395,7 +396,11 @@ public sealed class PluginInstaller
             try { Move(staged, destination); }
             catch { if (replacing) Move(retired, destination); throw; }
             // The new bundle is in place; the old one is only litter now.
-            try { Remove(retired); } catch (Exception) { /* removed on the next install */ }
+            try { Remove(retired); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                notes.Add($"The previous copy remains at {Shorten(retired)}: {ex.Message}");
+            }
             installed.Add(name);
             destinations.Add(destination);
             notes.Add(linkSource

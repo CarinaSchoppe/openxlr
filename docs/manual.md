@@ -1491,8 +1491,10 @@ one post per problem in its support forum), on Reddit at
 <https://www.reddit.com/r/OpenXLR/>, or open a GitHub issue; whichever
 you pick, attach the diagnostics archive described below.
 
-Options, SUPPORT, Collect diagnostics. It writes
-`~/openxlr-diagnostics-<timestamp>.tar.gz` with the daemon's state and
+Options, SUPPORT, Collect diagnostics. Each collection gets a unique private
+archive, so simultaneous reports cannot collide. Failed collections remove
+incomplete archives. It writes
+`~/openxlr-diagnostics-<timestamp>-<id>.tar.gz` with the daemon's state and
 capabilities, a dump of the interface's vendor blocks, the PipeWire
 graph and device listings, the recent daemon journal, the
 configuration files and version information. Plugin evidence includes the

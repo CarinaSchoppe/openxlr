@@ -80,17 +80,38 @@ public static class Diagnostics
             CopyRedactedIfExists(UiSettings.ConfigDir, "mixer.json", work);
             CopyRedactedIfExists(UiSettings.ConfigDir, "ui.json", work);
 
-            string outPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                $"openxlr-diagnostics-{stamp}.tar.gz");
-            await using (var fs = OpenXlrPaths.CreatePrivate(outPath))
-            await using (var gz = new GZipStream(fs, CompressionLevel.SmallestSize))
-                await TarFile.CreateFromDirectoryAsync(work, gz, includeBaseDirectory: false);
-            return outPath;
+            return await WriteArchiveAsync(work,
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), stamp);
         }
         finally
         {
             try { Directory.Delete(work, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    /// <summary>Keep concurrent collections separate and remove incomplete output on failure.</summary>
+    internal static async Task<string> WriteArchiveAsync(string work, string destination, string stamp)
+    {
+        string outPath = Path.Combine(destination, $"openxlr-diagnostics-{stamp}-{Guid.NewGuid():N}.tar.gz");
+        bool created = false;
+        try
+        {
+            await using (var fs = OpenXlrPaths.CreatePrivate(outPath))
+            {
+                created = true;
+                await using var gz = new GZipStream(fs, CompressionLevel.SmallestSize);
+                await TarFile.CreateFromDirectoryAsync(work, gz, includeBaseDirectory: false);
+            }
+            return outPath;
+        }
+        catch
+        {
+            if (created)
+            {
+                try { File.Delete(outPath); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
+            throw;
         }
     }
 

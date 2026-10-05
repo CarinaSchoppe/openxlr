@@ -260,85 +260,7 @@ public sealed class MixerService : IHostedService, IDisposable
             // Sweep for new application streams and route them to their channel.
             // One second is responsive enough that audio lands in the right place
             // before a user notices, without polling the graph hard.
-            _streamSweep = new Timer(_ =>
-            {
-                if (Interlocked.CompareExchange(ref _sweepRunning, 1, 0) != 0) return;
-                try
-                {
-                    if (GraphLost()) return;
-                    // Channel feeds follow the actively driven interface; the
-                    // node name contains the model as udev spells it.
-                    _mixer.SetInputDeviceHint(
-                        _devices.ActiveInfo?.NodeNameFragment,
-                        _devices.ActiveCapabilities?.OutputRouting ?? false);
-                    // Which input jacks the device actually has, so a client
-                    // does not offer a strip the hardware cannot feed.
-                    if (_mixer.SetInputJacks(_devices.ActiveCapabilities?.XlrInputs,
-                            _devices.ActiveCapabilities?.AuxInput)) Changed?.Invoke();
-                    // Software DSP only for devices without the hardware version.
-                    _mixer.SetLowCutApplicable(!(_devices.ActiveCapabilities?.LowCut ?? false));
-                    _mixer.SetClipGuardApplicable(!(_devices.ActiveCapabilities?.ClipGuard ?? false));
-                    bool monitorChanged = _mixer.SyncOwnSinkLevels(out IReadOnlyList<string> restoredSinks);
-                    if (restoredSinks.Count > 0)
-                        _log.LogWarning("put {n} OpenXLR sink(s) back to full volume, unmuted ({names}); something outside OpenXLR had changed them",
-                            restoredSinks.Count, string.Join(", ", restoredSinks));
-                    // Collect what the plugins' own editors changed before the
-                    // healing pass below, so a chain that is about to be rebuilt
-                    // comes back with the values its editor last showed.
-                    // Desktop volume and mute changes are user settings too.
-                    if (_mixer.SyncPluginControls() | monitorChanged | _mixer.SyncDeviceVolumes())
-                    {
-                        ScheduleSave();
-                        Changed?.Invoke();
-                    }
-                    // A combine leg that appeared after its cell was applied
-                    // sits at PipeWire's defaults, full level and unmuted,
-                    // until the stored fader is pushed onto it.
-                    _mixer.EnsureCellLevels();
-                    if (_mixer.SyncStreams() | _mixer.EnforceDefaults()
-                        | _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute()
-                        | _mixer.EnsureFilterRoutes()
-                        | _mixer.EnsureMonitorRoutes()
-                        | _mixer.SyncSinkLevels()) Changed?.Invoke();
-                    SyncOutputSelectors();
-                    // Once a minute: is the PulseAudio server close to its
-                    // open-file limit? Cheap (one /proc directory listing).
-                    if (++_sweepCount % 60 == 1)
-                    {
-                        string? warning = _mixer.PulseFileWarning();
-                        if (warning != Volatile.Read(ref _resourceWarning))
-                        {
-                            if (warning is not null) _log.LogWarning("{msg}", warning);
-                            Volatile.Write(ref _resourceWarning, warning);
-                            Changed?.Invoke();
-                        }
-                    }
-                    if (_lastSweepError is not null)
-                    {
-                        _lastSweepError = null;
-                        _log.LogInformation("stream sweep recovered");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // A wiring failure repeats every second (a filter chain
-                    // that cannot be built leaves the microphone unwired, with
-                    // no other trace at the default log level). Say it once
-                    // per distinct message at warning so it reaches the
-                    // journal and the diagnostics archive, then keep quiet.
-                    if (ex.Message != _lastSweepError)
-                    {
-                        _lastSweepError = ex.Message;
-                        _log.LogWarning("stream sweep: {msg} (repeats logged at debug level)", ex.Message);
-                    }
-                    else _log.LogDebug("stream sweep: {msg}", ex.Message);
-                }
-                finally
-                {
-                    _progress.Mark();
-                    Volatile.Write(ref _sweepRunning, 0);
-                }
-            }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+            _streamSweep = new Timer(_ => SweepOnce(), null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
 
             // Meters refresh far more often than state; 15 Hz looks smooth
             // without flooding clients.
@@ -370,6 +292,101 @@ public sealed class MixerService : IHostedService, IDisposable
         return Task.CompletedTask;
     }
 
+    internal void SweepOnce()
+    {
+        if (_stopping.IsCancellationRequested || Interlocked.CompareExchange(ref _sweepRunning, 1, 0) != 0) return;
+        try
+        {
+            CancellationToken stop = _stopping.Token;
+            stop.ThrowIfCancellationRequested();
+            if (GraphLost()) return;
+            stop.ThrowIfCancellationRequested();
+            // Channel feeds follow the actively driven interface; the
+            // node name contains the model as udev spells it.
+            _mixer.SetInputDeviceHint(
+                _devices.ActiveInfo?.NodeNameFragment,
+                _devices.ActiveCapabilities?.OutputRouting ?? false);
+            stop.ThrowIfCancellationRequested();
+            // Which input jacks the device actually has, so a client
+            // does not offer a strip the hardware cannot feed.
+            if (_mixer.SetInputJacks(_devices.ActiveCapabilities?.XlrInputs,
+                    _devices.ActiveCapabilities?.AuxInput)) Changed?.Invoke();
+            // Software DSP only for devices without the hardware version.
+            _mixer.SetLowCutApplicable(!(_devices.ActiveCapabilities?.LowCut ?? false));
+            stop.ThrowIfCancellationRequested();
+            _mixer.SetClipGuardApplicable(!(_devices.ActiveCapabilities?.ClipGuard ?? false));
+            stop.ThrowIfCancellationRequested();
+            bool monitorChanged = _mixer.SyncOwnSinkLevels(out IReadOnlyList<string> restoredSinks);
+            if (restoredSinks.Count > 0)
+                _log.LogWarning("put {n} OpenXLR sink(s) back to full volume, unmuted ({names}); something outside OpenXLR had changed them",
+                    restoredSinks.Count, string.Join(", ", restoredSinks));
+            // Collect what the plugins' own editors changed before the
+            // healing pass below, so a chain that is about to be rebuilt
+            // comes back with the values its editor last showed.
+            // Desktop volume and mute changes are user settings too.
+            stop.ThrowIfCancellationRequested();
+            if (_mixer.SyncPluginControls() | monitorChanged | _mixer.SyncDeviceVolumes())
+            {
+                ScheduleSave();
+                Changed?.Invoke();
+            }
+            // A combine leg that appeared after its cell was applied
+            // sits at PipeWire's defaults, full level and unmuted,
+            // until the stored fader is pushed onto it.
+            stop.ThrowIfCancellationRequested();
+            _mixer.EnsureCellLevels();
+            stop.ThrowIfCancellationRequested();
+            bool changed = _mixer.SyncStreams();
+            changed |= _mixer.EnforceDefaults(stop);
+            stop.ThrowIfCancellationRequested();
+            changed |= _mixer.EnsureInputFeeds() | _mixer.EnsureAuxRoute();
+            stop.ThrowIfCancellationRequested();
+            changed |= _mixer.EnsureFilterRoutes();
+            stop.ThrowIfCancellationRequested();
+            changed |= _mixer.EnsureMonitorRoutes() | _mixer.SyncSinkLevels();
+            if (changed) Changed?.Invoke();
+            stop.ThrowIfCancellationRequested();
+            SyncOutputSelectors();
+            // Once a minute: is the PulseAudio server close to its
+            // open-file limit? Cheap (one /proc directory listing).
+            if (++_sweepCount % 60 == 1)
+            {
+                string? warning = _mixer.PulseFileWarning();
+                if (warning != Volatile.Read(ref _resourceWarning))
+                {
+                    if (warning is not null) _log.LogWarning("{msg}", warning);
+                    Volatile.Write(ref _resourceWarning, warning);
+                    Changed?.Invoke();
+                }
+            }
+            if (_lastSweepError is not null)
+            {
+                _lastSweepError = null;
+                _log.LogInformation("stream sweep recovered");
+            }
+        }
+        catch (OperationCanceledException) when (_stopping.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            // A wiring failure repeats every second (a filter chain
+            // that cannot be built leaves the microphone unwired, with
+            // no other trace at the default log level). Say it once
+            // per distinct message at warning so it reaches the
+            // journal and the diagnostics archive, then keep quiet.
+            if (ex.Message != _lastSweepError)
+            {
+                _lastSweepError = ex.Message;
+                _log.LogWarning("stream sweep: {msg} (repeats logged at debug level)", ex.Message);
+            }
+            else _log.LogDebug("stream sweep: {msg}", ex.Message);
+        }
+        finally
+        {
+            _progress.Mark();
+            Volatile.Write(ref _sweepRunning, 0);
+        }
+    }
+
     private static string Run(string exe, params string[] args)
     {
         ProcessResult r = ProcessRunner.Run(exe, args, TimeSpan.FromSeconds(3), stdoutCap: 1024 * 1024, stderrCap: 64 * 1024);
@@ -380,13 +397,17 @@ public sealed class MixerService : IHostedService, IDisposable
 
     public async Task StopAsync(CancellationToken ct)
     {
-        _streamSweep?.Dispose();
-        _streamSweep = null;
-        _meterPush?.Dispose();
-        _meterPush = null;
         // No default-device write may land after the graph is gone.
         _stopping.Cancel();
-        try { await _defaultDefense.WaitAsync(TimeSpan.FromSeconds(4), ct); }   // one in-flight pactl call at most, 3 s
+        ValueTask sweep = Interlocked.Exchange(ref _streamSweep, null)?.DisposeAsync() ?? ValueTask.CompletedTask;
+        ValueTask meters = Interlocked.Exchange(ref _meterPush, null)?.DisposeAsync() ?? ValueTask.CompletedTask;
+        // Timer.Dispose does not join a callback already in progress. Drain
+        // it before saving or tearing down, even if the host's stop deadline
+        // expired. Helpers keep their deadlines and the sweep stops between
+        // phases instead of starting the rest of its repair work.
+        await sweep;
+        await meters;
+        try { await _defaultDefense.WaitAsync(TimeSpan.FromSeconds(4)); }   // one in-flight pactl call at most, 3 s
         catch (Exception ex) when (ex is TimeoutException or OperationCanceledException) { _log.LogWarning("default defense did not stop in time"); }
         if (_mixer.Built)
         {

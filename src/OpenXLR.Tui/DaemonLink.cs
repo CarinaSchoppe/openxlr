@@ -16,7 +16,10 @@ namespace OpenXLR.Tui;
 /// </summary>
 internal sealed class DaemonLink : IAsyncDisposable
 {
-    private const int Port = 37890;
+    private const int MaxMessageBytes = 8 * 1024 * 1024;
+    private readonly Uri _uri;
+
+    public DaemonLink(string url = "ws://127.0.0.1:37890/ws") => _uri = new Uri(url);
 
     private readonly CancellationTokenSource _stopping = new();
     private readonly Lock _meterGate = new();
@@ -226,7 +229,7 @@ internal sealed class DaemonLink : IAsyncDisposable
         _socket = socket;
         Status = "connecting";
         Changed?.Invoke();
-        await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{Port}/ws"), _stopping.Token).ConfigureAwait(false);
+        await socket.ConnectAsync(_uri, _stopping.Token).ConfigureAwait(false);
 
         // The token is the first thing on the socket; anything else closes it.
         JsonObject auth = new() { ["cmd"] = "auth", ["token"] = token };
@@ -247,6 +250,8 @@ internal sealed class DaemonLink : IAsyncDisposable
                 Status = result.CloseStatusDescription is { Length: > 0 } reason ? reason : "closed";
                 return;
             }
+            if (result.MessageType != WebSocketMessageType.Text || message.Length + result.Count > MaxMessageBytes)
+                throw new WebSocketException("Invalid or oversized daemon message.");
             message.Write(buffer, 0, result.Count);
             if (!result.EndOfMessage) continue;
             // Decode only a complete message: a large catalogue can split a
@@ -266,7 +271,9 @@ internal sealed class DaemonLink : IAsyncDisposable
         try
         {
             using JsonDocument document = JsonDocument.Parse(json);
-            type = document.RootElement.TryGetProperty("type", out JsonElement value) ? value.GetString() : null;
+            JsonElement root = document.RootElement;
+            type = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("type", out JsonElement value)
+                && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
         }
         catch (JsonException) { return; }
 

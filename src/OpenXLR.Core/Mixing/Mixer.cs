@@ -1372,26 +1372,35 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     /// new devices and replays remembered preferences, so a one-time set is not
     /// enough: this runs every sweep, exactly like Wave Link holds its devices.
     /// </summary>
-    public bool EnforceDefaults()
+    public bool EnforceDefaults(CancellationToken stop = default)
     {
-        string? sink, source;
-        lock (_gate) { sink = ResolveDefaultSink(_enforcedSink, _monitorOutputs); source = _enforcedSource; }
-        bool corrected = false;
-        try
+        // Teardown cannot finish between a default-device check and its
+        // repair, including calls made outside the daemon's regular sweep.
+        lock (_gate)
         {
-            if (sink is not null && _pw.GetDefaultSink() != sink)
+            if (!_built) return false;
+            string? sink = ResolveDefaultSink(_enforcedSink, _monitorOutputs), source = _enforcedSource;
+            bool corrected = false;
+            try
             {
-                _pw.SetDefaultSink(sink);
-                corrected = true;
+                stop.ThrowIfCancellationRequested();
+                if (sink is not null && _pw.GetDefaultSink() != sink)
+                {
+                    stop.ThrowIfCancellationRequested();
+                    _pw.SetDefaultSink(sink);
+                    corrected = true;
+                }
+                stop.ThrowIfCancellationRequested();
+                if (source is not null && _pw.GetDefaultSource() != source)
+                {
+                    stop.ThrowIfCancellationRequested();
+                    _pw.SetDefaultSource(source);
+                    corrected = true;
+                }
             }
-            if (source is not null && _pw.GetDefaultSource() != source)
-            {
-                _pw.SetDefaultSource(source);
-                corrected = true;
-            }
+            catch (InvalidOperationException) { /* device currently absent */ }
+            return corrected;
         }
-        catch (InvalidOperationException) { /* device currently absent */ }
-        return corrected;
     }
 
     /// <summary>

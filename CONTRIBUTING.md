@@ -67,6 +67,10 @@ The desktop keys tests in the main suite start a private session bus with
 a check that asks a running KDE Plasma session for its focused process; it
 routes no audio and is not part of CI.
 
+The idle graph allocation check measures reads on a dedicated warmed thread,
+so test-runner diagnostic allocations are outside the measured interval. It
+still requires zero bytes and the same cached snapshot across 10,000 reads.
+
 The private PipeWire runner also checks profile startup ordering. To exercise
 ClipGuard with recorded test audio, low cut and a native LSP gate, run
 `OPENXLR_TEST_DSP=1 python3 tools/test-monitor-volume.py` after a native-enabled
@@ -115,6 +119,17 @@ or native LV2 editors. Desktop acceptance checks must include plugin
 controls, resizing, moving and reopening editors; Xvfb tests do not replace
 those checks. The optional Windows bridge has a separate artifact workflow
 and [package checks](packaging/yabridge/README.md).
+
+## Dependency updates
+
+The CodeQL init and analyze steps must use the same pinned commit. Dependabot
+groups these actions so a version update changes both steps in one pull request.
+
+Dependabot groups Avalonia packages because the window uses them as one
+framework. A grouped update can still leave a referencing project's lock
+file stale. Run the full solution restore and regenerate the Nix dependency
+list as described above, then commit all changed lock files before the
+locked restore and tests. Do not disable locked mode to make an update pass.
 
 ## Pull requests
 

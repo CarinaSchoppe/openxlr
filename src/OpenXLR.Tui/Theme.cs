@@ -110,43 +110,43 @@ internal sealed class Theme
     public static Theme FromJson(string json, string id, string fallbackName)
     {
         Theme theme = new() { Id = id, Name = fallbackName };
-        JsonObject? root;
-        try { root = JsonNode.Parse(json) as JsonObject; }
+        JsonDocument document;
+        try { document = JsonDocument.Parse(json); }
         catch (JsonException) { return theme; }
-        if (root is null) return theme;
+        using var parsed = document;
+        JsonElement root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object) return theme;
 
-        if (root["controls"] is JsonObject controls)
+        if (root.TryGetProperty("controls", out JsonElement controls) && controls.ValueKind == JsonValueKind.Object)
         {
-            bool Is(string key, string appearance) => controls[key] is JsonValue value &&
-                value.TryGetValue(out string? text) && text == appearance;
+            bool Is(string key, string appearance) => SkinCatalog.Text(controls, key) == appearance;
             theme.ConsoleFaders = Is("fader", "console");
             theme.CapKeys = Is("button", "cap");
             theme.CapMutes = Is("mute", "cap");
             theme.LampLeds = Is("led", "lamp");
         }
 
-        if (root["name"]?.GetValue<string>() is { Length: > 0 } name) theme.Name = name;
-        if (root["tokens"] is not JsonObject tokens) return theme;
+        if (SkinCatalog.Text(root, "name") is { Length: > 0 } name) theme.Name = SkinCatalog.Cut(name);
+        if (!root.TryGetProperty("tokens", out JsonElement tokens) || tokens.ValueKind != JsonValueKind.Object) return theme;
 
         Rgb? Colour(string token)
         {
-            JsonNode? value = tokens[token];
-            return value switch
-            {
-                JsonValue text when text.TryGetValue(out string? hex) => Rgb.TryParse(hex),
-                // A gradient is taken at its first stop, and a solid object at
-                // its colour. A cell cannot hold a ramp.
-                JsonObject shape => Rgb.TryParse(
-                    shape["color"]?.GetValue<string>()
-                    ?? (shape["stops"] as JsonArray)?.FirstOrDefault()?["color"]?.GetValue<string>()),
-                _ => null,
-            };
+            if (!tokens.TryGetProperty(token, out JsonElement value)) return null;
+            if (value.ValueKind == JsonValueKind.String) return Rgb.TryParse(value.GetString());
+            if (value.ValueKind != JsonValueKind.Object) return null;
+            // A gradient is taken at its first stop, and a solid object at
+            // its colour. A cell cannot hold a ramp.
+            string? colour = SkinCatalog.Text(value, "color");
+            if (colour is null && value.TryGetProperty("stops", out JsonElement stops)
+                && stops.ValueKind == JsonValueKind.Array && stops.GetArrayLength() > 0)
+                colour = SkinCatalog.Text(stops[0], "color");
+            return Rgb.TryParse(colour);
         }
 
         double? Number(string token)
         {
-            if (tokens[token] is JsonValue value && value.TryGetValue(out double number) && double.IsFinite(number))
-                return number;
+            if (tokens.TryGetProperty(token, out JsonElement value) && value.ValueKind == JsonValueKind.Number
+                && value.TryGetDouble(out double number) && double.IsFinite(number)) return number;
             return null;
         }
 
@@ -287,19 +287,23 @@ internal static class SkinCatalog
         string name = id, description = string.Empty, author = string.Empty;
         try
         {
-            if (read() is { } json && JsonNode.Parse(json) is JsonObject root)
+            if (read() is { } json)
             {
-                name = root["name"]?.GetValue<string>() ?? id;
-                description = root["description"]?.GetValue<string>() ?? string.Empty;
-                author = root["author"]?.GetValue<string>() ?? string.Empty;
+                using JsonDocument document = JsonDocument.Parse(json);
+                name = Text(document.RootElement, "name") ?? id;
+                description = Text(document.RootElement, "description") ?? string.Empty;
+                author = Text(document.RootElement, "author") ?? string.Empty;
             }
         }
         catch (JsonException) { }
-        catch (InvalidOperationException) { }
         return new SkinEntry(id, Cut(name), Cut(description), Cut(author), read);
     }
 
-    private static string Cut(string text) =>
+    internal static string? Text(JsonElement value, string key) =>
+        value.ValueKind == JsonValueKind.Object && value.TryGetProperty(key, out JsonElement text)
+            && text.ValueKind == JsonValueKind.String ? text.GetString() : null;
+
+    internal static string Cut(string text) =>
         new(text.Where(ch => !char.IsControl(ch)).Take(400).ToArray());
 
     private static string? ReadFile(string path)

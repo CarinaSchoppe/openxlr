@@ -363,6 +363,9 @@ to choose plugins that should use OpenXLR's generated controls instead of their
 own editor. The release list includes Elgato De-Esser because its
 native editor freezes under Wine, and Elgato Noise Removal because closing
 or reopening its native editor can crash the plugin host.
+An open compatibility list refreshes after a daemon reconnect. Edits remain
+disabled while disconnected, and rule changes received during a refresh are
+loaded once the current request finishes.
 
 - Find an installed plugin and press "Use OpenXLR controls" to add a block.
 - Select a blocked entry and choose "Allow native editor" to try its own
@@ -985,6 +988,13 @@ SYSTEM DEFAULT DEVICES, choose the output and input OpenXLR should
 hold; it re-asserts them once a second and reverts any outside change.
 "(don't enforce)" leaves the system alone.
 
+On shutdown, OpenXLR stops scheduling routing repairs and waits for any
+running repair or meter callback before saving settings and removing the
+graph. Repairs stop between phases and default-device helper calls; a helper
+already running retains its existing timeout. Stopping the daemon therefore
+cannot leave a late repair behind that changes the desktop's default output
+after it has exited.
+
 <a name="hardware-only"></a>
 ### 3.8 Hardware control only
 
@@ -1434,8 +1444,9 @@ exact transfer, and that is what makes the report actionable.
 
 The USB deadline covers both sending a request and receiving its reply, so
 a helper that stops reading commands cannot block a large transfer indefinitely.
-Malformed replies also discard the helper; the next connection starts a fresh
-process instead of reusing a broken protocol stream.
+Malformed replies, including inconsistent transfer counts or payload lengths,
+are refused before decoding settings and discard the helper. The next
+connection starts a fresh process instead of reusing a broken protocol stream.
 
 <a name="open-files"></a>
 ### 5.8 Channels or mixes vanish after adding one

@@ -128,6 +128,17 @@ controls, resizing, moving and reopening editors; Xvfb tests do not replace
 those checks. The optional Windows bridge has a separate artifact workflow
 and [package checks](packaging/yabridge/README.md).
 
+## Dependency updates
+
+The CodeQL init and analyze steps must use the same pinned commit. Dependabot
+groups these actions so a version update changes both steps in one pull request.
+
+Dependabot groups Avalonia packages because the window uses them as one
+framework. A grouped update can still leave a referencing project's lock
+file stale. Run the full solution restore and regenerate the Nix dependency
+list as described above, then commit all changed lock files before the
+locked restore and tests. Do not disable locked mode to make an update pass.
+
 ## Pull requests
 
 CI and CodeQL run for pull requests and for direct pushes to `main` and

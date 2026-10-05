@@ -299,6 +299,18 @@ public sealed class ReliabilityFixesTests
         Assert.Equal("third part", NativePluginHost.FoldErrorBlock(line, "\n"));
     }
 
+    [Fact]
+    public void EveryCompleteLineInABlockIsSeenNotOnlyTheLast()
+    {
+        var line = new StringBuilder();
+        var seen = new List<string>();
+        Assert.Equal("second", NativePluginHost.FoldErrorBlock(line, "first\r\nsecond\nthi", seen.Add));
+        Assert.Null(NativePluginHost.FoldErrorBlock(line, "rd", seen.Add));
+        Assert.Equal(["first", "second"], seen);
+        Assert.Equal("third", NativePluginHost.FoldErrorBlock(line, "\n", seen.Add));
+        Assert.Equal(["first", "second", "third"], seen);
+    }
+
     // --- retiring a meter while its pump thread starts up -----------------------
 
     [Fact]

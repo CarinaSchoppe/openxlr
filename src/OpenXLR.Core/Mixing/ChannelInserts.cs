@@ -92,7 +92,7 @@ public sealed partial class Mixer
             SetChannelShapeLocked(channel, inserts.Count > 0);
             if (!_channelInputModules.ContainsKey(key)) return;
             bool active = inserts.Any(i => !i.Bypass && PluginCatalog.Find(i) is { } plugin && plugin.Fits(2));
-            if (active && _restarts.Blocked(key)) _insertErrors[key] = RestartPolicy.GivenUp;
+            if (active && _restarts.Blocked(key)) _insertErrors[key] = _restarts.Message(key);
             else if (active)
             {
                 var chain = _pw.CreateMixChain($"channel_{key}", $"OpenXLR {channel.Name} Inserts", inserts);
@@ -134,7 +134,7 @@ public sealed partial class Mixer
             // A healthy direct fallback must not suppress retries of the
             // failed processing chain. The restart budget still bounds them.
             if (!dead && !broken && !_insertErrors.ContainsKey(key)) continue;
-            if (dead) _restarts.Failed(key);
+            if (dead) ChainDiedLocked(key, chain!);
             WireChannelChainLocked(channel);
             changed = true;
         }

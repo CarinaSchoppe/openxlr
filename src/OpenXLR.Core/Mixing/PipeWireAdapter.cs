@@ -25,6 +25,7 @@ public sealed class PipeWireAdapter
     private readonly List<Process> _filters = [];
     private readonly HashSet<NativePluginHost> _nativeHosts = [];
     private readonly WineSession _wine;
+    private readonly Action<string>? _note;
     private PipeWireGraph? _graph;
 
     /// <summary>Use a registry subscription for this adapter until the returned lease is disposed.</summary>
@@ -64,8 +65,12 @@ public sealed class PipeWireAdapter
     public PipeWireAdapter(Action progress, Action<string>? note = null)
     {
         _progress = progress;
+        _note = note;
         _wine = new WineSession(note);
     }
+
+    /// <summary>Hand the journal one line, when the daemon gave this adapter somewhere to put it.</summary>
+    internal void Note(string line) => _note?.Invoke(line);
 
     internal PipeWireAdapter(Func<DspFeatureAvailability> clipGuardAvailabilityOverride)
     {
@@ -809,7 +814,7 @@ public sealed class PipeWireAdapter
                         throw new InvalidOperationException("The native plugin host is not installed.");
                     if (insert.NativeHost && !info.NativeEditorSupported)
                         throw new InvalidOperationException($"{info.Name} has no editor the native host can open; select the filter chain.");
-                    var host = new NativePluginHost(insert, node, channels, rate, info.Path);
+                    var host = new NativePluginHost(insert, node, channels, rate, info.Path, _note);
                     _nativeHosts.Add(host);
                     // Wine starts behind a bridged plugin and outlives this
                     // helper, so from here on it is this daemon's to end.
@@ -1639,6 +1644,13 @@ public sealed record FilterHandle(string Id, string SinkName, string SourceName,
     internal IReadOnlyList<(string Id, FilterHandle Stage)> InsertStages { get; init; } = [];
     internal bool IsAlive => Stages.Count > 0 ? Stages.All(stage => stage.IsAlive)
         : NativeHost?.IsHealthy ?? !Process.HasExited;
+    /// <summary>
+    /// What the native helper that brought this chain down last said, or
+    /// null when no helper died or it died saying nothing.
+    /// </summary>
+    internal string? LastWords => Stages.Count > 0
+        ? Stages.Select(stage => stage.LastWords).FirstOrDefault(words => words is not null)
+        : NativeHost is { IsHealthy: false } host && host.LastMessage.Trim() is { Length: > 0 } said ? said : null;
 }
 
 /// <summary>Whether an optional host-side DSP feature can be loaded safely.</summary>

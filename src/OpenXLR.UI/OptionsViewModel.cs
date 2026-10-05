@@ -358,12 +358,12 @@ public sealed class OptionsViewModel : ViewModelBase
         set
         {
             if (_httpApiEnabled == value) return;
-            if (!_main.DaemonRestart.CanRestart) { Raise(nameof(HttpApiEnabled)); return; }
+            if (!_main.DaemonRestart.CanRestart) { Reject(ref _httpApiEnabled, value, nameof(HttpApiEnabled)); return; }
             try { (DaemonPrefs.Load() with { HttpApiEnabled = value }).Save(); }
             catch (Exception ex)
             {
                 HttpApiNote = $"Could not save the setting: {ex.Message}";
-                Raise(nameof(HttpApiEnabled));
+                Reject(ref _httpApiEnabled, value, nameof(HttpApiEnabled));
                 return;
             }
             Set(ref _httpApiEnabled, value);
@@ -382,19 +382,19 @@ public sealed class OptionsViewModel : ViewModelBase
         get => _submixer;
         set
         {
-            if (!_main.DaemonRestart.CanRestart) { Raise(nameof(Submixer)); return; }
-            if (!Set(ref _submixer, value)) return;
+            if (_submixer == value) return;
+            if (!_main.DaemonRestart.CanRestart) { Reject(ref _submixer, value, nameof(Submixer)); return; }
             try
             {
                 (DaemonPrefs.Load() with { Submixer = value }).Save();
             }
             catch (Exception ex)
             {
-                _submixer = !value;
-                Raise(nameof(Submixer));
+                Reject(ref _submixer, value, nameof(Submixer));
                 SubmixerNote = $"Could not save the setting: {ex.Message}";
                 return;
             }
+            Set(ref _submixer, value);
             _ = RestartForSettingAsync(api: false);
         }
     }

@@ -35,6 +35,7 @@ query strings are not accepted. Keep the token out of logs and bug reports.
 `daemon.json` (default true for existing installations) and restarts the audio
 service. This briefly interrupts audio and disconnects all clients. If the
 restart fails, the window says the choice is saved but still needs a restart.
+If the setting cannot be saved, the switch returns to its previous position.
 The window stays responsive during the restart. API and mixer switches and the
 other restart buttons remain unavailable until that restart finishes.
 Disabling blocks every `/api/v1` resource, command and event connection with

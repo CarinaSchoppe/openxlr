@@ -48,6 +48,7 @@ public sealed class WindowLayoutTests
                     .GetValue(main)!).DisposeAsync().AsTask().GetAwaiter().GetResult();
                 Dispatcher.UIThread.RunJobs();
                 ProfileSliderWindowTests.Check();
+                HttpApiSettingsTests.CheckBoundSwitchRollback();
                 var vm = new MainViewModel(new DaemonClient());
                 main.DataContext = vm;
                 typeof(MainViewModel).GetMethod("ApplyMixer", BindingFlags.Instance | BindingFlags.NonPublic)!

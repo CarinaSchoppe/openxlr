@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Http;
+using Avalonia.Controls;
+using Avalonia.Data;
 using OpenXLR.Core;
 using OpenXLR.Core.Mixing;
 using OpenXLR.Daemon;
@@ -63,6 +65,42 @@ public sealed class HttpApiSettingsTests : IDisposable
         vm.Submixer = false;
         Assert.True(vm.Submixer);
         Assert.Contains("Could not save", vm.SubmixerNote);
+    }
+
+    // Run by WindowLayoutTests on its real Avalonia UI thread. General
+    // asynchronous tests can resume on different threads between cases.
+    internal static void CheckBoundSwitchRollback()
+    {
+        foreach (bool initial in new[] { true, false })
+        {
+            using var fixture = new HttpApiSettingsTests();
+            new DaemonSettings { HttpApiEnabled = initial, Submixer = initial }.Save();
+            var client = new DaemonClient("ws://127.0.0.1:1/ws");
+            try
+            {
+                var vm = new OptionsViewModel(client, new MainViewModel(client));
+                var api = new CheckBox { DataContext = vm };
+                var mixer = new CheckBox { DataContext = vm };
+                using var apiBinding = api.Bind(CheckBox.IsCheckedProperty,
+                    new Binding(nameof(OptionsViewModel.HttpApiEnabled)) { Mode = BindingMode.TwoWay });
+                using var mixerBinding = mixer.Bind(CheckBox.IsCheckedProperty,
+                    new Binding(nameof(OptionsViewModel.Submixer)) { Mode = BindingMode.TwoWay });
+                string file = Path.Combine(fixture._directory, "openxlr", "daemon.json");
+                File.Delete(file);
+                Directory.CreateDirectory(file);
+
+                api.IsChecked = !initial;
+                mixer.IsChecked = !initial;
+
+                Assert.Equal(initial, vm.HttpApiEnabled);
+                Assert.Equal(initial, api.IsChecked);
+                Assert.Equal(initial, vm.Submixer);
+                Assert.Equal(initial, mixer.IsChecked);
+                Assert.Contains("Could not save", vm.HttpApiNote);
+                Assert.Contains("Could not save", vm.SubmixerNote);
+            }
+            finally { client.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+        }
     }
 
     [Fact]

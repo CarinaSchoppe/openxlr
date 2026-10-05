@@ -13,10 +13,9 @@ namespace OpenXLR.Tests;
 public sealed class WindowLayoutTests
 {
     /// <summary>
-    /// The widest fixed row in the mixer, the seven input toggles, needs about
-    /// 660 logical pixels. The window must not refuse to go narrower than that.
+    /// Keep the existing narrow-window allowance as the controls reflow.
     /// </summary>
-    private const double WidestFixedRow = 660;
+    private const double MaximumAllowedMinimumWidth = 660;
 
     /// <summary>Faders and dropdowns stop growing here, however wide the screen is.</summary>
     private const double ContentCap = 1300;
@@ -73,13 +72,15 @@ public sealed class WindowLayoutTests
                 main.DataContext = vm;
                 main.Show();
 
-                // No floor above the widest row: the window squeezes to 640.
-                Assert.InRange(main.MinWidth, 0, WidestFixedRow);
+                // The window must still allow its existing narrow size.
+                Assert.InRange(main.MinWidth, 0, MaximumAllowedMinimumWidth);
 
                 foreach (double width in new[] { 640d, 760, 1040, 1800, 2400 })
                 {
                     Layout(main, width, 900);
                     Assert.Equal(width, main.ClientSize.Width);
+                    MainWindowLabelTests.Check(main);
+                    if (width == 640) MainWindowLabelTests.CheckLongDeviceLabels(main);
                     if (width == 640)
                     {
                         var output = main.FindControl<Slider>("OutputVolumeSlider")!;
@@ -125,7 +126,7 @@ public sealed class WindowLayoutTests
                     else Assert.InRange(content.Bounds.Width, ContentCap / 2, ContentCap);
 
                     // Every input toggle keeps a usable width and stays in the window.
-                    foreach (var row in main.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.UniformGrid>())
+                    foreach (var row in new[] { main.FindControl<WrapPanel>("InputControls")!, main.FindControl<WrapPanel>("Input2Controls")! })
                         foreach (var toggle in row.Children.Where(c => c.IsVisible))
                         {
                             Assert.True(toggle.Bounds.Width > 40, $"A toggle shrank to {toggle.Bounds.Width}. {where}");

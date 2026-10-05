@@ -160,6 +160,10 @@ affects only the display; the daemon continues processing audio.
    on: your speakers, a headset, or several at once. On the Wave XLR
    Pro its own outputs (Headphones 1, Headphones 2, Line Out) appear
    here too; ticking one switches the hardware's output routing.
+OpenXLR retries incomplete audio connections, including a stereo feed
+with only one side connected, and preserves the working side of a microphone
+feed while repairing it. Microphone and USB Aux feeds also recover
+   when their device returns. Mono outputs do not require a second channel.
 2. Next to a ticked device, the feed picker says which mix it
    hears. Leave it on Monitor A, or choose Monitor B for an output that
    should hear a different selection: a headset whose game side and
@@ -469,7 +473,9 @@ Without the companion, a distribution yabridge works only with Wine older
 than 9.22. From 9.22 an embedded plugin window never learns where it is,
 so every click lands as far from the pointer as the window is from the
 corner of the screen, and the plugin ignores the mouse entirely. Options
-says so when it sees that pair of versions.
+says so when it sees that pair of versions. An unreadable or out-of-range
+Wine version number leaves the setup information available but cannot
+establish that this editor compatibility warning applies.
 
 The companion keeps those wrappers in
 `~/.local/share/openxlr/yabridge/{vst3,clap}` and its directory registry in

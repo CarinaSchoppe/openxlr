@@ -572,6 +572,35 @@ public sealed class PluginInstallerTests : IDisposable
         Assert.False(PluginInstaller.AtLeast("", 1, 0));
     }
 
+    [Theory]
+    [InlineData("wine-99999999999999999999999999.1")]
+    [InlineData("wine-9.99999999999999999999999999")]
+    [InlineData("wine-2147483648.22")]
+    [InlineData("wine-9.2147483648")]
+    public void OutOfRangeVersionNumbersAreUnknown(string version)
+    {
+        Assert.False(PluginInstaller.AtLeast(version, 9, 22));
+        Assert.False(PluginInstaller.EditorsIgnoreTheMouse("5.1.1", version));
+    }
+
+    [Theory]
+    [InlineData("wine-2147483647.22")]
+    [InlineData("wine-9.2147483647")]
+    [InlineData("wine-0000000000000000000000000009.22")]
+    public void RepresentableVersionNumbersStillCompare(string version)
+        => Assert.True(PluginInstaller.AtLeast(version, 9, 22));
+
+    [Fact]
+    public void AnUnrecognizedWineVersionDoesNotBreakSetup()
+    {
+        string wine = Path.Combine(_root, "wine");
+        ExecutableScript.Write(wine, "#!/bin/sh\nprintf '%s\\n' 'wine-99999999999999999999999999.1'\n");
+        PluginSetup setup = Installer(FakeYabridgectl(), wine).Setup();
+        Assert.True(setup.Wine);
+        Assert.Equal("wine-99999999999999999999999999.1", setup.WineVersion);
+        Assert.Null(setup.WindowsEditorNote);
+    }
+
     [Fact]
     public void TheSetupNamesTheDirectoriesAndWhatIsMissing()
     {

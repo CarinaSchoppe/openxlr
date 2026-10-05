@@ -315,8 +315,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 }
 
                 // Reuse a healthy direct feed when neither the source nor the
-                // DSP changed. Trying to create the same pw-link again returns
-                // EEXIST and would look like a failed route.
+                // DSP changed, without recreating identical port links.
                 if (previousInput == nextInput && !_chains.ContainsKey(ch.Id)
                     && _inputFeeds.TryGetValue(ch.Id, out PortLink? directFeed)
                     && _pw.EnsureLinks(directFeed) != LinkHealth.Broken)
@@ -341,15 +340,13 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             // reused from the old direct graph must stay connected.
             foreach (PortLink link in nextChainOuts.Values) _pw.Unlink(link);
             foreach ((string key, PortLink link) in nextFeeds)
-                if (!_inputFeeds.TryGetValue(key, out PortLink? old) || !ReferenceEquals(old, link))
-                    _pw.Unlink(link);
+                UnlinkDiscardedFeed(link, _inputFeeds.GetValueOrDefault(key));
             foreach (FilterHandle chain in nextChains.Values) _pw.StopFilter(chain);
             throw;
         }
 
         foreach ((string key, PortLink old) in _inputFeeds)
-            if (!nextFeeds.TryGetValue(key, out PortLink? keep) || !ReferenceEquals(old, keep))
-                _pw.Unlink(old);
+            UnlinkDiscardedFeed(old, nextFeeds.GetValueOrDefault(key));
         foreach (PortLink old in _chainOuts.Values) _pw.Unlink(old);
         foreach (string key in _chains.Keys.Where(IsHardwareInsert).ToList())
         {
@@ -373,6 +370,15 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         {
             ChannelDefinition? ch = _config.Channels.FirstOrDefault(c => c.Id == key);
             if (ch is not null) _pw.UnlinkNodes(nextInput, ch.SinkName);
+        }
+
+        void UnlinkDiscardedFeed(PortLink discarded, PortLink? retained)
+        {
+            if (ReferenceEquals(discarded, retained)) return;
+            // A repaired direct feed can share its surviving pair with the old
+            // route. Keep it connected on both commit and rollback.
+            _pw.Unlink(retained is null ? discarded
+                : new PortLink(discarded.Pairs.Except(retained.Pairs).ToArray()));
         }
     }
 
@@ -526,7 +532,12 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     {
         lock (_gate)
         {
-            if (!_built || !_auxPortEnabled || _auxRoute is not null) return false;
+            if (!_built || !_auxPortEnabled) return false;
+            if (_auxRoute is not null)
+            {
+                LinkHealth health = _pw.EnsureLinks(_auxRoute);
+                if (health != LinkHealth.Broken) return health == LinkHealth.Relinked;
+            }
             WireAuxRouteLocked();
             return _auxRoute is not null;
         }
@@ -1680,7 +1691,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             {
                 (string tap, string prefix) = MixTapLocked(mix);
                 PortLink route = _pw.RouteTapToOutput(tap, prefix, target);
-                if (route.Pairs.Count == 0) _incompleteMonitorRoutes.Add(key);
+                if (route.Pairs.Count == 0 || !route.Complete) _incompleteMonitorRoutes.Add(key);
                 pairs.AddRange(route.Pairs);
             }
         }

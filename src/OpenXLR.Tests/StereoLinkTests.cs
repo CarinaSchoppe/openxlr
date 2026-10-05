@@ -7,6 +7,13 @@ public sealed class StereoLinkTests
 {
     [MonitorPipeWireFact]
     public void HealthyStereoLinksUseTheRegistryWithoutLaunchingALinkCommand()
+        => CheckHealthyLinks(requireStereo: false);
+
+    [MonitorPipeWireFact]
+    public void HealthyRequiredStereoLinksUseTheRegistryWithoutLaunchingALinkCommand()
+        => CheckHealthyLinks(requireStereo: true);
+
+    private static void CheckHealthyLinks(bool requireStereo)
     {
         string directory = Directory.CreateTempSubdirectory("openxlr-link-probe-").FullName;
         string? path = Environment.GetEnvironmentVariable("PATH");
@@ -16,7 +23,10 @@ public sealed class StereoLinkTests
         {
             pw.CreateNullSink("link_source", "Source");
             pw.CreateNullSink("link_target", "Target");
-            var link = pw.LinkStereoNodes("link_source", "monitor", "link_target", "playback");
+            var link = requireStereo
+                ? pw.LinkStereoNodes("link_source", "monitor", "link_target", "playback")
+                : pw.LinkNodes("link_source", "monitor", "link_target", "playback");
+            Assert.Equal(2, link.Pairs.Count);
             Assert.True(SpinWait.SpinUntil(() => pw.EnsureLinks(link) == LinkHealth.Healthy, TimeSpan.FromSeconds(3)));
             ExecutableScript.Write(Path.Combine(directory, "pw-link"), """
                 printf called >> "${0%/*}/calls"

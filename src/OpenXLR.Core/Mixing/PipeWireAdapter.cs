@@ -1126,15 +1126,18 @@ public sealed class PipeWireAdapter
             return i < 0 ? "" : port[(i + 1)..];
         }
         var pairs = new List<(string From, string To)>();
+        bool complete = true;
         for (int i = 0; i < ins.Count && (outs.Count > 0); i++)
         {
             string to = ins[i];
             string from = outs.FirstOrDefault(o => Chan(o) != "" && Chan(o) == Chan(to))
                 ?? outs[Math.Min(i, outs.Count - 1)];
             try { Run("pw-link", from, to); pairs.Add((from, to)); }
-            catch (InvalidOperationException) { /* racing a disappearing port */ }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("File exists", StringComparison.Ordinal))
+            { pairs.Add((from, to)); }
+            catch (InvalidOperationException) { complete = false; } // racing a disappearing port
         }
-        return new PortLink(pairs);
+        return new PortLink(pairs) { Complete = complete };
     }
 
     /// <summary>Wait for both sides of an owned stereo route after asynchronous node creation.</summary>
@@ -1189,6 +1192,7 @@ public sealed class PipeWireAdapter
     /// </summary>
     public LinkHealth EnsureLinks(PortLink link)
     {
+        if (!link.Complete) return LinkHealth.Broken;
         var health = LinkHealth.Healthy;
         var known = GraphLinks();
         foreach ((string from, string to) in link.Pairs)
@@ -1754,7 +1758,11 @@ public sealed record FilterHandle(string Id, string SinkName, string SourceName,
 public sealed record DspFeatureAvailability(bool Available, string? Error);
 
 /// <summary>A set of direct port links between two nodes.</summary>
-public sealed record PortLink(IReadOnlyList<(string From, string To)> Pairs);
+public sealed record PortLink(IReadOnlyList<(string From, string To)> Pairs)
+{
+    /// <summary>Every discovered pair connected successfully when the route was created.</summary>
+    internal bool Complete { get; init; } = true;
+}
 
 /// <summary>Outcome of verifying a <see cref="PortLink"/>'s pairs.</summary>
 public enum LinkHealth { Healthy, Relinked, Broken }

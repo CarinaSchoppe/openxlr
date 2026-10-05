@@ -1826,7 +1826,9 @@ one solid bar whichever appearance the skin names, and its colour runs from
 the fill colour through the warning colour to the hot colour along the
 scale, so the top of a loud bar is red and the bottom stays green. A terminal advertising true colour through
 `COLORTERM` gets RGB cells; otherwise it gets xterm-256 colours. Each frame
-writes only changed cells, at most fifteen times per second.
+writes only changed cells, at most fifteen times per second. Control characters in
+labels and skin names are displayed as spaces, so incoming text cannot move
+the cursor or issue terminal commands.
 
 It needs a terminal. With its output piped somewhere it says so and stops.
 

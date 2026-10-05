@@ -131,7 +131,8 @@ internal sealed class Screen
     public void Set(int x, int y, char ch, Rgb fore, Rgb back, bool bold = false)
     {
         if (x < 0 || y < 0 || x >= Width || y >= Height) return;
-        _cells[y, x] = new Cell(ch, fore, back, bold);
+        // Labels and skin names are data. Only Render may emit terminal controls.
+        _cells[y, x] = new Cell(char.IsControl(ch) ? ' ' : ch, fore, back, bold);
     }
 
     public void Fill(int x, int y, int width, int height, Rgb back)

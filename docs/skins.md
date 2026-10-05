@@ -53,6 +53,39 @@ can pick another one from Options. Options says when a run was started
 that way. Any id works there, not only `default`, which is the quickest
 way to try a skin without selecting it.
 
+## Stream Deck colours
+
+The OpenDeck plugin uses the same saved skin for key surfaces, lettering,
+indicators, dial icons and needles, and meter colours and thresholds. Built-in
+palettes travel with the plugin; regenerate `skin-palettes.json` with
+`python3 tools/deck-skins.py` after changing embedded skins or colour defaults.
+CI checks the generated table and tests its defaults against `SkinTokens`.
+
+The window publishes its realised palette to the private
+`~/.config/openxlr/deck-palette.json` when it applies a skin. This also carries
+the effective light or dark colours without a second desktop-theme connection
+in the plugin. The file is an atomic, schema-1 object containing `skin`, the window process `pid` and
+`tokens`, with only the twelve colour and meter values the keys need. It does
+not change `ui.json` or audio profiles. A write failure appears in the skin's
+errors and leaves the plugin's file-based fallback available.
+
+Without a matching palette from a running window, the plugin reads the saved `skin` from
+`ui.json` and the selected package from the usual XDG skin roots, user first,
+then system, then the embedded palette. Unknown ids and invalid documents fall
+back to Material. `OPENXLR_SKIN` in the plugin's own environment overrides the
+saved choice and the published palette for that run. Empty variables are unset.
+File events follow atomic saves and newly created or removed skin folders;
+unchanged colours cause no redraw. Meter updates perform no filesystem work.
+
+The Deck preserves its owned glyphs and key geometry. Gradients on surfaces
+use their first stop; images and control templates stay in the window. Hex
+RGB and alpha-first ARGB colours are accepted, as are black, white,
+transparent, red, green, blue, yellow, gray and grey. Other named colours use
+the token default unless the window publishes their resolved colour. Meter
+and LED colours are flat; invalid or crossed meter thresholds use the defaults.
+Documents are limited to 256 KiB and must be regular files. Up to 32 XDG data
+roots are considered. No document can supply SVG, code or an asset URL.
+
 ## Getting started
 
 A skin can be eight lines. Put this in

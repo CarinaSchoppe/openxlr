@@ -1099,6 +1099,13 @@ audio, the mixer, the routing and the layout are untouched, and nothing is
 restarted. The choice is saved in `~/.config/openxlr/ui.json` and is not
 part of a profile or of the mixer layout.
 
+OpenDeck keys and dials follow the appearance selected in OpenXLR. Their
+colours update while the plugin is running, including a stationary meter;
+key artwork and user titles remain under their existing controls. The window
+shares the colours it actually applied, including the active light or dark
+palette. Without the window, the plugin uses the saved skin and its built-in
+palette or installed skin file. See [skins.md](skins.md) for details.
+
 Anything wrong with a skin is listed under the picker, not in the mixer
 window. A skin that sets only part of the appearance keeps the default for
 everything else.

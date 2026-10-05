@@ -244,14 +244,16 @@ public sealed class ScanCache
         // A linked architecture or search folder can select another build
         // without changing a module's size or timestamp. Resolve its parent
         // once per directory in this walk, not once per resource file.
-        string parent = Path.GetDirectoryName(Path.GetFullPath(path))!;
+        string full = Path.GetFullPath(path);
+        string parent = Path.GetDirectoryName(full)!;
         if (directories is null || !directories.TryGetValue(parent, out string? canonical))
         {
             canonical = WindowsPluginWrappers.Canonical(parent);
             directories?.Add(parent, canonical);
         }
-        var info = new FileInfo(Path.Combine(canonical, Path.GetFileName(path)));
-        string target = info.FullName == Path.GetFullPath(path) ? "" : info.FullName;
+        bool linkedParent = canonical != parent;
+        var info = new FileInfo(linkedParent ? Path.Combine(canonical, Path.GetFileName(full)) : full);
+        string target = linkedParent ? info.FullName : "";
         // Bridge bundles link to the original Windows module. FileInfo on
         // the link describes the link itself, which stays unchanged when the
         // plugin is updated, moved or deleted. Stamp the loaded file instead,

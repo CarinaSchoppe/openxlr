@@ -86,19 +86,26 @@ static void attributes() {
   assert(memcmp(data, "abc", size) == 0);
 }
 
-static void latency_notification() {
+// What a plugin may ask of the host after activation. Only a changed
+// component or bus layout costs the process; a new latency figure does not.
+static void restart() {
   Vst3 v;
   ComponentHandler handler(&v);
   assert(handler.restartComponent(RestartFlags::kLatencyChanged) == kResultOk);
-  assert(!v.restart_requested);
-  handler.restartComponent(RestartFlags::kLatencyChanged | RestartFlags::kIoChanged);
+  assert(!v.restart_requested && !v.values_changed);
+  assert(handler.restartComponent(RestartFlags::kParamValuesChanged) == kResultOk);
+  assert(!v.restart_requested && v.values_changed);
+  assert(handler.restartComponent(RestartFlags::kLatencyChanged | RestartFlags::kIoChanged) == kResultOk);
+  assert(v.restart_requested.exchange(false));
+  assert(handler.restartComponent(RestartFlags::kReloadComponent) == kResultOk);
+
   assert(v.restart_requested);
 }
 
 int main(int argc, char **argv) {
-  latency_notification();
   if (argc == 1 || !strcmp(argv[1], "parameters")) parameters();
   if (argc == 1 || !strcmp(argv[1], "stream")) stream();
   if (argc == 1 || !strcmp(argv[1], "attributes")) attributes();
+  if (argc == 1 || !strcmp(argv[1], "restart")) restart();
   puts("VST3 host bounds passed");
 }

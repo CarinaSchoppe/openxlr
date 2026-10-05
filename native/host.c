@@ -209,6 +209,7 @@ void *control_backend(const Control *c) { return c->backend; }
 
 void host_fail(Host *h, const char *why) {
   fprintf(stderr, "%s; restart the chain\n", why);
+  atomic_store(&h->failure_explained, true);
   atomic_store(&h->audio_error, true);
 }
 
@@ -744,9 +745,13 @@ static void tick(void *data, uint64_t expirations) {
     h->heartbeat_ticks = 0;
   }
   if (atomic_load(&h->audio_error)) {
-    fputs("unsupported audio quantum or sample-rate change; restart the "
-          "chain\n",
-          stderr);
+    // The supervisor reports the last line written here, so a reason
+    // host_fail already gave must stay the last one. Only the audio
+    // thread's own refusal arrives unexplained: it cannot write.
+    if (!atomic_load(&h->failure_explained))
+      fputs("unsupported audio quantum or sample-rate change; restart the "
+            "chain\n",
+            stderr);
     h->exit_code = 1;
     pw_main_loop_quit(h->loop);
     return;

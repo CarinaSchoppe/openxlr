@@ -28,7 +28,9 @@ internal sealed class NativePluginHost : IDisposable
     private TaskCompletionSource<string?>? _uiReply;
     private readonly Task _outputReader;
     private readonly Task _errorReader;
-    private string _error = "";
+    private volatile string _error = "";
+    private readonly Action<string>? _note;
+    private readonly string _node;
     private int _disposed;
     private long _lastHeartbeat = Stopwatch.GetTimestamp();
     private long _lastUiHeartbeat = Stopwatch.GetTimestamp();
@@ -148,16 +150,20 @@ internal sealed class NativePluginHost : IDisposable
             or "http://lv2plug.in/ns/extensions/ui#resize"
             or "http://lv2plug.in/ns/extensions/ui#idleInterface");
 
-    public NativePluginHost(InsertDefinition insert, string node, int channels, int sampleRate, string? bundle = null)
+    public NativePluginHost(InsertDefinition insert, string node, int channels, int sampleRate, string? bundle = null,
+        Action<string>? note = null)
         : this(insert, node, channels, sampleRate, Executable, [], bundle: bundle,
             meterSymbols: PluginCatalog.Find(insert)?.Params.Select(p => p.Symbol).ToHashSet(StringComparer.Ordinal)
-                ?? new HashSet<string>(StringComparer.Ordinal)) { }
+                ?? new HashSet<string>(StringComparer.Ordinal), note: note) { }
 
     internal NativePluginHost(InsertDefinition insert, string node, int channels, int sampleRate,
         string executable, IReadOnlyList<string> prefixArguments, TimeSpan? startupTimeout = null,
-        TimeSpan? patience = null, string? bundle = null, IReadOnlySet<string>? meterSymbols = null)
+        TimeSpan? patience = null, string? bundle = null, IReadOnlySet<string>? meterSymbols = null,
+        Action<string>? note = null)
     {
         if (patience is { } chosen) _patience = chosen;
+        _note = note;
+        _node = node;
         _meterSymbols = meterSymbols;
         _sampleRate = sampleRate;
         Bridged = WineSession.Bridged(bundle);
@@ -298,8 +304,10 @@ internal sealed class NativePluginHost : IDisposable
     /// <see cref="ErrorLineCap"/> characters, whatever the block contains:
     /// everything past that is dropped where it arrives, so a plugin writing
     /// without newlines cannot make the daemon hold its output.
+    /// <paramref name="seen"/> is handed every complete line, not only the last.
     /// </summary>
-    internal static string? FoldErrorBlock(System.Text.StringBuilder line, ReadOnlySpan<char> block)
+    internal static string? FoldErrorBlock(System.Text.StringBuilder line, ReadOnlySpan<char> block,
+        Action<string>? seen = null)
     {
         string? complete = null;
         foreach (char c in block)
@@ -311,6 +319,7 @@ internal sealed class NativePluginHost : IDisposable
             }
             complete = line.ToString().TrimEnd('\r');
             line.Clear();
+            seen?.Invoke(complete);
         }
         return complete;
     }
@@ -328,15 +337,51 @@ internal sealed class NativePluginHost : IDisposable
     {
         var block = new char[1024];
         var line = new System.Text.StringBuilder(ErrorLineCap);
+        Action<string>? seen = _note is null ? null : ForwardTrace;
         try
         {
             int read;
             while ((read = await Process.StandardError.ReadAsync(block.AsMemory(), _stop.Token).ConfigureAwait(false)) > 0)
-                if (FoldErrorBlock(line, block.AsSpan(0, read)) is string complete) _error = complete;
+                if (FoldErrorBlock(line, block.AsSpan(0, read), seen) is string complete) _error = complete;
             // A helper that dies mid-sentence still gets to explain itself.
             if (line.Length > 0) _error = line.ToString();
         }
         catch (Exception ex) when (ex is OperationCanceledException or IOException) { }
+    }
+
+    /// <summary>How many trace lines one helper may put in the journal.</summary>
+    internal const int TraceLineBudget = 64;
+    private int _traceLines;
+
+    /// <summary>
+    /// Pass the helper's own trace lines to the journal. Only what the helper
+    /// marks as trace is forwarded, and only so much of it: a plugin shares
+    /// this stream and must not be able to fill the journal through it.
+    /// </summary>
+    private void ForwardTrace(string line)
+    {
+        if (!line.StartsWith("trace: ", StringComparison.Ordinal) || _traceLines >= TraceLineBudget) return;
+        _traceLines++;
+        _note?.Invoke($"Plugin host {_node}: {line}");
+    }
+
+    /// <summary>
+    /// The last line the helper wrote to stderr, which is where it says why
+    /// it is giving up. Once the process has gone, the reader is given a
+    /// moment to reach the end of the stream; the wait is bounded because a
+    /// child the helper left behind can hold the pipe open.
+    /// </summary>
+    public string LastMessage
+    {
+        get
+        {
+            if (!IsRunning && Volatile.Read(ref _disposed) == 0)
+            {
+                try { _errorReader.Wait(TimeSpan.FromMilliseconds(250)); }
+                catch (AggregateException) { }
+            }
+            return _error;
+        }
     }
 
     private async Task SendAsync(string command, CancellationToken cancellation)

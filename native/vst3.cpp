@@ -545,7 +545,10 @@ class ComponentHandler final : public IComponentHandler,
   tresult PLUGIN_API performEdit(ParamID id, ParamValue normalized) override;
   tresult PLUGIN_API endEdit(ParamID) override { return kResultOk; }
   tresult PLUGIN_API restartComponent(int32 flags) override {
-    // Latency is read on the main-thread tick; it does not require reloading DSP.
+    if (trace_enabled)
+      fprintf(stderr, "trace: restartComponent flags %#x\n", (unsigned)flags);
+    // Latency is read on the main-thread tick. A changed figure does not
+    // require reloading DSP, including plugins reporting it on activation.
     if (flags & (RestartFlags::kReloadComponent | RestartFlags::kIoChanged))
       v_->restart_requested = true;
     if (flags & RestartFlags::kParamValuesChanged)

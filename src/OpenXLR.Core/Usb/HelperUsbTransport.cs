@@ -85,7 +85,16 @@ public sealed class HelperUsbTransport : IUsbTransport
                     (isRead ? "" : $" data {Convert.ToHexString(data.AsSpan(0, Math.Min(wLength, data.Length)))}"));
             });
             int code = BinaryPrimitives.ReadInt32LittleEndian(reply);
-            if (isRead && code > 0) reply.AsSpan(4, Math.Min(reply.Length - 4, data.Length)).CopyTo(data);
+            int payloadLength = isRead && code > 0 ? code : 0;
+            // Device decoders trust the returned count when accepting a
+            // complete settings block. Never report bytes we did not receive
+            // or change the caller's buffer before validating the whole reply.
+            if (code > wLength || payloadLength > data.Length || reply.Length - 4 != payloadLength)
+            {
+                Kill();
+                throw new IOException("USB helper transfer count does not match its reply payload or requested length");
+            }
+            if (payloadLength > 0) reply.AsSpan(4, payloadLength).CopyTo(data);
             return code;
         }
     }

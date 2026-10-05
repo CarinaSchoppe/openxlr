@@ -362,6 +362,9 @@ to choose plugins that should use OpenXLR's generated controls instead of their
 own editor. The release list includes Elgato De-Esser because its
 native editor freezes under Wine, and Elgato Noise Removal because closing
 or reopening its native editor can crash the plugin host.
+An open compatibility list refreshes after a daemon reconnect. Edits remain
+disabled while disconnected, and rule changes received during a refresh are
+loaded once the current request finishes.
 
 - Find an installed plugin and press "Use OpenXLR controls" to add a block.
 - Select a blocked entry and choose "Allow native editor" to try its own
@@ -467,7 +470,9 @@ Without the companion, a distribution yabridge works only with Wine older
 than 9.22. From 9.22 an embedded plugin window never learns where it is,
 so every click lands as far from the pointer as the window is from the
 corner of the screen, and the plugin ignores the mouse entirely. Options
-says so when it sees that pair of versions.
+says so when it sees that pair of versions. An unreadable or out-of-range
+Wine version number leaves the setup information available but cannot
+establish that this editor compatibility warning applies.
 
 The companion keeps those wrappers in
 `~/.local/share/openxlr/yabridge/{vst3,clap}` and its directory registry in
@@ -984,6 +989,13 @@ SYSTEM DEFAULT DEVICES, choose the output and input OpenXLR should
 hold; it re-asserts them once a second and reverts any outside change.
 "(don't enforce)" leaves the system alone.
 
+On shutdown, OpenXLR stops scheduling routing repairs and waits for any
+running repair or meter callback before saving settings and removing the
+graph. Repairs stop between phases and default-device helper calls; a helper
+already running retains its existing timeout. Stopping the daemon therefore
+cannot leave a late repair behind that changes the desktop's default output
+after it has exited.
+
 <a name="hardware-only"></a>
 ### 3.8 Hardware control only
 
@@ -1257,6 +1269,9 @@ The scan diagnostics include the missing link target when available.
 An ordinary missing plugin path or dangling bundle link is reported
 separately. Updating or restoring a linked source causes it to be scanned
 again even when the generated Linux wrapper did not change.
+Switching a linked search folder or a linked folder inside a bundle to a
+different plugin build also invalidates its cached description and any
+previous scan failure, even when the files have the same sizes and times.
 
 <a name="stream-deck"></a>
 ## 4. Stream Deck (OpenDeck)
@@ -1423,8 +1438,9 @@ exact transfer, and that is what makes the report actionable.
 
 The USB deadline covers both sending a request and receiving its reply, so
 a helper that stops reading commands cannot block a large transfer indefinitely.
-Malformed replies also discard the helper; the next connection starts a fresh
-process instead of reusing a broken protocol stream.
+Malformed replies, including inconsistent transfer counts or payload lengths,
+are refused before decoding settings and discard the helper. The next
+connection starts a fresh process instead of reusing a broken protocol stream.
 
 <a name="open-files"></a>
 ### 5.8 Channels or mixes vanish after adding one
@@ -1492,8 +1508,10 @@ one post per problem in its support forum), on Reddit at
 <https://www.reddit.com/r/OpenXLR/>, or open a GitHub issue; whichever
 you pick, attach the diagnostics archive described below.
 
-Options, SUPPORT, Collect diagnostics. It writes
-`~/openxlr-diagnostics-<timestamp>.tar.gz` with the daemon's state and
+Options, SUPPORT, Collect diagnostics. Each collection gets a unique private
+archive, so simultaneous reports cannot collide. Failed collections remove
+incomplete archives. It writes
+`~/openxlr-diagnostics-<timestamp>-<id>.tar.gz` with the daemon's state and
 capabilities, a dump of the interface's vendor blocks, the PipeWire
 graph and device listings, the recent daemon journal, the
 configuration files and version information. Plugin evidence includes the
@@ -1827,7 +1845,9 @@ one solid bar whichever appearance the skin names, and its colour runs from
 the fill colour through the warning colour to the hot colour along the
 scale, so the top of a loud bar is red and the bottom stays green. A terminal advertising true colour through
 `COLORTERM` gets RGB cells; otherwise it gets xterm-256 colours. Each frame
-writes only changed cells, at most fifteen times per second.
+writes only changed cells, at most fifteen times per second. Control characters in
+labels and skin names are displayed as spaces, so incoming text cannot move
+the cursor or issue terminal commands.
 
 It needs a terminal. With its output piped somewhere it says so and stops.
 
@@ -1899,6 +1919,10 @@ terminal and Omarchy bar keep showing its actual default mix even when another
 monitor mix is displayed first. Stream Deck feed keys also use that default.
 The combined Monitor A+B feed stays one choice, and a Deck key advances past
 it even when the monitor mixes are displayed in a different order.
+
+If a compact-mode or selected-channel preference cannot be saved, its control
+returns to the previous choice and the window reports the error. The displayed
+channels and audio routing stay as they were; retry after fixing the save error.
 
 Profiles saved from the window also recall its skin, section order, collapsed sections,
 compact view and selected compact channel. Channel and mix icons, colours,

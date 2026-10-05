@@ -32,6 +32,9 @@ remain the window's; the terminal sizes these drawings to its cells. A
 meter is a solid bar in eighth blocks whichever appearance is named, and
 its colour blends from `Ox.Meter.Fill` through `Ox.Meter.Warning` to
 `Ox.Meter.Hot` along the scale, anchored at the warning and hot levels.
+Malformed terminal palette fields keep their default while valid fields still
+apply. Names use the same bounded, control-free text in the skin picker and
+the loaded palette.
 
 The choice is saved in
 `~/.config/openxlr/ui.json` as `"skin": "<id>"`. Profiles saved from the
@@ -41,7 +44,9 @@ A recalled skin with invalid values uses the same validation fallbacks as
 manually choosing it, and the window reports the errors.
 The command-line skin override still takes precedence. Changing a skin
 never touches audio. Windows that are already open repaint;
-nothing is rebuilt and nothing is restarted.
+nothing is rebuilt and nothing is restarted. If the window cannot save a new
+choice, the previous skin and picker selection stay active and Options shows
+the error. Fix the permissions or file problem, then select the skin again.
 
 If a skin ever makes something unreadable, start the window once with
 

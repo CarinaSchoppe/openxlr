@@ -471,7 +471,9 @@ Without the companion, a distribution yabridge works only with Wine older
 than 9.22. From 9.22 an embedded plugin window never learns where it is,
 so every click lands as far from the pointer as the window is from the
 corner of the screen, and the plugin ignores the mouse entirely. Options
-says so when it sees that pair of versions.
+says so when it sees that pair of versions. An unreadable or out-of-range
+Wine version number leaves the setup information available but cannot
+establish that this editor compatibility warning applies.
 
 The companion keeps those wrappers in
 `~/.local/share/openxlr/yabridge/{vst3,clap}` and its directory registry in
@@ -1931,6 +1933,10 @@ terminal and Omarchy bar keep showing its actual default mix even when another
 monitor mix is displayed first. Stream Deck feed keys also use that default.
 The combined Monitor A+B feed stays one choice, and a Deck key advances past
 it even when the monitor mixes are displayed in a different order.
+
+If a compact-mode or selected-channel preference cannot be saved, its control
+returns to the previous choice and the window reports the error. The displayed
+channels and audio routing stay as they were; retry after fixing the save error.
 
 Profiles saved from the window also recall its skin, appearance mode,
 collapsed sections, compact view and selected compact channel. Channel and mix icons, colours,

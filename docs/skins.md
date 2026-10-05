@@ -55,7 +55,9 @@ The launch skin override takes precedence until a new skin or mode is
 explicitly chosen and saved in Options. Desktop changes and profile recalls
 do not clear it. A failed save keeps the previous appearance. Changing a skin
 never touches audio. Windows that are already open repaint;
-nothing is rebuilt and nothing is restarted.
+nothing is rebuilt and nothing is restarted. If the window cannot save a new
+choice, the previous skin and picker selection stay active and Options shows
+the error. Fix the permissions or file problem, then select the skin again.
 
 If a skin ever makes something unreadable, start the window once with
 

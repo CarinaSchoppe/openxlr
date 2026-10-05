@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia.Media;
+using Avalonia.Threading;
 
 namespace OpenXLR.UI;
 
@@ -44,7 +45,7 @@ public sealed partial class MainViewModel
             if (_compactMixer == value) return;
             if (!SavePresentationChoice(UiSettings.Load() with { CompactMixer = value }))
             {
-                Raise(nameof(CompactMixer));
+                Reject(ref _compactMixer, value);
                 return;
             }
             Set(ref _compactMixer, value);
@@ -62,7 +63,9 @@ public sealed partial class MainViewModel
             if (value is not null && !Channels.Contains(value)) return;
             if (!SavePresentationChoice(UiSettings.Load() with { CompactChannel = value?.Id }))
             {
-                Raise(nameof(SelectedCompactChannel));
+                // A selection binding finishes caching the attempted item when
+                // this setter returns. Restore it afterward so it can be retried.
+                Dispatcher.UIThread.Post(() => Reject(ref _selectedCompactChannel, value, nameof(SelectedCompactChannel)));
                 return;
             }
             _compactChannelId = value?.Id;

@@ -1874,5 +1874,6 @@ and open an issue with them.
 Some PipeWire packages lack the LV2 loader. If an LV2 chain cannot start,
 OpenXLR tries its bundled native host when it supports the active effects.
 The saved host switch is unchanged; native controls and editors follow the
-host actually running. A failure in both hosts reports both causes. Other
-instances of the same plugin retain their own host choices.
+host actually running, including an LV2 fallback beside other native inserts.
+A failure in both hosts reports both causes. Other instances of the same plugin
+retain their own host choices.

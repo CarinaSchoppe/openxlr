@@ -854,7 +854,10 @@ public sealed class PipeWireAdapter
                     stage = CreateFilterChain(node + "_in", node + "_out", description, channels, 0, false, [insert]);
                     stages.Add(stage);
                 }
-                insertStages.Add((insert.Id, stage));
+                // A filter-chain stage may itself fall back to a hosted
+                // insert. Index the actual host so status, editor controls
+                // and live parameter updates keep using the same insert id.
+                insertStages.Add((insert.Id, stage.InsertStages.FirstOrDefault(s => s.Id == insert.Id).Stage ?? stage));
             }
             for (int i = 1; i < stages.Count; i++)
                 if (LinkNodes(stages[i - 1].SourceName, "capture", stages[i].SinkName, "playback").Pairs.Count < channels)

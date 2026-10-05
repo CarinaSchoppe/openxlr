@@ -986,6 +986,13 @@ SYSTEM DEFAULT DEVICES, choose the output and input OpenXLR should
 hold; it re-asserts them once a second and reverts any outside change.
 "(don't enforce)" leaves the system alone.
 
+On shutdown, OpenXLR stops scheduling routing repairs and waits for any
+running repair or meter callback before saving settings and removing the
+graph. Repairs stop between phases and default-device helper calls; a helper
+already running retains its existing timeout. Stopping the daemon therefore
+cannot leave a late repair behind that changes the desktop's default output
+after it has exited.
+
 <a name="hardware-only"></a>
 ### 3.8 Hardware control only
 

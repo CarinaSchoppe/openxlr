@@ -201,9 +201,10 @@ public sealed class ScanCache
             long total = 0;
             using var stamp = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             byte[] numbers = new byte[16];
+            var directories = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (string file in BundleFiles(bundle).Order(StringComparer.Ordinal))
             {
-                FileIdentity identity = FileStamp(file);
+                FileIdentity identity = FileStamp(file, directories);
                 // The newest file alone can hide an updated Windows source
                 // whose timestamp is still older than the Linux wrapper. Only
                 // a link adds its target, so a bundle of plain files keeps the
@@ -250,23 +251,16 @@ public sealed class ScanCache
     }
 
     /// <summary>
-    /// Where a bundle that is itself a link to another directory points. The
+    /// Where a bundle or one of its parent directories points. The
     /// managed folder links to Windows plugins installed elsewhere, and a
     /// link aimed at a different copy is a different bundle even when the two
     /// hold files of the same names, lengths and times. Null for a real
-    /// directory.
+    /// directory reached without links.
     /// </summary>
     private static string? DirectoryTarget(string bundle)
     {
-        var info = new DirectoryInfo(bundle);
-        if (info.LinkTarget is null) return null;
-        try
-        {
-            if (info.ResolveLinkTarget(returnFinalTarget: true) is DirectoryInfo { Exists: true } resolved)
-                return resolved.FullName;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* a loop, or an unreadable path */ }
-        return "missing:" + Path.GetFullPath(info.LinkTarget, info.Parent?.FullName ?? ".");
+        string canonical = WindowsPluginWrappers.Canonical(bundle);
+        return canonical == WindowsPluginWrappers.Normalize(bundle) ? null : canonical;
     }
 
     /// <summary>One file as the host would load it, and what it resolves to.</summary>
@@ -274,20 +268,30 @@ public sealed class ScanCache
     /// <param name="Broken">The file is a link with nothing behind it, or is gone.</param>
     private readonly record struct FileIdentity(long Modified, long Size, string Target, bool Broken);
 
-    private static FileIdentity FileStamp(string path)
+    private static FileIdentity FileStamp(string path, Dictionary<string, string>? directories = null)
     {
-        var info = new FileInfo(path);
+        // A linked architecture or search folder can select another build
+        // without changing a module's size or timestamp. Resolve its parent
+        // once per directory in this walk, not once per resource file.
+        string parent = Path.GetDirectoryName(Path.GetFullPath(path))!;
+        if (directories is null || !directories.TryGetValue(parent, out string? canonical))
+        {
+            canonical = WindowsPluginWrappers.Canonical(parent);
+            directories?.Add(parent, canonical);
+        }
+        var info = new FileInfo(Path.Combine(canonical, Path.GetFileName(path)));
+        string target = info.FullName == Path.GetFullPath(path) ? "" : info.FullName;
         // Bridge bundles link to the original Windows module. FileInfo on
         // the link describes the link itself, which stays unchanged when the
         // plugin is updated, moved or deleted. Stamp the loaded file instead,
         // and keep the resolved path: two builds of one plugin can share a
         // length and a timestamp, and then only the path tells them apart.
         if (info.LinkTarget is null)
-            return info.Exists ? new(info.LastWriteTimeUtc.Ticks, info.Length, "", false) : new(0, 0, "", true);
+            return info.Exists ? new(info.LastWriteTimeUtc.Ticks, info.Length, target, false) : new(0, 0, target, true);
         try
         {
             if (info.ResolveLinkTarget(returnFinalTarget: true) is FileInfo { Exists: true } resolved)
-                return new(resolved.LastWriteTimeUtc.Ticks, resolved.Length, resolved.FullName, false);
+                return new(resolved.LastWriteTimeUtc.Ticks, resolved.Length, WindowsPluginWrappers.Canonical(resolved.FullName), false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* a loop, or an unreadable path */ }
         // Where a broken link points is part of the identity too, so aiming

@@ -1256,6 +1256,9 @@ The scan diagnostics include the missing link target when available.
 An ordinary missing plugin path or dangling bundle link is reported
 separately. Updating or restoring a linked source causes it to be scanned
 again even when the generated Linux wrapper did not change.
+Switching a linked search folder or a linked folder inside a bundle to a
+different plugin build also invalidates its cached description and any
+previous scan failure, even when the files have the same sizes and times.
 Cache inspection rejects directory link cycles and stops after 100,000
 directory entries per bundle, counting linked aliases too. These bundles
 can still be scanned and loaded, but their scan result is not cached.

@@ -103,7 +103,12 @@ public sealed class RestartPolicyTests
         host.SetControl("gain", 1);   // any line lets the fixture go on to its exit
         Assert.True(host.Process.WaitForExit(5000));
         Assert.False(chain.IsAlive);
-        Assert.Equal("the plugin asked to be reloaded; restart the chain", chain.LastWords);
+        const string reason = "the plugin asked to be reloaded; restart the chain";
+        // Process exit does not join our asynchronous stderr reader. Its
+        // production wait is bounded so a child holding stderr cannot stall
+        // the sweep. Allow that reader to finish without weakening the reason.
+        Assert.True(SpinWait.SpinUntil(() => chain.LastWords == reason, TimeSpan.FromSeconds(5)), chain.LastWords);
+        Assert.Equal(reason, chain.LastWords);
         Assert.Equal(NativePluginHost.TraceLineBudget, notes.Count);
         Assert.Equal("Plugin host fixture_stage_0: trace: line 0", notes.First());
         Assert.All(notes, note => Assert.StartsWith("Plugin host fixture_stage_0: trace: line ", note));

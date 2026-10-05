@@ -879,7 +879,8 @@ public sealed class PluginInstaller
             if (!char.IsAsciiDigit(version[index])) { index++; continue; }
             int start = index;
             while (index < version.Length && char.IsAsciiDigit(version[index])) index++;
-            digits.Add(int.Parse(version.AsSpan(start, index - start)));
+            if (!int.TryParse(version.AsSpan(start, index - start), out int number)) return false;
+            digits.Add(number);
             // Only a run of digits separated by a dot is the rest of a version.
             if (index >= version.Length || version[index] != '.') break;
             index++;

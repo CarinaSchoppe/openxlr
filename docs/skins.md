@@ -44,7 +44,9 @@ A recalled skin with invalid values uses the same validation fallbacks as
 manually choosing it, and the window reports the errors.
 The command-line skin override still takes precedence. Changing a skin
 never touches audio. Windows that are already open repaint;
-nothing is rebuilt and nothing is restarted.
+nothing is rebuilt and nothing is restarted. If the window cannot save a new
+choice, the previous skin and picker selection stay active and Options shows
+the error. Fix the permissions or file problem, then select the skin again.
 
 If a skin ever makes something unreadable, start the window once with
 

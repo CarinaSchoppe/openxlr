@@ -476,10 +476,13 @@ public sealed class InsertViewModel : ViewModelBase
         RaiseNativeFlags();
         Error = error;
         NativeHostRunning = nativeHostRunning;
-        _params.Clear();
+        // A late echo must not replace a pending local value in snapshots
+        // either. Dictionary removals keep its enumerator valid on .NET.
+        foreach (string symbol in _params.Keys)
+            if (!SliderSync.RecentlyTouched(_owner.ParameterKey(Id, symbol))) _params.Remove(symbol);
         if (ins["params"] is JsonObject po)
             foreach ((string k, JsonNode? v) in po)
-                if (v is not null) _params[k] = v.GetValue<double>();
+                if (v is not null && !_params.ContainsKey(k)) _params[k] = v.GetValue<double>();
         foreach (InsertParamViewModel p in Params)
         {
             // While a control is being dragged the daemon's echo lags the

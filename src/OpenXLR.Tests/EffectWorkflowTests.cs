@@ -260,6 +260,35 @@ public sealed class EffectWorkflowTests : IDisposable
         insert.ForgetPendingParameters();
     }
 
+    [Fact]
+    public async Task SnapshotsKeepPendingKnobValuesWhenAnOlderDaemonEchoArrives()
+    {
+        await using var client = new DaemonClient();
+        var view = new InsertsViewModel(client, "xlr1");
+        var state = new JsonArray(new JsonObject { ["insert"] = Chain().Inserts[0]!.DeepClone() });
+        view.Apply(state);
+        var insert = Assert.Single(view.Items);
+        try
+        {
+            insert.SendParam("gain", .9);
+            view.Apply(state.DeepClone());
+            Assert.Equal(.9, view.CaptureChain().Inserts[0]!["params"]!["gain"]!.GetValue<double>());
+            view.PresetName = "Pending knob";
+            view.SavePreset();
+            Assert.Equal(.9, Assert.Single(EffectChainPresets.Read()).Chain.Inserts[0]!["params"]!["gain"]!.GetValue<double>());
+
+            // A profile recall releases the guard, so its new value must win.
+            SliderSync.ReleaseTouchGuards();
+            state[0]!["insert"]!["params"]!["gain"] = .2;
+            view.Apply(state);
+            Assert.Equal(.2, view.CaptureChain().Inserts[0]!["params"]!["gain"]!.GetValue<double>());
+            state[0]!["insert"]!["params"] = new JsonObject();
+            view.Apply(state);
+            Assert.Empty(view.CaptureChain().Inserts[0]!["params"]!.AsObject());
+        }
+        finally { insert.ForgetPendingParameters(); }
+    }
+
     public void Dispose()
     {
         Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", _previous);

@@ -1912,3 +1912,6 @@ clears its listening label; a delayed acknowledgement cannot restore it.
 Loading a chain or an A/B snapshot applies earlier knob changes first, so
 those changes cannot overwrite the newly loaded settings. If loading fails,
 the earlier knob changes remain applied to the current chain.
+
+Copying or saving a chain while adjusting a control captures its current knob
+value, even if the daemon has not echoed that adjustment yet.

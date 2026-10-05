@@ -148,7 +148,7 @@ public sealed partial class Mixer
     private static bool SameInsertChain(IReadOnlyList<InsertDefinition> first, IReadOnlyList<InsertDefinition> second)
         => first.Count == second.Count && first.Zip(second).All(pair =>
             pair.First.Id == pair.Second.Id && pair.First.Kind == pair.Second.Kind && pair.First.Plugin == pair.Second.Plugin
-            && pair.First.Label == pair.Second.Label && pair.First.Bypass == pair.Second.Bypass && pair.First.NativeHost == pair.Second.NativeHost
+            && pair.First.Bypass == pair.Second.Bypass && pair.First.NativeHost == pair.Second.NativeHost
             && pair.First.Params.Count == pair.Second.Params.Count
             && pair.First.Params.All(p => pair.Second.Params.TryGetValue(p.Key, out double value) && value == p.Value));
 }

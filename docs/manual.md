@@ -1895,8 +1895,9 @@ A channel without effects keeps its normal direct sends and adds no hidden
 bus. Adding the first effect or removing the last one recreates that channel's
 sink under the same name and restores its application and capture feeds.
 These changes can briefly interrupt that channel. Editing or bypassing effects
-within an existing chain keeps its public sink. Recalling unchanged effects
-keeps the running plugin instances. Failed effects report an error and use a
+within an existing chain keeps its public sink. Recalling unchanged processing
+keeps the running plugin instances, including when only an effect's display name
+changes. Failed effects report an error and use a
 direct audio route when available. OpenXLR retries failed processing within
 its recovery limit, even while direct audio is working. Other channels continue
 independently.

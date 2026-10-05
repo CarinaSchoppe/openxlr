@@ -65,6 +65,7 @@ public sealed class ChannelInsertIntegrationTests
             Assert.Equal(beforeRecall, pw.FindNodeId(failed.Name));
             mixer.ApplySettings(mixer.ExportSettings());
             Assert.Equal(beforeRecall, pw.FindNodeId(failed.Name));
+            AssertLabelRecall("software", failed.Name);
             AssertSound(.25);
             Assert.NotNull(pw.FindNodeId("OpenXLR_ch_software"));
             mixer.SetInserts("mix:monitor", [Gain(.5)]);
@@ -93,6 +94,9 @@ public sealed class ChannelInsertIntegrationTests
         try
         {
             AssertSound(.5);
+            var filter = pw.DumpNodes().First(n => n.Name.StartsWith($"OpenXLR_ins_channel_{capture}_", StringComparison.Ordinal));
+            AssertLabelRecall(capture, filter.Name);
+            AssertSound(.5);
             Assert.Throws<IOException>(() => mixer.DeleteApplicationChannel(capture, _ => "disk full"));
             Assert.Single(mixer.ExportSettings().Inserts[capture]);
             AssertSound(.5);
@@ -104,6 +108,23 @@ public sealed class ChannelInsertIntegrationTests
                 && pw.FindNodeId($"OpenXLR_bus_{capture}") is null, TimeSpan.FromSeconds(3)));
         }
         finally { captureStop.Cancel(); await playing; }
+
+        void AssertLabelRecall(string channel, string node)
+        {
+            int? instance = pw.FindNodeId(node);
+            Assert.NotNull(instance);
+            foreach (string recall in new[] { "scene", "settings" })
+            {
+                string label = "Renamed in " + recall;
+                var inserts = mixer.ExportSettings().Inserts;
+                inserts[channel][0] = inserts[channel][0] with { Label = label };
+                if (recall == "scene") mixer.ApplyScene(mixer.ExportScene() with { Inserts = inserts });
+                else mixer.ApplySettings(mixer.ExportSettings() with { Inserts = inserts });
+                Assert.Equal(instance, pw.FindNodeId(node));
+                Assert.Equal(label, mixer.Snapshot().Inserts[channel][0].Insert.Label);
+                Assert.Equal(label, mixer.ExportSettings().Inserts[channel][0].Label);
+            }
+        }
 
         void AssertSound(double gain)
         {

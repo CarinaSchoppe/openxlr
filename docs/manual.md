@@ -1422,8 +1422,9 @@ exact transfer, and that is what makes the report actionable.
 
 The USB deadline covers both sending a request and receiving its reply, so
 a helper that stops reading commands cannot block a large transfer indefinitely.
-Malformed replies also discard the helper; the next connection starts a fresh
-process instead of reusing a broken protocol stream.
+Malformed replies, including inconsistent transfer counts or payload lengths,
+are refused before decoding settings and discard the helper. The next
+connection starts a fresh process instead of reusing a broken protocol stream.
 
 <a name="open-files"></a>
 ### 5.8 Channels or mixes vanish after adding one

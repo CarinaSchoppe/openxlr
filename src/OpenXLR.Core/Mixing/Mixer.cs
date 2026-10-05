@@ -261,7 +261,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 List<InsertDefinition> inserts = IsInsertChannel(ch.Id) ? InsertsFor(ch.Id) : [];
                 bool anyInsert = inserts.Any(i => !i.Bypass && PluginCatalog.Find(i) is not null);
                 bool givenUp = anyInsert && _restarts.Blocked(ch.Id);
-                if (givenUp) { inserts = []; anyInsert = false; _insertErrors[ch.Id] = RestartPolicy.GivenUp; }
+                if (givenUp) { inserts = []; anyInsert = false; _insertErrors[ch.Id] = _restarts.Message(ch.Id); }
                 if (lc || cg || anyInsert)
                 {
                     if (!givenUp) _insertErrors.Remove(ch.Id);
@@ -404,6 +404,19 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     }
 
     /// <summary>
+    /// Count a chain's death against its restart budget, with what its helper
+    /// last said. The line goes to the journal now and onto the insert if the
+    /// chain is given up on; a helper that dies after it is ready is
+    /// otherwise replaced without a word about why.
+    /// </summary>
+    private void ChainDiedLocked(string key, FilterHandle chain)
+    {
+        string? words = chain.LastWords;
+        _restarts.Failed(key, words);
+        if (words is not null) _pw.Note($"Insert chain {key} stopped. The plugin host's last message: {words}");
+    }
+
+    /// <summary>
     /// Sweep healing for built-in DSP and plugin filter chains: a dead holder
     /// process or broken link re-wires the affected path. True when something
     /// changed.
@@ -420,13 +433,13 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 string key = MixKey(mix);
                 if (_chains.TryGetValue(key, out FilterHandle? c) && !c.IsAlive)
                 {
-                    _restarts.Failed(key);
+                    ChainDiedLocked(key, c);
                     WireMixChainLocked(mix);   // leaves the chain off once it has failed enough
                     changed = true;
                 }
             }
             foreach ((string key, FilterHandle chain) in _chains)
-                if (!key.StartsWith("mix:", StringComparison.Ordinal) && !chain.IsAlive) _restarts.Failed(key);
+                if (!key.StartsWith("mix:", StringComparison.Ordinal) && !chain.IsAlive) ChainDiedLocked(key, chain);
             bool inputBroken = _chains.Where(e => !e.Key.StartsWith("mix:", StringComparison.Ordinal)).Any(e => !e.Value.IsAlive)
                 || _chainOuts.Values.Any(l => _pw.EnsureLinks(l) == LinkHealth.Broken);
             if (inputBroken) { WireInputFeedsLocked(); changed = true; }
@@ -626,7 +639,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
 
         List<InsertDefinition> inserts = InsertsFor(key);
         bool anyInsert = inserts.Any(i => !i.Bypass && PluginCatalog.Find(i) is { } p && p.Fits(2));
-        if (anyInsert && _restarts.Blocked(key)) _insertErrors[key] = RestartPolicy.GivenUp;
+        if (anyInsert && _restarts.Blocked(key)) _insertErrors[key] = _restarts.Message(key);
         else if (anyInsert)
         {
             try

@@ -361,6 +361,9 @@ to choose plugins that should use OpenXLR's generated controls instead of their
 own editor. The release list includes Elgato De-Esser because its
 native editor freezes under Wine, and Elgato Noise Removal because closing
 or reopening its native editor can crash the plugin host.
+An open compatibility list refreshes after a daemon reconnect. Edits remain
+disabled while disconnected, and rule changes received during a refresh are
+loaded once the current request finishes.
 
 - Find an installed plugin and press "Use OpenXLR controls" to add a block.
 - Select a blocked entry and choose "Allow native editor" to try its own

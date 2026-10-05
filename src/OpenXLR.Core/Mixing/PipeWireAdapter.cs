@@ -1093,15 +1093,18 @@ public sealed class PipeWireAdapter
             return i < 0 ? "" : port[(i + 1)..];
         }
         var pairs = new List<(string From, string To)>();
+        bool complete = true;
         for (int i = 0; i < ins.Count && (outs.Count > 0); i++)
         {
             string to = ins[i];
             string from = outs.FirstOrDefault(o => Chan(o) != "" && Chan(o) == Chan(to))
                 ?? outs[Math.Min(i, outs.Count - 1)];
             try { Run("pw-link", from, to); pairs.Add((from, to)); }
-            catch (InvalidOperationException) { /* racing a disappearing port */ }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("File exists", StringComparison.Ordinal))
+            { pairs.Add((from, to)); }
+            catch (InvalidOperationException) { complete = false; } // racing a disappearing port
         }
-        return new PortLink(pairs);
+        return new PortLink(pairs) { Complete = complete };
     }
 
     /// <summary>
@@ -1139,9 +1142,12 @@ public sealed class PipeWireAdapter
     /// </summary>
     public LinkHealth EnsureLinks(PortLink link)
     {
+        if (!link.Complete) return LinkHealth.Broken;
         var health = LinkHealth.Healthy;
+        var known = GraphLinks();
         foreach ((string from, string to) in link.Pairs)
         {
+            if (known.Contains((from, to))) continue;
             try
             {
                 Run("pw-link", from, to);
@@ -1154,6 +1160,50 @@ public sealed class PipeWireAdapter
             }
         }
         return health;
+    }
+
+    private JsonElement[]? _linkObjects;
+    private HashSet<(string From, string To)> _graphLinks = [];
+    private HashSet<(string From, string To)> GraphLinks()
+    {
+        lock (DumpGate)
+        {
+            var objects = GraphObjects();
+            if (ReferenceEquals(objects, _linkObjects)) return _graphLinks;
+            _graphLinks = ParseGraphLinks(objects);
+            _linkObjects = objects;
+            return _graphLinks;
+        }
+    }
+
+    internal static HashSet<(string From, string To)> ParseGraphLinks(IEnumerable<JsonElement> objects)
+    {
+        var nodes = new Dictionary<int, string>();
+        var ports = new Dictionary<int, (int Node, string Name)>();
+        var links = new List<(int From, int To)>();
+        foreach (var entry in objects)
+        {
+            if (!entry.TryGetProperty("id", out var id) || !id.TryGetInt32(out int number)
+                || !entry.TryGetProperty("type", out var type) || !entry.TryGetProperty("info", out var info)) continue;
+            if (type.GetString() == "PipeWire:Interface:Link")
+            {
+                if (info.TryGetProperty("output-port-id", out var from) && from.TryGetInt32(out int source)
+                    && info.TryGetProperty("input-port-id", out var to) && to.TryGetInt32(out int target)) links.Add((source, target));
+                continue;
+            }
+            if (!info.TryGetProperty("props", out var props)) continue;
+            if (type.GetString() == "PipeWire:Interface:Node" && props.TryGetProperty("node.name", out var name))
+                nodes[number] = name.GetString() ?? "";
+            else if (type.GetString() == "PipeWire:Interface:Port" && props.TryGetProperty("node.id", out var node)
+                && int.TryParse(node.ToString(), out int owner) && props.TryGetProperty("port.name", out var port))
+                ports[number] = (owner, port.GetString() ?? "");
+        }
+        var result = new HashSet<(string, string)>();
+        foreach (var (from, to) in links)
+            if (ports.TryGetValue(from, out var source) && ports.TryGetValue(to, out var target)
+                && nodes.TryGetValue(source.Node, out string? sourceName) && nodes.TryGetValue(target.Node, out string? targetName))
+                result.Add(($"{sourceName}:{source.Name}", $"{targetName}:{target.Name}"));
+        return result;
     }
 
     /// <summary>Remove a set of port links made by <see cref="LinkNodes"/>.</summary>
@@ -1657,7 +1707,11 @@ public sealed record FilterHandle(string Id, string SinkName, string SourceName,
 public sealed record DspFeatureAvailability(bool Available, string? Error);
 
 /// <summary>A set of direct port links between two nodes.</summary>
-public sealed record PortLink(IReadOnlyList<(string From, string To)> Pairs);
+public sealed record PortLink(IReadOnlyList<(string From, string To)> Pairs)
+{
+    /// <summary>Every discovered pair connected successfully when the route was created.</summary>
+    internal bool Complete { get; init; } = true;
+}
 
 /// <summary>Outcome of verifying a <see cref="PortLink"/>'s pairs.</summary>
 public enum LinkHealth { Healthy, Relinked, Broken }

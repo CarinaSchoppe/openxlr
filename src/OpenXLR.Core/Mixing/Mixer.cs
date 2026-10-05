@@ -527,7 +527,12 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     {
         lock (_gate)
         {
-            if (!_built || !_auxPortEnabled || _auxRoute is not null) return false;
+            if (!_built || !_auxPortEnabled) return false;
+            if (_auxRoute is not null)
+            {
+                LinkHealth health = _pw.EnsureLinks(_auxRoute);
+                if (health != LinkHealth.Broken) return health == LinkHealth.Relinked;
+            }
             WireAuxRouteLocked();
             return _auxRoute is not null;
         }
@@ -1666,7 +1671,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             {
                 (string tap, string prefix) = MixTapLocked(mix);
                 PortLink route = _pw.RouteTapToOutput(tap, prefix, target);
-                if (route.Pairs.Count == 0) _incompleteMonitorRoutes.Add(key);
+                if (route.Pairs.Count == 0 || !route.Complete) _incompleteMonitorRoutes.Add(key);
                 pairs.AddRange(route.Pairs);
             }
         }

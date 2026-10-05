@@ -160,6 +160,9 @@ affects only the display; the daemon continues processing audio.
    on: your speakers, a headset, or several at once. On the Wave XLR
    Pro its own outputs (Headphones 1, Headphones 2, Line Out) appear
    here too; ticking one switches the hardware's output routing.
+   OpenXLR retries incomplete audio connections, including a stereo feed
+   with only one side connected. Microphone and USB Aux feeds also recover
+   when their device returns. Mono outputs do not require a second channel.
 2. Next to a ticked device, the feed picker says which mix it
    hears. Leave it on Monitor A, or choose Monitor B for an output that
    should hear a different selection: a headset whose game side and

@@ -72,7 +72,7 @@ internal static class AppearanceModeWindowTests
 
             SkinService.Choose("default");
             CheckProfileRecall(main);
-            CheckFailedSave(options);
+            CheckFailedSave(main, options);
             CheckReloadFallback(main);
             CheckLaunchOverride(main);
         }
@@ -107,7 +107,7 @@ internal static class AppearanceModeWindowTests
         Assert.Equal(AppearanceModes.Light, UiSettings.Load().AppearanceMode);
     }
 
-    private static void CheckFailedSave(OptionsWindow options)
+    private static void CheckFailedSave(MainWindow main, OptionsWindow options)
     {
         string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
         File.Move(path, path + ".before-failure");
@@ -134,6 +134,32 @@ internal static class AppearanceModeWindowTests
         Pump();
         Assert.Equal(AppearanceModes.Dark, SkinService.Mode);
         Assert.Equal(AppearanceModes.Dark, UiSettings.Load().AppearanceMode);
+        SkinService.ChooseMode(AppearanceModes.Light);
+
+        File.Move(path, path + ".before-failure");
+        Directory.CreateDirectory(path);
+        try
+        {
+            var picker = options.FindControl<ComboBox>("AppearanceModePicker")!;
+            picker.SelectedItem = retried.AppearanceModeChoices.Single(choice => choice.Id == AppearanceModes.Dark);
+            picker.SelectedItem = retried.AppearanceModeChoices.Single(choice => choice.Id == AppearanceModes.System);
+        }
+        finally
+        {
+            Directory.Delete(path);
+            File.Move(path + ".before-failure", path);
+        }
+        // Recall before queued rejections run. They must preserve the new
+        // profile mode and the selection refreshed by the skin service.
+        var mainVm = (MainViewModel)typeof(MainWindow).GetField("_vm", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(main)!;
+        var recall = new JsonObject { ["revision"] = Guid.NewGuid().ToString("N"),
+            ["settings"] = new JsonObject { ["appearanceMode"] = "dark", ["skin"] = "default" } };
+        typeof(MainViewModel).GetMethod("ApplyProfilePresentation", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(mainVm, [recall]);
+        Pump();
+        Assert.Equal(AppearanceModes.Dark, SkinService.Mode);
+        Assert.Equal(AppearanceModes.Dark, UiSettings.Load().AppearanceMode);
+        Assert.Equal(AppearanceModes.Dark, retried.SelectedAppearanceMode!.Id);
+        Assert.Equal(AppearanceModes.Dark, Assert.IsType<AppearanceModeChoice>(options.FindControl<ComboBox>("AppearanceModePicker")!.SelectedItem).Id);
         SkinService.ChooseMode(AppearanceModes.Light);
     }
 

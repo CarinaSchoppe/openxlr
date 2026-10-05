@@ -407,7 +407,16 @@ can go afterwards. Installing over a plugin that is already there builds the new
 copy beside it and swaps the two only once the copy is complete, so a
 download that turns out to be unreadable, or a disk that fills up, costs
 the update and not the plugin you had. An archive has to be extracted
-first. Plugins installed by
+first. Linux installation refuses named pipes, sockets and device files
+before reading a plugin binary or copying a resource, including a link
+to a special file. A new folder selection containing such a plugin is
+refused before installation. Listings of already registered Windows
+folders skip unreadable or special plugin entries and keep the valid ones.
+Ordinary empty
+resource files and symbolic links remain supported. Install only bundles
+you trust and do not modify the source while it is being installed; file
+inspection does not sandbox plugin code or concurrent changes.
+Plugins installed by
 other means, or copied into `/usr/lib/clap`, `/usr/lib/vst3` or
 `/usr/lib/lv2` by a package, appear after "Rescan" in Options or a daemon
 restart (`LV2_PATH`, `CLAP_PATH` and `VST3_PATH` override the places

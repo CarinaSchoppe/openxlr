@@ -1082,7 +1082,8 @@ function refreshMeters() {
     if (!key || !(key in meterLevels)) continue;
     const lr = meterLevels[key];
     const level = Math.max(lr[0] ?? 0, lr[1] ?? 0);
-    const bucket = `${Math.round(level * 65)}:${level >= skinPalette.colours["Ox.Meter.HotLevel"] ? 2 : level >= skinPalette.colours["Ox.Meter.WarningLevel"] ? 1 : 0}`;
+    const zone = level >= skinPalette.colours["Ox.Meter.HotLevel"] ? 2 : level >= skinPalette.colours["Ox.Meter.WarningLevel"] ? 1 : 0;
+    const bucket = Math.round(level * 65) * 3 + zone;
     if (lastMeter.get(context) === bucket) continue;
     lastMeter.set(context, bucket);
     send({ event: "setFeedback", context, payload: { meter: meterSvg(level) } });

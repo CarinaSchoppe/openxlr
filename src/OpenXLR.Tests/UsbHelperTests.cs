@@ -6,6 +6,59 @@ namespace OpenXLR.Tests;
 
 public sealed class UsbHelperTests
 {
+    [Theory]
+    [InlineData(true, 8, 2)]
+    [InlineData(true, 2, 8)]
+    [InlineData(true, 9, 9)]
+    [InlineData(true, -9, 1)]
+    [InlineData(false, 8, 1)]
+    [InlineData(false, 9, 0)]
+    public void InconsistentTransferRepliesCannotChangeTheBuffer(bool read, int code, int payload)
+    {
+        using var usb = ReplyingHelper(code, payload);
+        Assert.True(usb.Open(0x0fd9, 0x00b4));
+        byte[] data = Enumerable.Repeat((byte)0xaa, 8).ToArray();
+        Assert.Throws<IOException>(() => usb.ControlTransfer(read ? (byte)0xc1 : (byte)0x41, 2, 4, 0x0103, data, 8, 300));
+        Assert.All(data, value => Assert.Equal(0xaa, value));
+        Assert.False(usb.IsOpen);
+        Assert.False(usb.HelperAlive);
+        Assert.True(usb.Open(0x0fd9, 0x00b4));
+    }
+
+    [Theory]
+    [InlineData(true, 8, 8)]
+    [InlineData(true, 2, 2)]
+    [InlineData(true, 0, 0)]
+    [InlineData(true, -9, 0)]
+    [InlineData(false, 2, 0)]
+    public void ValidPartialTransfersAndErrorStatusesStayIntact(bool read, int code, int payload)
+    {
+        using var usb = ReplyingHelper(code, payload);
+        Assert.True(usb.Open(0x0fd9, 0x00b4));
+        byte[] data = Enumerable.Repeat((byte)0xaa, 8).ToArray();
+        Assert.Equal(code, usb.ControlTransfer(read ? (byte)0xc1 : (byte)0x41, 2, 4, 0x0103, data, 8, 300));
+        Assert.Equal(Enumerable.Range(0, 8).Select(i => (byte)(i < payload ? 1 : 0xaa)), data);
+        Assert.True(usb.IsOpen);
+    }
+
+    private static HelperUsbTransport ReplyingHelper(int code, int payload) => new("python3", ["-c", """
+        import struct, sys
+        def rd(n):
+            result = b''
+            while len(result) < n:
+                part = sys.stdin.buffer.read(n - len(result))
+                if not part: sys.exit(0)
+                result += part
+            return result
+        while True:
+            n = struct.unpack('<I', rd(4))[0]
+            request = rd(n)
+            reply = (struct.pack('<i', int(sys.argv[1])) + bytes([1]) * int(sys.argv[2])
+                     if request[0] == 4 else struct.pack('<i', 0))
+            sys.stdout.buffer.write(struct.pack('<I', len(reply)) + reply)
+            sys.stdout.buffer.flush()
+        """, code.ToString(System.Globalization.CultureInfo.InvariantCulture), payload.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
+
     /// <summary>A backend that records calls and answers a read with a pattern.</summary>
     private sealed class FakeUsb : IUsbTransport
     {

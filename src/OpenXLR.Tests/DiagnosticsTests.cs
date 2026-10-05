@@ -6,6 +6,48 @@ namespace OpenXLR.Tests;
 public sealed class DiagnosticsTests
 {
     [Fact]
+    public async Task SimultaneousArchivesHaveDistinctPrivateCompleteFiles()
+    {
+        string root = Directory.CreateTempSubdirectory("openxlr-diag-collision-").FullName;
+        try
+        {
+            string work = Directory.CreateDirectory(Path.Combine(root, "work")).FullName;
+            string output = Directory.CreateDirectory(Path.Combine(root, "output")).FullName;
+            File.WriteAllText(Path.Combine(work, "meta.txt"), "diagnostic content");
+            string[] archives = await Task.WhenAll(Enumerable.Range(0, 4)
+                .Select(_ => Diagnostics.WriteArchiveAsync(work, output, "20261005-120000")));
+            Assert.Equal(4, archives.Distinct().Count());
+            foreach (string archive in archives)
+            {
+                if (OperatingSystem.IsLinux())
+                    Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(archive));
+                using var file = File.OpenRead(archive);
+                using var gzip = new System.IO.Compression.GZipStream(file, System.IO.Compression.CompressionMode.Decompress);
+                using var tar = new System.Formats.Tar.TarReader(gzip);
+                var entry = tar.GetNextEntry();
+                Assert.NotNull(entry);
+                Assert.Equal("meta.txt", entry.Name.TrimStart('.', '/'));
+                Assert.Equal("diagnostic content", new StreamReader(entry.DataStream!).ReadToEnd());
+                Assert.Null(tar.GetNextEntry());
+            }
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task FailedArchiveLeavesNoPartialOutput()
+    {
+        string root = Directory.CreateTempSubdirectory("openxlr-diag-failed-").FullName;
+        try
+        {
+            await Assert.ThrowsAsync<DirectoryNotFoundException>(() =>
+                Diagnostics.WriteArchiveAsync(Path.Combine(root, "missing"), root, "20261005-120000"));
+            Assert.Empty(Directory.GetFileSystemEntries(root));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public async Task ArchiveRecordsWineTraceEnabledThroughTheDaemonCommand()
     {
         await using var fixture = new PluginWineTraceFixture();

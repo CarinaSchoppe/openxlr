@@ -93,6 +93,16 @@ fixture waiting for the host process to exit must also wait for its expected
 terminal diagnostic, within a deadline. Process exit alone does not join
 that reader, and the production accessor intentionally bounds its wait.
 
+Default-device defense tests use zero-delay passes and a helper handshake to
+check retries and cancellation without depending on the test runner's timer
+scheduling. Their bounded completion waits allow a busy worker pool; the
+production retry delays and helper timeouts stay unchanged.
+
+Socket fixtures used by the hub must support both abort and a normal close:
+shutdown cancellation can reach the receive guard before the send pump aborts
+the socket. A receive-entry handshake tests that close path without depending
+on which worker wins the race.
+
 The private PipeWire runner also checks profile startup ordering. To exercise
 ClipGuard with recorded test audio, low cut and a native LSP gate, run
 `OPENXLR_TEST_DSP=1 python3 tools/test-monitor-volume.py` after a native-enabled

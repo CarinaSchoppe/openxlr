@@ -417,7 +417,9 @@ public sealed class OptionsViewModel : ViewModelBase
             try { ReportSkin(Skinning.SkinService.ChooseMode(value.Id)); }
             catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
             {
-                Set(ref _selectedAppearanceMode, previous);
+                _selectedAppearanceMode = previous;
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    Reject(ref _selectedAppearanceMode, value, nameof(SelectedAppearanceMode)));
                 SkinError = $"Appearance mode could not be saved: {ex.Message}";
             }
         }

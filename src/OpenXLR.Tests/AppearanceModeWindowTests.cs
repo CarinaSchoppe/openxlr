@@ -128,6 +128,13 @@ internal static class AppearanceModeWindowTests
             Directory.Delete(path);
             File.Move(path + ".before-failure", path);
         }
+        var retried = (OptionsViewModel)options.DataContext!;
+        options.FindControl<ComboBox>("AppearanceModePicker")!.SelectedItem =
+            retried.AppearanceModeChoices.Single(choice => choice.Id == AppearanceModes.Dark);
+        Pump();
+        Assert.Equal(AppearanceModes.Dark, SkinService.Mode);
+        Assert.Equal(AppearanceModes.Dark, UiSettings.Load().AppearanceMode);
+        SkinService.ChooseMode(AppearanceModes.Light);
     }
 
     private static void CheckReloadFallback(MainWindow main)

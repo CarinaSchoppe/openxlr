@@ -1835,6 +1835,9 @@ and persistence as the window.
 The terminal mixer wears the same skins as the window. It reads the same
 files, in the same order, and the choice in Options is the same choice, so
 picking Gruvbox in one picks it in the other ([skins.md](skins.md)).
+An unreadable saved choice leaves Material in use for this run without
+rewriting the file. Repairing its permissions makes the choice available
+on the next start.
 `--skin <id>` uses one appearance for this run without saving it, and
 `--list-skins` prints what this machine has. Deck and the Omarchy skins get
 console fader caps, bracketed keys and lamps; flat skins get plain ones.

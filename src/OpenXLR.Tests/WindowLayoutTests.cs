@@ -49,6 +49,7 @@ public sealed class WindowLayoutTests
                 Dispatcher.UIThread.RunJobs();
                 ProfileSliderWindowTests.Check();
                 SkinChoiceWindowTests.CheckFailedChoiceCanBeRetried();
+                CompactPresentationWindowTests.CheckBoundChoiceRollback();
                 EditorRulesReconnectWindowTests.Check();
                 var vm = new MainViewModel(new DaemonClient());
                 main.DataContext = vm;

@@ -117,6 +117,68 @@ public sealed class TuiSkinTests : IDisposable
         Assert.Equal("Mine", theme.Name);
     }
 
+    [Theory]
+    [InlineData("42")]
+    [InlineData("true")]
+    [InlineData("[]")]
+    [InlineData("{}")]
+    public void AWrongNameTypeDoesNotStopHealthyTokensFromLoading(string name)
+    {
+        Theme theme = Theme.FromJson("{\"name\":" + name + ",\"tokens\":{\"Ox.Card.Background\":\"#123456\"}}", "mine", "Mine");
+        Assert.Equal("Mine", theme.Name);
+        Assert.Equal(Rgb.Parse("#123456"), theme.Card);
+    }
+
+    [Theory]
+    [InlineData("{\"color\":42}")]
+    [InlineData("{\"color\":{}}")]
+    [InlineData("{\"stops\":[42]}")]
+    [InlineData("{\"stops\":[\"#ffffff\"]}")]
+    [InlineData("{\"stops\":[{\"color\":true}]}")]
+    [InlineData("{\"stops\":[{\"color\":[]}]}")]
+    public void AMalformedColourKeepsItsFallbackAndOtherTokens(string colour)
+    {
+        Theme theme = Theme.FromJson(Doc("\"Ox.Window.Background\":" + colour + ",\"Ox.Card.Background\":\"#123456\""), "mine", "Mine");
+        Assert.Equal(Theme.Material.Window, theme.Window);
+        Assert.Equal(Rgb.Parse("#123456"), theme.Card);
+    }
+
+    [Fact]
+    public void ASelectedMalformedSkinDoesNotCrashTheCatalogueLoader()
+    {
+        Skin("home", "mistyped", """
+            {"schema":1,"name":42,"tokens":{"Ox.Window.Background":{"stops":[false]},"Ox.Card.Background":"#123456"}}
+            """);
+        Environment.SetEnvironmentVariable("XDG_DATA_HOME", Path.Combine(_root, "home"));
+        Environment.SetEnvironmentVariable("XDG_DATA_DIRS", Path.Combine(_root, "empty"));
+        Theme theme = SkinCatalog.Load("mistyped");
+        Assert.Equal("mistyped", theme.Name);
+        Assert.Equal(Theme.Material.Window, theme.Window);
+        Assert.Equal(Rgb.Parse("#123456"), theme.Card);
+    }
+
+    [Fact]
+    public void DuplicateFieldsUseTheLastValueWithoutBreakingTheCatalogue()
+    {
+        Skin("home", "duplicate", """
+            {"name":"Old","name":"New","tokens":{"Ox.Card.Background":"#ffffff","Ox.Card.Background":"#123456"}}
+            """);
+        Environment.SetEnvironmentVariable("XDG_DATA_HOME", Path.Combine(_root, "home"));
+        Environment.SetEnvironmentVariable("XDG_DATA_DIRS", Path.Combine(_root, "empty"));
+        Theme theme = SkinCatalog.Load("duplicate");
+        Assert.Equal("New", theme.Name);
+        Assert.Equal(Rgb.Parse("#123456"), theme.Card);
+    }
+
+    [Fact]
+    public void LoadedNamesKeepTheCatalogueLengthAndControlBounds()
+    {
+        string name = "\u001b" + new string('x', 500) + "\n";
+        string json = System.Text.Json.JsonSerializer.Serialize(new { name });
+        Theme theme = Theme.FromJson(json, "mine", "Mine");
+        Assert.Equal(new string('x', 400), theme.Name);
+    }
+
     [Fact]
     public void TheMeterIsColouredByThePlaceOnTheScaleNotByTheReading()
     {

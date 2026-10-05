@@ -168,6 +168,64 @@ public sealed class PluginSourceRecoveryTests
         finally { Directory.Delete(dir, recursive: true); }
     }
 
+    [Theory]
+    [InlineData("file")]
+    [InlineData("linked-file")]
+    [InlineData("bundle")]
+    [InlineData("architecture")]
+    public void RetargetingAParentDirectoryInvalidatesDescriptionsAndFailures(string shape)
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        string dir = Directory.CreateTempSubdirectory("plugin-parent-link-").FullName;
+        try
+        {
+            string first = Directory.CreateDirectory(Path.Combine(dir, "first")).FullName;
+            string second = Directory.CreateDirectory(Path.Combine(dir, "second")).FullName;
+            string relative = shape is "file" or "linked-file" ? "Effect.clap" : shape == "bundle"
+                ? "Effect.vst3/Contents/x86_64-linux/Effect.so" : "Effect.so";
+            DateTime when = DateTime.UtcNow.AddDays(-3);
+            foreach (string folder in new[] { first, second })
+            {
+                string module = Path.Combine(folder, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(module)!);
+                File.WriteAllText(module, folder == first ? "AAAA" : "BBBB");
+                File.SetLastWriteTimeUtc(module, when);
+            }
+            string link = shape == "architecture"
+                ? Path.Combine(dir, "Effect.vst3", "Contents", "x86_64-linux") : Path.Combine(dir, "current");
+            Directory.CreateDirectory(Path.GetDirectoryName(link)!);
+            Directory.CreateSymbolicLink(link, first);
+            string bundle = shape is "file" or "linked-file" ? Path.Combine(link, "Effect.clap") : shape == "bundle"
+                ? Path.Combine(link, "Effect.vst3") : Path.Combine(dir, "Effect.vst3");
+            if (shape == "linked-file")
+            {
+                string selected = Path.Combine(dir, "Linked.clap");
+                File.CreateSymbolicLink(selected, bundle);
+                bundle = selected;
+            }
+            string cacheDirectory = Path.Combine(dir, "cache");
+            var cache = new ScanCache(cacheDirectory, "test-scanner");
+            byte[] description = Encoding.UTF8.GetBytes(Description);
+            cache.Store(bundle, description);
+            cache.Save();
+            Assert.Equal(description, new ScanCache(cacheDirectory, "test-scanner").Lookup(bundle));
+
+            Directory.Delete(link);
+            Directory.CreateSymbolicLink(link, second);
+            Assert.Null(cache.Lookup(bundle));
+            cache.StoreFailure(bundle, "timeout");
+            cache.Save();
+            cache = new ScanCache(cacheDirectory, "test-scanner");
+            Assert.True(cache.KnownFailure(bundle));
+            Directory.Delete(link);
+            Directory.CreateSymbolicLink(link, first);
+            Assert.False(cache.KnownFailure(bundle));
+            cache.Store(bundle, description);
+            Assert.Equal(description, cache.Lookup(bundle));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
     [Fact]
     public void ABundleWhoseWindowsModuleIsGoneIsNotCachedAsUsable()
     {

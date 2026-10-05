@@ -28,7 +28,8 @@ public partial class NativeEditorRulesWindow : Window
     private readonly ObservableCollection<NativeEditorPluginChoice> _plugins = [];
     private readonly DaemonClient? _client;
     private readonly (string Kind, string Plugin)? _initialSelection;
-    private bool _busy, _closed, _hasError;
+    private bool _busy, _closed, _hasError, _reloadPending;
+    private int _connectionGeneration;
     private NativeEditorRuleRow? Selected => RuleList.SelectedItem as NativeEditorRuleRow;
 
     public NativeEditorRulesWindow()
@@ -51,23 +52,56 @@ public partial class NativeEditorRulesWindow : Window
         if (kind is not null && plugin is not null) _initialSelection = (kind, plugin);
         Opened += async (_, _) => await LoadAsync();
         client.NativeEditorRulesChanged += OnRulesChanged;
-        Closed += (_, _) => { _closed = true; client.NativeEditorRulesChanged -= OnRulesChanged; };
+        client.ConnectionChanged += OnConnectionChanged;
+        Closed += (_, _) =>
+        {
+            _closed = true;
+            client.NativeEditorRulesChanged -= OnRulesChanged;
+            client.ConnectionChanged -= OnConnectionChanged;
+        };
     }
 
     private void OnRulesChanged() => Dispatcher.UIThread.Post(async () =>
     {
-        if (!_closed && !_busy) await LoadAsync();
+        await LoadAsync();
     });
+
+    private void OnConnectionChanged(bool connected) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_closed) return;
+        _connectionGeneration++;
+        if (connected) OnRulesChanged();
+        else
+        {
+            _hasError = true;
+            Status.Text = "Disconnected from the daemon. Rules will refresh when it reconnects.";
+            UpdateButtons();
+        }
+    });
+
+    private void FinishOperation()
+    {
+        _busy = false;
+        if (_closed) return;
+        UpdateButtons();
+        if (_reloadPending) OnRulesChanged();
+    }
 
     private async Task LoadAsync()
     {
-        if (_client is null) return;
+        if (_client is null || _closed) return;
+        if (_busy) { _reloadPending = true; return; }
+        _reloadPending = false;
+        int generation = _connectionGeneration;
         _busy = true;
         UpdateButtons();
         try
         {
-            ApplyRules(await _client.RequestNativeEditorRulesAsync(TimeSpan.FromSeconds(20)));
+            JsonNode? reply = await _client.RequestNativeEditorRulesAsync(TimeSpan.FromSeconds(20));
+            if (_closed || generation != _connectionGeneration) return;
+            ApplyRules(reply);
             JsonNode? catalogue = await _client.RequestPluginsAsync(TimeSpan.FromSeconds(20));
+            if (_closed || generation != _connectionGeneration) return;
             _plugins.Clear();
             foreach (JsonNode p in (catalogue as JsonArray ?? []).OfType<JsonNode>()
                 .Where(p => p["nativeEditorSupported"]?.GetValue<bool>() == true || p["nativeEditorAvailable"]?.GetValue<bool>() == true)
@@ -76,8 +110,11 @@ public partial class NativeEditorRulesWindow : Window
                     p["name"]?.GetValue<string>() ?? p["plugin"]!.GetValue<string>()));
             if (catalogue is null && !_hasError) Status.Text = "The plugin list is unavailable. Existing rules can still be edited.";
         }
-        catch (Exception ex) { _hasError = true; Status.Text = ex.Message; }
-        finally { _busy = false; UpdateButtons(); }
+        catch (Exception ex)
+        {
+            if (!_closed && generation == _connectionGeneration) { _hasError = true; Status.Text = ex.Message; }
+        }
+        finally { FinishOperation(); }
     }
 
     internal void ApplyRules(JsonNode? reply)
@@ -118,16 +155,22 @@ public partial class NativeEditorRulesWindow : Window
 
     private async Task SetRuleAsync(string kind, string plugin, string name, bool? blocked)
     {
-        if (_client is null || _busy) return;
+        if (_client is null || _closed || _busy) return;
+        int generation = _connectionGeneration;
         _busy = true;
         UpdateButtons();
         try
         {
-            ApplyRules(await _client.SetNativeEditorRuleAsync(kind, plugin, name, blocked, TimeSpan.FromSeconds(20)));
+            JsonNode? reply = await _client.SetNativeEditorRuleAsync(kind, plugin, name, blocked, TimeSpan.FromSeconds(20));
+            if (_closed || generation != _connectionGeneration) return;
+            ApplyRules(reply);
             RuleList.SelectedItem = _rules.FirstOrDefault(r => r.Kind == kind && r.Plugin == plugin);
         }
-        catch (Exception ex) { Status.Text = ex.Message; }
-        finally { _busy = false; UpdateButtons(); }
+        catch (Exception ex)
+        {
+            if (!_closed && generation == _connectionGeneration) Status.Text = ex.Message;
+        }
+        finally { FinishOperation(); }
     }
 
     private async void OnAddRule(object? sender, RoutedEventArgs e)

@@ -195,11 +195,21 @@ public partial class PluginFoldersWindow : Window
     private void OnSearchPathSelected(object? sender, SelectionChangedEventArgs e) => UpdateButtons();
 
     private async void OnAddSearchPath(object? sender, RoutedEventArgs e)
+        => await AddSearchPathAsync(() => PluginInstall.PickFolderAsync(this, "Add plugin search folder", allowMultiple: false));
+
+    internal async Task AddSearchPathAsync(Func<Task<IReadOnlyList<string>>> pickFolder)
     {
         if (_busy || DataContext is not OptionsViewModel vm || SearchFormat.SelectedItem is not string kind) return;
-        var folders = await PluginInstall.PickFolderAsync(this, "Add plugin search folder", allowMultiple: false);
-        if (folders.Count == 1 && !_busy)
-            await ChangeAsync(vm, () => vm.Client.ChangePluginSearchPathAsync(kind, folders[0], true, ChangeTimeout), "Adding path and scanning plugins…");
+        _busy = true;
+        UpdateButtons();
+        try
+        {
+            var folders = await pickFolder();
+            if (folders.Count == 1)
+                await ChangeAsync(vm, () => vm.Client.ChangePluginSearchPathAsync(kind, folders[0], true, ChangeTimeout), "Adding path and scanning plugins…");
+        }
+        catch (Exception ex) { Status.Text = ex.Message; }
+        finally { _busy = false; UpdateButtons(); }
     }
 
     private async void OnRemoveSearchPath(object? sender, RoutedEventArgs e)

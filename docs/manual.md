@@ -1911,3 +1911,6 @@ root and reports the limit; choose a narrower folder if that happens.
 
 If the daemon disconnects while the plugin picker is open, its choices and
 selection clear until the new connection supplies the catalogue.
+
+If the desktop folder picker is unavailable, the plugin manager shows its
+error and keeps the current search paths. Cancel the picker to leave them unchanged.

@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using System.Text.Json.Nodes;
 using Avalonia.Threading;
 using OpenXLR.UI;
@@ -24,6 +25,34 @@ internal static class PluginCatalogueUiTests
     {
         await Verify();
         await VerifyControls();
+        await VerifyFolderPickerFailures();
+    }
+
+    private static async Task VerifyFolderPickerFailures()
+    {
+        await using var client = new DaemonClient();
+        var window = new PluginFoldersWindow
+        {
+            DataContext = new OptionsViewModel(client, new MainViewModel(client)),
+        };
+        var add = window.FindControl<Avalonia.Controls.Button>("AddSearchPath")!;
+        var rescan = window.FindControl<Avalonia.Controls.Button>("RescanAll")!;
+        var status = window.FindControl<Avalonia.Controls.TextBlock>("Status")!;
+        var pending = new TaskCompletionSource<IReadOnlyList<string>>();
+        Task first = window.AddSearchPathAsync(() => pending.Task);
+        Assert.False(add.IsEnabled);
+        Assert.False(rescan.IsEnabled);
+        bool secondOpened = false;
+        await window.AddSearchPathAsync(() => { secondOpened = true; return Task.FromResult<IReadOnlyList<string>>([]); });
+        Assert.False(secondOpened);
+        pending.SetException(new IOException("The desktop folder picker is unavailable."));
+        await first;
+        Assert.Equal("The desktop folder picker is unavailable.", status.Text);
+        Assert.True(add.IsEnabled);
+        Assert.True(rescan.IsEnabled);
+        await window.AddSearchPathAsync(() => Task.FromResult<IReadOnlyList<string>>([]));
+        Assert.True(add.IsEnabled);
+        window.Close();
     }
 
     private static async Task VerifyControls()

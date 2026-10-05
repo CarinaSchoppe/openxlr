@@ -48,8 +48,10 @@ public sealed class TrayWindowTests
                 Environment.SetEnvironmentVariable("XDG_RUNTIME_DIR", config);
                 new UiSettings { MinimizeToTray = true }.Save();
                 AppBuilder.Configure<App>().UseSkia().UseHarfBuzz().UseX11().SetupWithoutStarting();
+                TrayRegistrationSurvivesHidingAndIsRemovedOnQuit();
                 MeterBurstsApplyOnlyTheNewestFrame();
                 window = NewWindow();
+                Assert.Single(TrayIcon.GetIcons(Application.Current!)!);
                 window.ShowMixer();
                 bool closed = false;
                 window.Closed += (_, _) => closed = true;
@@ -137,6 +139,49 @@ public sealed class TrayWindowTests
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "The window lifecycle hung.");
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    private static void TrayRegistrationSurvivesHidingAndIsRemovedOnQuit()
+    {
+        var app = Application.Current!;
+        using var unrelated = new TrayIcon();
+        var icons = new TrayIcons { unrelated };
+        TrayIcon.SetIcons(app, icons);
+        try
+        {
+            new UiSettings { StartMinimized = true, MinimizeToTray = true }.Save();
+            for (int i = 0; i < 2; i++)
+            {
+                var window = NewWindow();
+                try
+                {
+                    Assert.True(window.StartsHidden);
+                    Assert.False(window.IsVisible);
+                    Assert.Equal(2, icons.Count);
+                    var icon = Assert.Single(icons, icon => icon != unrelated);
+                    Assert.True(icon.IsVisible);
+                    Assert.NotNull(icon.Icon);
+                    Assert.Equal("OpenXLR", icon.ToolTipText);
+                    Assert.NotNull(icon.Menu);
+                    Assert.Equal(3, icon.Menu.Items.Count);
+                    window.ShowMixer();
+                    window.Close();
+                    Dispatcher.UIThread.RunJobs();
+                    Assert.False(window.IsVisible);
+                    Assert.Contains(icon, icons);
+                    window.ShowMixer();
+                    Assert.True(window.IsVisible);
+                    Assert.Equal(2, icons.Count);
+                }
+                finally { window.Quit(); }
+                Assert.Same(unrelated, Assert.Single(icons));
+            }
+        }
+        finally
+        {
+            TrayIcon.SetIcons(app, null);
+            new UiSettings { MinimizeToTray = true }.Save();
+        }
     }
 
     /// <summary>

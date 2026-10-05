@@ -437,7 +437,8 @@ single-channel view. Standard uses the skin values below. Touch uses minimum
 skin values remain larger. With Touch or an explicit control-size minimum, a
 taller custom fader cap raises the slider minimum to contain it. These resources
 affect the main mixer, including its inline insert actions; plugin-native windows
-retain their own controls.
+retain their own controls. Touch minima also apply to compact button class styles;
+Standard defaults restore those styles' original minima.
 
 | Token | Kind | Default | Range | What it paints |
 |---|---|---|---|---|

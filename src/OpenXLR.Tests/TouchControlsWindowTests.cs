@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using OpenXLR.UI;
@@ -32,6 +33,7 @@ internal static class TouchControlsWindowTests
             var standard = vm.ControlSizingChoices.Single(c => !c.Touch);
             var large = vm.ControlSizingChoices.Single(c => c.Touch);
             SkinService.ApplyControlSizing(false);
+            CheckClassStylePrecedence(main);
             foreach (SkinEntry entry in SkinCatalog.Discover().Where(s => s.Package.Origin == SkinOrigin.BuiltIn))
             {
                 SkinService.Apply(entry);
@@ -89,6 +91,36 @@ internal static class TouchControlsWindowTests
             Layout(main, width, height);
             options.Show();
             flow.Show();
+        }
+    }
+
+    private static void CheckClassStylePrecedence(MainWindow main)
+    {
+        var button = main.FindControl<Button>("OptionsButton")!;
+        var style = new Style(s => s.OfType<Button>().Class("small-target-probe"));
+        style.Setters.Add(new Setter(Button.MinHeightProperty, 24d));
+        style.Setters.Add(new Setter(Button.MinWidthProperty, 24d));
+        main.Styles.Insert(0, style);
+        button.Classes.Add("small-target-probe");
+        try
+        {
+            Pump(main);
+            Assert.Equal(24, button.MinHeight);
+            SkinService.ApplyControlSizing(true);
+            Pump(main);
+            Assert.True(button.Bounds.Width >= 44 && button.Bounds.Height >= 44,
+                $"Touch must override earlier compact class styles: {button.Bounds.Size}.");
+            SkinService.ApplyControlSizing(false);
+            Pump(main);
+            Assert.Equal(24, button.MinHeight);
+            Assert.Equal(24, button.MinWidth);
+        }
+        finally
+        {
+            SkinService.ApplyControlSizing(false);
+            button.Classes.Remove("small-target-probe");
+            main.Styles.Remove(style);
+            Pump(main);
         }
     }
 

@@ -58,6 +58,8 @@
       <Setter Property="MinWidth" Value="{DynamicResource Ox.Mixer.ControlMinSize}"/>
     </Style>
     <Style Selector="Window.large-targets Button, Window.large-targets ToggleButton, Window.large-targets DropDownButton">
+      <Setter Property="MinHeight" Value="{DynamicResource Ox.Mixer.ControlMinSize}"/>
+      <Setter Property="MinWidth" Value="{DynamicResource Ox.Mixer.ControlMinSize}"/>
       <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
     <Style Selector="Slider">

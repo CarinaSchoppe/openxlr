@@ -39,6 +39,14 @@ public sealed partial class DspAudioIntegrationTests
             Assert.True(other.IsAlive);
             pw.SetFilterControl(failed, "i0:enabled", 1);
             Assert.True(host.IsRunning);
+            // A filter-chain stage inside an already hosted chain can also
+            // fall back. Expose its actual host under the original insert id.
+            var mixed = pw.CreateMicFilter("fallback_mixed", 0, false,
+                [insert with { Id = "native", NativeHost = true }, insert with { Id = "fallback" }]);
+            Assert.Equal(new[] { "native", "fallback" }, mixed.InsertStages.Select(s => s.Id));
+            Assert.All(mixed.InsertStages, s => Assert.NotNull(s.Stage.NativeHost));
+            pw.SetFilterControl(mixed, "i1:enabled", 1);
+            Assert.True(mixed.IsAlive);
         }
         finally
         {

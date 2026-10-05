@@ -367,6 +367,7 @@ internal static class UiSettingsFile
         catch (IOException) { return null; }
         catch (JsonException) { return null; }
         catch (InvalidOperationException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
     }
 
     /// <summary>Writes the chosen skin back, keeping every other property the file holds.</summary>

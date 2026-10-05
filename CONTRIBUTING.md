@@ -81,6 +81,11 @@ check retries and cancellation without depending on the test runner's timer
 scheduling. Their bounded completion waits allow a busy worker pool; the
 production retry delays and helper timeouts stay unchanged.
 
+Socket fixtures used by the hub must support both abort and a normal close:
+shutdown cancellation can reach the receive guard before the send pump aborts
+the socket. A receive-entry handshake tests that close path without depending
+on which worker wins the race.
+
 The private PipeWire runner also checks profile startup ordering. To exercise
 ClipGuard with recorded test audio, low cut and a native LSP gate, run
 `OPENXLR_TEST_DSP=1 python3 tools/test-monitor-volume.py` after a native-enabled

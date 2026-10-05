@@ -147,3 +147,9 @@ sink that mix.
 that output. `@monitor` follows the selected monitor output. Limits, rejected
 targets and linked-monitor behavior match the [WebSocket contract](api.md).
 These commands require the daemon but do not require a running UI or KDE.
+
+`holdInsert` is also available through `POST /api/v1/commands`. Supply a UUID
+without separators as `holdId` and `action` (`begin`, `renew`, `end`). Begin takes
+`channel` and an optional `insertId`; omit the latter for the whole chain.
+The five-second lease, overlap and persistence rules are described in
+[Momentary effect keys](api.md#momentary-effect-keys). Renewal must not be treated as a new begin.

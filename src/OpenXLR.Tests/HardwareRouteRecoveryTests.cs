@@ -22,7 +22,9 @@ public sealed partial class MonitorVolumeIntegrationTests
             mixer.Build(new MixerConfig { Channels = [new("xlr1", "XLR 1") { InputPair = 0 }],
                 Mixes = [new("monitor", "Monitor", MixKind.Monitor)] }));
         WaitForRecovery(() => IncomingRouteLinks(channel).Length == 1);
+        uint surviving = Assert.Single(IncomingRouteLinks(channel));
         WaitForRecovery(() => { mixer.EnsureInputFeeds(); return IncomingRouteLinks(channel).Length == 2; });
+        Assert.Contains(surviving, IncomingRouteLinks(channel));
         Stable(() => mixer.EnsureInputFeeds(), channel, 2);
 
         pw.UnloadModule(input);
@@ -123,7 +125,8 @@ public sealed partial class MonitorVolumeIntegrationTests
         return graph.RootElement.EnumerateArray().Where(item =>
             item.GetProperty("type").GetString() == "PipeWire:Interface:Link"
             && item.GetProperty("info").GetProperty("input-node-id").GetUInt32() == id)
-            .Select(item => item.GetProperty("id").GetUInt32()).Order().ToArray();
+            // Registry IDs are reused after a link is removed; serials identify its lifetime.
+            .Select(item => item.GetProperty("info").GetProperty("props").GetProperty("object.serial").GetUInt32()).Order().ToArray();
     }
 
     private static void Stable(Func<bool> ensure, string target, int count)

@@ -1,3 +1,4 @@
+using OpenXLR.UI.Localization;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -19,7 +20,7 @@ internal static class MainWindowLabelTests
         CheckText(title);
         CheckText(main.FindControl<TextBlock>("HeaderVersion")!);
         var actions = header.GetVisualDescendants().OfType<Button>().Where(b => b.IsVisible && b.Name != "DevicePicker").ToArray();
-        Assert.Equal(new[] { "⚙", "Profiles", "Flow", "Restart daemon", "Desktop keys", "About" }, actions.Select(b => b.Content as string));
+        Assert.Equal(new[] { "⚙", Localizer.Text("Profiles"), Localizer.Text("Flow"), Localizer.Text("RestartDaemon"), Localizer.Text("DesktopKeys"), Localizer.Text("About") }, actions.Select(b => b.Content as string));
         foreach (Button action in actions)
             foreach (TextBlock label in action.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsVisible))
                 CheckText(label);
@@ -28,7 +29,7 @@ internal static class MainWindowLabelTests
             var row = main.FindControl<WrapPanel>(name)!;
             var toggles = row.Children.OfType<ToggleButton>().Where(b => b.IsVisible).ToArray();
             Assert.NotEmpty(toggles);
-            Assert.Single(toggles, b => b.Content as string == "Compressor");
+            Assert.Single(toggles, b => b.Content as string == Localizer.Text("Compressor"));
             CheckSeparate(toggles);
             foreach (ToggleButton button in toggles)
                 foreach (TextBlock label in button.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsVisible))

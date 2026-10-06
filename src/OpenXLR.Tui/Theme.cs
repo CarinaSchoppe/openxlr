@@ -104,7 +104,10 @@ internal sealed class Theme
         catch (JsonException) { return theme; }
         using var parsed = document;
         JsonElement root = document.RootElement;
-        if (root.ValueKind != JsonValueKind.Object) return theme;
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("schema", out JsonElement schema)
+            || schema.ValueKind != JsonValueKind.Number
+            || !schema.TryGetInt32(out int version) || version != 1) return theme;
 
         if (root.TryGetProperty("controls", out JsonElement controls) && controls.ValueKind == JsonValueKind.Object)
         {

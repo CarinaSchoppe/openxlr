@@ -1,3 +1,4 @@
+using OpenXLR.UI.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -71,7 +72,7 @@ public sealed class InsertsViewModel : ViewModelBase
     };
 
     /// <summary>Label for a compact button that opens the chain window.</summary>
-    public string ButtonText => Items.Count == 0 ? "Inserts" : $"Inserts ({Items.Count})";
+    public string ButtonText => Items.Count == 0 ? Localizer.Text("Inserts") : Localizer.Format("InsertCount", Items.Count);
 
     private PluginChoice? _selectedPlugin;
     public PluginChoice? SelectedPlugin
@@ -367,7 +368,7 @@ public sealed class InsertViewModel : ViewModelBase
         private set { if (Set(ref _nativeHostRunning, value)) RaiseNativeFlags(); }
     }
 
-    public string StateText => HasError ? "problem" : Bypass ? "bypassed" : "active";
+    public string StateText => HasError ? Localizer.Text("Problem") : Bypass ? Localizer.Text("Bypassed") : Localizer.Text("Active");
 
     /// <summary>Green LED: in the chain and processing. Red otherwise (bypassed or failed).</summary>
     public bool IsActive => !Bypass && !HasError;

@@ -1556,6 +1556,17 @@ Review plugin names, paths and scanner output before sharing the archive.
 <a name="files"></a>
 ## 6. Files and services
 
+### Window language
+
+Options, APPEARANCE, Language offers System language, English, Deutsch,
+Español and Français. The choice is saved locally and applies after quitting
+and launching the app again. Audio keeps running. Regional system languages
+use their matching catalogue; unsupported languages use English. Launch with
+`OPENXLR_LANGUAGE=en` to temporarily use English without changing the saved
+choice. Names you gave channels, mixes and profiles keep their spelling.
+Plugin editors, some dynamic messages and the other clients are not yet
+translated. See [localization.md](localization.md) for the current coverage.
+
 | Path | What it is |
 |---|---|
 | `~/.config/openxlr/mixer.json` | every mixer decision, the layout included (`userChannels`, `userMixes`, see [mixer-layout.md](mixer-layout.md)), written by the daemon |

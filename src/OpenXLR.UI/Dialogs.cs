@@ -1,3 +1,4 @@
+using OpenXLR.UI.Localization;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 
@@ -10,7 +11,7 @@ internal static class Dialogs
     public static async Task<bool> ConfirmAsync(Window owner, string title, string message, string yesLabel)
     {
         var yes = new Button { Content = yesLabel, Classes = { "danger" } };
-        var no = new Button { Content = "Cancel", IsCancel = true };
+        var no = new Button { Content = Localizer.Text("Cancel"), IsCancel = true };
         var dialog = new Window
         {
             Title = title,

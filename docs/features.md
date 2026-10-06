@@ -369,6 +369,13 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 
 ## Other
 
+- Desktop language selection: English, German, Spanish and French, with the
+  system language by default and English fallback. Fixed window labels,
+  tooltips, placeholders, accessibility names, tray actions and common mixer
+  statuses are translated. The selection is saved locally and applies on
+  the next app launch without restarting audio. See
+  [localization.md](localization.md) for scope and contributor guidance.
+
 - Enforced defaults: the daemon re-asserts the chosen system default
   sink and source on its one-second sweep, undoing WirePlumber's
   auto-switch to newly created nodes. The defaults to restore are read

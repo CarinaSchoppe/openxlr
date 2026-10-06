@@ -1,3 +1,4 @@
+using OpenXLR.UI.Localization;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -9,6 +10,8 @@ public sealed record DeviceChoice(string? Name, string Label);
 
 /// <summary>One skin in the appearance picker; the id is what ui.json keeps.</summary>
 public sealed record SkinChoice(string Id, string Label);
+
+public sealed record LanguageChoice(string? Id, string Label);
 
 /// <summary>
 /// Backs the Options window. Startup toggles apply immediately to the system
@@ -34,6 +37,9 @@ public sealed class OptionsViewModel : ViewModelBase
         _main = main;
 
         UiSettings s = UiSettings.Load();
+        string? language = s.Language is null or "" or "system" ? null
+            : Localizer.Resolve(s.Language, System.Globalization.CultureInfo.CurrentUICulture);
+        _selectedLanguage = LanguageChoices.First(c => c.Id == language);
         _startDaemonAtLogin = s.StartDaemonAtLogin;
         _openWindowAtLogin = s.OpenWindowAtLogin;
         _minimizeToTray = s.MinimizeToTray;
@@ -58,6 +64,53 @@ public sealed class OptionsViewModel : ViewModelBase
     }
 
     // --- plugins ---
+
+    // Language names stay in their own language, even when the user picked a
+    // language they cannot read. Saving only this field preserves all other
+    // preferences, including choices made since Options was opened.
+    public System.Collections.Generic.IReadOnlyList<LanguageChoice> LanguageChoices { get; } =
+    [
+        new(null, Localizer.Text("SystemLanguage")),
+        new("en", "English"), new("de", "Deutsch"),
+        new("es", "Español"), new("fr", "Français"),
+    ];
+
+    private LanguageChoice? _selectedLanguage;
+    public LanguageChoice? SelectedLanguage
+    {
+        get => _selectedLanguage;
+        set
+        {
+            if (value is null || !LanguageChoices.Contains(value) || value == _selectedLanguage) return;
+            try
+            {
+                SaveLanguage(value.Id);
+                Set(ref _selectedLanguage, value);
+                LanguageError = null;
+            }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+            {
+                LanguageError = Localizer.Format("LanguageSaveError", ex.Message);
+                // Notify the picker of the rejected choice so it returns to
+                // the last saved language. The running language is unchanged.
+                var previous = _selectedLanguage;
+                Set(ref _selectedLanguage, value);
+                Set(ref _selectedLanguage, previous);
+            }
+        }
+    }
+
+    internal static void SaveLanguage(string? language)
+    {
+        if (language is not (null or "en" or "de" or "es" or "fr"))
+            throw new ArgumentException("Unsupported window language", nameof(language));
+        // Unlike the legacy best-effort Save, a refused language write is
+        // reported to the user rather than appearing to have been saved.
+        (UiSettings.Load() with { Language = language }).SaveRequired();
+    }
+
+    private string? _languageError;
+    public string? LanguageError { get => _languageError; private set => Set(ref _languageError, value); }
 
     private string _pluginDirectories = "Plugins are looked for in the home and system plugin directories.";
     /// <summary>Where installs go, once the daemon has said.</summary>
@@ -305,10 +358,10 @@ public sealed class OptionsViewModel : ViewModelBase
 
     public string StartupHint => (StartDaemonAtLogin, OpenWindowAtLogin) switch
     {
-        (true, true) => "Audio and the app will start when you sign in.",
-        (false, true) => "The app will start at login. Start the audio service separately to use it.",
-        (true, false) => "Audio will start at login without the app or tray icon.",
-        _ => "Neither audio nor the app will start at login.",
+        (true, true) => Localizer.Text("AudioAndTheAppWillStartWhenYou"),
+        (false, true) => Localizer.Text("TheAppWillStartAtLoginStartThe"),
+        (true, false) => Localizer.Text("AudioWillStartAtLoginWithoutTheApp"),
+        _ => Localizer.Text("NeitherAudioNorTheAppWillStartAt"),
     };
 
     // The selectors keep the existing saved booleans, including their defaults.
@@ -486,14 +539,14 @@ public sealed class OptionsViewModel : ViewModelBase
 
     private void BuildChoices()
     {
-        OutputChoices.Add(new DeviceChoice(null, "(don't enforce)"));
-        OutputChoices.Add(new DeviceChoice("@monitor", "Follow MONITOR output (system volume controls)"));
+        OutputChoices.Add(new DeviceChoice(null, Localizer.Text("DonTEnforce")));
+        OutputChoices.Add(new DeviceChoice("@monitor", Localizer.Text("FollowMONITOROutputSystemVolumeControls")));
         // "#phones" entries are channel-pair routing targets, not real sinks a
         // system default can point to.
         foreach (AudioDeviceItem d in _main.Outputs.Where(d => !d.Name.Contains("#phones", StringComparison.Ordinal)))
             OutputChoices.Add(new DeviceChoice(d.Name, d.Label));
 
-        InputChoices.Add(new DeviceChoice(null, "(don't enforce)"));
+        InputChoices.Add(new DeviceChoice(null, Localizer.Text("DonTEnforce")));
         foreach (AudioDeviceItem d in _main.Inputs)
             InputChoices.Add(new DeviceChoice(d.Name, d.Label));
     }

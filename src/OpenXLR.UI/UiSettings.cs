@@ -41,6 +41,9 @@ public sealed record UiSettings
     /// </summary>
     public string? Skin { get; init; }
 
+    /// <summary>Window language: null follows the system; en, de, es or fr overrides it.</summary>
+    public string? Language { get; init; }
+
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
@@ -64,9 +67,11 @@ public sealed record UiSettings
 
     public void Save()
     {
-        try { OpenXlrPaths.WriteAtomicJson(FilePath, this, Json); }
+        try { SaveRequired(); }
         catch (Exception) { /* best effort */ }
     }
+
+    internal void SaveRequired() => OpenXlrPaths.WriteAtomicJson(FilePath, this, Json);
 }
 
 /// <summary>

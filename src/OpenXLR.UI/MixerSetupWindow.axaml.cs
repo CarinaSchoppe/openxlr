@@ -1,3 +1,4 @@
+using OpenXLR.UI.Localization;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -35,10 +36,10 @@ public partial class MixerSetupWindow : Window
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
         var pair = new ComboBox { Name = "CapturePair", ItemsSource = Enumerable.Range(1, 32).Select(n => $"Pair {n}").ToArray(), SelectedIndex = 0 };
         var add = new Button { Name = "CreateCapture", Content = "Add input", IsDefault = true };
-        var cancel = new Button { Content = "Cancel", IsCancel = true };
+        var cancel = new Button { Content = Localizer.Text("Cancel"), IsCancel = true };
         var dialog = new Window
         {
-            Title = "Add capture input", Width = 480, Height = 340, MinWidth = 360, MinHeight = 320,
+            Title = Localizer.Text("AddCaptureInput"), Width = 480, Height = 340, MinWidth = 360, MinHeight = 320,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Classes = { "dialog" },
             Content = new ScrollViewer { Content = new StackPanel
             {
@@ -151,8 +152,8 @@ public partial class MixerSetupWindow : Window
     private async Task<string?> PromptName(string title, string current, string hint)
     {
         var input = new TextBox { Text = current, MinWidth = 340, MaxLength = 60 };
-        var ok = new Button { Content = "Rename", IsDefault = true };
-        var cancel = new Button { Content = "Cancel", IsCancel = true };
+        var ok = new Button { Content = Localizer.Text("Rename"), IsDefault = true };
+        var cancel = new Button { Content = Localizer.Text("Cancel"), IsCancel = true };
         string? result = null;
         var dialog = new Window
         {
@@ -195,8 +196,8 @@ public partial class MixerSetupWindow : Window
 
     private async Task<bool> Confirm(string title, string message)
     {
-        var yes = new Button { Content = "Delete", Classes = { "danger" } };
-        var no = new Button { Content = "Cancel", IsCancel = true };
+        var yes = new Button { Content = Localizer.Text("Delete"), Classes = { "danger" } };
+        var no = new Button { Content = Localizer.Text("Cancel"), IsCancel = true };
         var done = new TaskCompletionSource<bool>();
         var dialog = new Window
         {

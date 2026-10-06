@@ -153,6 +153,12 @@ locked restore and tests. Do not disable locked mode to make an update pass.
 
 ## Pull requests
 
+Desktop text belongs in the four resource catalogues. Keep resource keys
+stable and preserve numbered format arguments in every language. Do not
+translate protocol ids, user names or text supplied by plugins. The first
+pass and its remaining scope are documented in
+[docs/localization.md](docs/localization.md).
+
 CI and CodeQL run for pull requests and for direct pushes to `main` and
 `development`, so changes integrated directly into development get the same
 checks as a pull request.

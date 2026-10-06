@@ -1,3 +1,4 @@
+using OpenXLR.UI.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -77,8 +78,8 @@ public sealed partial class MainViewModel : ViewModelBase
 
     /// <summary>What the empty SUBMIXER tile says: the two reasons differ.</summary>
     public string MixerPlaceholder => !DaemonConnected
-        ? "Daemon not running."
-        : "Submixer is off. Turn it on in Options for per-app channels, mixes, virtual microphones and inserts; OpenXLR is controlling the hardware only.";
+        ? Localizer.Text("DaemonNotRunningSentence")
+        : Localizer.Text("SubmixerIsOffTurnItOnInOptions");
 
     private bool _deviceConnected;
     public bool DeviceConnected { get => _deviceConnected; private set { if (Set(ref _deviceConnected, value)) Raise(nameof(StatusLine)); } }
@@ -86,12 +87,12 @@ public sealed partial class MainViewModel : ViewModelBase
     private string _deviceName = "none";
     public string DeviceName { get => _deviceName; private set { if (Set(ref _deviceName, value)) Raise(nameof(StatusLine)); } }
 
-    private string _status = "connecting…";
+    private string _status = Localizer.Text("Connecting");
     public string Status { get => _status; private set { if (Set(ref _status, value)) Raise(nameof(StatusLine)); } }
 
-    public string StatusLine => !DaemonConnected ? "Daemon not running"
+    public string StatusLine => !DaemonConnected ? Localizer.Text("DaemonNotRunning")
         : DeviceConnected ? DeviceName
-        : "No device";
+        : Localizer.Text("NoDevice");
 
     // --- hardware controls ---
 
@@ -225,7 +226,7 @@ public sealed partial class MainViewModel : ViewModelBase
             }
         }
     }
-    public string SoftLowCutText => _softLowCutHz == 0 ? "Low Cut Off" : $"Low Cut {_softLowCutHz}";
+    public string SoftLowCutText => _softLowCutHz == 0 ? Localizer.Text("LowCutOff") : Localizer.Format("LowCutFrequency", _softLowCutHz);
 
     private bool _showSoftLowCut;
     public bool ShowSoftLowCut { get => _showSoftLowCut; private set => Set(ref _showSoftLowCut, value); }
@@ -415,8 +416,8 @@ public sealed partial class MainViewModel : ViewModelBase
     public int PhantomSettleSeconds2 { get => _phantomSettleSeconds2; set { if (Set(ref _phantomSettleSeconds2, value)) Raise(nameof(Mute2Label)); } }
 
     // The mute button counts the hold down while the firmware settles 48V.
-    public string MuteLabel => PhantomSettling ? $"48V {PhantomSettleSeconds}s" : "Mute";
-    public string Mute2Label => PhantomSettling2 ? $"48V {PhantomSettleSeconds2}s" : "Mute";
+    public string MuteLabel => PhantomSettling ? $"48V {PhantomSettleSeconds}s" : Localizer.Text("Mute");
+    public string Mute2Label => PhantomSettling2 ? $"48V {PhantomSettleSeconds2}s" : Localizer.Text("Mute");
 
     private bool _clipGuard;
     public bool ClipGuard { get => _clipGuard; set { if (Set(ref _clipGuard, value) && !_applying) _ = _client.SetControlAsync("clipGuard", value); } }
@@ -962,7 +963,7 @@ public sealed partial class MainViewModel : ViewModelBase
             string label = stream["label"]?.GetValue<string>() ?? "?";
             string channel = stream["channelId"]?.GetValue<string>() ?? "";
             bool active = stream["active"]?.GetValue<bool>() ?? true;
-            bool running = stream["running"]?.GetValue<bool>() ?? true;
+            bool running = stream[Localizer.Text("Running")]?.GetValue<bool>() ?? true;
             seen.Add(identity);
             if (!byIdentity.TryGetValue(identity, out AppStreamViewModel? existing))
             {
@@ -1183,8 +1184,8 @@ public sealed class AppStreamViewModel : ViewModelBase
         finally { _applying = false; }
     }
 
-    /// <summary>"playing" / "running" / "not running", for the manage dialog.</summary>
-    public string StatusText => Active ? "playing" : Running ? "running" : "not running";
+    /// <summary>Localizer.Text("Playing") / Localizer.Text("Running") / Localizer.Text("NotRunning"), for the manage dialog.</summary>
+    public string StatusText => Active ? Localizer.Text("Playing") : Running ? Localizer.Text("Running") : Localizer.Text("NotRunning");
 
     public void Forget() => _ = _client.ForgetAppAsync(Identity);
 }

@@ -1930,7 +1930,10 @@ hidden channels and display order are saved in the mixer scene. Older profiles
 that have no presentation leave it unchanged. A missing skin uses the shipped
 default; a missing compact channel falls back to an available channel without
 forgetting the saved selection. Startup, tray, update and security preferences
-remain local. A recall is applied once, including after reconnecting to the
+remain local. Unknown fields in window preferences, including the language
+choice from another window version, survive recall. A malformed or unreadable
+window preference file is not replaced by a recall; the window reports the
+failure and keeps its current presentation. A recall is applied once, including after reconnecting to the
 daemon; subsequent manual edits remain until another profile is loaded.
 Loading a profile cancels a drag in progress before restoring its order.
 

@@ -153,6 +153,45 @@ public sealed class ProfilePresentationTests
         });
     }
 
+    [Theory]
+    [InlineData("null")]
+    [InlineData("[]")]
+    [InlineData("{\"language\":\"de\",\"broken\":")]
+    public void RecallRefusesMalformedWindowPreferencesWithoutReplacingThem(string invalid)
+        => InConfig(() =>
+        {
+            string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
+            OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, invalid);
+            var vm = new MainViewModel(new DaemonClient());
+            int recalled = 0;
+            vm.PresentationRecalled += () => recalled++;
+            Apply(vm, Recall("deck"));
+            Assert.Equal(invalid, File.ReadAllText(path));
+            Assert.False(vm.CompactMixer);
+            Assert.Equal(0, recalled);
+            Assert.Contains("could not be restored", vm.Status);
+        });
+
+    [Fact]
+    public void RecallPreservesLocalLanguageAndFieldsFromOtherWindowFeatures()
+        => InConfig(() =>
+        {
+            string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
+            OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, """
+                {"language":"zh-Hant","themeMode":"light","touchControls":true,
+                 "futureAppearance":{"density":"touch"},"futureEmpty":null}
+                """);
+            Apply(new MainViewModel(new DaemonClient()), Recall("deck"));
+            using var persisted = JsonDocument.Parse(File.ReadAllText(path));
+            var prefs = persisted.RootElement;
+            Assert.Equal("deck", prefs.GetProperty("skin").GetString());
+            Assert.Equal("zh-Hant", prefs.GetProperty("language").GetString());
+            Assert.Equal("light", prefs.GetProperty("themeMode").GetString());
+            Assert.True(prefs.GetProperty("touchControls").GetBoolean());
+            Assert.Equal("touch", prefs.GetProperty("futureAppearance").GetProperty("density").GetString());
+            Assert.Equal(JsonValueKind.Null, prefs.GetProperty("futureEmpty").ValueKind);
+        });
+
     private static JsonNode Recall(string skin) => JsonSerializer.SerializeToNode(new
     {
         revision = Guid.NewGuid().ToString("N"), settings = new { compactMixer = true, compactChannel = "music", skin,

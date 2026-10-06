@@ -1101,6 +1101,9 @@ audio, the mixer, the routing and the layout are untouched, and nothing is
 restarted. The choice is saved in `~/.config/openxlr/ui.json` and is not
 part of a profile or of the mixer layout.
 
+OpenDeck uses the target's default glyph when a saved icon name is unknown
+or has the wrong type. Supported icon selections remain available.
+
 Anything wrong with a skin is listed under the picker, not in the mixer
 window. A skin that sets only part of the appearance keeps the default for
 everything else.
@@ -1837,6 +1840,9 @@ and persistence as the window.
 The terminal mixer wears the same skins as the window. It reads the same
 files, in the same order, and the choice in Options is the same choice, so
 picking Gruvbox in one picks it in the other ([skins.md](skins.md)).
+An unreadable saved choice leaves Material in use for this run without
+rewriting the file. Repairing its permissions makes the choice available
+on the next start.
 `--skin <id>` uses one appearance for this run without saving it, and
 `--list-skins` prints what this machine has. Deck and the Omarchy skins get
 console fader caps, bracketed keys and lamps; flat skins get plain ones.

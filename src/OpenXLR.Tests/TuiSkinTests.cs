@@ -304,6 +304,29 @@ public sealed class TuiSkinTests : IDisposable
     // --- the skins this repository ships ---
 
     [Fact]
+    public void AnUnreadableSavedChoiceFallsBackAndCanBeReadAfterRepair()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        string config = Path.Combine(_root, "unreadable-config");
+        Directory.CreateDirectory(Path.Combine(config, "openxlr"));
+        Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", config);
+        string file = Path.Combine(config, "openxlr", "ui.json");
+        File.WriteAllText(file, """{"skin":"nord","startDaemonAtLogin":true}""");
+        File.SetUnixFileMode(file, UnixFileMode.None);
+        try
+        {
+            Assert.Throws<UnauthorizedAccessException>(() => File.ReadAllText(file));
+            Assert.Null(UiSettingsFile.ReadSkin());
+        }
+        finally
+        {
+            File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+        Assert.Equal("nord", UiSettingsFile.ReadSkin());
+        Assert.Contains("startDaemonAtLogin", File.ReadAllText(file), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TheShippedSkinsReadIntoAPaletteThatIsNotTheDefaultOne()
     {
         string shipped = Path.Combine(Root(), "src", "OpenXLR.UI", "Assets", "Skins");

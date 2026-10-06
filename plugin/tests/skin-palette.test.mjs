@@ -50,6 +50,21 @@ test('partial palettes validate flat colours, alpha, gradients and meter bounds'
   assert.equal(paletteFrom({[CARD]:'#123456'})[INK], defaults[INK]);
 });
 
+test('inherited object names are not colour names or valid gradient stops', () => {
+  for (const value of ['constructor', 'CONSTRUCTOR', '__proto__']) {
+    for (const key of [CARD, INK, 'Ox.Led.On', 'Ox.Meter.Fill'])
+      assert.equal(paletteFrom({[key]:value})[key], defaults[key], `${key}: ${value}`);
+    for (const type of ['linear', 'radial']) {
+      for (const badStop of [0, 1]) {
+        const stops = [{offset:0, color:'#112233'}, {offset:1, color:'#abcdef'}];
+        stops[badStop].color = value;
+        assert.equal(paletteFrom({[CARD]:{type, stops}})[CARD], defaults[CARD], `${type}: ${badStop}: ${value}`);
+      }
+    }
+  }
+  assert.equal(paletteFrom({[CARD]:'WHITE'})[CARD], '#ffffff');
+});
+
 test('saved choice, root precedence and override use the same bounded ids', t => {
   const f = fixture(t);
   f.write(f.ui, {skin:'opendeck'});

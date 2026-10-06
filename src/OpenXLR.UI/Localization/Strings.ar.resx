@@ -1,0 +1,738 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="ADDINSTALLEDAPPLICATION" xml:space="preserve">
+    <value>إضافة تطبيق مثبت</value>
+  </data>
+  <data name="ANewChannelStartsMutedInEveryMix" xml:space="preserve">
+    <value>تبدأ القناة الجديدة مكتومة في كل المزيجات. تبقى مداخل الأجهزة في أماكنها.</value>
+  </data>
+  <data name="APPEARANCE" xml:space="preserve">
+    <value>المظهر</value>
+  </data>
+  <data name="APPLICATIONS" xml:space="preserve">
+    <value>التطبيقات</value>
+  </data>
+  <data name="ATLOGIN" xml:space="preserve">
+    <value>عند تسجيل الدخول</value>
+  </data>
+  <data name="AUDIO" xml:space="preserve">
+    <value>الصوت</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>حول</value>
+  </data>
+  <data name="AboutOpenXLR" xml:space="preserve">
+    <value>حول OpenXLR</value>
+  </data>
+  <data name="Active" xml:space="preserve">
+    <value>نشط</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>إضافة</value>
+  </data>
+  <data name="AddCaptureInput" xml:space="preserve">
+    <value>إضافة مدخل التقاط</value>
+  </data>
+  <data name="AddChannel" xml:space="preserve">
+    <value>إضافة قناة</value>
+  </data>
+  <data name="AddFolder" xml:space="preserve">
+    <value>إضافة مجلد</value>
+  </data>
+  <data name="AddMicrophone" xml:space="preserve">
+    <value>إضافة ميكروفون</value>
+  </data>
+  <data name="AddPlugin" xml:space="preserve">
+    <value>إضافة ملحق</value>
+  </data>
+  <data name="AddPluginInsert" xml:space="preserve">
+    <value>إضافة مؤثر ملحق</value>
+  </data>
+  <data name="AddVolumeAndMuteKeys" xml:space="preserve">
+    <value>إضافة مفاتيح الصوت والكتم</value>
+  </data>
+  <data name="AllowNativeEditor" xml:space="preserve">
+    <value>السماح بمحرر الملحق الأصلي</value>
+  </data>
+  <data name="ApplicationChannelsMixesVirtualMicrophonesAndInserts" xml:space="preserve">
+    <value>قنوات التطبيقات والمزيجات والميكروفونات الافتراضية والمؤثرات.</value>
+  </data>
+  <data name="ApplyAndConfigureKeys" xml:space="preserve">
+    <value>تطبيق المفاتيح وإعدادها</value>
+  </data>
+  <data name="AudioAndTheAppWillStartWhenYou" xml:space="preserve">
+    <value>سيبدأ الصوت والتطبيق عند تسجيل الدخول.</value>
+  </data>
+  <data name="AudioFlow" xml:space="preserve">
+    <value>تدفق الصوت</value>
+  </data>
+  <data name="AudioWillStartAtLoginWithoutTheApp" xml:space="preserve">
+    <value>سيبدأ الصوت عند الدخول دون التطبيق أو أيقونة علبة النظام.</value>
+  </data>
+  <data name="BridgeAgainEveryFolderYabridgeKnowsForWindows" xml:space="preserve">
+    <value>إعادة ربط مجلدات yabridge للملحقات المثبتة حديثا في Windows</value>
+  </data>
+  <data name="BridgeWineSPlugins" xml:space="preserve">
+    <value>ربط ملحقات Wine</value>
+  </data>
+  <data name="BuyMeACoffee" xml:space="preserve">
+    <value>ادعمني بفنجان قهوة</value>
+  </data>
+  <data name="Bypass" xml:space="preserve">
+    <value>تجاوز</value>
+  </data>
+  <data name="BypassThisPlugin" xml:space="preserve">
+    <value>تجاوز هذا الملحق</value>
+  </data>
+  <data name="Bypassed" xml:space="preserve">
+    <value>تم تجاوزه</value>
+  </data>
+  <data name="CHANNELS" xml:space="preserve">
+    <value>القنوات</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>إلغاء</value>
+  </data>
+  <data name="ChangingThisRestartsTheAudioServiceAndBriefly" xml:space="preserve">
+    <value>يعيد هذا التغيير تشغيل خدمة الصوت ويقطع الصوت لفترة وجيزة.</value>
+  </data>
+  <data name="Channel" xml:space="preserve">
+    <value>قناة</value>
+  </data>
+  <data name="ChannelToMix" xml:space="preserve">
+    <value>قناة إلى مزيج</value>
+  </data>
+  <data name="CheckAgain" xml:space="preserve">
+    <value>التحقق مجددا</value>
+  </data>
+  <data name="CheckGitHubForStableReleasesAtStartupAt" xml:space="preserve">
+    <value>التحقق من الإصدارات المستقرة في GitHub عند البدء
+(مرة واحدة يوميا كحد أقصى)</value>
+  </data>
+  <data name="CheckNow" xml:space="preserve">
+    <value>التحقق الآن</value>
+  </data>
+  <data name="ChooseAFolderThenSelectAnIndividualPlugin" xml:space="preserve">
+    <value>اختر مجلدا ثم اختر ملحقا واحدا أدناه.</value>
+  </data>
+  <data name="ChooseAnApplication" xml:space="preserve">
+    <value>اختر تطبيقا</value>
+  </data>
+  <data name="ClearSelection" xml:space="preserve">
+    <value>×  إلغاء التحديد</value>
+  </data>
+  <data name="ClickAnyElementToTraceItsSignalPath" xml:space="preserve">
+    <value>انقر على أي عنصر لتتبع مسار إشارته</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>إغلاق</value>
+  </data>
+  <data name="CollectDiagnostics" xml:space="preserve">
+    <value>جمع التشخيصات</value>
+  </data>
+  <data name="Compressor" xml:space="preserve">
+    <value>ضاغط</value>
+  </data>
+  <data name="Connecting" xml:space="preserve">
+    <value>جار الاتصال…</value>
+  </data>
+  <data name="ContributorsAndCredits" xml:space="preserve">
+    <value>المساهمون والشكر</value>
+  </data>
+  <data name="Controls" xml:space="preserve">
+    <value>عناصر التحكم</value>
+  </data>
+  <data name="CurrentSystemDefaultOutput" xml:space="preserve">
+    <value>مخرج النظام الافتراضي الحالي</value>
+  </data>
+  <data name="DaemonNotRunning" xml:space="preserve">
+    <value>الخدمة الخلفية لا تعمل</value>
+  </data>
+  <data name="DaemonNotRunningSentence" xml:space="preserve">
+    <value>الخدمة الخلفية لا تعمل.</value>
+  </data>
+  <data name="DeepWineTraceForPluginScans" xml:space="preserve">
+    <value>تتبع Wine المفصل لفحص الملحقات</value>
+  </data>
+  <data name="DefaultInput" xml:space="preserve">
+    <value>المدخل الافتراضي</value>
+  </data>
+  <data name="DefaultOutput" xml:space="preserve">
+    <value>المخرج الافتراضي</value>
+  </data>
+  <data name="Defaults" xml:space="preserve">
+    <value>القيم الافتراضية</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>حذف</value>
+  </data>
+  <data name="DeleteFile" xml:space="preserve">
+    <value>حذف الملف</value>
+  </data>
+  <data name="DeleteThisProfile" xml:space="preserve">
+    <value>حذف هذا الملف التعريفي</value>
+  </data>
+  <data name="DesktopKeys" xml:space="preserve">
+    <value>اختصارات سطح المكتب</value>
+  </data>
+  <data name="Devices" xml:space="preserve">
+    <value>الأجهزة</value>
+  </data>
+  <data name="DirectMonitorBlendLeftOnlyYourMicRight" xml:space="preserve">
+    <value>مزيج المراقبة المباشرة: اليسار للميكروفون فقط، واليمين لصوت الحاسوب فقط</value>
+  </data>
+  <data name="DisableInOpenXLR" xml:space="preserve">
+    <value>تعطيل في OpenXLR</value>
+  </data>
+  <data name="DiscordCommunity" xml:space="preserve">
+    <value>مجتمع Discord</value>
+  </data>
+  <data name="Dismiss" xml:space="preserve">
+    <value>تجاهل الإشعار</value>
+  </data>
+  <data name="DonTEnforce" xml:space="preserve">
+    <value>(دون فرض)</value>
+  </data>
+  <data name="EditLayout" xml:space="preserve">
+    <value>تحرير التخطيط</value>
+  </data>
+  <data name="EnableDesktopIntegration" xml:space="preserve">
+    <value>تفعيل تكامل سطح المكتب</value>
+  </data>
+  <data name="EnableSoftwareMixer" xml:space="preserve">
+    <value>تفعيل المازج البرمجي</value>
+  </data>
+  <data name="Expander" xml:space="preserve">
+    <value>موسع</value>
+  </data>
+  <data name="FindAnInstalledPlugin" xml:space="preserve">
+    <value>البحث عن ملحق مثبت…</value>
+  </data>
+  <data name="FixWindowsEditorInput" xml:space="preserve">
+    <value>إصلاح إدخال محرر Windows</value>
+  </data>
+  <data name="Flow" xml:space="preserve">
+    <value>التدفق</value>
+  </data>
+  <data name="FollowMONITOROutputSystemVolumeControls" xml:space="preserve">
+    <value>اتباع مخرج MONITOR (صوت النظام)</value>
+  </data>
+  <data name="FollowSelectedMonitorOutput" xml:space="preserve">
+    <value>اتباع مخرج المراقبة المحدد</value>
+  </data>
+  <data name="Forget" xml:space="preserve">
+    <value>نسيان</value>
+  </data>
+  <data name="FrontJack" xml:space="preserve">
+    <value>المقبس الأمامي</value>
+  </data>
+  <data name="GainLockTheDaemonRejectsEveryGainChange" xml:space="preserve">
+    <value>قفل الكسب: ترفض الخدمة الخلفية جميع تغييرات الكسب أثناء تفعيله</value>
+  </data>
+  <data name="HEADPHONES" xml:space="preserve">
+    <value>سماعات الرأس</value>
+  </data>
+  <data name="HandThePluginsAWindowsInstallerLeftIn" xml:space="preserve">
+    <value>تسليم الملحقات التي ثبتها مثبت Windows في Wine إلى yabridge</value>
+  </data>
+  <data name="HardwareInput" xml:space="preserve">
+    <value>مدخل الجهاز</value>
+  </data>
+  <data name="INPUTS" xml:space="preserve">
+    <value>المداخل</value>
+  </data>
+  <data name="INTERFACE" xml:space="preserve">
+    <value>الواجهة</value>
+  </data>
+  <data name="InputToChannel" xml:space="preserve">
+    <value>مدخل إلى قناة</value>
+  </data>
+  <data name="InsertCount" xml:space="preserve">
+    <value>المؤثرات ({0})</value>
+  </data>
+  <data name="Inserts" xml:space="preserve">
+    <value>المؤثرات</value>
+  </data>
+  <data name="InstallAClapOrVst3FileOrA" xml:space="preserve">
+    <value>تثبيت ملف .clap أو .vst3 أو ملحق Windows عبر yabridge</value>
+  </data>
+  <data name="InstallAVst3OrLv2BundleOrEvery" xml:space="preserve">
+    <value>تثبيت حزمة .vst3 أو .lv2 أو جميع الملحقات في مجلد</value>
+  </data>
+  <data name="InstallFile" xml:space="preserve">
+    <value>تثبيت ملف</value>
+  </data>
+  <data name="InstallFolder" xml:space="preserve">
+    <value>تثبيت مجلد</value>
+  </data>
+  <data name="InterfaceConnection" xml:space="preserve">
+    <value>اتصال الواجهة</value>
+  </data>
+  <data name="KNOWNAPPLICATIONS" xml:space="preserve">
+    <value>التطبيقات المعروفة</value>
+  </data>
+  <data name="KeepRunningInTray" xml:space="preserve">
+    <value>متابعة العمل في علبة النظام</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>اللغة</value>
+  </data>
+  <data name="LanguageOverrideHint" xml:space="preserve">
+    <value>يختار OPENXLR_LANGUAGE اللغة {0} لهذا التشغيل. يسري الاختيار المحفوظ عند إعادة التشغيل دون هذا المتغير.</value>
+  </data>
+  <data name="LanguageRestartHint" xml:space="preserve">
+    <value>تطبق اللغة في التشغيل القادم لـ OpenXLR. يستمر الصوت في العمل.</value>
+  </data>
+  <data name="LanguageSaveError" xml:space="preserve">
+    <value>تعذر حفظ اللغة: {0}</value>
+  </data>
+  <data name="LeftLevel" xml:space="preserve">
+    <value>مستوى اليسار</value>
+  </data>
+  <data name="LevelLock" xml:space="preserve">
+    <value>قفل المستوى</value>
+  </data>
+  <data name="LoadThisProfile" xml:space="preserve">
+    <value>تحميل هذا الملف التعريفي</value>
+  </data>
+  <data name="Lock" xml:space="preserve">
+    <value>قفل</value>
+  </data>
+  <data name="LowCut" xml:space="preserve">
+    <value>قطع الترددات المنخفضة</value>
+  </data>
+  <data name="LowCutFrequency" xml:space="preserve">
+    <value>قطع الترددات المنخفضة {0}</value>
+  </data>
+  <data name="LowCutOff" xml:space="preserve">
+    <value>قطع الترددات المنخفضة معطل</value>
+  </data>
+  <data name="LowImp" xml:space="preserve">
+    <value>معاوقة منخفضة</value>
+  </data>
+  <data name="MIXES" xml:space="preserve">
+    <value>المزيجات</value>
+  </data>
+  <data name="MONITOR" xml:space="preserve">
+    <value>المراقبة</value>
+  </data>
+  <data name="Manage" xml:space="preserve">
+    <value>إدارة</value>
+  </data>
+  <data name="ManageThisPluginSNativeEditorCompatibilityRule" xml:space="preserve">
+    <value>إدارة قاعدة توافق المحرر الأصلي لهذا الملحق</value>
+  </data>
+  <data name="ManageWindowsPlugins" xml:space="preserve">
+    <value>إدارة ملحقات Windows</value>
+  </data>
+  <data name="Manual" xml:space="preserve">
+    <value>الدليل</value>
+  </data>
+  <data name="MemoryLockSetup" xml:space="preserve">
+    <value>إعداد قفل الذاكرة</value>
+  </data>
+  <data name="MicPC" xml:space="preserve">
+    <value>ميكروفون ↔ حاسوب</value>
+  </data>
+  <data name="MixToOutput" xml:space="preserve">
+    <value>مزيج إلى مخرج</value>
+  </data>
+  <data name="MixerLayout" xml:space="preserve">
+    <value>تخطيط المازج</value>
+  </data>
+  <data name="MoveDown" xml:space="preserve">
+    <value>نقل لأسفل</value>
+  </data>
+  <data name="MovePluginDown" xml:space="preserve">
+    <value>نقل الملحق لأسفل</value>
+  </data>
+  <data name="MovePluginUp" xml:space="preserve">
+    <value>نقل الملحق لأعلى</value>
+  </data>
+  <data name="MoveUp" xml:space="preserve">
+    <value>نقل لأعلى</value>
+  </data>
+  <data name="Mute" xml:space="preserve">
+    <value>كتم</value>
+  </data>
+  <data name="MutedInactive" xml:space="preserve">
+    <value>مكتوم / غير نشط</value>
+  </data>
+  <data name="NativeEditorCompatibility" xml:space="preserve">
+    <value>توافق المحرر الأصلي</value>
+  </data>
+  <data name="NativeEditors" xml:space="preserve">
+    <value>المحررات الأصلية</value>
+  </data>
+  <data name="NativeHost" xml:space="preserve">
+    <value>المضيف الأصلي</value>
+  </data>
+  <data name="NeitherAudioNorTheAppWillStartAt" xml:space="preserve">
+    <value>لن يبدأ الصوت أو التطبيق عند تسجيل الدخول.</value>
+  </data>
+  <data name="NewChannelEGPodcast" xml:space="preserve">
+    <value>قناة جديدة، مثل بودكاست</value>
+  </data>
+  <data name="NewVirtualMicrophoneEGRecording" xml:space="preserve">
+    <value>ميكروفون افتراضي جديد، مثل تسجيل</value>
+  </data>
+  <data name="NoDevice" xml:space="preserve">
+    <value>لا يوجد جهاز</value>
+  </data>
+  <data name="NoInsertsYet" xml:space="preserve">
+    <value>لا توجد مؤثرات بعد.</value>
+  </data>
+  <data name="NoNativeEditorsAreBlocked" xml:space="preserve">
+    <value>لا توجد محررات أصلية محظورة.</value>
+  </data>
+  <data name="NoProfilesSavedYet" xml:space="preserve">
+    <value>لا توجد ملفات تعريف محفوظة بعد</value>
+  </data>
+  <data name="NoRegisteredFolders" xml:space="preserve">
+    <value>لا توجد مجلدات مسجلة.</value>
+  </data>
+  <data name="NotInPath" xml:space="preserve">
+    <value>غير موجود في PATH</value>
+  </data>
+  <data name="NotRouted" xml:space="preserve">
+    <value>غير موجه</value>
+  </data>
+  <data name="NotRunning" xml:space="preserve">
+    <value>لا يعمل</value>
+  </data>
+  <data name="OnConnect" xml:space="preserve">
+    <value>عند الاتصال</value>
+  </data>
+  <data name="OnLaunch" xml:space="preserve">
+    <value>عند البدء</value>
+  </data>
+  <data name="OpenOnGitHub" xml:space="preserve">
+    <value>فتح في GitHub</value>
+  </data>
+  <data name="OpenTheManualSectionOnDesktopKeys" xml:space="preserve">
+    <value>فتح قسم اختصارات سطح المكتب في الدليل</value>
+  </data>
+  <data name="OpenTheManualSectionOnInstallingPlugins" xml:space="preserve">
+    <value>فتح قسم تثبيت الملحقات في الدليل</value>
+  </data>
+  <data name="OpenTheManualSectionOnPluginEditors" xml:space="preserve">
+    <value>فتح قسم محررات الملحقات في الدليل</value>
+  </data>
+  <data name="OpenTheManualSectionOnSkins" xml:space="preserve">
+    <value>فتح قسم السمات في الدليل</value>
+  </data>
+  <data name="OpenTheManualSectionOnThePipewirePulse" xml:space="preserve">
+    <value>فتح قسم حد الملفات المفتوحة لـ pipewire-pulse في الدليل</value>
+  </data>
+  <data name="OpenThisPluginSControls" xml:space="preserve">
+    <value>فتح عناصر تحكم هذا الملحق</value>
+  </data>
+  <data name="OpenThisPluginSOwnEditorOnThe" xml:space="preserve">
+    <value>فتح محرر الملحق الأصلي على نسخة الصوت النشطة</value>
+  </data>
+  <data name="OpenXLRApplications" xml:space="preserve">
+    <value>تطبيقات OpenXLR</value>
+  </data>
+  <data name="OpenXLRAudioFlow" xml:space="preserve">
+    <value>OpenXLR · تدفق الصوت</value>
+  </data>
+  <data name="OpenXLRDesktopKeys" xml:space="preserve">
+    <value>اختصارات OpenXLR</value>
+  </data>
+  <data name="OpenXLRMixerLayout" xml:space="preserve">
+    <value>تخطيط مازج OpenXLR</value>
+  </data>
+  <data name="OpenXLROptions" xml:space="preserve">
+    <value>خيارات OpenXLR</value>
+  </data>
+  <data name="OpenXLRUpdates" xml:space="preserve">
+    <value>تحديثات OpenXLR</value>
+  </data>
+  <data name="Options" xml:space="preserve">
+    <value>الخيارات</value>
+  </data>
+  <data name="Overwrite" xml:space="preserve">
+    <value>استبدال</value>
+  </data>
+  <data name="OverwriteProfile" xml:space="preserve">
+    <value>استبدال الملف التعريفي؟</value>
+  </data>
+  <data name="PLUGINS" xml:space="preserve">
+    <value>الملحقات</value>
+  </data>
+  <data name="Phantom" xml:space="preserve">
+    <value>فانتوم</value>
+  </data>
+  <data name="Phones1" xml:space="preserve">
+    <value>سماعات 1</value>
+  </data>
+  <data name="Phones2" xml:space="preserve">
+    <value>سماعات 2</value>
+  </data>
+  <data name="Playing" xml:space="preserve">
+    <value>يشغل الصوت</value>
+  </data>
+  <data name="PluginState" xml:space="preserve">
+    <value>حالة الملحق</value>
+  </data>
+  <data name="PluginUI" xml:space="preserve">
+    <value>واجهة الملحق</value>
+  </data>
+  <data name="PluginsAreLookedForInTheHomeAnd" xml:space="preserve">
+    <value>يبحث عن الملحقات في مجلدات الملحقات الخاصة بالمستخدم والنظام.</value>
+  </data>
+  <data name="PluginsProcessingXLR1BeforeItReachesThe" xml:space="preserve">
+    <value>ملحقات معالجة XLR 1 قبل وصوله إلى المزيجات</value>
+  </data>
+  <data name="PluginsProcessingXLR2BeforeItReachesThe" xml:space="preserve">
+    <value>ملحقات معالجة XLR 2 قبل وصوله إلى المزيجات</value>
+  </data>
+  <data name="Problem" xml:space="preserve">
+    <value>مشكلة</value>
+  </data>
+  <data name="ProfileName" xml:space="preserve">
+    <value>اسم الملف التعريفي</value>
+  </data>
+  <data name="ProfileOverwriteMessage" xml:space="preserve">
+    <value>يوجد بالفعل ملف تعريفي باسم "{0}" لهذا الجهاز.
+سيستبدله الحفظ بالمشهد الحالي.</value>
+  </data>
+  <data name="Profiles" xml:space="preserve">
+    <value>الملفات التعريفية</value>
+  </data>
+  <data name="PutEveryControlBackToThePluginS" xml:space="preserve">
+    <value>إعادة كل عناصر التحكم إلى القيم الافتراضية للملحق</value>
+  </data>
+  <data name="QuitApp" xml:space="preserve">
+    <value>إنهاء التطبيق</value>
+  </data>
+  <data name="QuitOpenXLR" xml:space="preserve">
+    <value>إنهاء OpenXLR</value>
+  </data>
+  <data name="ReadThePluginDirectoriesAgainForPluginsInstalled" xml:space="preserve">
+    <value>إعادة قراءة مجلدات الملحقات للملحقات المثبتة بطرق أخرى</value>
+  </data>
+  <data name="ReadTheSkinFoldersAgainForASkin" xml:space="preserve">
+    <value>إعادة قراءة مجلدات السمات للسمات المضافة أو المعدلة</value>
+  </data>
+  <data name="RearJack" xml:space="preserve">
+    <value>المقبس الخلفي</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>تحديث</value>
+  </data>
+  <data name="ReleaseNotesArePlainTextOpenXLRNeverInstalls" xml:space="preserve">
+    <value>ملاحظات الإصدار نص عادي. لا يثبت OpenXLR التحديثات تلقائيا أبدا.</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>إعادة تحميل</value>
+  </data>
+  <data name="RemoveFromAllChains" xml:space="preserve">
+    <value>إزالة من جميع السلاسل</value>
+  </data>
+  <data name="RemoveFromList" xml:space="preserve">
+    <value>إزالة من القائمة</value>
+  </data>
+  <data name="RemovePlugin" xml:space="preserve">
+    <value>إزالة الملحق</value>
+  </data>
+  <data name="Rename" xml:space="preserve">
+    <value>إعادة تسمية</value>
+  </data>
+  <data name="Rescan" xml:space="preserve">
+    <value>إعادة فحص</value>
+  </data>
+  <data name="RescanRetriesTheseBundlesAChangedBundleOr" xml:space="preserve">
+    <value>يعيد الفحص محاولة هذه الحزم. تعاد محاولة الحزمة أو الماسح عند تغييره تلقائيا.</value>
+  </data>
+  <data name="ResetDeviceToDefaults" xml:space="preserve">
+    <value>إعادة الجهاز إلى الافتراضيات</value>
+  </data>
+  <data name="RestartDaemon" xml:space="preserve">
+    <value>إعادة تشغيل الخدمة الخلفية</value>
+  </data>
+  <data name="RestartFailedCheckTheUserServiceLogs" xml:space="preserve">
+    <value>فشلت إعادة التشغيل. راجع سجلات خدمة المستخدم.</value>
+  </data>
+  <data name="RestartTheOpenXLRUserServiceAudioWillBe" xml:space="preserve">
+    <value>إعادة تشغيل خدمة OpenXLR للمستخدم. سينقطع الصوت لفترة وجيزة.</value>
+  </data>
+  <data name="RestartingDaemon" xml:space="preserve">
+    <value>جار إعادة تشغيل الخدمة الخلفية...</value>
+  </data>
+  <data name="RightLevel" xml:space="preserve">
+    <value>مستوى اليمين</value>
+  </data>
+  <data name="RunThisPluginInItsOwnProcess" xml:space="preserve">
+    <value>تشغيل هذا الملحق في عملية مستقلة</value>
+  </data>
+  <data name="Running" xml:space="preserve">
+    <value>يعمل</value>
+  </data>
+  <data name="SUBMIXER" xml:space="preserve">
+    <value>المازج الفرعي</value>
+  </data>
+  <data name="SUPPORT" xml:space="preserve">
+    <value>الدعم</value>
+  </data>
+  <data name="SYSTEMDEFAULTDEVICES" xml:space="preserve">
+    <value>أجهزة النظام الافتراضية</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>حفظ</value>
+  </data>
+  <data name="SaveAndRecallCompleteScenesHardwareDSPPlus" xml:space="preserve">
+    <value>حفظ واستدعاء مشاهد كاملة: DSP الجهاز والمزيج الفرعي بأكمله</value>
+  </data>
+  <data name="SearchByNameOrCategory" xml:space="preserve">
+    <value>البحث بالاسم أو الفئة</value>
+  </data>
+  <data name="SelectAFolderToSeeItsPlugins" xml:space="preserve">
+    <value>اختر مجلدا لعرض ملحقاته.</value>
+  </data>
+  <data name="SelectAPluginToManageIt" xml:space="preserve">
+    <value>اختر ملحقا لإدارته.</value>
+  </data>
+  <data name="SelectInterfaceTip" xml:space="preserve">
+    <value>{0}
+اختر الواجهة التي يتحكم بها OpenXLR</value>
+  </data>
+  <data name="ServiceRestartedWaitingForTheDaemonConnection" xml:space="preserve">
+    <value>أعيد تشغيل الخدمة. جار انتظار اتصال الخدمة الخلفية.</value>
+  </data>
+  <data name="ShowCLAPPlugins" xml:space="preserve">
+    <value>عرض ملحقات CLAP</value>
+  </data>
+  <data name="ShowLV2Plugins" xml:space="preserve">
+    <value>عرض ملحقات LV2</value>
+  </data>
+  <data name="ShowMixer" xml:space="preserve">
+    <value>عرض المازج</value>
+  </data>
+  <data name="ShowTheLiveAudioRoutingGraph" xml:space="preserve">
+    <value>عرض مخطط توجيه الصوت المباشر</value>
+  </data>
+  <data name="ShowVST3Plugins" xml:space="preserve">
+    <value>عرض ملحقات VST3</value>
+  </data>
+  <data name="Skin" xml:space="preserve">
+    <value>السمة</value>
+  </data>
+  <data name="SkippedBundlesChecking" xml:space="preserve">
+    <value>الحزم المتخطاة: جار التحقق…</value>
+  </data>
+  <data name="SkippedBundlesUnavailable" xml:space="preserve">
+    <value>الحزم المتخطاة: غير متاحة</value>
+  </data>
+  <data name="StartAudioInTheBackground" xml:space="preserve">
+    <value>بدء الصوت في الخلفية</value>
+  </data>
+  <data name="StartTheOpenXLRApp" xml:space="preserve">
+    <value>بدء تطبيق OpenXLR</value>
+  </data>
+  <data name="StereoPluginsProcessingThisMixBeforeItReaches" xml:space="preserve">
+    <value>ملحقات ستيريو لمعالجة هذا المزيج قبل وصوله إلى المخرجات</value>
+  </data>
+  <data name="StreamState" xml:space="preserve">
+    <value>حالة التدفق</value>
+  </data>
+  <data name="SwitchSystemOutput0" xml:space="preserve">
+    <value>تبديل مخرج النظام: {0}</value>
+  </data>
+  <data name="SyncWindowsPlugins" xml:space="preserve">
+    <value>مزامنة ملحقات Windows</value>
+  </data>
+  <data name="SystemLanguage" xml:space="preserve">
+    <value>لغة النظام</value>
+  </data>
+  <data name="TheAppWillStartAtLoginStartThe" xml:space="preserve">
+    <value>سيبدأ التطبيق عند الدخول. شغل خدمة الصوت بشكل منفصل لاستخدامه.</value>
+  </data>
+  <data name="ToUSBAuxPort" xml:space="preserve">
+    <value>إلى منفذ USB Aux</value>
+  </data>
+  <data name="TrayOnly" xml:space="preserve">
+    <value>علبة النظام فقط</value>
+  </data>
+  <data name="UPDATES" xml:space="preserve">
+    <value>التحديثات</value>
+  </data>
+  <data name="USBAuxIn" xml:space="preserve">
+    <value>مدخل USB Aux</value>
+  </data>
+  <data name="UpdatesHaveNotBeenChecked" xml:space="preserve">
+    <value>لم يتم التحقق من التحديثات بعد</value>
+  </data>
+  <data name="UpdatingWineTrace" xml:space="preserve">
+    <value>جار تحديث تتبع Wine…</value>
+  </data>
+  <data name="UseOpenXLRControls" xml:space="preserve">
+    <value>استخدام عناصر تحكم OpenXLR</value>
+  </data>
+  <data name="UseReleaseDefault" xml:space="preserve">
+    <value>استخدام القيمة الافتراضية للإصدار</value>
+  </data>
+  <data name="VTStrength" xml:space="preserve">
+    <value>شدة VT</value>
+  </data>
+  <data name="ViewChanges" xml:space="preserve">
+    <value>عرض التغييرات</value>
+  </data>
+  <data name="ViewResult" xml:space="preserve">
+    <value>عرض النتيجة</value>
+  </data>
+  <data name="VoiceTune" xml:space="preserve">
+    <value>Voice Tune</value>
+  </data>
+  <data name="Volume" xml:space="preserve">
+    <value>مستوى الصوت</value>
+  </data>
+  <data name="WINDOW" xml:space="preserve">
+    <value>النافذة</value>
+  </data>
+  <data name="WhenClosing" xml:space="preserve">
+    <value>عند الإغلاق</value>
+  </data>
+  <data name="WhichMixThisOutputHears" xml:space="preserve">
+    <value>المزيج الذي يسمعه هذا المخرج.</value>
+  </data>
+  <data name="WindowsPlugins" xml:space="preserve">
+    <value>ملحقات Windows</value>
+  </data>
+  <data name="WindowsPluginsCheckingForYabridge" xml:space="preserve">
+    <value>ملحقات Windows: جار التحقق من yabridge…</value>
+  </data>
+  <data name="WindowsPluginsTheDaemonDidNotAnswer" xml:space="preserve">
+    <value>ملحقات Windows: لم تجب الخدمة الخلفية.</value>
+  </data>
+  <data name="WindowsVST3AndCLAPPlugins" xml:space="preserve">
+    <value>ملحقات Windows VST3 وCLAP</value>
+  </data>
+  <data name="WineTraceCheckingTheDaemon" xml:space="preserve">
+    <value>تتبع Wine: جار التحقق من الخدمة الخلفية…</value>
+  </data>
+  <data name="WineTraceUnavailableTheDaemonMustBeConnected" xml:space="preserve">
+    <value>تتبع Wine غير متاح. يجب اتصال الخدمة الخلفية ودعمها لهذا الخيار.</value>
+  </data>
+  <data name="WineUninstaller" xml:space="preserve">
+    <value>برنامج إزالة Wine</value>
+  </data>
+  <data name="XLR1Gain" xml:space="preserve">
+    <value>كسب XLR 1</value>
+  </data>
+  <data name="XLR2Gain" xml:space="preserve">
+    <value>كسب XLR 2</value>
+  </data>
+</root>

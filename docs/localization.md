@@ -1,20 +1,21 @@
 # Window localization
 
-The desktop window ships English, German, Spanish and French catalogues.
+The desktop window ships fourteen languages. Chinese has separate simplified
+and traditional catalogues, giving fifteen choices plus System language.
 Options, APPEARANCE, Language selects the next launch's language. System
 language follows the process's UI culture, including regional variants such
 as `de-AT`, `es-MX` and `fr-CA`. Unsupported languages fall back to English.
 On Linux the .NET runtime derives that culture from the locale environment
-inherited at login: `LC_ALL`, then `LC_MESSAGES`, then `LANG`. OpenXLR does not change
-the desktop's language or its numeric locale.
+inherited at login: `LC_ALL`, then `LC_MESSAGES`, then `LANG`. OpenXLR does
+not change the desktop's language or its numeric locale.
 `OPENXLR_LANGUAGE=en` overrides the saved choice for that launch, so a user
 can recover from an unfamiliar language without editing a file.
 Options reports when this launch override is active and explains that the
 next launch must omit it for a saved language to take effect.
 
 The `language` field in `~/.config/openxlr/ui.json` is `null` for the system
-language, or `en`, `de`, `es`, `fr`. It is local window state, independent of
-the daemon, audio profiles, layout and skins. Changing it preserves the
+language, or one of the catalogue ids below. It is local window state,
+independent of the daemon, audio profiles, layout and skins. Changing it preserves the
 other window preferences, including fields owned by newer window features.
 Other window preference writes retain those unfamiliar fields too. A failed
 save is reported and the picker returns
@@ -39,13 +40,57 @@ some dynamic setup messages, release notes, the terminal mixer, OpenDeck
 inspectors and Omarchy remain in their original language. They are separate
 follow-up work; the catalogues do not rewrite strings received over the API.
 
+## Shipped languages
+
+| Language | Catalogue id | Picker label |
+|---|---|---|
+| English | `en` | English |
+| German | `de` | Deutsch |
+| Spanish | `es` | Español |
+| French | `fr` | Français |
+| Chinese, simplified | `zh-Hans` | 简体中文 |
+| Chinese, traditional | `zh-Hant` | 繁體中文 |
+| Hindi | `hi` | हिन्दी |
+| Modern Standard Arabic | `ar` | العربية |
+| Bengali | `bn` | বাংলা |
+| Portuguese | `pt` | Português |
+| Indonesian | `id` | Bahasa Indonesia |
+| Urdu | `ur` | اردو |
+| Russian | `ru` | Русский |
+| Japanese | `ja` | 日本語 |
+| Nigerian Pidgin | `pcm` | Naijíriá Píjin |
+
+The ten additional languages follow the highest total-speaker entries not
+already shipped in the [Ethnologue 2026 table reproduced here](https://en.wikipedia.org/wiki/List_of_languages_by_total_number_of_speakers#Ethnologue_(2026)).
+Total speakers includes first- and second-language users. Written Arabic
+uses Modern Standard Arabic rather than separate dialect catalogues; both
+Chinese scripts belong to one language choice family. The new catalogues
+translate 240 of the 277 window entries each: controls, menus, statuses,
+profiles and language setup. The remaining longer help text uses the original
+English fallback. Native-speaker wording review remains useful before release.
+
+Regional locales select their primary language, including `pt-BR` and `pt-PT`,
+`ar-EG`, `ur-PK` and the three-letter `pcm-NG`. Chinese keeps its script:
+`zh-CN` and `zh-SG` select `zh-Hans`; `zh-TW`, `zh-HK` and `zh-MO` select
+`zh-Hant`. Explicit `Hans` or `Hant` wins over a region; bare `zh` uses Hans.
+
+Text uses Avalonia's content-based alignment and bidirectional shaping, so
+Arabic and Urdu read right to left while English fallback text and paths keep
+their own direction. Physical left/right audio controls, the signal graph
+and the saved channel order retain their existing orientation. Input toggles
+have a 44-pixel minimum width so short translations remain usable. Skins keep
+supplying colours, fonts and control appearances; no script-specific palette
+or font is forced. The desktop must have fonts covering the selected script.
+CI installs Noto core and CJK fonts and checks shaped glyphs for every entry.
+
 ## Adding or changing text
 
 `src/OpenXLR.UI/Localization/Strings.resx` is the neutral English catalogue.
-The `.de.resx`, `.es.resx` and `.fr.resx` files carry translated keys. They are
+The `Strings.<catalogue-id>.resx` files carry translated keys. They are
 ordinary .NET resources compiled into satellite assemblies, with no new
-dependency, translation service or runtime file watcher. Packages include
-them through the normal .NET publish output.
+dependency, translation service or runtime file watcher. `Localizer.Languages`
+is the single list for system selection, the picker and save validation.
+Packages include them through the normal .NET publish output.
 
 Use a stable descriptive key. A wording change keeps its key. Always add the
 original English wording to the neutral file. Add translations when available;
@@ -84,7 +129,7 @@ Run the existing window layout acceptance separately for each language:
 OPENXLR_LANGUAGE=de OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
 ```
 
-Repeat with `en`, `es` and `fr`, and at 150% desktop scale using
+Repeat with every id in the table, and at 150% desktop scale using
 `AVALONIA_GLOBAL_SCALE_FACTOR=1.5`. Set `OPENXLR_LAYOUT_ARTIFACTS` to save
 previews. Translated controls use the same skin tokens and layout as the
 English window. Xvfb checks do not establish Plasma or Wayland acceptance.
@@ -102,7 +147,7 @@ LANG=de_DE.UTF-8 LC_ALL=de_DE.UTF-8 OPENXLR_LANGUAGE=en OPENXLR_TEST_LANGUAGE_PR
 ```
 
 Also run system selection with `es_MX.UTF-8`, `fr_CA.UTF-8` and an unsupported
-locale such as `ja_JP.UTF-8`, expecting `es`, `fr` and `en`. No real desktop
+locale such as `it_IT.UTF-8`, expecting `es`, `fr` and `en`. No real desktop
 preferences or daemon state are written by this fixture.
 CI runs these startup cases, all four saved choices, temporary overrides,
 an explicit system override and an empty launch override, plus message-locale

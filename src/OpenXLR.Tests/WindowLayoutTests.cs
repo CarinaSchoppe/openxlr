@@ -103,6 +103,7 @@ public sealed class WindowLayoutTests
                 main.DataContext = null;
                 main.DataContext = vm;
                 main.Show();
+                LocalizationRenderingTests.Check();
 
                 // The window must still allow its existing narrow size.
                 Assert.InRange(main.MinWidth, 0, MaximumAllowedMinimumWidth);
@@ -353,7 +354,7 @@ public sealed class WindowLayoutTests
                 windows.Add(options);
                 options.Show();
                 var language = options.FindControl<ComboBox>("LanguagePicker")!;
-                Assert.Equal(5, language.ItemCount);
+                Assert.Equal(Localizer.Languages.Count + 1, language.ItemCount);
                 string? savedLanguage = UiSettings.Load().Language;
                 Assert.Equal(savedLanguage, optionsVm.SelectedLanguage!.Id);
                 Assert.Same(optionsVm.SelectedLanguage, language.SelectedItem);

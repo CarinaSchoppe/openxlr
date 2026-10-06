@@ -13,11 +13,36 @@ namespace OpenXLR.Tests;
 [Collection("xdg-config")]
 public sealed class LocalizationTests
 {
+    public static IEnumerable<object[]> AllLanguages => Localizer.Languages.Select(c => new object[] { c.Id! });
+    public static IEnumerable<object[]> TranslatedLanguages => AllLanguages.Where(c => (string)c[0] != "en");
+    public static IEnumerable<object[]> LookupCases => Localizer.Languages.SelectMany(c =>
+        new[] { "Active", "SkippedBundlesAfterFailedScan" }.Select(key => new object[] { c.Id!, key }));
+
+    [Fact]
+    public void ThePickerAndValidationUseTheSameUniqueShippedCatalogues()
+    {
+        string[] expected = ["en", "de", "es", "fr", "zh-Hans", "zh-Hant", "hi", "ar", "bn", "pt", "id", "ur", "ru", "ja", "pcm"];
+        Assert.Equal(expected, Localizer.Languages.Select(c => c.Id));
+        Assert.Equal(expected.Length, Localizer.Languages.Select(c => c.Id).Distinct().Count());
+        Assert.All(Localizer.Languages, c =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(c.Label));
+            Assert.True(Localizer.IsSupported(c.Id!));
+            Assert.Equal(c.Id, Localizer.Resolve(c.Id, CultureInfo.InvariantCulture));
+        });
+        Assert.False(Localizer.IsSupported("zh"));
+        Assert.False(Localizer.IsSupported("../de"));
+        string workflow = File.ReadAllText(Path.Combine(Root, ".github", "workflows", "ci.yml"));
+        var loop = Regex.Match(workflow, @"for language in ([^;]+); do");
+        Assert.True(loop.Success);
+        Assert.Equal(expected, loop.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    }
+
     [Theory]
     [InlineData(null, "de-DE", "de")]
     [InlineData("system", "es-MX", "es")]
     [InlineData("", "fr-CA", "fr")]
-    [InlineData(null, "ja-JP", "en")]
+    [InlineData(null, "it-IT", "en")]
     [InlineData("de-AT", "en-US", "de")]
     [InlineData("ES-mx", "en-US", "es")]
     [InlineData("fr", "en-US", "fr")]
@@ -26,10 +51,29 @@ public sealed class LocalizationTests
     [InlineData("unknown", "de-DE", "en")]
     [InlineData(null, "", "en")]
     [InlineData(null, "en-AU", "en")]
-    [InlineData(null, "pt-BR", "en")]
+    [InlineData(null, "pt-BR", "pt")]
     [InlineData(null, "fr-BE", "fr")]
     [InlineData(null, "de-CH", "de")]
     [InlineData(null, "es-AR", "es")]
+    [InlineData(null, "pt-PT", "pt")]
+    [InlineData(null, "hi-IN", "hi")]
+    [InlineData(null, "ar-EG", "ar")]
+    [InlineData(null, "bn-BD", "bn")]
+    [InlineData(null, "id-ID", "id")]
+    [InlineData(null, "ur-PK", "ur")]
+    [InlineData(null, "ru-RU", "ru")]
+    [InlineData(null, "ja-JP", "ja")]
+    [InlineData(null, "pcm-NG", "pcm")]
+    [InlineData(null, "zh-CN", "zh-Hans")]
+    [InlineData(null, "zh-SG", "zh-Hans")]
+    [InlineData(null, "zh-TW", "zh-Hant")]
+    [InlineData(null, "zh-HK", "zh-Hant")]
+    [InlineData(null, "zh-MO", "zh-Hant")]
+    [InlineData("zh", "en-US", "zh-Hans")]
+    [InlineData("ZH-hANT", "zh-CN", "zh-Hant")]
+    [InlineData("zh-Hans-TW", "zh-TW", "zh-Hans")]
+    [InlineData("zh-Hant-CN", "zh-CN", "zh-Hant")]
+    [InlineData("pcm-NG", "de-DE", "pcm")]
     public void OnlyShippedLanguagesAreSelected(string? choice, string system, string expected)
         => Assert.Equal(expected, Localizer.Resolve(choice, CultureInfo.GetCultureInfo(system)));
 
@@ -38,6 +82,17 @@ public sealed class LocalizationTests
     [InlineData("de", "Schließen")]
     [InlineData("es", "Cerrar")]
     [InlineData("fr", "Fermer")]
+    [InlineData("zh-Hans", "关闭")]
+    [InlineData("zh-Hant", "關閉")]
+    [InlineData("hi", "बंद करें")]
+    [InlineData("ar", "إغلاق")]
+    [InlineData("bn", "বন্ধ করুন")]
+    [InlineData("pt", "Fechar")]
+    [InlineData("id", "Tutup")]
+    [InlineData("ur", "بند کریں")]
+    [InlineData("ru", "Закрыть")]
+    [InlineData("ja", "閉じる")]
+    [InlineData("pcm", "Close")]
     public void CompiledCataloguesAreAvailableWithoutTheSourceTree(string language, string close)
     {
         Assert.Equal(close, Localizer.Get("Close", CultureInfo.GetCultureInfo(language)));
@@ -50,7 +105,7 @@ public sealed class LocalizationTests
     {
         var numeric = CultureInfo.CurrentCulture;
         var ui = CultureInfo.CurrentUICulture;
-        Assert.Equal("Close", Localizer.Get("Close", CultureInfo.GetCultureInfo("ja-JP")));
+        Assert.Equal("Close", Localizer.Get("Close", CultureInfo.GetCultureInfo("it-IT")));
         Assert.Equal("Schließen", Localizer.Get("Close", CultureInfo.GetCultureInfo("de-AT")));
         Assert.Same(numeric, CultureInfo.CurrentCulture);
         Assert.Same(ui, CultureInfo.CurrentUICulture);
@@ -58,9 +113,7 @@ public sealed class LocalizationTests
     }
 
     [Theory]
-    [InlineData("de")]
-    [InlineData("es")]
-    [InlineData("fr")]
+    [MemberData(nameof(TranslatedLanguages))]
     [InlineData("de-AT")]
     [InlineData("es-MX")]
     [InlineData("fr-CA")]
@@ -68,11 +121,11 @@ public sealed class LocalizationTests
     {
         const string key = "SkippedBundlesAfterFailedScan";
         var culture = CultureInfo.GetCultureInfo(language);
-        var translated = Localizer.Resources.GetResourceSet(culture.Parent == CultureInfo.InvariantCulture
+        var translated = Localizer.Resources.GetResourceSet(Localizer.Languages.Any(c => c.Id == culture.Name)
             ? culture : culture.Parent, true, false);
         Assert.NotNull(translated);
         Assert.Null(translated.GetString(key));
-        Assert.NotEqual("Close", Localizer.Get("Close", culture));
+        Assert.Equal(translated.GetString("Close"), Localizer.Get("Close", culture));
         Assert.Equal("Skipped after a failed scan: {0}", Localizer.Get(key, culture));
         Assert.Equal("Skipped after a failed scan: 2", string.Format(culture, Localizer.Get(key, culture), 2));
     }
@@ -93,10 +146,7 @@ public sealed class LocalizationTests
     }
 
     [Theory]
-    [InlineData("en")]
-    [InlineData("de")]
-    [InlineData("es")]
-    [InlineData("fr")]
+    [MemberData(nameof(AllLanguages))]
     public void ProfileNamesAreArgumentsRatherThanTranslationOrFormatKeys(string language)
     {
         const string name = "Carina {0} <script> & canción 日本語";
@@ -107,14 +157,7 @@ public sealed class LocalizationTests
     }
 
     [Theory]
-    [InlineData("en", "Active")]
-    [InlineData("de", "Active")]
-    [InlineData("es", "Active")]
-    [InlineData("fr", "Active")]
-    [InlineData("en", "SkippedBundlesAfterFailedScan")]
-    [InlineData("de", "SkippedBundlesAfterFailedScan")]
-    [InlineData("es", "SkippedBundlesAfterFailedScan")]
-    [InlineData("fr", "SkippedBundlesAfterFailedScan")]
+    [MemberData(nameof(LookupCases))]
     public void RepeatedLookupsReuseTranslatedAndFallbackStringsWithoutAllocations(string language, string key)
     {
         long allocated = -1;
@@ -161,7 +204,7 @@ public sealed class LocalizationTests
         }
         var english = Read("");
         Assert.True(english.Count >= 250);
-        foreach (string language in new[] { "", ".de", ".es", ".fr" })
+        foreach (string language in new[] { "" }.Concat(Localizer.Languages.Where(c => c.Id != "en").Select(c => "." + c.Id)))
         {
             var translated = Read(language);
             Assert.Empty(translated.Keys.Except(english.Keys));
@@ -210,6 +253,10 @@ public sealed class LanguageSettingsTests
     [InlineData("es", "es")]
     [InlineData("fr", "fr")]
     [InlineData("de-AT", "de")]
+    [InlineData("zh-CN", "zh-Hans")]
+    [InlineData("zh-TW", "zh-Hant")]
+    [InlineData("pcm-NG", "pcm")]
+    [InlineData("ar-EG", "ar")]
     [InlineData("../../de", "en")]
     public async Task ThePickerReflectsSavedPreferencesAndRefusesUnknownChoices(string? saved, string? selected)
     {
@@ -225,7 +272,7 @@ public sealed class LanguageSettingsTests
             var options = new OptionsViewModel(client, new MainViewModel(client));
             Assert.Equal(selected, options.SelectedLanguage!.Id);
             Assert.Equal(new[] { "English", "Deutsch", "Español", "Français" },
-                options.LanguageChoices.Skip(1).Select(c => c.Label));
+                options.LanguageChoices.Skip(1).Take(4).Select(c => c.Label));
             var choice = options.SelectedLanguage;
             options.SelectedLanguage = null;
             options.SelectedLanguage = new LanguageChoice("../de", "Unknown");
@@ -319,7 +366,7 @@ public sealed class LanguageSettingsTests
             var initial = new UiSettings { Skin = "material", StartMinimized = true,
                 CheckForUpdates = true, CollapsedSections = ["InputsTile"] };
             initial.SaveRequired();
-            foreach (string? language in new string?[] { "de", "es", "fr", "en", null })
+            foreach (string? language in Localizer.Languages.Select(c => c.Id).Append(null))
             {
                 OptionsViewModel.SaveLanguage(language);
                 var loaded = UiSettings.Load();

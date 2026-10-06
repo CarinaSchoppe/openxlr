@@ -1,0 +1,738 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="ADDINSTALLEDAPPLICATION" xml:space="preserve">
+    <value>ইনস্টল করা অ্যাপ যোগ করুন</value>
+  </data>
+  <data name="ANewChannelStartsMutedInEveryMix" xml:space="preserve">
+    <value>নতুন চ্যানেল সব মিক্সে মিউট থাকে। হার্ডওয়্যার ইনপুট নিজের জায়গায় থাকে।</value>
+  </data>
+  <data name="APPEARANCE" xml:space="preserve">
+    <value>চেহারা</value>
+  </data>
+  <data name="APPLICATIONS" xml:space="preserve">
+    <value>অ্যাপ</value>
+  </data>
+  <data name="ATLOGIN" xml:space="preserve">
+    <value>লগইনের সময়</value>
+  </data>
+  <data name="AUDIO" xml:space="preserve">
+    <value>অডিও</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>পরিচিতি</value>
+  </data>
+  <data name="AboutOpenXLR" xml:space="preserve">
+    <value>OpenXLR সম্পর্কে</value>
+  </data>
+  <data name="Active" xml:space="preserve">
+    <value>সক্রিয়</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>যোগ করুন</value>
+  </data>
+  <data name="AddCaptureInput" xml:space="preserve">
+    <value>ক্যাপচার ইনপুট যোগ করুন</value>
+  </data>
+  <data name="AddChannel" xml:space="preserve">
+    <value>চ্যানেল যোগ করুন</value>
+  </data>
+  <data name="AddFolder" xml:space="preserve">
+    <value>ফোল্ডার যোগ করুন</value>
+  </data>
+  <data name="AddMicrophone" xml:space="preserve">
+    <value>মাইক্রোফোন যোগ করুন</value>
+  </data>
+  <data name="AddPlugin" xml:space="preserve">
+    <value>প্লাগইন যোগ করুন</value>
+  </data>
+  <data name="AddPluginInsert" xml:space="preserve">
+    <value>প্লাগইন ইনসার্ট যোগ করুন</value>
+  </data>
+  <data name="AddVolumeAndMuteKeys" xml:space="preserve">
+    <value>ভলিউম ও মিউটের কী যোগ করুন</value>
+  </data>
+  <data name="AllowNativeEditor" xml:space="preserve">
+    <value>নিজস্ব এডিটর অনুমোদন করুন</value>
+  </data>
+  <data name="ApplicationChannelsMixesVirtualMicrophonesAndInserts" xml:space="preserve">
+    <value>অ্যাপ চ্যানেল, মিক্স, ভার্চুয়াল মাইক্রোফোন ও ইনসার্ট।</value>
+  </data>
+  <data name="ApplyAndConfigureKeys" xml:space="preserve">
+    <value>প্রয়োগ করুন ও কী সেট করুন</value>
+  </data>
+  <data name="AudioAndTheAppWillStartWhenYou" xml:space="preserve">
+    <value>লগইন করলে অডিও ও অ্যাপ চালু হবে।</value>
+  </data>
+  <data name="AudioFlow" xml:space="preserve">
+    <value>অডিও প্রবাহ</value>
+  </data>
+  <data name="AudioWillStartAtLoginWithoutTheApp" xml:space="preserve">
+    <value>লগইনে অ্যাপ বা ট্রে আইকন ছাড়াই অডিও চালু হবে।</value>
+  </data>
+  <data name="BridgeAgainEveryFolderYabridgeKnowsForWindows" xml:space="preserve">
+    <value>পরে ইনস্টল হওয়া Windows প্লাগইনের জন্য yabridge-এর ফোল্ডার আবার ব্রিজ করুন</value>
+  </data>
+  <data name="BridgeWineSPlugins" xml:space="preserve">
+    <value>Wine-এর প্লাগইন ব্রিজ করুন</value>
+  </data>
+  <data name="BuyMeACoffee" xml:space="preserve">
+    <value>আমাকে কফি খাওয়ান</value>
+  </data>
+  <data name="Bypass" xml:space="preserve">
+    <value>বাইপাস</value>
+  </data>
+  <data name="BypassThisPlugin" xml:space="preserve">
+    <value>এই প্লাগইন বাইপাস করুন</value>
+  </data>
+  <data name="Bypassed" xml:space="preserve">
+    <value>বাইপাস করা</value>
+  </data>
+  <data name="CHANNELS" xml:space="preserve">
+    <value>চ্যানেল</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>বাতিল</value>
+  </data>
+  <data name="ChangingThisRestartsTheAudioServiceAndBriefly" xml:space="preserve">
+    <value>এটি বদলালে অডিও সেবা পুনরায় চালু হয় ও অডিও কিছুক্ষণ থামে।</value>
+  </data>
+  <data name="Channel" xml:space="preserve">
+    <value>চ্যানেল</value>
+  </data>
+  <data name="ChannelToMix" xml:space="preserve">
+    <value>চ্যানেল থেকে মিক্স</value>
+  </data>
+  <data name="CheckAgain" xml:space="preserve">
+    <value>আবার পরীক্ষা করুন</value>
+  </data>
+  <data name="CheckGitHubForStableReleasesAtStartupAt" xml:space="preserve">
+    <value>শুরুতে GitHub-এ স্থিতিশীল রিলিজ পরীক্ষা করুন
+(দিনে সর্বাধিক একবার)</value>
+  </data>
+  <data name="CheckNow" xml:space="preserve">
+    <value>এখনই পরীক্ষা করুন</value>
+  </data>
+  <data name="ChooseAFolderThenSelectAnIndividualPlugin" xml:space="preserve">
+    <value>ফোল্ডার বেছে নিয়ে নিচে একটি প্লাগইন নির্বাচন করুন।</value>
+  </data>
+  <data name="ChooseAnApplication" xml:space="preserve">
+    <value>অ্যাপ বেছে নিন</value>
+  </data>
+  <data name="ClearSelection" xml:space="preserve">
+    <value>×  নির্বাচন মুছুন</value>
+  </data>
+  <data name="ClickAnyElementToTraceItsSignalPath" xml:space="preserve">
+    <value>সিগন্যালের পথ দেখতে যেকোনো উপাদানে ক্লিক করুন</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>বন্ধ করুন</value>
+  </data>
+  <data name="CollectDiagnostics" xml:space="preserve">
+    <value>ডায়াগনস্টিক তথ্য সংগ্রহ করুন</value>
+  </data>
+  <data name="Compressor" xml:space="preserve">
+    <value>কম্প্রেসর</value>
+  </data>
+  <data name="Connecting" xml:space="preserve">
+    <value>সংযোগ হচ্ছে…</value>
+  </data>
+  <data name="ContributorsAndCredits" xml:space="preserve">
+    <value>অবদানকারী ও কৃতজ্ঞতা</value>
+  </data>
+  <data name="Controls" xml:space="preserve">
+    <value>নিয়ন্ত্রণ</value>
+  </data>
+  <data name="CurrentSystemDefaultOutput" xml:space="preserve">
+    <value>বর্তমান সিস্টেম ডিফল্ট আউটপুট</value>
+  </data>
+  <data name="DaemonNotRunning" xml:space="preserve">
+    <value>ডেমন চলছে না</value>
+  </data>
+  <data name="DaemonNotRunningSentence" xml:space="preserve">
+    <value>ডেমন চলছে না।</value>
+  </data>
+  <data name="DeepWineTraceForPluginScans" xml:space="preserve">
+    <value>প্লাগইন স্ক্যানের জন্য বিস্তারিত Wine ট্রেস</value>
+  </data>
+  <data name="DefaultInput" xml:space="preserve">
+    <value>ডিফল্ট ইনপুট</value>
+  </data>
+  <data name="DefaultOutput" xml:space="preserve">
+    <value>ডিফল্ট আউটপুট</value>
+  </data>
+  <data name="Defaults" xml:space="preserve">
+    <value>ডিফল্ট</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>মুছুন</value>
+  </data>
+  <data name="DeleteFile" xml:space="preserve">
+    <value>ফাইল মুছুন</value>
+  </data>
+  <data name="DeleteThisProfile" xml:space="preserve">
+    <value>এই প্রোফাইল মুছুন</value>
+  </data>
+  <data name="DesktopKeys" xml:space="preserve">
+    <value>ডেস্কটপ কী</value>
+  </data>
+  <data name="Devices" xml:space="preserve">
+    <value>ডিভাইস</value>
+  </data>
+  <data name="DirectMonitorBlendLeftOnlyYourMicRight" xml:space="preserve">
+    <value>ডাইরেক্ট মনিটর মিক্স: বামে শুধু মাইক, ডানে শুধু PC অডিও</value>
+  </data>
+  <data name="DisableInOpenXLR" xml:space="preserve">
+    <value>OpenXLR-এ নিষ্ক্রিয় করুন</value>
+  </data>
+  <data name="DiscordCommunity" xml:space="preserve">
+    <value>Discord কমিউনিটি</value>
+  </data>
+  <data name="Dismiss" xml:space="preserve">
+    <value>বিজ্ঞপ্তি সরান</value>
+  </data>
+  <data name="DonTEnforce" xml:space="preserve">
+    <value>(বাধ্য করবেন না)</value>
+  </data>
+  <data name="EditLayout" xml:space="preserve">
+    <value>বিন্যাস বদলান</value>
+  </data>
+  <data name="EnableDesktopIntegration" xml:space="preserve">
+    <value>ডেস্কটপ সংযোগ সক্রিয় করুন</value>
+  </data>
+  <data name="EnableSoftwareMixer" xml:space="preserve">
+    <value>সফটওয়্যার মিক্সার সক্রিয় করুন</value>
+  </data>
+  <data name="Expander" xml:space="preserve">
+    <value>এক্সপ্যান্ডার</value>
+  </data>
+  <data name="FindAnInstalledPlugin" xml:space="preserve">
+    <value>ইনস্টল করা প্লাগইন খুঁজুন…</value>
+  </data>
+  <data name="FixWindowsEditorInput" xml:space="preserve">
+    <value>Windows এডিটরের ইনপুট ঠিক করুন</value>
+  </data>
+  <data name="Flow" xml:space="preserve">
+    <value>প্রবাহ</value>
+  </data>
+  <data name="FollowMONITOROutputSystemVolumeControls" xml:space="preserve">
+    <value>MONITOR আউটপুট অনুসরণ করুন (সিস্টেম ভলিউম)</value>
+  </data>
+  <data name="FollowSelectedMonitorOutput" xml:space="preserve">
+    <value>নির্বাচিত মনিটর আউটপুট অনুসরণ করুন</value>
+  </data>
+  <data name="Forget" xml:space="preserve">
+    <value>ভুলে যান</value>
+  </data>
+  <data name="FrontJack" xml:space="preserve">
+    <value>সামনের জ্যাক</value>
+  </data>
+  <data name="GainLockTheDaemonRejectsEveryGainChange" xml:space="preserve">
+    <value>গেইন লক: চালু থাকলে ডেমন সব গেইন পরিবর্তন প্রত্যাখ্যান করে</value>
+  </data>
+  <data name="HEADPHONES" xml:space="preserve">
+    <value>হেডফোন</value>
+  </data>
+  <data name="HandThePluginsAWindowsInstallerLeftIn" xml:space="preserve">
+    <value>Windows ইনস্টলার Wine-এ যে প্লাগইন রেখেছে তা yabridge-কে দিন</value>
+  </data>
+  <data name="HardwareInput" xml:space="preserve">
+    <value>হার্ডওয়্যার ইনপুট</value>
+  </data>
+  <data name="INPUTS" xml:space="preserve">
+    <value>ইনপুট</value>
+  </data>
+  <data name="INTERFACE" xml:space="preserve">
+    <value>ইন্টারফেস</value>
+  </data>
+  <data name="InputToChannel" xml:space="preserve">
+    <value>ইনপুট থেকে চ্যানেল</value>
+  </data>
+  <data name="InsertCount" xml:space="preserve">
+    <value>ইনসার্ট ({0})</value>
+  </data>
+  <data name="Inserts" xml:space="preserve">
+    <value>ইনসার্ট</value>
+  </data>
+  <data name="InstallAClapOrVst3FileOrA" xml:space="preserve">
+    <value>.clap বা .vst3 ফাইল, অথবা yabridge দিয়ে Windows প্লাগইন ইনস্টল করুন</value>
+  </data>
+  <data name="InstallAVst3OrLv2BundleOrEvery" xml:space="preserve">
+    <value>.vst3 বা .lv2 বান্ডল, অথবা ফোল্ডারের সব প্লাগইন ইনস্টল করুন</value>
+  </data>
+  <data name="InstallFile" xml:space="preserve">
+    <value>ফাইল ইনস্টল করুন</value>
+  </data>
+  <data name="InstallFolder" xml:space="preserve">
+    <value>ফোল্ডার ইনস্টল করুন</value>
+  </data>
+  <data name="InterfaceConnection" xml:space="preserve">
+    <value>ইন্টারফেস সংযোগ</value>
+  </data>
+  <data name="KNOWNAPPLICATIONS" xml:space="preserve">
+    <value>পরিচিত অ্যাপ</value>
+  </data>
+  <data name="KeepRunningInTray" xml:space="preserve">
+    <value>ট্রেতে চলতে থাকুক</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>ভাষা</value>
+  </data>
+  <data name="LanguageOverrideHint" xml:space="preserve">
+    <value>OPENXLR_LANGUAGE এই শুরুর জন্য {0} বেছে নেয়। এই ভেরিয়েবল ছাড়া পুনরায় চালু করলে সংরক্ষিত নির্বাচন কার্যকর হবে।</value>
+  </data>
+  <data name="LanguageRestartHint" xml:space="preserve">
+    <value>OpenXLR পরেরবার চালু হলে ভাষা প্রয়োগ হবে। অডিও চলতে থাকবে।</value>
+  </data>
+  <data name="LanguageSaveError" xml:space="preserve">
+    <value>ভাষা সংরক্ষণ করা যায়নি: {0}</value>
+  </data>
+  <data name="LeftLevel" xml:space="preserve">
+    <value>বাম স্তর</value>
+  </data>
+  <data name="LevelLock" xml:space="preserve">
+    <value>স্তর লক</value>
+  </data>
+  <data name="LoadThisProfile" xml:space="preserve">
+    <value>এই প্রোফাইল লোড করুন</value>
+  </data>
+  <data name="Lock" xml:space="preserve">
+    <value>লক</value>
+  </data>
+  <data name="LowCut" xml:space="preserve">
+    <value>লো কাট</value>
+  </data>
+  <data name="LowCutFrequency" xml:space="preserve">
+    <value>লো কাট {0}</value>
+  </data>
+  <data name="LowCutOff" xml:space="preserve">
+    <value>লো কাট বন্ধ</value>
+  </data>
+  <data name="LowImp" xml:space="preserve">
+    <value>কম ইম্পিডেন্স</value>
+  </data>
+  <data name="MIXES" xml:space="preserve">
+    <value>মিক্স</value>
+  </data>
+  <data name="MONITOR" xml:space="preserve">
+    <value>মনিটর</value>
+  </data>
+  <data name="Manage" xml:space="preserve">
+    <value>ব্যবস্থাপনা</value>
+  </data>
+  <data name="ManageThisPluginSNativeEditorCompatibilityRule" xml:space="preserve">
+    <value>এই প্লাগইনের নিজস্ব এডিটরের সামঞ্জস্যের নিয়ম পরিচালনা করুন</value>
+  </data>
+  <data name="ManageWindowsPlugins" xml:space="preserve">
+    <value>Windows প্লাগইন পরিচালনা করুন</value>
+  </data>
+  <data name="Manual" xml:space="preserve">
+    <value>নির্দেশিকা</value>
+  </data>
+  <data name="MemoryLockSetup" xml:space="preserve">
+    <value>মেমরি লক সেটআপ</value>
+  </data>
+  <data name="MicPC" xml:space="preserve">
+    <value>মাইক ↔ PC</value>
+  </data>
+  <data name="MixToOutput" xml:space="preserve">
+    <value>মিক্স থেকে আউটপুট</value>
+  </data>
+  <data name="MixerLayout" xml:space="preserve">
+    <value>মিক্সারের বিন্যাস</value>
+  </data>
+  <data name="MoveDown" xml:space="preserve">
+    <value>নিচে সরান</value>
+  </data>
+  <data name="MovePluginDown" xml:space="preserve">
+    <value>প্লাগইন নিচে সরান</value>
+  </data>
+  <data name="MovePluginUp" xml:space="preserve">
+    <value>প্লাগইন উপরে সরান</value>
+  </data>
+  <data name="MoveUp" xml:space="preserve">
+    <value>উপরে সরান</value>
+  </data>
+  <data name="Mute" xml:space="preserve">
+    <value>মিউট</value>
+  </data>
+  <data name="MutedInactive" xml:space="preserve">
+    <value>মিউট / নিষ্ক্রিয়</value>
+  </data>
+  <data name="NativeEditorCompatibility" xml:space="preserve">
+    <value>নিজস্ব এডিটরের সামঞ্জস্য</value>
+  </data>
+  <data name="NativeEditors" xml:space="preserve">
+    <value>নিজস্ব এডিটর</value>
+  </data>
+  <data name="NativeHost" xml:space="preserve">
+    <value>নেটিভ হোস্ট</value>
+  </data>
+  <data name="NeitherAudioNorTheAppWillStartAt" xml:space="preserve">
+    <value>লগইনে অডিও বা অ্যাপ কোনোটিই চালু হবে না।</value>
+  </data>
+  <data name="NewChannelEGPodcast" xml:space="preserve">
+    <value>নতুন চ্যানেল, যেমন পডকাস্ট</value>
+  </data>
+  <data name="NewVirtualMicrophoneEGRecording" xml:space="preserve">
+    <value>নতুন ভার্চুয়াল মাইক্রোফোন, যেমন রেকর্ডিং</value>
+  </data>
+  <data name="NoDevice" xml:space="preserve">
+    <value>কোনো ডিভাইস নেই</value>
+  </data>
+  <data name="NoInsertsYet" xml:space="preserve">
+    <value>এখনো কোনো ইনসার্ট নেই।</value>
+  </data>
+  <data name="NoNativeEditorsAreBlocked" xml:space="preserve">
+    <value>কোনো নিজস্ব এডিটর ব্লক করা নেই।</value>
+  </data>
+  <data name="NoProfilesSavedYet" xml:space="preserve">
+    <value>এখনো কোনো প্রোফাইল সংরক্ষিত নেই</value>
+  </data>
+  <data name="NoRegisteredFolders" xml:space="preserve">
+    <value>কোনো ফোল্ডার নিবন্ধিত নেই।</value>
+  </data>
+  <data name="NotInPath" xml:space="preserve">
+    <value>PATH-এ নেই</value>
+  </data>
+  <data name="NotRouted" xml:space="preserve">
+    <value>রাউট করা হয়নি</value>
+  </data>
+  <data name="NotRunning" xml:space="preserve">
+    <value>চলছে না</value>
+  </data>
+  <data name="OnConnect" xml:space="preserve">
+    <value>সংযোগে</value>
+  </data>
+  <data name="OnLaunch" xml:space="preserve">
+    <value>শুরুতে</value>
+  </data>
+  <data name="OpenOnGitHub" xml:space="preserve">
+    <value>GitHub-এ খুলুন</value>
+  </data>
+  <data name="OpenTheManualSectionOnDesktopKeys" xml:space="preserve">
+    <value>ডেস্কটপ কী সম্পর্কে নির্দেশিকা খুলুন</value>
+  </data>
+  <data name="OpenTheManualSectionOnInstallingPlugins" xml:space="preserve">
+    <value>প্লাগইন ইনস্টল করার নির্দেশিকা খুলুন</value>
+  </data>
+  <data name="OpenTheManualSectionOnPluginEditors" xml:space="preserve">
+    <value>প্লাগইন এডিটর সম্পর্কে নির্দেশিকা খুলুন</value>
+  </data>
+  <data name="OpenTheManualSectionOnSkins" xml:space="preserve">
+    <value>স্কিন সম্পর্কে নির্দেশিকা খুলুন</value>
+  </data>
+  <data name="OpenTheManualSectionOnThePipewirePulse" xml:space="preserve">
+    <value>pipewire-pulse-এর খোলা ফাইলের সীমা সম্পর্কে নির্দেশিকা খুলুন</value>
+  </data>
+  <data name="OpenThisPluginSControls" xml:space="preserve">
+    <value>এই প্লাগইনের নিয়ন্ত্রণ খুলুন</value>
+  </data>
+  <data name="OpenThisPluginSOwnEditorOnThe" xml:space="preserve">
+    <value>সক্রিয় অডিও ইনস্ট্যান্সে প্লাগইনের নিজের এডিটর খুলুন</value>
+  </data>
+  <data name="OpenXLRApplications" xml:space="preserve">
+    <value>OpenXLR অ্যাপ</value>
+  </data>
+  <data name="OpenXLRAudioFlow" xml:space="preserve">
+    <value>OpenXLR · অডিও প্রবাহ</value>
+  </data>
+  <data name="OpenXLRDesktopKeys" xml:space="preserve">
+    <value>OpenXLR ডেস্কটপ কী</value>
+  </data>
+  <data name="OpenXLRMixerLayout" xml:space="preserve">
+    <value>OpenXLR মিক্সারের বিন্যাস</value>
+  </data>
+  <data name="OpenXLROptions" xml:space="preserve">
+    <value>OpenXLR বিকল্প</value>
+  </data>
+  <data name="OpenXLRUpdates" xml:space="preserve">
+    <value>OpenXLR আপডেট</value>
+  </data>
+  <data name="Options" xml:space="preserve">
+    <value>বিকল্প</value>
+  </data>
+  <data name="Overwrite" xml:space="preserve">
+    <value>প্রতিস্থাপন</value>
+  </data>
+  <data name="OverwriteProfile" xml:space="preserve">
+    <value>প্রোফাইল প্রতিস্থাপন করবেন?</value>
+  </data>
+  <data name="PLUGINS" xml:space="preserve">
+    <value>প্লাগইন</value>
+  </data>
+  <data name="Phantom" xml:space="preserve">
+    <value>ফ্যান্টম</value>
+  </data>
+  <data name="Phones1" xml:space="preserve">
+    <value>হেডফোন 1</value>
+  </data>
+  <data name="Phones2" xml:space="preserve">
+    <value>হেডফোন 2</value>
+  </data>
+  <data name="Playing" xml:space="preserve">
+    <value>বাজছে</value>
+  </data>
+  <data name="PluginState" xml:space="preserve">
+    <value>প্লাগইনের অবস্থা</value>
+  </data>
+  <data name="PluginUI" xml:space="preserve">
+    <value>প্লাগইন UI</value>
+  </data>
+  <data name="PluginsAreLookedForInTheHomeAnd" xml:space="preserve">
+    <value>ব্যবহারকারী ও সিস্টেমের প্লাগইন ডিরেক্টরিতে প্লাগইন খোঁজা হয়।</value>
+  </data>
+  <data name="PluginsProcessingXLR1BeforeItReachesThe" xml:space="preserve">
+    <value>মিক্সে পৌঁছানোর আগে XLR 1 প্রসেস করে এমন প্লাগইন</value>
+  </data>
+  <data name="PluginsProcessingXLR2BeforeItReachesThe" xml:space="preserve">
+    <value>মিক্সে পৌঁছানোর আগে XLR 2 প্রসেস করে এমন প্লাগইন</value>
+  </data>
+  <data name="Problem" xml:space="preserve">
+    <value>সমস্যা</value>
+  </data>
+  <data name="ProfileName" xml:space="preserve">
+    <value>প্রোফাইলের নাম</value>
+  </data>
+  <data name="ProfileOverwriteMessage" xml:space="preserve">
+    <value>এই ডিভাইসের জন্য "{0}" নামের প্রোফাইল আগে থেকেই আছে।
+সংরক্ষণ করলে বর্তমান দৃশ্য সেটির জায়গায় বসবে।</value>
+  </data>
+  <data name="Profiles" xml:space="preserve">
+    <value>প্রোফাইল</value>
+  </data>
+  <data name="PutEveryControlBackToThePluginS" xml:space="preserve">
+    <value>সব নিয়ন্ত্রণ প্লাগইনের নিজস্ব ডিফল্টে ফেরান</value>
+  </data>
+  <data name="QuitApp" xml:space="preserve">
+    <value>অ্যাপ থেকে বের হন</value>
+  </data>
+  <data name="QuitOpenXLR" xml:space="preserve">
+    <value>OpenXLR থেকে বের হন</value>
+  </data>
+  <data name="ReadThePluginDirectoriesAgainForPluginsInstalled" xml:space="preserve">
+    <value>অন্যভাবে ইনস্টল করা প্লাগইনের জন্য ডিরেক্টরি আবার পড়ুন</value>
+  </data>
+  <data name="ReadTheSkinFoldersAgainForASkin" xml:space="preserve">
+    <value>নতুন বা পরিবর্তিত স্কিনের জন্য ফোল্ডার আবার পড়ুন</value>
+  </data>
+  <data name="RearJack" xml:space="preserve">
+    <value>পেছনের জ্যাক</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>রিফ্রেশ</value>
+  </data>
+  <data name="ReleaseNotesArePlainTextOpenXLRNeverInstalls" xml:space="preserve">
+    <value>রিলিজ নোট সাধারণ লেখা। OpenXLR কখনো আপডেট নিজে ইনস্টল করে না।</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>আবার লোড করুন</value>
+  </data>
+  <data name="RemoveFromAllChains" xml:space="preserve">
+    <value>সব চেইন থেকে সরান</value>
+  </data>
+  <data name="RemoveFromList" xml:space="preserve">
+    <value>তালিকা থেকে সরান</value>
+  </data>
+  <data name="RemovePlugin" xml:space="preserve">
+    <value>প্লাগইন সরান</value>
+  </data>
+  <data name="Rename" xml:space="preserve">
+    <value>নাম বদলান</value>
+  </data>
+  <data name="Rescan" xml:space="preserve">
+    <value>আবার স্ক্যান করুন</value>
+  </data>
+  <data name="RescanRetriesTheseBundlesAChangedBundleOr" xml:space="preserve">
+    <value>আবার স্ক্যান করলে এই বান্ডলগুলো পুনরায় চেষ্টা করা হয়। বদলানো বান্ডল বা স্ক্যানার নিজে পরীক্ষা করা হয়।</value>
+  </data>
+  <data name="ResetDeviceToDefaults" xml:space="preserve">
+    <value>ডিভাইস ডিফল্টে ফেরান</value>
+  </data>
+  <data name="RestartDaemon" xml:space="preserve">
+    <value>ডেমন আবার চালু করুন</value>
+  </data>
+  <data name="RestartFailedCheckTheUserServiceLogs" xml:space="preserve">
+    <value>পুনরায় চালু ব্যর্থ হয়েছে। ব্যবহারকারী সেবার লগ দেখুন।</value>
+  </data>
+  <data name="RestartTheOpenXLRUserServiceAudioWillBe" xml:space="preserve">
+    <value>OpenXLR ব্যবহারকারী সেবা আবার চালু করুন। অডিও কিছুক্ষণ থামবে।</value>
+  </data>
+  <data name="RestartingDaemon" xml:space="preserve">
+    <value>ডেমন আবার চালু হচ্ছে...</value>
+  </data>
+  <data name="RightLevel" xml:space="preserve">
+    <value>ডান স্তর</value>
+  </data>
+  <data name="RunThisPluginInItsOwnProcess" xml:space="preserve">
+    <value>এই প্লাগইন আলাদা প্রক্রিয়ায় চালান</value>
+  </data>
+  <data name="Running" xml:space="preserve">
+    <value>চলছে</value>
+  </data>
+  <data name="SUBMIXER" xml:space="preserve">
+    <value>সাবমিক্সার</value>
+  </data>
+  <data name="SUPPORT" xml:space="preserve">
+    <value>সহায়তা</value>
+  </data>
+  <data name="SYSTEMDEFAULTDEVICES" xml:space="preserve">
+    <value>সিস্টেমের ডিফল্ট ডিভাইস</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>সংরক্ষণ</value>
+  </data>
+  <data name="SaveAndRecallCompleteScenesHardwareDSPPlus" xml:space="preserve">
+    <value>পুরো দৃশ্য সংরক্ষণ ও লোড করুন: হার্ডওয়্যার DSP ও পুরো সাবমিক্স</value>
+  </data>
+  <data name="SearchByNameOrCategory" xml:space="preserve">
+    <value>নাম বা বিভাগ দিয়ে খুঁজুন</value>
+  </data>
+  <data name="SelectAFolderToSeeItsPlugins" xml:space="preserve">
+    <value>প্লাগইন দেখতে ফোল্ডার বেছে নিন।</value>
+  </data>
+  <data name="SelectAPluginToManageIt" xml:space="preserve">
+    <value>পরিচালনার জন্য প্লাগইন বেছে নিন।</value>
+  </data>
+  <data name="SelectInterfaceTip" xml:space="preserve">
+    <value>{0}
+OpenXLR নিয়ন্ত্রিত ইন্টারফেস বেছে নিন</value>
+  </data>
+  <data name="ServiceRestartedWaitingForTheDaemonConnection" xml:space="preserve">
+    <value>সেবা আবার চালু হয়েছে। ডেমন সংযোগের অপেক্ষা চলছে।</value>
+  </data>
+  <data name="ShowCLAPPlugins" xml:space="preserve">
+    <value>CLAP প্লাগইন দেখান</value>
+  </data>
+  <data name="ShowLV2Plugins" xml:space="preserve">
+    <value>LV2 প্লাগইন দেখান</value>
+  </data>
+  <data name="ShowMixer" xml:space="preserve">
+    <value>মিক্সার দেখান</value>
+  </data>
+  <data name="ShowTheLiveAudioRoutingGraph" xml:space="preserve">
+    <value>লাইভ অডিও রাউটিং গ্রাফ দেখান</value>
+  </data>
+  <data name="ShowVST3Plugins" xml:space="preserve">
+    <value>VST3 প্লাগইন দেখান</value>
+  </data>
+  <data name="Skin" xml:space="preserve">
+    <value>স্কিন</value>
+  </data>
+  <data name="SkippedBundlesChecking" xml:space="preserve">
+    <value>বাদ দেওয়া বান্ডল: পরীক্ষা হচ্ছে…</value>
+  </data>
+  <data name="SkippedBundlesUnavailable" xml:space="preserve">
+    <value>বাদ দেওয়া বান্ডল: উপলব্ধ নয়</value>
+  </data>
+  <data name="StartAudioInTheBackground" xml:space="preserve">
+    <value>পটভূমিতে অডিও চালু করুন</value>
+  </data>
+  <data name="StartTheOpenXLRApp" xml:space="preserve">
+    <value>OpenXLR অ্যাপ চালু করুন</value>
+  </data>
+  <data name="StereoPluginsProcessingThisMixBeforeItReaches" xml:space="preserve">
+    <value>আউটপুটের আগে এই মিক্স প্রসেস করে এমন স্টেরিও প্লাগইন</value>
+  </data>
+  <data name="StreamState" xml:space="preserve">
+    <value>স্ট্রিমের অবস্থা</value>
+  </data>
+  <data name="SwitchSystemOutput0" xml:space="preserve">
+    <value>সিস্টেম আউটপুট বদলান: {0}</value>
+  </data>
+  <data name="SyncWindowsPlugins" xml:space="preserve">
+    <value>Windows প্লাগইন সিঙ্ক করুন</value>
+  </data>
+  <data name="SystemLanguage" xml:space="preserve">
+    <value>সিস্টেমের ভাষা</value>
+  </data>
+  <data name="TheAppWillStartAtLoginStartThe" xml:space="preserve">
+    <value>অ্যাপ লগইনে চালু হবে। ব্যবহার করতে অডিও সেবা আলাদা করে চালু করুন।</value>
+  </data>
+  <data name="ToUSBAuxPort" xml:space="preserve">
+    <value>USB Aux পোর্টে</value>
+  </data>
+  <data name="TrayOnly" xml:space="preserve">
+    <value>শুধু ট্রে</value>
+  </data>
+  <data name="UPDATES" xml:space="preserve">
+    <value>আপডেট</value>
+  </data>
+  <data name="USBAuxIn" xml:space="preserve">
+    <value>USB Aux ইনপুট</value>
+  </data>
+  <data name="UpdatesHaveNotBeenChecked" xml:space="preserve">
+    <value>আপডেট এখনো পরীক্ষা করা হয়নি</value>
+  </data>
+  <data name="UpdatingWineTrace" xml:space="preserve">
+    <value>Wine ট্রেস আপডেট হচ্ছে…</value>
+  </data>
+  <data name="UseOpenXLRControls" xml:space="preserve">
+    <value>OpenXLR নিয়ন্ত্রণ ব্যবহার করুন</value>
+  </data>
+  <data name="UseReleaseDefault" xml:space="preserve">
+    <value>রিলিজের ডিফল্ট ব্যবহার করুন</value>
+  </data>
+  <data name="VTStrength" xml:space="preserve">
+    <value>VT-এর শক্তি</value>
+  </data>
+  <data name="ViewChanges" xml:space="preserve">
+    <value>পরিবর্তন দেখুন</value>
+  </data>
+  <data name="ViewResult" xml:space="preserve">
+    <value>ফল দেখুন</value>
+  </data>
+  <data name="VoiceTune" xml:space="preserve">
+    <value>Voice Tune</value>
+  </data>
+  <data name="Volume" xml:space="preserve">
+    <value>ভলিউম</value>
+  </data>
+  <data name="WINDOW" xml:space="preserve">
+    <value>উইন্ডো</value>
+  </data>
+  <data name="WhenClosing" xml:space="preserve">
+    <value>বন্ধ করার সময়</value>
+  </data>
+  <data name="WhichMixThisOutputHears" xml:space="preserve">
+    <value>এই আউটপুট কোন মিক্স শোনে।</value>
+  </data>
+  <data name="WindowsPlugins" xml:space="preserve">
+    <value>Windows প্লাগইন</value>
+  </data>
+  <data name="WindowsPluginsCheckingForYabridge" xml:space="preserve">
+    <value>Windows প্লাগইন: yabridge পরীক্ষা হচ্ছে…</value>
+  </data>
+  <data name="WindowsPluginsTheDaemonDidNotAnswer" xml:space="preserve">
+    <value>Windows প্লাগইন: ডেমন উত্তর দেয়নি।</value>
+  </data>
+  <data name="WindowsVST3AndCLAPPlugins" xml:space="preserve">
+    <value>Windows VST3 ও CLAP প্লাগইন</value>
+  </data>
+  <data name="WineTraceCheckingTheDaemon" xml:space="preserve">
+    <value>Wine ট্রেস: ডেমন পরীক্ষা হচ্ছে…</value>
+  </data>
+  <data name="WineTraceUnavailableTheDaemonMustBeConnected" xml:space="preserve">
+    <value>Wine ট্রেস উপলব্ধ নয়। ডেমন সংযুক্ত থাকতে হবে এবং এই বিকল্প সমর্থন করতে হবে।</value>
+  </data>
+  <data name="WineUninstaller" xml:space="preserve">
+    <value>Wine আনইনস্টলার</value>
+  </data>
+  <data name="XLR1Gain" xml:space="preserve">
+    <value>XLR 1 গেইন</value>
+  </data>
+  <data name="XLR2Gain" xml:space="preserve">
+    <value>XLR 2 গেইন</value>
+  </data>
+</root>

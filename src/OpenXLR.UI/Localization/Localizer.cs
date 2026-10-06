@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Resources;
 using Avalonia.Markup.Xaml;
 
@@ -13,6 +15,18 @@ namespace OpenXLR.UI.Localization;
 /// </summary>
 public static class Localizer
 {
+    // One list drives locale selection, the settings picker and validation.
+    // Native names let users recover from a language they cannot read.
+    internal static IReadOnlyList<LanguageChoice> Languages { get; } = Array.AsReadOnly<LanguageChoice>(
+    [
+        new("en", "English"), new("de", "Deutsch"), new("es", "Español"), new("fr", "Français"),
+        new("zh-Hans", "简体中文"), new("zh-Hant", "繁體中文"), new("hi", "हिन्दी"), new("ar", "العربية"),
+        new("bn", "বাংলা"), new("pt", "Português"), new("id", "Bahasa Indonesia"), new("ur", "اردو"),
+        new("ru", "Русский"), new("ja", "日本語"), new("pcm", "Naijíriá Píjin"),
+    ]);
+
+    internal static bool IsSupported(string language) => Languages.Any(choice => choice.Id == language);
+
     internal static readonly ResourceManager Resources = new("OpenXLR.UI.Localization.Strings", typeof(Localizer).Assembly);
     private static readonly ConcurrentDictionary<(string Key, CultureInfo Culture), string> Texts = new();
     private static CultureInfo _culture = CultureInfo.GetCultureInfo("en");
@@ -22,11 +36,20 @@ public static class Localizer
     internal static string Resolve(string? language, CultureInfo systemCulture)
     {
         if (string.IsNullOrEmpty(language) || language == "system")
-            language = systemCulture.TwoLetterISOLanguageName;
+            language = systemCulture.Name;
         // Only shipped catalogues are selected. No arbitrary locale, file or
         // assembly name comes from the preference or environment variable.
-        string primary = language.Split('-')[0].ToLowerInvariant();
-        return primary is "en" or "de" or "es" or "fr" ? primary : "en";
+        string[] parts = language.ToLowerInvariant().Split('-');
+        string primary = parts[0];
+        if (primary == "zh")
+        {
+            // Explicit script wins over region. Bare zh uses simplified;
+            // Taiwan, Hong Kong and Macao use traditional unless specified.
+            if (parts.Contains("hant")) return "zh-Hant";
+            if (parts.Contains("hans")) return "zh-Hans";
+            return parts.Skip(1).Any(part => part is "tw" or "hk" or "mo") ? "zh-Hant" : "zh-Hans";
+        }
+        return IsSupported(primary) ? primary : "en";
     }
 
     internal static void Initialize()

@@ -1256,10 +1256,11 @@ public sealed class SkinWindowTests
             Assert.Equal(2, columns.Length);
 
             string[] Headings(StackPanel column) =>
-                [.. column.GetVisualDescendants().OfType<TextBlock>()
-                    .Where(t => t.Classes.Contains("h") && t.Text is { Length: > 0 } s
-                                && s == s.ToUpperInvariant())
-                    .Select(t => t.Text!)];
+                // A script need not have upper case. The heading is the
+                // first heading label in each card, including nested rows.
+                [.. column.Children.OfType<Border>().Where(card => card.Classes.Contains("card"))
+                    .Select(card => card.GetVisualDescendants().OfType<TextBlock>()
+                        .First(t => t.Classes.Contains("h")).Text!)];
 
             // The appearance card sits with the plugin card, not on the long
             // side with the startup and device cards.

@@ -71,8 +71,7 @@ public sealed class OptionsViewModel : ViewModelBase
     public System.Collections.Generic.IReadOnlyList<LanguageChoice> LanguageChoices { get; } =
     [
         new(null, Localizer.Text("SystemLanguage")),
-        new("en", "English"), new("de", "Deutsch"),
-        new("es", "Español"), new("fr", "Français"),
+        ..Localizer.Languages,
     ];
 
     private LanguageChoice? _selectedLanguage;
@@ -102,7 +101,7 @@ public sealed class OptionsViewModel : ViewModelBase
 
     internal static void SaveLanguage(string? language)
     {
-        if (language is not (null or "en" or "de" or "es" or "fr"))
+        if (language is not null && !Localizer.IsSupported(language))
             throw new ArgumentException("Unsupported window language", nameof(language));
         // Unlike the legacy best-effort Save, a refused language write is
         // reported to the user rather than appearing to have been saved.

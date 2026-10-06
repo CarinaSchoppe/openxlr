@@ -65,6 +65,11 @@
       <Setter Property="FontSize" Value="12"/>
       <Setter Property="MinHeight" Value="0"/>
     </Style>
+    <!-- Short translated labels still need a usable pointer target. Inserts
+         keep their separate compact buttons; input controls reflow below. -->
+    <Style Selector="WrapPanel.inputActions > ToggleButton">
+      <Setter Property="MinWidth" Value="44"/>
+    </Style>
     <!-- collapsible tiles: a flat expander whose header looks like the old card title -->
     <Style Selector="Expander.section">
       <Setter Property="VerticalAlignment" Value="Top"/>
@@ -248,7 +253,7 @@
                         IsChecked="{Binding GainLocked, Mode=TwoWay}" VerticalAlignment="Center"
                         ToolTip.Tip="{loc:Text Key=GainLockTheDaemonRejectsEveryGainChange}"/>
         </Grid>
-        <WrapPanel Name="InputControls" ItemSpacing="6" LineSpacing="4">
+        <WrapPanel Name="InputControls" Classes="inputActions" ItemSpacing="6" LineSpacing="4">
           <ToggleButton Content="{Binding MuteLabel}" Classes="mute" IsChecked="{Binding Mute, Mode=TwoWay}"
                         IsEnabled="{Binding !PhantomSettling}"
                         ToolTip.Tip="{loc:Text Key=TheDeviceMutesThisInputForAbout13}"/>
@@ -331,7 +336,7 @@
           <TextBlock Grid.Column="2" Text="{Binding Gain2Text}" Classes="val" VerticalAlignment="Center"
                      HorizontalAlignment="Right"/>
         </Grid>
-        <WrapPanel Name="Input2Controls" ItemSpacing="6" LineSpacing="4" IsVisible="{Binding HasXlr2}">
+        <WrapPanel Name="Input2Controls" Classes="inputActions" ItemSpacing="6" LineSpacing="4" IsVisible="{Binding HasXlr2}">
           <ToggleButton Content="{Binding Mute2Label}" Classes="mute" IsChecked="{Binding Mute2, Mode=TwoWay}"
                         IsEnabled="{Binding !PhantomSettling2}"
                         ToolTip.Tip="{loc:Text Key=TheDeviceMutesThisInputForAbout13}"/>

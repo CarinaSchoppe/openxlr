@@ -31,6 +31,13 @@
             <Setter Property="ToolTip.VerticalOffset" Value="0"/>
         </Style>
 
+        <!-- Text follows its own script, including mixed native language
+             names and English fallbacks. Physical audio directions and saved
+             channel order keep the existing left-to-right layout. -->
+        <Style Selector="TextBlock">
+            <Setter Property="TextAlignment" Value="DetectFromContent"/>
+        </Style>
+
         <!-- The appearance every window shares. The values are the Ox.* tokens
              the skin service writes into the application's resources, read with
              DynamicResource so a skin change repaints windows that are already

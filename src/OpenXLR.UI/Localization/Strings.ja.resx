@@ -1,0 +1,738 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="ADDINSTALLEDAPPLICATION" xml:space="preserve">
+    <value>インストール済みアプリを追加</value>
+  </data>
+  <data name="ANewChannelStartsMutedInEveryMix" xml:space="preserve">
+    <value>新しいチャンネルはすべてのミックスでミュートされます。ハードウェア入力の位置は変わりません。</value>
+  </data>
+  <data name="APPEARANCE" xml:space="preserve">
+    <value>外観</value>
+  </data>
+  <data name="APPLICATIONS" xml:space="preserve">
+    <value>アプリ</value>
+  </data>
+  <data name="ATLOGIN" xml:space="preserve">
+    <value>ログイン時</value>
+  </data>
+  <data name="AUDIO" xml:space="preserve">
+    <value>オーディオ</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>概要</value>
+  </data>
+  <data name="AboutOpenXLR" xml:space="preserve">
+    <value>OpenXLR について</value>
+  </data>
+  <data name="Active" xml:space="preserve">
+    <value>有効</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>追加</value>
+  </data>
+  <data name="AddCaptureInput" xml:space="preserve">
+    <value>キャプチャ入力を追加</value>
+  </data>
+  <data name="AddChannel" xml:space="preserve">
+    <value>チャンネルを追加</value>
+  </data>
+  <data name="AddFolder" xml:space="preserve">
+    <value>フォルダーを追加</value>
+  </data>
+  <data name="AddMicrophone" xml:space="preserve">
+    <value>マイクを追加</value>
+  </data>
+  <data name="AddPlugin" xml:space="preserve">
+    <value>プラグインを追加</value>
+  </data>
+  <data name="AddPluginInsert" xml:space="preserve">
+    <value>プラグインインサートを追加</value>
+  </data>
+  <data name="AddVolumeAndMuteKeys" xml:space="preserve">
+    <value>音量とミュートのキーを追加</value>
+  </data>
+  <data name="AllowNativeEditor" xml:space="preserve">
+    <value>ネイティブエディターを許可</value>
+  </data>
+  <data name="ApplicationChannelsMixesVirtualMicrophonesAndInserts" xml:space="preserve">
+    <value>アプリのチャンネル、ミックス、仮想マイク、インサート。</value>
+  </data>
+  <data name="ApplyAndConfigureKeys" xml:space="preserve">
+    <value>適用してキーを設定</value>
+  </data>
+  <data name="AudioAndTheAppWillStartWhenYou" xml:space="preserve">
+    <value>ログイン時にオーディオとアプリが起動します。</value>
+  </data>
+  <data name="AudioFlow" xml:space="preserve">
+    <value>オーディオフロー</value>
+  </data>
+  <data name="AudioWillStartAtLoginWithoutTheApp" xml:space="preserve">
+    <value>ログイン時にオーディオのみ起動します。アプリとトレイアイコンは表示しません。</value>
+  </data>
+  <data name="BridgeAgainEveryFolderYabridgeKnowsForWindows" xml:space="preserve">
+    <value>新しくインストールされた Windows プラグイン用に yabridge の登録フォルダーを再ブリッジ</value>
+  </data>
+  <data name="BridgeWineSPlugins" xml:space="preserve">
+    <value>Wine のプラグインをブリッジ</value>
+  </data>
+  <data name="BuyMeACoffee" xml:space="preserve">
+    <value>コーヒーで支援</value>
+  </data>
+  <data name="Bypass" xml:space="preserve">
+    <value>バイパス</value>
+  </data>
+  <data name="BypassThisPlugin" xml:space="preserve">
+    <value>このプラグインをバイパス</value>
+  </data>
+  <data name="Bypassed" xml:space="preserve">
+    <value>バイパス中</value>
+  </data>
+  <data name="CHANNELS" xml:space="preserve">
+    <value>チャンネル</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>キャンセル</value>
+  </data>
+  <data name="ChangingThisRestartsTheAudioServiceAndBriefly" xml:space="preserve">
+    <value>変更するとオーディオサービスが再起動し、音声が短時間途切れます。</value>
+  </data>
+  <data name="Channel" xml:space="preserve">
+    <value>チャンネル</value>
+  </data>
+  <data name="ChannelToMix" xml:space="preserve">
+    <value>チャンネルからミックスへ</value>
+  </data>
+  <data name="CheckAgain" xml:space="preserve">
+    <value>再確認</value>
+  </data>
+  <data name="CheckGitHubForStableReleasesAtStartupAt" xml:space="preserve">
+    <value>起動時に GitHub で安定版を確認
+（1 日に最大 1 回）</value>
+  </data>
+  <data name="CheckNow" xml:space="preserve">
+    <value>今すぐ確認</value>
+  </data>
+  <data name="ChooseAFolderThenSelectAnIndividualPlugin" xml:space="preserve">
+    <value>フォルダーを選び、下で個別のプラグインを選択してください。</value>
+  </data>
+  <data name="ChooseAnApplication" xml:space="preserve">
+    <value>アプリを選択</value>
+  </data>
+  <data name="ClearSelection" xml:space="preserve">
+    <value>×  選択を解除</value>
+  </data>
+  <data name="ClickAnyElementToTraceItsSignalPath" xml:space="preserve">
+    <value>要素をクリックすると信号経路を確認できます</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>閉じる</value>
+  </data>
+  <data name="CollectDiagnostics" xml:space="preserve">
+    <value>診断情報を収集</value>
+  </data>
+  <data name="Compressor" xml:space="preserve">
+    <value>コンプレッサー</value>
+  </data>
+  <data name="Connecting" xml:space="preserve">
+    <value>接続中…</value>
+  </data>
+  <data name="ContributorsAndCredits" xml:space="preserve">
+    <value>貢献者とクレジット</value>
+  </data>
+  <data name="Controls" xml:space="preserve">
+    <value>コントロール</value>
+  </data>
+  <data name="CurrentSystemDefaultOutput" xml:space="preserve">
+    <value>現在のシステム既定の出力</value>
+  </data>
+  <data name="DaemonNotRunning" xml:space="preserve">
+    <value>デーモンが停止中</value>
+  </data>
+  <data name="DaemonNotRunningSentence" xml:space="preserve">
+    <value>デーモンが停止しています。</value>
+  </data>
+  <data name="DeepWineTraceForPluginScans" xml:space="preserve">
+    <value>プラグインスキャン用の詳細な Wine トレース</value>
+  </data>
+  <data name="DefaultInput" xml:space="preserve">
+    <value>既定の入力</value>
+  </data>
+  <data name="DefaultOutput" xml:space="preserve">
+    <value>既定の出力</value>
+  </data>
+  <data name="Defaults" xml:space="preserve">
+    <value>既定値</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>削除</value>
+  </data>
+  <data name="DeleteFile" xml:space="preserve">
+    <value>ファイルを削除</value>
+  </data>
+  <data name="DeleteThisProfile" xml:space="preserve">
+    <value>このプロファイルを削除</value>
+  </data>
+  <data name="DesktopKeys" xml:space="preserve">
+    <value>デスクトップキー</value>
+  </data>
+  <data name="Devices" xml:space="preserve">
+    <value>デバイス</value>
+  </data>
+  <data name="DirectMonitorBlendLeftOnlyYourMicRight" xml:space="preserve">
+    <value>ダイレクトモニターの配分：左はマイクのみ、右は PC 音声のみ</value>
+  </data>
+  <data name="DisableInOpenXLR" xml:space="preserve">
+    <value>OpenXLR で無効にする</value>
+  </data>
+  <data name="DiscordCommunity" xml:space="preserve">
+    <value>Discord コミュニティ</value>
+  </data>
+  <data name="Dismiss" xml:space="preserve">
+    <value>通知を閉じる</value>
+  </data>
+  <data name="DonTEnforce" xml:space="preserve">
+    <value>（固定しない）</value>
+  </data>
+  <data name="EditLayout" xml:space="preserve">
+    <value>レイアウトを編集</value>
+  </data>
+  <data name="EnableDesktopIntegration" xml:space="preserve">
+    <value>デスクトップ連携を有効化</value>
+  </data>
+  <data name="EnableSoftwareMixer" xml:space="preserve">
+    <value>ソフトウェアミキサーを有効化</value>
+  </data>
+  <data name="Expander" xml:space="preserve">
+    <value>エキスパンダー</value>
+  </data>
+  <data name="FindAnInstalledPlugin" xml:space="preserve">
+    <value>インストール済みプラグインを検索…</value>
+  </data>
+  <data name="FixWindowsEditorInput" xml:space="preserve">
+    <value>Windows エディターの入力を修正</value>
+  </data>
+  <data name="Flow" xml:space="preserve">
+    <value>フロー</value>
+  </data>
+  <data name="FollowMONITOROutputSystemVolumeControls" xml:space="preserve">
+    <value>MONITOR 出力に追従（システム音量）</value>
+  </data>
+  <data name="FollowSelectedMonitorOutput" xml:space="preserve">
+    <value>選択したモニター出力に追従</value>
+  </data>
+  <data name="Forget" xml:space="preserve">
+    <value>記憶を削除</value>
+  </data>
+  <data name="FrontJack" xml:space="preserve">
+    <value>前面端子</value>
+  </data>
+  <data name="GainLockTheDaemonRejectsEveryGainChange" xml:space="preserve">
+    <value>ゲインロック：有効な間はデーモンがすべてのゲイン変更を拒否します</value>
+  </data>
+  <data name="HEADPHONES" xml:space="preserve">
+    <value>ヘッドホン</value>
+  </data>
+  <data name="HandThePluginsAWindowsInstallerLeftIn" xml:space="preserve">
+    <value>Windows インストーラーが Wine に配置したプラグインを yabridge に渡す</value>
+  </data>
+  <data name="HardwareInput" xml:space="preserve">
+    <value>ハードウェア入力</value>
+  </data>
+  <data name="INPUTS" xml:space="preserve">
+    <value>入力</value>
+  </data>
+  <data name="INTERFACE" xml:space="preserve">
+    <value>インターフェース</value>
+  </data>
+  <data name="InputToChannel" xml:space="preserve">
+    <value>入力からチャンネルへ</value>
+  </data>
+  <data name="InsertCount" xml:space="preserve">
+    <value>インサート（{0}）</value>
+  </data>
+  <data name="Inserts" xml:space="preserve">
+    <value>インサート</value>
+  </data>
+  <data name="InstallAClapOrVst3FileOrA" xml:space="preserve">
+    <value>.clap または .vst3 ファイル、または yabridge 経由の Windows プラグインをインストール</value>
+  </data>
+  <data name="InstallAVst3OrLv2BundleOrEvery" xml:space="preserve">
+    <value>.vst3 または .lv2 バンドル、またはフォルダー内の全プラグインをインストール</value>
+  </data>
+  <data name="InstallFile" xml:space="preserve">
+    <value>ファイルをインストール</value>
+  </data>
+  <data name="InstallFolder" xml:space="preserve">
+    <value>フォルダーをインストール</value>
+  </data>
+  <data name="InterfaceConnection" xml:space="preserve">
+    <value>インターフェース接続</value>
+  </data>
+  <data name="KNOWNAPPLICATIONS" xml:space="preserve">
+    <value>登録済みアプリ</value>
+  </data>
+  <data name="KeepRunningInTray" xml:space="preserve">
+    <value>トレイで実行を継続</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>言語</value>
+  </data>
+  <data name="LanguageOverrideHint" xml:space="preserve">
+    <value>OPENXLR_LANGUAGE により今回の起動では {0} が選ばれています。この変数を設定せず再起動すると保存済みの選択が適用されます。</value>
+  </data>
+  <data name="LanguageRestartHint" xml:space="preserve">
+    <value>言語は OpenXLR の次回起動時に適用されます。音声処理は継続します。</value>
+  </data>
+  <data name="LanguageSaveError" xml:space="preserve">
+    <value>言語を保存できませんでした：{0}</value>
+  </data>
+  <data name="LeftLevel" xml:space="preserve">
+    <value>左のレベル</value>
+  </data>
+  <data name="LevelLock" xml:space="preserve">
+    <value>レベルロック</value>
+  </data>
+  <data name="LoadThisProfile" xml:space="preserve">
+    <value>このプロファイルを読み込む</value>
+  </data>
+  <data name="Lock" xml:space="preserve">
+    <value>ロック</value>
+  </data>
+  <data name="LowCut" xml:space="preserve">
+    <value>ローカット</value>
+  </data>
+  <data name="LowCutFrequency" xml:space="preserve">
+    <value>ローカット {0}</value>
+  </data>
+  <data name="LowCutOff" xml:space="preserve">
+    <value>ローカット無効</value>
+  </data>
+  <data name="LowImp" xml:space="preserve">
+    <value>低インピーダンス</value>
+  </data>
+  <data name="MIXES" xml:space="preserve">
+    <value>ミックス</value>
+  </data>
+  <data name="MONITOR" xml:space="preserve">
+    <value>モニター</value>
+  </data>
+  <data name="Manage" xml:space="preserve">
+    <value>管理</value>
+  </data>
+  <data name="ManageThisPluginSNativeEditorCompatibilityRule" xml:space="preserve">
+    <value>このプラグインのネイティブエディター互換性ルールを管理</value>
+  </data>
+  <data name="ManageWindowsPlugins" xml:space="preserve">
+    <value>Windows プラグインを管理</value>
+  </data>
+  <data name="Manual" xml:space="preserve">
+    <value>マニュアル</value>
+  </data>
+  <data name="MemoryLockSetup" xml:space="preserve">
+    <value>メモリーロックの設定</value>
+  </data>
+  <data name="MicPC" xml:space="preserve">
+    <value>マイク ↔ PC</value>
+  </data>
+  <data name="MixToOutput" xml:space="preserve">
+    <value>ミックスから出力へ</value>
+  </data>
+  <data name="MixerLayout" xml:space="preserve">
+    <value>ミキサーレイアウト</value>
+  </data>
+  <data name="MoveDown" xml:space="preserve">
+    <value>下へ</value>
+  </data>
+  <data name="MovePluginDown" xml:space="preserve">
+    <value>プラグインを下へ</value>
+  </data>
+  <data name="MovePluginUp" xml:space="preserve">
+    <value>プラグインを上へ</value>
+  </data>
+  <data name="MoveUp" xml:space="preserve">
+    <value>上へ</value>
+  </data>
+  <data name="Mute" xml:space="preserve">
+    <value>ミュート</value>
+  </data>
+  <data name="MutedInactive" xml:space="preserve">
+    <value>ミュート / 非アクティブ</value>
+  </data>
+  <data name="NativeEditorCompatibility" xml:space="preserve">
+    <value>ネイティブエディターの互換性</value>
+  </data>
+  <data name="NativeEditors" xml:space="preserve">
+    <value>ネイティブエディター</value>
+  </data>
+  <data name="NativeHost" xml:space="preserve">
+    <value>ネイティブホスト</value>
+  </data>
+  <data name="NeitherAudioNorTheAppWillStartAt" xml:space="preserve">
+    <value>ログイン時にオーディオもアプリも起動しません。</value>
+  </data>
+  <data name="NewChannelEGPodcast" xml:space="preserve">
+    <value>新しいチャンネル、例：Podcast</value>
+  </data>
+  <data name="NewVirtualMicrophoneEGRecording" xml:space="preserve">
+    <value>新しい仮想マイク、例：録音</value>
+  </data>
+  <data name="NoDevice" xml:space="preserve">
+    <value>デバイスなし</value>
+  </data>
+  <data name="NoInsertsYet" xml:space="preserve">
+    <value>インサートはまだありません。</value>
+  </data>
+  <data name="NoNativeEditorsAreBlocked" xml:space="preserve">
+    <value>ブロックされたネイティブエディターはありません。</value>
+  </data>
+  <data name="NoProfilesSavedYet" xml:space="preserve">
+    <value>保存済みプロファイルはありません</value>
+  </data>
+  <data name="NoRegisteredFolders" xml:space="preserve">
+    <value>登録済みフォルダーはありません。</value>
+  </data>
+  <data name="NotInPath" xml:space="preserve">
+    <value>PATH 内にありません</value>
+  </data>
+  <data name="NotRouted" xml:space="preserve">
+    <value>ルーティングなし</value>
+  </data>
+  <data name="NotRunning" xml:space="preserve">
+    <value>停止中</value>
+  </data>
+  <data name="OnConnect" xml:space="preserve">
+    <value>接続時</value>
+  </data>
+  <data name="OnLaunch" xml:space="preserve">
+    <value>起動時</value>
+  </data>
+  <data name="OpenOnGitHub" xml:space="preserve">
+    <value>GitHub で開く</value>
+  </data>
+  <data name="OpenTheManualSectionOnDesktopKeys" xml:space="preserve">
+    <value>デスクトップキーのマニュアルを開く</value>
+  </data>
+  <data name="OpenTheManualSectionOnInstallingPlugins" xml:space="preserve">
+    <value>プラグインのインストールに関するマニュアルを開く</value>
+  </data>
+  <data name="OpenTheManualSectionOnPluginEditors" xml:space="preserve">
+    <value>プラグインエディターのマニュアルを開く</value>
+  </data>
+  <data name="OpenTheManualSectionOnSkins" xml:space="preserve">
+    <value>スキンのマニュアルを開く</value>
+  </data>
+  <data name="OpenTheManualSectionOnThePipewirePulse" xml:space="preserve">
+    <value>pipewire-pulse のオープンファイル上限に関するマニュアルを開く</value>
+  </data>
+  <data name="OpenThisPluginSControls" xml:space="preserve">
+    <value>このプラグインのコントロールを開く</value>
+  </data>
+  <data name="OpenThisPluginSOwnEditorOnThe" xml:space="preserve">
+    <value>稼働中の音声インスタンスでプラグイン独自のエディターを開く</value>
+  </data>
+  <data name="OpenXLRApplications" xml:space="preserve">
+    <value>OpenXLR アプリ</value>
+  </data>
+  <data name="OpenXLRAudioFlow" xml:space="preserve">
+    <value>OpenXLR · オーディオフロー</value>
+  </data>
+  <data name="OpenXLRDesktopKeys" xml:space="preserve">
+    <value>OpenXLR デスクトップキー</value>
+  </data>
+  <data name="OpenXLRMixerLayout" xml:space="preserve">
+    <value>OpenXLR ミキサーレイアウト</value>
+  </data>
+  <data name="OpenXLROptions" xml:space="preserve">
+    <value>OpenXLR 設定</value>
+  </data>
+  <data name="OpenXLRUpdates" xml:space="preserve">
+    <value>OpenXLR 更新</value>
+  </data>
+  <data name="Options" xml:space="preserve">
+    <value>設定</value>
+  </data>
+  <data name="Overwrite" xml:space="preserve">
+    <value>上書き</value>
+  </data>
+  <data name="OverwriteProfile" xml:space="preserve">
+    <value>プロファイルを上書きしますか？</value>
+  </data>
+  <data name="PLUGINS" xml:space="preserve">
+    <value>プラグイン</value>
+  </data>
+  <data name="Phantom" xml:space="preserve">
+    <value>ファンタム</value>
+  </data>
+  <data name="Phones1" xml:space="preserve">
+    <value>ヘッドホン 1</value>
+  </data>
+  <data name="Phones2" xml:space="preserve">
+    <value>ヘッドホン 2</value>
+  </data>
+  <data name="Playing" xml:space="preserve">
+    <value>再生中</value>
+  </data>
+  <data name="PluginState" xml:space="preserve">
+    <value>プラグインの状態</value>
+  </data>
+  <data name="PluginUI" xml:space="preserve">
+    <value>プラグイン UI</value>
+  </data>
+  <data name="PluginsAreLookedForInTheHomeAnd" xml:space="preserve">
+    <value>ユーザーとシステムのプラグインディレクトリを検索します。</value>
+  </data>
+  <data name="PluginsProcessingXLR1BeforeItReachesThe" xml:space="preserve">
+    <value>ミックスに入る前に XLR 1 を処理するプラグイン</value>
+  </data>
+  <data name="PluginsProcessingXLR2BeforeItReachesThe" xml:space="preserve">
+    <value>ミックスに入る前に XLR 2 を処理するプラグイン</value>
+  </data>
+  <data name="Problem" xml:space="preserve">
+    <value>問題</value>
+  </data>
+  <data name="ProfileName" xml:space="preserve">
+    <value>プロファイル名</value>
+  </data>
+  <data name="ProfileOverwriteMessage" xml:space="preserve">
+    <value>このデバイスには「{0}」というプロファイルがすでにあります。
+保存すると現在のシーンで置き換えられます。</value>
+  </data>
+  <data name="Profiles" xml:space="preserve">
+    <value>プロファイル</value>
+  </data>
+  <data name="PutEveryControlBackToThePluginS" xml:space="preserve">
+    <value>すべてのコントロールをプラグインの既定値に戻す</value>
+  </data>
+  <data name="QuitApp" xml:space="preserve">
+    <value>アプリを終了</value>
+  </data>
+  <data name="QuitOpenXLR" xml:space="preserve">
+    <value>OpenXLR を終了</value>
+  </data>
+  <data name="ReadThePluginDirectoriesAgainForPluginsInstalled" xml:space="preserve">
+    <value>別の方法でインストールされたプラグインを探すためディレクトリを再読込</value>
+  </data>
+  <data name="ReadTheSkinFoldersAgainForASkin" xml:space="preserve">
+    <value>新規または変更されたスキンを探すためフォルダーを再読込</value>
+  </data>
+  <data name="RearJack" xml:space="preserve">
+    <value>背面端子</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>更新</value>
+  </data>
+  <data name="ReleaseNotesArePlainTextOpenXLRNeverInstalls" xml:space="preserve">
+    <value>リリースノートはプレーンテキストです。OpenXLR が更新を自動インストールすることはありません。</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>再読込</value>
+  </data>
+  <data name="RemoveFromAllChains" xml:space="preserve">
+    <value>すべてのチェーンから削除</value>
+  </data>
+  <data name="RemoveFromList" xml:space="preserve">
+    <value>一覧から削除</value>
+  </data>
+  <data name="RemovePlugin" xml:space="preserve">
+    <value>プラグインを削除</value>
+  </data>
+  <data name="Rename" xml:space="preserve">
+    <value>名前を変更</value>
+  </data>
+  <data name="Rescan" xml:space="preserve">
+    <value>再スキャン</value>
+  </data>
+  <data name="RescanRetriesTheseBundlesAChangedBundleOr" xml:space="preserve">
+    <value>再スキャンでこれらのバンドルを再試行します。バンドルやスキャナーの変更時にも自動で再試行します。</value>
+  </data>
+  <data name="ResetDeviceToDefaults" xml:space="preserve">
+    <value>デバイスを既定値に戻す</value>
+  </data>
+  <data name="RestartDaemon" xml:space="preserve">
+    <value>デーモンを再起動</value>
+  </data>
+  <data name="RestartFailedCheckTheUserServiceLogs" xml:space="preserve">
+    <value>再起動に失敗しました。ユーザーサービスのログを確認してください。</value>
+  </data>
+  <data name="RestartTheOpenXLRUserServiceAudioWillBe" xml:space="preserve">
+    <value>OpenXLR のユーザーサービスを再起動します。音声が短時間途切れます。</value>
+  </data>
+  <data name="RestartingDaemon" xml:space="preserve">
+    <value>デーモンを再起動中...</value>
+  </data>
+  <data name="RightLevel" xml:space="preserve">
+    <value>右のレベル</value>
+  </data>
+  <data name="RunThisPluginInItsOwnProcess" xml:space="preserve">
+    <value>このプラグインを独立したプロセスで実行</value>
+  </data>
+  <data name="Running" xml:space="preserve">
+    <value>実行中</value>
+  </data>
+  <data name="SUBMIXER" xml:space="preserve">
+    <value>サブミキサー</value>
+  </data>
+  <data name="SUPPORT" xml:space="preserve">
+    <value>サポート</value>
+  </data>
+  <data name="SYSTEMDEFAULTDEVICES" xml:space="preserve">
+    <value>システム既定のデバイス</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="SaveAndRecallCompleteScenesHardwareDSPPlus" xml:space="preserve">
+    <value>シーン全体を保存・呼出：ハードウェア DSP とサブミックス全体</value>
+  </data>
+  <data name="SearchByNameOrCategory" xml:space="preserve">
+    <value>名前またはカテゴリで検索</value>
+  </data>
+  <data name="SelectAFolderToSeeItsPlugins" xml:space="preserve">
+    <value>フォルダーを選択してプラグインを表示します。</value>
+  </data>
+  <data name="SelectAPluginToManageIt" xml:space="preserve">
+    <value>管理するプラグインを選択してください。</value>
+  </data>
+  <data name="SelectInterfaceTip" xml:space="preserve">
+    <value>{0}
+OpenXLR が制御するインターフェースを選択</value>
+  </data>
+  <data name="ServiceRestartedWaitingForTheDaemonConnection" xml:space="preserve">
+    <value>サービスを再起動しました。デーモンの接続を待っています。</value>
+  </data>
+  <data name="ShowCLAPPlugins" xml:space="preserve">
+    <value>CLAP プラグインを表示</value>
+  </data>
+  <data name="ShowLV2Plugins" xml:space="preserve">
+    <value>LV2 プラグインを表示</value>
+  </data>
+  <data name="ShowMixer" xml:space="preserve">
+    <value>ミキサーを表示</value>
+  </data>
+  <data name="ShowTheLiveAudioRoutingGraph" xml:space="preserve">
+    <value>リアルタイムの音声ルーティンググラフを表示</value>
+  </data>
+  <data name="ShowVST3Plugins" xml:space="preserve">
+    <value>VST3 プラグインを表示</value>
+  </data>
+  <data name="Skin" xml:space="preserve">
+    <value>スキン</value>
+  </data>
+  <data name="SkippedBundlesChecking" xml:space="preserve">
+    <value>スキップしたバンドル：確認中…</value>
+  </data>
+  <data name="SkippedBundlesUnavailable" xml:space="preserve">
+    <value>スキップしたバンドル：利用不可</value>
+  </data>
+  <data name="StartAudioInTheBackground" xml:space="preserve">
+    <value>バックグラウンドでオーディオを開始</value>
+  </data>
+  <data name="StartTheOpenXLRApp" xml:space="preserve">
+    <value>OpenXLR アプリを起動</value>
+  </data>
+  <data name="StereoPluginsProcessingThisMixBeforeItReaches" xml:space="preserve">
+    <value>出力前にこのミックスを処理するステレオプラグイン</value>
+  </data>
+  <data name="StreamState" xml:space="preserve">
+    <value>ストリームの状態</value>
+  </data>
+  <data name="SwitchSystemOutput0" xml:space="preserve">
+    <value>システム出力を切替：{0}</value>
+  </data>
+  <data name="SyncWindowsPlugins" xml:space="preserve">
+    <value>Windows プラグインを同期</value>
+  </data>
+  <data name="SystemLanguage" xml:space="preserve">
+    <value>システムの言語</value>
+  </data>
+  <data name="TheAppWillStartAtLoginStartThe" xml:space="preserve">
+    <value>ログイン時にアプリが起動します。使用するにはオーディオサービスを別途起動してください。</value>
+  </data>
+  <data name="ToUSBAuxPort" xml:space="preserve">
+    <value>USB Aux ポートへ</value>
+  </data>
+  <data name="TrayOnly" xml:space="preserve">
+    <value>トレイのみ</value>
+  </data>
+  <data name="UPDATES" xml:space="preserve">
+    <value>更新</value>
+  </data>
+  <data name="USBAuxIn" xml:space="preserve">
+    <value>USB Aux 入力</value>
+  </data>
+  <data name="UpdatesHaveNotBeenChecked" xml:space="preserve">
+    <value>更新はまだ確認していません</value>
+  </data>
+  <data name="UpdatingWineTrace" xml:space="preserve">
+    <value>Wine トレースを更新中…</value>
+  </data>
+  <data name="UseOpenXLRControls" xml:space="preserve">
+    <value>OpenXLR のコントロールを使用</value>
+  </data>
+  <data name="UseReleaseDefault" xml:space="preserve">
+    <value>リリースの既定値を使用</value>
+  </data>
+  <data name="VTStrength" xml:space="preserve">
+    <value>VT 強度</value>
+  </data>
+  <data name="ViewChanges" xml:space="preserve">
+    <value>変更を表示</value>
+  </data>
+  <data name="ViewResult" xml:space="preserve">
+    <value>結果を表示</value>
+  </data>
+  <data name="VoiceTune" xml:space="preserve">
+    <value>Voice Tune</value>
+  </data>
+  <data name="Volume" xml:space="preserve">
+    <value>音量</value>
+  </data>
+  <data name="WINDOW" xml:space="preserve">
+    <value>ウィンドウ</value>
+  </data>
+  <data name="WhenClosing" xml:space="preserve">
+    <value>閉じるとき</value>
+  </data>
+  <data name="WhichMixThisOutputHears" xml:space="preserve">
+    <value>この出力が再生するミックス。</value>
+  </data>
+  <data name="WindowsPlugins" xml:space="preserve">
+    <value>Windows プラグイン</value>
+  </data>
+  <data name="WindowsPluginsCheckingForYabridge" xml:space="preserve">
+    <value>Windows プラグイン：yabridge を確認中…</value>
+  </data>
+  <data name="WindowsPluginsTheDaemonDidNotAnswer" xml:space="preserve">
+    <value>Windows プラグイン：デーモンが応答しませんでした。</value>
+  </data>
+  <data name="WindowsVST3AndCLAPPlugins" xml:space="preserve">
+    <value>Windows VST3 と CLAP プラグイン</value>
+  </data>
+  <data name="WineTraceCheckingTheDaemon" xml:space="preserve">
+    <value>Wine トレース：デーモンを確認中…</value>
+  </data>
+  <data name="WineTraceUnavailableTheDaemonMustBeConnected" xml:space="preserve">
+    <value>Wine トレースが利用できません。デーモンの接続とこの切替の対応が必要です。</value>
+  </data>
+  <data name="WineUninstaller" xml:space="preserve">
+    <value>Wine アンインストーラー</value>
+  </data>
+  <data name="XLR1Gain" xml:space="preserve">
+    <value>XLR 1 ゲイン</value>
+  </data>
+  <data name="XLR2Gain" xml:space="preserve">
+    <value>XLR 2 ゲイン</value>
+  </data>
+</root>

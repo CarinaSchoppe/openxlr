@@ -41,7 +41,7 @@ public sealed record UiSettings
     /// </summary>
     public string? Skin { get; init; }
 
-    /// <summary>Window language: null follows the system; en, de, es or fr overrides it.</summary>
+    /// <summary>Window language: null follows the system; a shipped catalogue id overrides it.</summary>
     public string? Language { get; init; }
 
     /// <summary>

@@ -375,10 +375,13 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 
 ## Other
 
-- Desktop language selection: English, German, Spanish and French, with the
-  system language by default and English fallback per untranslated message.
-  Fixed window labels, tooltips, placeholders, accessibility names, tray actions and common mixer
-  statuses are translated. The selection is saved locally and applies on
+- Desktop language selection: fourteen languages, including simplified and
+  traditional Chinese, Hindi, Arabic, Bengali, Portuguese, Indonesian, Urdu,
+  Russian, Japanese and Nigerian Pidgin alongside English, German, Spanish
+  and French, with the system language by default and English fallback per
+  untranslated message. Fixed window labels, tooltips, placeholders,
+  accessibility names, tray actions and common mixer statuses are translated.
+  The selection is saved locally and applies on
   the next app launch without restarting audio. See
   [localization.md](localization.md) for scope and contributor guidance.
 

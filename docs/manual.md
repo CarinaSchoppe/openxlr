@@ -1567,15 +1567,19 @@ Review plugin names, paths and scanner output before sharing the archive.
 
 ### Window language
 
-Options, APPEARANCE, Language offers System language, English, Deutsch,
-Español and Français. The choice is saved locally and applies after quitting
-and launching the app again. Audio keeps running. Regional system languages
+Options, APPEARANCE, Language offers System language and fourteen languages,
+with separate simplified and traditional Chinese choices. The choice is
+saved locally and applies after quitting and launching the app again.
+Audio keeps running. Regional system languages
 use their matching catalogue; unsupported languages use English.
 Individual untranslated messages also keep the existing English wording.
-Launch with `OPENXLR_LANGUAGE=en` to temporarily use English without changing the saved
-choice. Names you gave channels, mixes and profiles keep their spelling.
+Launch with `OPENXLR_LANGUAGE=en` to temporarily use English without changing
+the saved choice. Names you gave channels, mixes and profiles keep their spelling.
 Plugin editors, some dynamic messages and the other clients are not yet
 translated. See [localization.md](localization.md) for the current coverage.
+Arabic and Urdu text follow their own reading direction. Audio controls and
+saved channel order keep their existing orientation. Fonts on the desktop
+must cover the selected script.
 
 | Path | What it is |
 |---|---|

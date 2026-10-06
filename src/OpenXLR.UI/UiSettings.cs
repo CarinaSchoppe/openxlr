@@ -14,6 +14,9 @@ namespace OpenXLR.UI;
 /// </summary>
 public sealed record UiSettings
 {
+    /// <summary>Window language: null follows the system; a shipped catalogue id overrides it.</summary>
+    public string? Language { get; init; }
+
     public bool StartDaemonAtLogin { get; init; }
     public bool OpenWindowAtLogin { get; init; }
     public bool MinimizeToTray { get; init; }
@@ -40,9 +43,6 @@ public sealed record UiSettings
     /// about it, so changing appearance cannot disturb what is playing.
     /// </summary>
     public string? Skin { get; init; }
-
-    /// <summary>Window language: null follows the system; a shipped catalogue id overrides it.</summary>
-    public string? Language { get; init; }
 
     /// <summary>
     /// Retain fields written by other or newer window features. A language

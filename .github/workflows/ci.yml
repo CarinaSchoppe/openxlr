@@ -88,6 +88,30 @@ jobs:
             OPENXLR_LANGUAGE="$language" OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
           done
 
+      - name: Window startup follows saved language and system locale
+        run: |
+          while read -r startup_locale preference launch_override expected; do
+            settings=("LANG=$startup_locale" "LC_ALL=$startup_locale" "OPENXLR_TEST_LANGUAGE_PREFERENCE=$preference" "OPENXLR_TEST_EXPECT_LANGUAGE=$expected" "OPENXLR_TEST_LAYOUT=1")
+            if [ "$launch_override" = empty ]; then
+              settings+=("OPENXLR_LANGUAGE=")
+            elif [ "$launch_override" != none ]; then
+              settings+=("OPENXLR_LANGUAGE=$launch_override")
+            fi
+            env -u OPENXLR_LANGUAGE "${settings[@]}" xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
+          done <<'CASES'
+          de_DE.UTF-8 system none de
+          es_MX.UTF-8 system none es
+          fr_CA.UTF-8 system none fr
+          ja_JP.UTF-8 system none en
+          de_DE.UTF-8 en none en
+          en_US.UTF-8 de none de
+          en_US.UTF-8 es none es
+          en_US.UTF-8 fr none fr
+          de_DE.UTF-8 fr en en
+          de_DE.UTF-8 fr system de
+          de_DE.UTF-8 fr empty fr
+          CASES
+
       - name: A tooltip at a screen edge does not take the click
         run: OPENXLR_TEST_TOOLTIP=1 xvfb-run -a -s '-screen 0 1600x1000x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~ToolTipInputTests
 

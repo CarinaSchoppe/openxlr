@@ -711,6 +711,9 @@ Select the interface OpenXLR drives</value>
   <data name="Skin" xml:space="preserve">
     <value>Skin</value>
   </data>
+  <data name="SkippedBundlesAfterFailedScan" xml:space="preserve">
+    <value>Skipped after a failed scan: {0}</value>
+  </data>
   <data name="SkippedBundlesChecking" xml:space="preserve">
     <value>Skipped bundles: checking…</value>
   </data>

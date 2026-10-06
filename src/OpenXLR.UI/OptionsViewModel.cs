@@ -215,7 +215,8 @@ public sealed class OptionsViewModel : ViewModelBase
             ? Localizer.Text("WineTraceUnavailableTheDaemonMustBeConnected") : null;
         SkippedPluginDetails.Clear();
         int? skipped = setup?["skippedFailedCount"]?.GetValue<int>();
-        SkippedPlugins = skipped is null ? Localizer.Text("SkippedBundlesUnavailable") : $"Skipped after a failed scan: {skipped}";
+        SkippedPlugins = skipped is null ? Localizer.Text("SkippedBundlesUnavailable")
+            : Localizer.Format("SkippedBundlesAfterFailedScan", skipped);
         foreach (var bundle in setup?["skippedFailedBundles"] as System.Text.Json.Nodes.JsonArray ?? [])
         {
             string? when = bundle?["failedAt"]?.GetValue<string>();

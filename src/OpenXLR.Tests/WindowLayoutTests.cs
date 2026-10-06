@@ -1,4 +1,5 @@
 using OpenXLR.UI.Localization;
+using System.Globalization;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using Avalonia;
@@ -37,7 +38,17 @@ public sealed class WindowLayoutTests
                 Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", config);
                 Environment.SetEnvironmentVariable("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent");
                 Environment.SetEnvironmentVariable("XDG_RUNTIME_DIR", config);
+                // Each startup scenario runs in its own test process, with
+                // a private preference file and the process's actual locale.
+                if (Environment.GetEnvironmentVariable("OPENXLR_TEST_LANGUAGE_PREFERENCE") is { } preference)
+                    new UiSettings { Language = preference == "system" ? null : preference }.SaveRequired();
+                var numericCulture = CultureInfo.CurrentCulture;
+                var systemCulture = CultureInfo.CurrentUICulture;
                 AppBuilder.Configure<App>().UseSkia().UseHarfBuzz().UseX11().SetupWithoutStarting();
+                Assert.Same(numericCulture, CultureInfo.CurrentCulture);
+                Assert.Same(systemCulture, CultureInfo.CurrentUICulture);
+                if (Environment.GetEnvironmentVariable("OPENXLR_TEST_EXPECT_LANGUAGE") is { } expectedLanguage)
+                    Assert.Equal(expectedLanguage, Localizer.Language);
                 Application.Current!.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
                 var main = new MainWindow();
                 if (Environment.GetEnvironmentVariable("OPENXLR_LAYOUT_FONT") is { Length: > 0 } font)
@@ -336,20 +347,28 @@ public sealed class WindowLayoutTests
                 Capture(keyWindow, "desktop-output-keys-360");
                 keyWindow.Close();
 
-                new UiSettings { StartMinimized = true, MinimizeToTray = true }.Save();
+                (UiSettings.Load() with { StartMinimized = true, MinimizeToTray = true }).Save();
                 var optionsVm = new OptionsViewModel(new DaemonClient(), vm);
                 var options = new OptionsWindow { DataContext = optionsVm };
                 windows.Add(options);
                 options.Show();
                 var language = options.FindControl<ComboBox>("LanguagePicker")!;
                 Assert.Equal(5, language.ItemCount);
+                string? savedLanguage = UiSettings.Load().Language;
+                Assert.Equal(savedLanguage, optionsVm.SelectedLanguage!.Id);
+                Assert.Same(optionsVm.SelectedLanguage, language.SelectedItem);
                 string activeLanguage = Localizer.Language;
+                var overrideNote = options.FindControl<TextBlock>("LanguageOverrideNote")!;
                 if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENXLR_LANGUAGE")))
                 {
                     Assert.True(Localizer.Overridden);
-                    var note = options.FindControl<TextBlock>("LanguageOverrideNote")!;
-                    Assert.True(note.IsVisible);
-                    Assert.Equal(Localizer.Format("LanguageOverrideHint", activeLanguage), note.Text);
+                    Assert.True(overrideNote.IsVisible);
+                    Assert.Equal(Localizer.Format("LanguageOverrideHint", activeLanguage), overrideNote.Text);
+                }
+                else
+                {
+                    Assert.False(Localizer.Overridden);
+                    Assert.False(overrideNote.IsVisible);
                 }
                 optionsVm.SelectedLanguage = optionsVm.LanguageChoices.Single(c => c.Id == "fr");
                 Assert.Equal("fr", UiSettings.Load().Language);

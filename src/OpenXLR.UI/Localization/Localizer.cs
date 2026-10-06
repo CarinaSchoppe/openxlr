@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Resources;
 using Avalonia.Markup.Xaml;
@@ -13,6 +14,7 @@ namespace OpenXLR.UI.Localization;
 public static class Localizer
 {
     internal static readonly ResourceManager Resources = new("OpenXLR.UI.Localization.Strings", typeof(Localizer).Assembly);
+    private static readonly ConcurrentDictionary<(string Key, CultureInfo Culture), string> Texts = new();
     private static CultureInfo _culture = CultureInfo.GetCultureInfo("en");
     public static string Language => _culture.Name;
     public static bool Overridden { get; private set; }
@@ -37,8 +39,12 @@ public static class Localizer
 
     public static string Text(string key) => Get(key, _culture);
 
+    // ResourceManager falls back per key as well as per catalogue, but does
+    // not cache a missing satellite entry's resolved string. Cache our fixed
+    // window keys by culture so English fallbacks allocate only on first use.
     internal static string Get(string key, CultureInfo culture) =>
-        Resources.GetString(key, culture) ?? throw new ArgumentException($"Unknown window text: {key}", nameof(key));
+        Texts.GetOrAdd((key, culture), static entry => Resources.GetString(entry.Key, entry.Culture)
+            ?? throw new ArgumentException($"Unknown window text: {entry.Key}", nameof(key)));
 
     public static string Format(string key, params object?[] arguments) =>
         string.Format(_culture, Text(key), arguments);

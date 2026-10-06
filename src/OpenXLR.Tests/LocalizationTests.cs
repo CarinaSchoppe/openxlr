@@ -24,6 +24,12 @@ public sealed class LocalizationTests
     [InlineData("en-GB", "de-DE", "en")]
     [InlineData("../../de", "de-DE", "en")]
     [InlineData("unknown", "de-DE", "en")]
+    [InlineData(null, "", "en")]
+    [InlineData(null, "en-AU", "en")]
+    [InlineData(null, "pt-BR", "en")]
+    [InlineData(null, "fr-BE", "fr")]
+    [InlineData(null, "de-CH", "de")]
+    [InlineData(null, "es-AR", "es")]
     public void OnlyShippedLanguagesAreSelected(string? choice, string system, string expected)
         => Assert.Equal(expected, Localizer.Resolve(choice, CultureInfo.GetCultureInfo(system)));
 
@@ -52,6 +58,41 @@ public sealed class LocalizationTests
     }
 
     [Theory]
+    [InlineData("de")]
+    [InlineData("es")]
+    [InlineData("fr")]
+    [InlineData("de-AT")]
+    [InlineData("es-MX")]
+    [InlineData("fr-CA")]
+    public void AnUntranslatedEntryUsesTheExistingEnglishTextInsideATranslatedWindow(string language)
+    {
+        const string key = "SkippedBundlesAfterFailedScan";
+        var culture = CultureInfo.GetCultureInfo(language);
+        var translated = Localizer.Resources.GetResourceSet(culture.Parent == CultureInfo.InvariantCulture
+            ? culture : culture.Parent, true, false);
+        Assert.NotNull(translated);
+        Assert.Null(translated.GetString(key));
+        Assert.NotEqual("Close", Localizer.Get("Close", culture));
+        Assert.Equal("Skipped after a failed scan: {0}", Localizer.Get(key, culture));
+        Assert.Equal("Skipped after a failed scan: 2", string.Format(culture, Localizer.Get(key, culture), 2));
+    }
+
+    [Fact]
+    public void ConcurrentLanguagesDoNotReuseAnotherCulturesTranslation()
+    {
+        Parallel.ForEach(new[] { ("en", "Close"), ("de", "Schließen"), ("es", "Cerrar"), ("fr", "Fermer") },
+            entry =>
+            {
+                var culture = CultureInfo.GetCultureInfo(entry.Item1);
+                for (int i = 0; i < 1000; i++)
+                {
+                    Assert.Equal(entry.Item2, Localizer.Get("Close", culture));
+                    Assert.Equal("Skipped after a failed scan: {0}", Localizer.Get("SkippedBundlesAfterFailedScan", culture));
+                }
+            });
+    }
+
+    [Theory]
     [InlineData("en")]
     [InlineData("de")]
     [InlineData("es")]
@@ -66,11 +107,15 @@ public sealed class LocalizationTests
     }
 
     [Theory]
-    [InlineData("en")]
-    [InlineData("de")]
-    [InlineData("es")]
-    [InlineData("fr")]
-    public void RepeatedStatusLookupsReuseCachedStringsWithoutAllocations(string language)
+    [InlineData("en", "Active")]
+    [InlineData("de", "Active")]
+    [InlineData("es", "Active")]
+    [InlineData("fr", "Active")]
+    [InlineData("en", "SkippedBundlesAfterFailedScan")]
+    [InlineData("de", "SkippedBundlesAfterFailedScan")]
+    [InlineData("es", "SkippedBundlesAfterFailedScan")]
+    [InlineData("fr", "SkippedBundlesAfterFailedScan")]
+    public void RepeatedLookupsReuseTranslatedAndFallbackStringsWithoutAllocations(string language, string key)
     {
         long allocated = -1;
         Exception? failure = null;
@@ -79,9 +124,9 @@ public sealed class LocalizationTests
             try
             {
                 var culture = CultureInfo.GetCultureInfo(language);
-                for (int i = 0; i < 1000; i++) _ = Localizer.Get("Active", culture);
+                for (int i = 0; i < 1000; i++) _ = Localizer.Get(key, culture);
                 long before = GC.GetAllocatedBytesForCurrentThread();
-                for (int i = 0; i < 10_000; i++) _ = Localizer.Get("Active", culture);
+                for (int i = 0; i < 10_000; i++) _ = Localizer.Get(key, culture);
                 allocated = GC.GetAllocatedBytesForCurrentThread() - before;
             }
             catch (Exception ex) { failure = ex; }
@@ -105,7 +150,7 @@ public sealed class LocalizationTests
     }
 
     [Fact]
-    public void EveryCatalogueHasTheSameKeysAndFormatArgumentsAndEveryUseIsDefined()
+    public void CataloguesPreserveEnglishKeysAndFormatArgumentsAndMissingTranslationsFallBack()
     {
         string folder = Path.Combine(Root, "src", "OpenXLR.UI", "Localization");
         Dictionary<string, string> Read(string suffix)
@@ -119,7 +164,7 @@ public sealed class LocalizationTests
         foreach (string language in new[] { "", ".de", ".es", ".fr" })
         {
             var translated = Read(language);
-            Assert.Equal(english.Keys.Order(), translated.Keys.Order());
+            Assert.Empty(translated.Keys.Except(english.Keys));
             foreach ((string key, string text) in translated)
             {
                 Assert.False(string.IsNullOrWhiteSpace(text), key);
@@ -134,6 +179,8 @@ public sealed class LocalizationTests
                 Assert.Equal(text, Localizer.Get(key, language == "" ? CultureInfo.InvariantCulture
                     : CultureInfo.GetCultureInfo(language[1..])));
             }
+            foreach (string key in english.Keys.Except(translated.Keys))
+                Assert.Equal(english[key], Localizer.Get(key, CultureInfo.GetCultureInfo(language[1..])));
         }
         var used = new HashSet<string>(StringComparer.Ordinal);
         foreach (string file in Directory.EnumerateFiles(Path.Combine(Root, "src", "OpenXLR.UI"), "*", SearchOption.AllDirectories)
@@ -154,6 +201,45 @@ public sealed class LocalizationTests
 [Collection("xdg-config")]
 public sealed class LanguageSettingsTests
 {
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("system", null)]
+    [InlineData("en", "en")]
+    [InlineData("de", "de")]
+    [InlineData("es", "es")]
+    [InlineData("fr", "fr")]
+    [InlineData("de-AT", "de")]
+    [InlineData("../../de", "en")]
+    public async Task ThePickerReflectsSavedPreferencesAndRefusesUnknownChoices(string? saved, string? selected)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "openxlr-language-" + Guid.NewGuid());
+        string? previous = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        try
+        {
+            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", directory);
+            new UiSettings { Language = saved }.SaveRequired();
+            string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
+            string original = File.ReadAllText(path);
+            await using var client = new DaemonClient();
+            var options = new OptionsViewModel(client, new MainViewModel(client));
+            Assert.Equal(selected, options.SelectedLanguage!.Id);
+            Assert.Equal(new[] { "English", "Deutsch", "Español", "Français" },
+                options.LanguageChoices.Skip(1).Select(c => c.Label));
+            var choice = options.SelectedLanguage;
+            options.SelectedLanguage = null;
+            options.SelectedLanguage = new LanguageChoice("../de", "Unknown");
+            Assert.Same(choice, options.SelectedLanguage);
+            Assert.Null(options.LanguageError);
+            Assert.Equal(original, File.ReadAllText(path));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", previous);
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
     [Fact]
     public void AnExplicitNullCollapsedListDoesNotBreakWindowRestoration()
     {

@@ -44,6 +44,13 @@ public sealed record UiSettings
     /// <summary>Window language: null follows the system; en, de, es or fr overrides it.</summary>
     public string? Language { get; init; }
 
+    /// <summary>
+    /// Retain fields written by other or newer window features. A language
+    /// or startup preference change must not erase an unfamiliar setting.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, JsonElement>? AdditionalPreferences { get; init; }
+
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
@@ -64,9 +71,15 @@ public sealed record UiSettings
         return new UiSettings();
     }
 
-    internal static UiSettings LoadRequired() => File.Exists(FilePath)
-        ? JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(FilePath), Json) ?? new UiSettings()
-        : new UiSettings();
+    internal static UiSettings LoadRequired()
+    {
+        if (!File.Exists(FilePath)) return new UiSettings();
+        var settings = JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(FilePath), Json)
+            ?? throw new JsonException("Window preferences must be a JSON object.");
+        // JSON can explicitly set a non-nullable collection to null. The
+        // window enumerates this list when restoring its tiles.
+        return settings.CollapsedSections is null ? settings with { CollapsedSections = [] } : settings;
+    }
 
     public void Save()
     {

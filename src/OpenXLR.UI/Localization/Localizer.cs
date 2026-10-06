@@ -15,6 +15,7 @@ public static class Localizer
     internal static readonly ResourceManager Resources = new("OpenXLR.UI.Localization.Strings", typeof(Localizer).Assembly);
     private static CultureInfo _culture = CultureInfo.GetCultureInfo("en");
     public static string Language => _culture.Name;
+    public static bool Overridden { get; private set; }
 
     internal static string Resolve(string? language, CultureInfo systemCulture)
     {
@@ -29,6 +30,7 @@ public static class Localizer
     internal static void Initialize()
     {
         string? requested = Environment.GetEnvironmentVariable("OPENXLR_LANGUAGE");
+        Overridden = !string.IsNullOrEmpty(requested);
         if (string.IsNullOrEmpty(requested)) requested = UiSettings.Load().Language;
         _culture = CultureInfo.GetCultureInfo(Resolve(requested, CultureInfo.CurrentUICulture));
     }

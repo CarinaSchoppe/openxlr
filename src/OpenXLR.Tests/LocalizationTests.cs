@@ -151,6 +151,74 @@ public sealed class LocalizationTests
 public sealed class LanguageSettingsTests
 {
     [Fact]
+    public void AnExplicitNullCollapsedListDoesNotBreakWindowRestoration()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "openxlr-language-" + Guid.NewGuid());
+        string? previous = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        try
+        {
+            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", directory);
+            string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
+            OpenXLR.UI.OpenXlrPaths.WriteAtomic(path,
+                """{"skin":"material","language":"de","collapsedSections":null}""");
+            var loaded = UiSettings.Load();
+            // This is the input to MainWindow.RestoreSectionState, which
+            // must receive an enumerable even after a hand-edited file.
+            Assert.Empty(new HashSet<string>(loaded.CollapsedSections, StringComparer.Ordinal));
+            OptionsViewModel.SaveLanguage("fr");
+            Assert.Empty(UiSettings.Load().CollapsedSections);
+            Assert.Equal("material", UiSettings.Load().Skin);
+            Assert.Equal("fr", UiSettings.Load().Language);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", previous);
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void LanguageSaveRetainsFieldsOwnedByOtherOrNewerWindowFeatures()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "openxlr-language-" + Guid.NewGuid());
+        string? previous = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        try
+        {
+            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", directory);
+            string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
+            const string original = """
+                {"skin":"material","language":"en","startMinimized":true,
+                 "sectionOrder":["MonitorTile","InputsTile"],"futureAppearance":{"density":"touch","scale":1.5},
+                 "futureFlag":false,"futureEmpty":null}
+                """;
+            OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, original);
+            OptionsViewModel.SaveLanguage("de");
+            using var saved = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+            Assert.Equal("de", saved.RootElement.GetProperty("language").GetString());
+            Assert.Equal("material", saved.RootElement.GetProperty("skin").GetString());
+            Assert.True(saved.RootElement.GetProperty("startMinimized").GetBoolean());
+            Assert.Equal("MonitorTile", saved.RootElement.GetProperty("sectionOrder")[0].GetString());
+            Assert.Equal("touch", saved.RootElement.GetProperty("futureAppearance").GetProperty("density").GetString());
+            Assert.Equal(1.5, saved.RootElement.GetProperty("futureAppearance").GetProperty("scale").GetDouble());
+            Assert.False(saved.RootElement.GetProperty("futureFlag").GetBoolean());
+            Assert.Equal(System.Text.Json.JsonValueKind.Null, saved.RootElement.GetProperty("futureEmpty").ValueKind);
+            // Other window writes must retain the saved language and those
+            // same fields, rather than undo the preservation on the next save.
+            (UiSettings.Load() with { MinimizeToTray = true }).SaveRequired();
+            using var later = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+            Assert.Equal("de", later.RootElement.GetProperty("language").GetString());
+            Assert.True(later.RootElement.GetProperty("minimizeToTray").GetBoolean());
+            Assert.Equal(saved.RootElement.GetProperty("futureAppearance").GetRawText(),
+                later.RootElement.GetProperty("futureAppearance").GetRawText());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", previous);
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public void LanguageSavePreservesOtherPreferencesAndReportsARefusedWrite()
     {
         string directory = Path.Combine(Path.GetTempPath(), "openxlr-language-" + Guid.NewGuid());
@@ -173,9 +241,12 @@ public sealed class LanguageSettingsTests
             }
             Assert.Throws<ArgumentException>(() => OptionsViewModel.SaveLanguage("../de"));
             string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
-            OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, "{\"skin\":\"material\",\"broken\":");
-            Assert.Throws<System.Text.Json.JsonException>(() => OptionsViewModel.SaveLanguage("de"));
-            Assert.Equal("{\"skin\":\"material\",\"broken\":", File.ReadAllText(path));
+            foreach (string invalid in new[] { "{\"skin\":\"material\",\"broken\":", "null", "[]", "true", "\"de\"" })
+            {
+                OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, invalid);
+                Assert.Throws<System.Text.Json.JsonException>(() => OptionsViewModel.SaveLanguage("de"));
+                Assert.Equal(invalid, File.ReadAllText(path));
+            }
             File.Delete(path);
             Directory.CreateDirectory(path);
             Assert.ThrowsAny<IOException>(() => OptionsViewModel.SaveLanguage("de"));

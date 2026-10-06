@@ -112,6 +112,9 @@ public sealed class OptionsViewModel : ViewModelBase
     private string? _languageError;
     public string? LanguageError { get => _languageError; private set => Set(ref _languageError, value); }
 
+    public string? LanguageOverrideNote => Localizer.Overridden
+        ? Localizer.Format("LanguageOverrideHint", Localizer.Language) : null;
+
     private string _pluginDirectories = Localizer.Text("PluginsAreLookedForInTheHomeAnd");
     /// <summary>Where installs go, once the daemon has said.</summary>
     public string PluginDirectories { get => _pluginDirectories; private set => Set(ref _pluginDirectories, value); }

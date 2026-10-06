@@ -344,6 +344,13 @@ public sealed class WindowLayoutTests
                 var language = options.FindControl<ComboBox>("LanguagePicker")!;
                 Assert.Equal(5, language.ItemCount);
                 string activeLanguage = Localizer.Language;
+                if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENXLR_LANGUAGE")))
+                {
+                    Assert.True(Localizer.Overridden);
+                    var note = options.FindControl<TextBlock>("LanguageOverrideNote")!;
+                    Assert.True(note.IsVisible);
+                    Assert.Equal(Localizer.Format("LanguageOverrideHint", activeLanguage), note.Text);
+                }
                 optionsVm.SelectedLanguage = optionsVm.LanguageChoices.Single(c => c.Id == "fr");
                 Assert.Equal("fr", UiSettings.Load().Language);
                 Assert.Equal(activeLanguage, Localizer.Language);

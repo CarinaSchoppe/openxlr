@@ -6,16 +6,26 @@ language follows the process's UI culture, including regional variants such
 as `de-AT`, `es-MX` and `fr-CA`. Unsupported languages fall back to English.
 `OPENXLR_LANGUAGE=en` overrides the saved choice for that launch, so a user
 can recover from an unfamiliar language without editing a file.
+Options reports when this launch override is active and explains that the
+next launch must omit it for a saved language to take effect.
 
 The `language` field in `~/.config/openxlr/ui.json` is `null` for the system
 language, or `en`, `de`, `es`, `fr`. It is local window state, independent of
 the daemon, audio profiles, layout and skins. Changing it preserves the
-other window preferences. A failed save is reported and the picker returns
+other window preferences, including fields owned by newer window features.
+Other window preference writes retain those unfamiliar fields too. A failed
+save is reported and the picker returns
 to its previous choice. Unreadable or malformed preferences are not replaced
 by a language save. Closing and launching the app again applies the
 choice; simply reopening a window or activating the existing tray instance
 does not. Audio and open plugin editors are not rebuilt for a language
 change.
+
+An existing preferences file must contain an object. A root `null`, scalar
+or array is refused by a language save rather than overwritten. An explicit
+`null` collapsed-section list is recovered as an empty list, so window
+restoration can still enumerate it. Unfamiliar nested values remain data and
+are preserved by the standard JSON extension-data mechanism.
 
 This first pass translates the fixed text in desktop markup, including
 tooltips, placeholders and accessibility names, the desktop key setup page,

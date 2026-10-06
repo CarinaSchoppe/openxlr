@@ -209,6 +209,8 @@
           </ComboBox>
         </Grid>
         <TextBlock Text="{loc:Text Key=LanguageRestartHint}" Classes="hint" TextWrapping="Wrap"/>
+        <TextBlock Name="LanguageOverrideNote" Text="{Binding LanguageOverrideNote}" Classes="hint" TextWrapping="Wrap"
+                   IsVisible="{Binding LanguageOverrideNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
         <TextBlock Text="{Binding LanguageError}" Classes="warn" TextWrapping="Wrap"
                    IsVisible="{Binding LanguageError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
         <Grid ColumnDefinitions="110,*,Auto">

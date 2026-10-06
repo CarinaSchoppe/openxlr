@@ -331,6 +331,9 @@
   <data name="Language" xml:space="preserve">
     <value>Language</value>
   </data>
+  <data name="LanguageOverrideHint" xml:space="preserve">
+    <value>OPENXLR_LANGUAGE selects {0} for this launch. The saved choice takes effect when you restart without this variable.</value>
+  </data>
   <data name="LanguageRestartHint" xml:space="preserve">
     <value>Language applies the next time OpenXLR starts. Audio keeps running.</value>
   </data>

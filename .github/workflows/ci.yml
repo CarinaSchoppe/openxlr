@@ -123,6 +123,12 @@ jobs:
           de_DE.UTF-8 fr en en
           de_DE.UTF-8 fr system de
           de_DE.UTF-8 fr empty fr
+          en_US.UTF-8 zh-CHT none zh-Hant
+          en_US.UTF-8 zh-CHS none zh-Hans
+          en_US.UTF-8 system zh-CHT zh-Hant
+          en_US.UTF-8 system zh-CHS zh-Hans
+          en_US.UTF-8 de-AT none de
+          de_DE.UTF-8 ../../de none en
           CASES
           env -u OPENXLR_LANGUAGE -u LC_ALL LANG=en_US.UTF-8 LC_MESSAGES=de_DE.UTF-8 OPENXLR_TEST_LANGUAGE_PREFERENCE=system OPENXLR_TEST_EXPECT_LANGUAGE=de OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
           env -u OPENXLR_LANGUAGE -u LC_ALL -u LC_MESSAGES LANG=es_MX.UTF-8 OPENXLR_TEST_LANGUAGE_PREFERENCE=system OPENXLR_TEST_EXPECT_LANGUAGE=es OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests

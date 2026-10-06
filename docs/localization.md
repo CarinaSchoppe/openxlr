@@ -75,6 +75,10 @@ Regional locales select their primary language, including `pt-BR` and `pt-PT`,
 `ar-EG`, `ur-PK` and the three-letter `pcm-NG`. Chinese keeps its script:
 `zh-CN` and `zh-SG` select `zh-Hans`; `zh-TW`, `zh-HK` and `zh-MO` select
 `zh-Hant`. Explicit `Hans` or `Hant` wins over a region; bare `zh` uses Hans.
+The legacy .NET names `zh-CHS` and `zh-CHT` select Hans and Hant respectively,
+using the same mapping for saved choices, temporary overrides and system
+cultures. [Microsoft documents these aliases](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo.parent).
+They do not add picker entries or satellite assemblies.
 
 Text uses Avalonia's content-based alignment and bidirectional shaping, so
 Arabic and Urdu read right to left while English fallback text and paths keep
@@ -155,3 +159,8 @@ CI runs these startup cases, saved choices for all shipped catalogues, temporary
 an explicit system override and an empty launch override, plus message-locale
 and base-locale selection when `LC_ALL` is unset. Each case uses a
 separate process, so the application initializes once with those inputs.
+
+Startup acceptance also covers saved regional and legacy Chinese choices,
+legacy temporary overrides and an unsupported saved value. The picker shows
+the corresponding shipped language, without rewriting the original preference
+at initialization. Unsupported choices display the English fallback.

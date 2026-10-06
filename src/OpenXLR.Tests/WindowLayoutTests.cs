@@ -356,7 +356,9 @@ public sealed class WindowLayoutTests
                 var language = options.FindControl<ComboBox>("LanguagePicker")!;
                 Assert.Equal(Localizer.Languages.Count + 1, language.ItemCount);
                 string? savedLanguage = UiSettings.Load().Language;
-                Assert.Equal(savedLanguage, optionsVm.SelectedLanguage!.Id);
+                string? pickerLanguage = savedLanguage is null or "" or "system" ? null
+                    : Localizer.Resolve(savedLanguage, CultureInfo.CurrentUICulture);
+                Assert.Equal(pickerLanguage, optionsVm.SelectedLanguage!.Id);
                 Assert.Same(optionsVm.SelectedLanguage, language.SelectedItem);
                 string activeLanguage = Localizer.Language;
                 var overrideNote = options.FindControl<TextBlock>("LanguageOverrideNote")!;

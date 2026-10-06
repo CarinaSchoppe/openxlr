@@ -74,6 +74,10 @@ public sealed class LocalizationTests
     [InlineData("zh-Hans-TW", "zh-TW", "zh-Hans")]
     [InlineData("zh-Hant-CN", "zh-CN", "zh-Hant")]
     [InlineData("pcm-NG", "de-DE", "pcm")]
+    [InlineData(null, "zh-CHT", "zh-Hant")]
+    [InlineData(null, "zh-CHS", "zh-Hans")]
+    [InlineData("ZH-cht", "en-US", "zh-Hant")]
+    [InlineData("zh-CHS", "zh-TW", "zh-Hans")]
     public void OnlyShippedLanguagesAreSelected(string? choice, string system, string expected)
         => Assert.Equal(expected, Localizer.Resolve(choice, CultureInfo.GetCultureInfo(system)));
 
@@ -255,6 +259,8 @@ public sealed class LanguageSettingsTests
     [InlineData("de-AT", "de")]
     [InlineData("zh-CN", "zh-Hans")]
     [InlineData("zh-TW", "zh-Hant")]
+    [InlineData("zh-CHT", "zh-Hant")]
+    [InlineData("zh-CHS", "zh-Hans")]
     [InlineData("pcm-NG", "pcm")]
     [InlineData("ar-EG", "ar")]
     [InlineData("../../de", "en")]

@@ -39,7 +39,12 @@ public static class Localizer
             language = systemCulture.Name;
         // Only shipped catalogues are selected. No arbitrary locale, file or
         // assembly name comes from the preference or environment variable.
-        string[] parts = language.ToLowerInvariant().Split('-');
+        string tag = language.ToLowerInvariant();
+        // .NET retains these two legacy culture names. Map the exact aliases
+        // to their shipped scripts before applying regional fallback.
+        if (tag == "zh-cht") return "zh-Hant";
+        if (tag == "zh-chs") return "zh-Hans";
+        string[] parts = tag.Split('-');
         string primary = parts[0];
         if (primary == "zh")
         {

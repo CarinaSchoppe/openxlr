@@ -8,6 +8,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using OpenXLR.UI;
+using OpenXLR.UI.Localization;
 
 namespace OpenXLR.Tests;
 
@@ -94,10 +95,10 @@ public sealed class ToolTipInputTests
             Thread.Sleep(500);
             Ui(() =>
             {
-                cog = Named<Button>(main!, "Open this plugin's controls");
-                bypass = Named<ToggleButton>(main!, "Bypass this plugin");
+                cog = Named<Button>(main!, Localizer.Text("OpenThisPluginSControls"));
+                bypass = Named<ToggleButton>(main!, Localizer.Text("BypassThisPlugin"));
                 profiles = main!.GetVisualDescendants().OfType<DropDownButton>()
-                    .First(d => d.Content as string == "Profiles");
+                    .First(d => d.Content as string == Localizer.Text("Profiles"));
                 cog.AddHandler(Button.ClickEvent, (_, _) => cogClicks++, handledEventsToo: true);
                 bypass.AddHandler(Button.ClickEvent, (_, _) => bypassClicks++, handledEventsToo: true);
                 profiles.AddHandler(Button.ClickEvent, (_, _) => profileClicks++, handledEventsToo: true);

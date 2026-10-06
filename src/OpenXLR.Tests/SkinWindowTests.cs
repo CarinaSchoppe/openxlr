@@ -12,6 +12,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using OpenXLR.UI;
+using OpenXLR.UI.Localization;
 using OpenXLR.UI.Skinning;
 
 namespace OpenXLR.Tests;
@@ -251,9 +252,9 @@ public sealed class SkinWindowTests
 
                 // The names a screen reader reads do not come from the skin.
                 Assert.Contains(main.GetVisualDescendants().OfType<ToggleButton>(),
-                    t => Avalonia.Automation.AutomationProperties.GetName(t) == "Bypass this plugin");
+                    t => Avalonia.Automation.AutomationProperties.GetName(t) == Localizer.Text("BypassThisPlugin"));
                 Assert.NotNull(options.FindControl<ComboBox>("SkinPicker"));
-                Assert.Equal("Skin", Avalonia.Automation.AutomationProperties
+                Assert.Equal(Localizer.Text("Skin"), Avalonia.Automation.AutomationProperties
                     .GetName(options.FindControl<ComboBox>("SkinPicker")!));
 
                 // A focused control still shows a focus adorner.
@@ -1126,9 +1127,9 @@ public sealed class SkinWindowTests
                         $"{where}: the window grew to {window.Bounds.Height}");
 
                     Button add = window.GetVisualDescendants().OfType<Button>()
-                        .First(b => (b.Content as string) == "Add");
+                        .First(b => (b.Content as string) == Localizer.Text("Add"));
                     Button close = window.GetVisualDescendants().OfType<Button>()
-                        .First(b => (b.Content as string) == "Close");
+                        .First(b => (b.Content as string) == Localizer.Text("Close"));
                     ComboBox picker = window.FindControl<ComboBox>("InstalledPicker")!;
                     ScrollViewer list = window.FindControl<ScrollViewer>("KnownApps")!;
 
@@ -1255,9 +1256,9 @@ public sealed class SkinWindowTests
 
             // The appearance card sits with the plugin card, not on the long
             // side with the startup and device cards.
-            Assert.Equal(["AT LOGIN", "WINDOW", "AUDIO", "SYSTEM DEFAULT DEVICES", "INTERFACE"],
+            Assert.Equal([Localizer.Text("ATLOGIN"), Localizer.Text("WINDOW"), Localizer.Text("AUDIO"), Localizer.Text("SYSTEMDEFAULTDEVICES"), Localizer.Text("INTERFACE")],
                 Headings(columns[0]));
-            Assert.Equal(["PLUGINS", "APPEARANCE", "UPDATES", "SUPPORT"], Headings(columns[1]));
+            Assert.Equal([Localizer.Text("PLUGINS"), Localizer.Text("APPEARANCE"), Localizer.Text("UPDATES"), Localizer.Text("SUPPORT")], Headings(columns[1]));
 
             double tall = Math.Max(columns[0].Bounds.Height, columns[1].Bounds.Height);
             double shortSide = Math.Min(columns[0].Bounds.Height, columns[1].Bounds.Height);

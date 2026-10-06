@@ -37,6 +37,10 @@ invalid or newer schema leaves the whole terminal palette at its defaults.
 Within a supported document, malformed terminal palette fields keep their
 default while valid fields still apply. Names use the same bounded,
 control-free text in the skin picker and the loaded palette.
+The terminal checks the 256 KiB document limit each time it reads a file,
+including after the picker has listed it. A file that exceeds the limit or
+grows during that read keeps the default palette; repairing it allows the
+next load to use it again.
 
 The choice is saved in
 `~/.config/openxlr/ui.json` as `"skin": "<id>"` and nowhere else: it is not

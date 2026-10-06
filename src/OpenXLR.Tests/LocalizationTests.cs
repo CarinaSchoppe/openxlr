@@ -7,6 +7,10 @@ using OpenXLR.UI.Localization;
 
 namespace OpenXLR.Tests;
 
+// The shared window ResourceManager also serves view-model tests. Keep its
+// explicit multi-language probes separate from those tests, particularly
+// while measuring allocations for an application's one selected language.
+[Collection("xdg-config")]
 public sealed class LocalizationTests
 {
     [Theory]

@@ -64,6 +64,9 @@ error. Missing language resources use .NET's neutral English fallback.
 `LocalizationTests` checks all keys, usages, nonempty translations, format
 arguments, packaged satellites, regional lookup, fallback and repeated
 lookup allocations. `LanguageSettingsTests` checks persistence and failure.
+Resource-catalogue probes join the window configuration collection so the
+allocation measurement does not share a resource cache with parallel
+view-model tests looking up a different language.
 Run the existing window layout acceptance separately for each language:
 
 ```sh

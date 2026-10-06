@@ -210,14 +210,14 @@ public static class SkinService
     public static IReadOnlyList<string> Choose(string id)
     {
         SkinEntry entry = SkinCatalog.Find(id) ?? new SkinEntry(SkinPackage.Default, []);
-        (UiSettings.Load() with { Skin = entry.Id == SkinPackage.DefaultId ? null : entry.Id }).SaveChecked();
+        (UiSettings.LoadRequired() with { Skin = entry.Id == SkinPackage.DefaultId ? null : entry.Id }).SaveChecked();
         return Apply(entry);
     }
 
     /// <summary>Persist sizing before changing live resources; skin overrides remain intact.</summary>
     public static void ChooseControlSizing(bool touch)
     {
-        (UiSettings.Load() with { TouchControls = touch }).SaveChecked();
+        (UiSettings.LoadRequired() with { TouchControls = touch }).SaveChecked();
         ApplyControlSizing(touch);
     }
 

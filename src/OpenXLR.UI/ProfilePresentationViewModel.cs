@@ -22,7 +22,7 @@ public sealed partial class MainViewModel
             _presentationError = null;
             try
             {
-                UiSettings current = UiSettings.Load();
+                UiSettings current = UiSettings.LoadRequired();
                 // Persist the receipt together with the choices. A reconnect or
                 // window restart must not overwrite edits made after this recall.
                 if (current.AppliedPresentation == revision) return;

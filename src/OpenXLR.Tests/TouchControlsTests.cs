@@ -52,6 +52,27 @@ public sealed class TouchControlsTests
         => Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Presentation>(
             "{\"touchControls\":" + value + "}", new JsonSerializerOptions(JsonSerializerDefaults.Web)));
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SizingAndProfileChangesPreserveLocalLanguageAndFuturePreferences(bool touch)
+        => InConfig(() =>
+        {
+            string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
+            OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, """
+                {"language":"ur","appearanceMode":"light","futureAppearance":{"density":"touch"},"futureEmpty":null}
+                """);
+            (UiSettings.Load() with { TouchControls = touch }).SaveChecked();
+            var settings = UiSettings.Load();
+            settings.WithPresentation(new() { TouchControls = !touch, Skin = "deck" }, "revision").SaveChecked();
+            using var saved = JsonDocument.Parse(File.ReadAllText(path));
+            Assert.Equal("ur", saved.RootElement.GetProperty("language").GetString());
+            Assert.Equal("light", saved.RootElement.GetProperty("appearanceMode").GetString());
+            Assert.Equal("touch", saved.RootElement.GetProperty("futureAppearance").GetProperty("density").GetString());
+            Assert.Equal(JsonValueKind.Null, saved.RootElement.GetProperty("futureEmpty").ValueKind);
+            Assert.Equal(!touch, saved.RootElement.GetProperty("touchControls").GetBoolean());
+        });
+
     private static void InConfig(Action body)
     {
         string root = Directory.CreateTempSubdirectory("openxlr-touch-").FullName;

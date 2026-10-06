@@ -267,6 +267,22 @@ internal static class TouchControlsWindowTests
         ControlSizingChoice standard, ControlSizingChoice large)
     {
         string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
+        string original = File.ReadAllText(path);
+        try
+        {
+            foreach (string invalid in new[] { "null", "[]", "true", "{\"language\":\"ur\",\"broken\":" })
+            {
+                OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, invalid);
+                picker.SelectedItem = large;
+                Pump(main);
+                Assert.Equal(invalid, File.ReadAllText(path));
+                Assert.False(SkinService.TouchControls);
+                Assert.Same(standard, picker.SelectedItem);
+                Assert.Same(standard, vm.SelectedControlSizing);
+                Assert.NotNull(vm.SkinError);
+            }
+        }
+        finally { OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, original); }
         File.Move(path, path + ".saved");
         Directory.CreateDirectory(path);
         try

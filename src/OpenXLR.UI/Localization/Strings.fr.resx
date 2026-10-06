@@ -794,4 +794,8 @@ L’enregistrement le remplace par la scène actuelle.</value>
   <data name="XLR2Gain" xml:space="preserve">
     <value>Gain XLR 2</value>
   </data>
+  <data name="SelectInterfaceTip" xml:space="preserve">
+    <value>{0}
+Choisissez l’interface contrôlée par OpenXLR</value>
+  </data>
 </root>

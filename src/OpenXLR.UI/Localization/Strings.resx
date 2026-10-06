@@ -794,4 +794,8 @@ Saving will replace it with the current scene.</value>
   <data name="XLR2Gain" xml:space="preserve">
     <value>XLR 2 gain</value>
   </data>
+  <data name="SelectInterfaceTip" xml:space="preserve">
+    <value>{0}
+Select the interface OpenXLR drives</value>
+  </data>
 </root>

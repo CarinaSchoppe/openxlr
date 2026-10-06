@@ -794,4 +794,8 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   <data name="XLR2Gain" xml:space="preserve">
     <value>XLR 2 Gain</value>
   </data>
+  <data name="SelectInterfaceTip" xml:space="preserve">
+    <value>{0}
+Von OpenXLR gesteuertes Interface wählen</value>
+  </data>
 </root>

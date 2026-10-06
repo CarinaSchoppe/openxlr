@@ -794,4 +794,8 @@ Guardar lo reemplaza con la escena actual.</value>
   <data name="XLR2Gain" xml:space="preserve">
     <value>Ganancia XLR 2</value>
   </data>
+  <data name="SelectInterfaceTip" xml:space="preserve">
+    <value>{0}
+Elige la interfaz que controla OpenXLR</value>
+  </data>
 </root>

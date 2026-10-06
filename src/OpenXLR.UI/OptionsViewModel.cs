@@ -417,7 +417,7 @@ public sealed class OptionsViewModel : ViewModelBase
             SkinChoice? previous = _selectedSkin;
             if (!Set(ref _selectedSkin, value) || _applying || value is null) return;
             try { ReportSkin(Skinning.SkinService.Choose(value.Id)); }
-            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
             {
                 _selectedSkin = previous;
                 // Finish the selection binding's source write before restoring

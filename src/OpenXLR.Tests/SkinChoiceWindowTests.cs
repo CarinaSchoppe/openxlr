@@ -26,6 +26,19 @@ internal static class SkinChoiceWindowTests
             using var binding = picker.Bind(ComboBox.SelectedItemProperty,
                 new Binding(nameof(OptionsViewModel.SelectedSkin)) { Mode = BindingMode.TwoWay });
             string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
+            string saved = File.ReadAllText(path);
+            foreach (string invalid in new[] { "null", "[]", "true", "{\"language\":\"de\",\"broken\":" })
+            {
+                OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, invalid);
+                picker.SelectedItem = after;
+                Dispatcher.UIThread.RunJobs();
+                Assert.Same(before, picker.SelectedItem);
+                Assert.Same(before, options.SelectedSkin);
+                Assert.Equal(current.Id, SkinService.Current.Id);
+                Assert.NotNull(options.SkinError);
+                Assert.Equal(invalid, File.ReadAllText(path));
+            }
+            OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, saved);
             File.Move(path, path + ".saved");
             Directory.CreateDirectory(path);
             try
@@ -43,6 +56,12 @@ internal static class SkinChoiceWindowTests
                 File.Move(path + ".saved", path);
             }
             Assert.Equal(current.Id, UiSettings.Load().Skin);
+            // Settings written by independent window features stay data:
+            // the skin picker must retain language, tile order and theme mode.
+            OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, """
+                {"language":"zh-Hant","sectionOrder":["MonitorTile","InputsTile"],
+                 "themeMode":"light","futureAppearance":{"density":"touch"},"futureEmpty":null}
+                """);
             picker.SelectedItem = after;
             Dispatcher.UIThread.RunJobs();
             Assert.Equal(after.Id, SkinService.Current.Id);
@@ -50,6 +69,15 @@ internal static class SkinChoiceWindowTests
             Assert.Same(after, options.SelectedSkin);
             Assert.Same(after, picker.SelectedItem);
             Assert.Null(options.SkinError);
+            using (var persisted = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path)))
+            {
+                var preferences = persisted.RootElement;
+                Assert.Equal("zh-Hant", preferences.GetProperty("language").GetString());
+                Assert.Equal("light", preferences.GetProperty("themeMode").GetString());
+                Assert.Equal("MonitorTile", preferences.GetProperty("sectionOrder")[0].GetString());
+                Assert.Equal("touch", preferences.GetProperty("futureAppearance").GetProperty("density").GetString());
+                Assert.Equal(System.Text.Json.JsonValueKind.Null, preferences.GetProperty("futureEmpty").ValueKind);
+            }
 
             // Older rejected writes must not undo a later successful choice
             // when several selection changes occur before dispatch resumes.

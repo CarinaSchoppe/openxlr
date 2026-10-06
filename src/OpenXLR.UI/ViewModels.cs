@@ -963,7 +963,7 @@ public sealed partial class MainViewModel : ViewModelBase
             string label = stream["label"]?.GetValue<string>() ?? "?";
             string channel = stream["channelId"]?.GetValue<string>() ?? "";
             bool active = stream["active"]?.GetValue<bool>() ?? true;
-            bool running = stream[Localizer.Text("Running")]?.GetValue<bool>() ?? true;
+            bool running = stream["running"]?.GetValue<bool>() ?? true;
             seen.Add(identity);
             if (!byIdentity.TryGetValue(identity, out AppStreamViewModel? existing))
             {
@@ -1184,7 +1184,7 @@ public sealed class AppStreamViewModel : ViewModelBase
         finally { _applying = false; }
     }
 
-    /// <summary>Localizer.Text("Playing") / Localizer.Text("Running") / Localizer.Text("NotRunning"), for the manage dialog.</summary>
+    /// <summary>Localized application status for the manage dialog.</summary>
     public string StatusText => Active ? Localizer.Text("Playing") : Running ? Localizer.Text("Running") : Localizer.Text("NotRunning");
 
     public void Forget() => _ = _client.ForgetAppAsync(Identity);

@@ -53,6 +53,26 @@ public sealed class WindowLayoutTests
                 main.DataContext = vm;
                 typeof(MainViewModel).GetMethod("ApplyMixer", BindingFlags.Instance | BindingFlags.NonPublic)!
                     .Invoke(vm, [JsonNode.Parse("""{"mixes":[],"channels":[],"inserts":{}}""")]);
+                // The language changes displayed status, never incoming wire
+                // keys or application identity. Exercise stopped apps too:
+                // a missing running field otherwise silently defaults true.
+                var applyStreams = typeof(MainViewModel).GetMethod("ApplyStreams", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                foreach ((bool running, bool active, string text) in new[]
+                    { (false, false, "NotRunning"), (true, false, "Running"), (true, true, "Playing") })
+                {
+                    applyStreams.Invoke(vm, [new JsonObject { ["streams"] = new JsonArray(new JsonObject
+                    {
+                        ["identity"] = "wine/app.exe", ["label"] = "Cámara {0} 日本語", ["channelId"] = "browser",
+                        ["running"] = running, ["active"] = active,
+                    }) }]);
+                    var app = Assert.Single(vm.Apps);
+                    Assert.Equal(running, app.Running);
+                    Assert.Equal(active, app.Active);
+                    Assert.Equal(Localizer.Text(text), app.StatusText);
+                    Assert.Equal("wine/app.exe", app.Identity);
+                    Assert.Equal("Cámara {0} 日本語", app.Label);
+                }
+                applyStreams.Invoke(vm, [null]);
                 AddInsert(vm.Inserts);
                 AddInsert(vm.Inserts2);
                 for (int i = 0; i < 8; i++)

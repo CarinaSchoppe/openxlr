@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 test("plugin publishes layout updates and keeps monitor feed commands intact", async () => {
+  const oldSkin = process.env.OPENXLR_SKIN;
+  process.env.OPENXLR_SKIN = "default";
   const previous = globalThis.WebSocket;
   const previousInterval = globalThis.setInterval;
   const intervals = [];
@@ -163,7 +165,7 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
     const keyFace = (context) => {
       const image = host.messages.filter(m => m.event === "setImage" && m.context === context).at(-1).payload.image;
       const svg = Buffer.from(image.split(",")[1], "base64").toString();
-      return svg.includes("#FF3C4E") ? "muted" : svg.includes("#4a4f5c") ? "unknown" : "off";
+      return svg.toLowerCase().includes("#ff3c4e") ? "muted" : svg.includes("#4a4f5c") ? "unknown" : "off";
     };
     const keyTarget = (context, target) =>
       host.receive({event:"willAppear",context,action:"com.emaspa.openxlr.toggle",payload:{settings:{target}}});
@@ -246,6 +248,8 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
     assert.ok(Buffer.from(chosen.split(",")[1], "base64").toString().includes('x="58" y="30"'));
   }
   finally {
+    if (oldSkin === undefined) delete process.env.OPENXLR_SKIN;
+    else process.env.OPENXLR_SKIN = oldSkin;
     intervals.forEach(clearInterval);
     globalThis.setInterval = previousInterval;
     globalThis.WebSocket = previous;

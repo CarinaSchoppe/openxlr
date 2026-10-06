@@ -48,6 +48,13 @@ public sealed record UiSettings
     [JsonConverter(typeof(LocalAppearanceModeConverter))]
     public string AppearanceMode { get; init; } = AppearanceModes.System;
 
+    /// <summary>
+    /// Retain fields written by other or newer window features. A language
+    /// or startup preference change must not erase an unfamiliar setting.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, JsonElement>? AdditionalPreferences { get; init; }
+
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
@@ -62,11 +69,20 @@ public sealed record UiSettings
     {
         try
         {
-            if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(FilePath), Json) ?? new UiSettings();
+            return LoadRequired();
         }
         catch (Exception) { /* corrupt file must not stop the app */ }
         return new UiSettings();
+    }
+
+    internal static UiSettings LoadRequired()
+    {
+        if (!File.Exists(FilePath)) return new UiSettings();
+        var settings = JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(FilePath), Json)
+            ?? throw new JsonException("Window preferences must be a JSON object.");
+        // JSON can explicitly set a non-nullable collection to null. The
+        // window enumerates this list when restoring its tiles.
+        return settings.CollapsedSections is null ? settings with { CollapsedSections = [] } : settings;
     }
 
     public WindowPresentation ExportPresentation() => new()

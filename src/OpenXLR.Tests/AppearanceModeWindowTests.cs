@@ -21,8 +21,14 @@ internal static class AppearanceModeWindowTests
         ThemeVariant? requested = Application.Current!.RequestedThemeVariant;
         try
         {
+            var preferences = System.Text.Json.JsonSerializer.SerializeToNode(saved,
+                new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!.AsObject();
+            preferences["language"] = "zh-Hant";
+            preferences["futureAppearance"] = new JsonObject { ["density"] = "touch" };
+            OpenXLR.UI.OpenXlrPaths.WriteAtomic(Path.Combine(UiSettings.ConfigDir, "ui.json"), preferences.ToJsonString());
             SkinService.Choose("default");
             SkinService.ChooseMode(AppearanceModes.Dark);
+            AssertLocalPreferences();
             Pump();
             Assert.Equal(ThemeVariant.Dark, Application.Current.RequestedThemeVariant);
             Assert.Equal(ThemeVariant.Dark, flow.ActualThemeVariant);
@@ -72,6 +78,8 @@ internal static class AppearanceModeWindowTests
 
             SkinService.Choose("default");
             CheckProfileRecall(main);
+            AssertLocalPreferences();
+            CheckMalformedPreferences(options);
             CheckFailedSave(main, options);
             CheckReloadFallback(main);
             CheckLaunchOverride(main);
@@ -84,6 +92,44 @@ internal static class AppearanceModeWindowTests
             Application.Current!.RequestedThemeVariant = requested;
             Pump();
         }
+    }
+
+    private static void AssertLocalPreferences()
+    {
+        var preferences = JsonNode.Parse(File.ReadAllText(Path.Combine(UiSettings.ConfigDir, "ui.json")))!;
+        Assert.NotNull(preferences["language"]);
+        Assert.Equal("zh-Hant", preferences["language"]!.GetValue<string>());
+        Assert.Equal("touch", preferences["futureAppearance"]!["density"]!.GetValue<string>());
+    }
+
+    private static void CheckMalformedPreferences(OptionsWindow options)
+    {
+        string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
+        string original = File.ReadAllText(path);
+        var vm = (OptionsViewModel)options.DataContext!;
+        var picker = options.FindControl<ComboBox>("AppearanceModePicker")!;
+        try
+        {
+            foreach (string invalid in new[] { "null", "[]", "true", "{\"language\":\"de\",\"broken\":" })
+            {
+                OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, invalid);
+                picker.SelectedItem = vm.AppearanceModeChoices.Single(c => c.Id == AppearanceModes.Dark);
+                Pump();
+                Assert.Equal(invalid, File.ReadAllText(path));
+                Assert.Equal(AppearanceModes.Light, SkinService.Mode);
+                Assert.Equal(AppearanceModes.Light, vm.SelectedAppearanceMode!.Id);
+                Assert.Equal(AppearanceModes.Light, Assert.IsType<AppearanceModeChoice>(picker.SelectedItem).Id);
+                Assert.NotNull(vm.SkinError);
+            }
+        }
+        finally { OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, original); }
+        picker.SelectedItem = vm.AppearanceModeChoices.Single(c => c.Id == AppearanceModes.Dark);
+        Pump();
+        Assert.Equal(AppearanceModes.Dark, UiSettings.Load().AppearanceMode);
+        Assert.Null(vm.SkinError);
+        AssertLocalPreferences();
+        SkinService.ChooseMode(AppearanceModes.Light);
+        Pump();
     }
 
     private static void CheckProfileRecall(MainWindow main)

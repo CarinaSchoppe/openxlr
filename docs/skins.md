@@ -710,3 +710,9 @@ value the window hard-codes cannot be skinned. If something you want to
 change has no token here, that is a missing token rather than a limit of
 the format, and it is a small change to the source. See
 [AGENTS.md](../AGENTS.md) and open an issue or a pull request.
+
+Preference changes require an existing `ui.json` to be a readable JSON object.
+Malformed or non-object data is refused without replacing it, and Options
+keeps the previous selection. After fixing the file, select the choice again.
+Fields owned by other window features, including the language choice, remain
+intact through skin, sizing or appearance changes and profile recalls.

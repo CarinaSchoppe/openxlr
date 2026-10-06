@@ -263,7 +263,7 @@ public static class SkinService
     public static IReadOnlyList<string> Choose(string id)
     {
         SkinEntry entry = SkinCatalog.Find(id) ?? new SkinEntry(SkinPackage.Default, []);
-        UiSettings settings = UiSettings.Load() with { Skin = entry.Id == SkinPackage.DefaultId ? null : entry.Id };
+        UiSettings settings = UiSettings.LoadRequired() with { Skin = entry.Id == SkinPackage.DefaultId ? null : entry.Id };
         settings.SaveChecked();
         Overridden = false;
         return ApplyPreference(settings.AppearanceMode, entry);
@@ -273,7 +273,7 @@ public static class SkinService
     public static IReadOnlyList<string> ChooseMode(string mode)
     {
         if (!AppearanceModes.IsValid(mode)) throw new ArgumentException("Unknown appearance mode.", nameof(mode));
-        (UiSettings.Load() with { AppearanceMode = mode }).SaveChecked();
+        (UiSettings.LoadRequired() with { AppearanceMode = mode }).SaveChecked();
         Overridden = false;
         return ApplyPreference(mode, Current);
     }

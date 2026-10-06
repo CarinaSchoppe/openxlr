@@ -287,6 +287,43 @@ public sealed class TuiSkinTests : IDisposable
     }
 
     [Fact]
+    public void ACataloguedDocumentCannotGrowPastTheReadLimitAndCanBeRepaired()
+    {
+        string folder = Skin("home", "changing", Doc("", "Changing"));
+        Environment.SetEnvironmentVariable("XDG_DATA_HOME", Path.Combine(_root, "home"));
+        Environment.SetEnvironmentVariable("XDG_DATA_DIRS", Path.Combine(_root, "empty"));
+        Tui.SkinEntry entry = Assert.Single(SkinCatalog.Scan(), skin => skin.Id == "changing");
+        string file = Path.Combine(folder, "skin.json");
+        string valid = Doc("\"Ox.Card.Background\":\"#123456\"", "Repaired");
+        File.WriteAllText(file, valid + new string(' ', 256 * 1024));
+        Assert.Null(entry.Read());
+
+        File.WriteAllText(file, valid);
+        Assert.Equal(valid, entry.Read());
+        Assert.Equal(Rgb.Parse("#123456"), SkinCatalog.Load("changing").Card);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ADocumentAtTheByteLimitKeepsItsEncodingAndPalette(bool unicode)
+    {
+        string folder = Skin("home", "boundary", "");
+        var encoding = unicode ? System.Text.Encoding.Unicode : System.Text.Encoding.UTF8;
+        string valid = Doc("\"Ox.Card.Background\":\"#123456\"", "Grün");
+        int padding = (256 * 1024 - encoding.GetPreamble().Length - encoding.GetByteCount(valid))
+            / encoding.GetByteCount(" ");
+        File.WriteAllText(Path.Combine(folder, "skin.json"), valid + new string(' ', padding), encoding);
+        Assert.Equal(256 * 1024, new FileInfo(Path.Combine(folder, "skin.json")).Length);
+        Environment.SetEnvironmentVariable("XDG_DATA_HOME", Path.Combine(_root, "home"));
+        Environment.SetEnvironmentVariable("XDG_DATA_DIRS", Path.Combine(_root, "empty"));
+
+        Theme theme = SkinCatalog.Load("boundary");
+        Assert.Equal("Grün", theme.Name);
+        Assert.Equal(Rgb.Parse("#123456"), theme.Card);
+    }
+
+    [Fact]
     public void ASkinThatIsNotThereLeavesTheShippedAppearanceOn()
     {
         Environment.SetEnvironmentVariable("XDG_DATA_HOME", Path.Combine(_root, "home"));

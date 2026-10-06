@@ -300,7 +300,27 @@ internal static class SkinCatalog
 
     private static string? ReadFile(string path)
     {
-        try { return File.ReadAllText(path); }
+        try
+        {
+            // The catalogue holds a reader, not a snapshot. Bound the opened
+            // file again and refuse growth while reading instead of allocating
+            // for whatever replaced it since the catalogue was built.
+            using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 1);
+            long length = file.Length;
+            if (length > MaxFileBytes) return null;
+            byte[] bytes = new byte[(int)length + 1];
+            int count = 0;
+            while (count < bytes.Length)
+            {
+                int read = file.Read(bytes, count, bytes.Length - count);
+                if (read == 0) break;
+                count += read;
+            }
+            if (count > length) return null;
+            using var content = new MemoryStream(bytes, 0, count, writable: false);
+            using var reader = new StreamReader(content);
+            return reader.ReadToEnd();
+        }
         catch (IOException) { return null; }
         catch (UnauthorizedAccessException) { return null; }
     }

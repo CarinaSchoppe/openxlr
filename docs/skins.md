@@ -32,9 +32,11 @@ remain the window's; the terminal sizes these drawings to its cells. A
 meter is a solid bar in eighth blocks whichever appearance is named, and
 its colour blends from `Ox.Meter.Fill` through `Ox.Meter.Warning` to
 `Ox.Meter.Hot` along the scale, anchored at the warning and hot levels.
-Malformed terminal palette fields keep their default while valid fields still
-apply. Names use the same bounded, control-free text in the skin picker and
-the loaded palette.
+The terminal requires `schema: 1`, as do the window and Deck. A missing,
+invalid or newer schema leaves the whole terminal palette at its defaults.
+Within a supported document, malformed terminal palette fields keep their
+default while valid fields still apply. Names use the same bounded,
+control-free text in the skin picker and the loaded palette.
 
 The choice is saved in
 `~/.config/openxlr/ui.json` as `"skin": "<id>"` and nowhere else: it is not

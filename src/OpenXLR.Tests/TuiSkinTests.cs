@@ -34,6 +34,33 @@ public sealed class TuiSkinTests : IDisposable
     private static string Doc(string tokens, string name = "Test") =>
         "{\"schema\":1,\"name\":\"" + name + "\",\"tokens\":{" + tokens + "}}";
 
+    [Theory]
+    [InlineData("2")]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("\"1\"")]
+    [InlineData("true")]
+    [InlineData("null")]
+    [InlineData("1.5")]
+    [InlineData("2147483648")]
+    [InlineData("{}")]
+    [InlineData("[]")]
+    public void UnsupportedSchemasDoNotApplyNamesControlsOrColours(string schema)
+    {
+        string document = "{\"schema\":" + schema + ",\"name\":\"Future skin\",\"controls\":{\"fader\":\"console\"},\"tokens\":{\"Ox.Card.Background\":\"#123456\"}}";
+        Theme theme = Theme.FromJson(document, "future", "Future");
+        Assert.Equal("Future", theme.Name);
+        Assert.Equal(Theme.Material.Card, theme.Card);
+        Assert.False(theme.ConsoleFaders);
+    }
+
+    [Fact]
+    public void ADocumentWithoutASchemaDoesNotApplyItsTokens()
+    {
+        Theme theme = Theme.FromJson("""{"tokens":{"Ox.Card.Background":"#123456"}}""", "missing", "Missing");
+        Assert.Equal(Theme.Material.Card, theme.Card);
+    }
+
     // --- colours ---
 
     [Theory]
@@ -124,7 +151,7 @@ public sealed class TuiSkinTests : IDisposable
     [InlineData("{}")]
     public void AWrongNameTypeDoesNotStopHealthyTokensFromLoading(string name)
     {
-        Theme theme = Theme.FromJson("{\"name\":" + name + ",\"tokens\":{\"Ox.Card.Background\":\"#123456\"}}", "mine", "Mine");
+        Theme theme = Theme.FromJson("{\"schema\":1,\"name\":" + name + ",\"tokens\":{\"Ox.Card.Background\":\"#123456\"}}", "mine", "Mine");
         Assert.Equal("Mine", theme.Name);
         Assert.Equal(Rgb.Parse("#123456"), theme.Card);
     }
@@ -161,7 +188,7 @@ public sealed class TuiSkinTests : IDisposable
     public void DuplicateFieldsUseTheLastValueWithoutBreakingTheCatalogue()
     {
         Skin("home", "duplicate", """
-            {"name":"Old","name":"New","tokens":{"Ox.Card.Background":"#ffffff","Ox.Card.Background":"#123456"}}
+            {"schema":1,"name":"Old","name":"New","tokens":{"Ox.Card.Background":"#ffffff","Ox.Card.Background":"#123456"}}
             """);
         Environment.SetEnvironmentVariable("XDG_DATA_HOME", Path.Combine(_root, "home"));
         Environment.SetEnvironmentVariable("XDG_DATA_DIRS", Path.Combine(_root, "empty"));
@@ -174,7 +201,7 @@ public sealed class TuiSkinTests : IDisposable
     public void LoadedNamesKeepTheCatalogueLengthAndControlBounds()
     {
         string name = "\u001b" + new string('x', 500) + "\n";
-        string json = System.Text.Json.JsonSerializer.Serialize(new { name });
+        string json = System.Text.Json.JsonSerializer.Serialize(new { schema = 1, name });
         Theme theme = Theme.FromJson(json, "mine", "Mine");
         Assert.Equal(new string('x', 400), theme.Name);
     }
@@ -352,14 +379,14 @@ public sealed class TuiSkinTests : IDisposable
     public void ControlAppearancesAreReadEvenWithoutAnyColourOverrides()
     {
         Theme theme = Theme.FromJson("""
-            {"controls":{"meter":"segmented","fader":"console","button":"cap","mute":"cap","led":"lamp"}}
+            {"schema":1,"controls":{"meter":"segmented","fader":"console","button":"cap","mute":"cap","led":"lamp"}}
             """, "console", "Console");
         Assert.True(theme.ConsoleFaders);
         Assert.True(theme.CapKeys);
         Assert.True(theme.CapMutes);
         Assert.True(theme.LampLeds);
         Assert.False(Theme.Material.ConsoleFaders);
-        Theme unknown = Theme.FromJson("""{"controls":{"meter":17,"fader":"future"},"tokens":{}}""", "x", "X");
+        Theme unknown = Theme.FromJson("""{"schema":1,"controls":{"meter":17,"fader":"future"},"tokens":{}}""", "x", "X");
         Assert.False(unknown.ConsoleFaders);
         Assert.False(unknown.CapKeys);
     }

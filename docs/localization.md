@@ -5,7 +5,7 @@ Options, APPEARANCE, Language selects the next launch's language. System
 language follows the process's UI culture, including regional variants such
 as `de-AT`, `es-MX` and `fr-CA`. Unsupported languages fall back to English.
 On Linux the .NET runtime derives that culture from the locale environment
-inherited at login, including `LANG` and `LC_ALL`. OpenXLR does not change
+inherited at login: `LC_ALL`, then `LC_MESSAGES`, then `LANG`. OpenXLR does not change
 the desktop's language or its numeric locale.
 `OPENXLR_LANGUAGE=en` overrides the saved choice for that launch, so a user
 can recover from an unfamiliar language without editing a file.
@@ -105,5 +105,6 @@ Also run system selection with `es_MX.UTF-8`, `fr_CA.UTF-8` and an unsupported
 locale such as `ja_JP.UTF-8`, expecting `es`, `fr` and `en`. No real desktop
 preferences or daemon state are written by this fixture.
 CI runs these startup cases, all four saved choices, temporary overrides,
-an explicit system override and an empty launch override. Each case uses a
+an explicit system override and an empty launch override, plus message-locale
+and base-locale selection when `LC_ALL` is unset. Each case uses a
 separate process, so the application initializes once with those inputs.

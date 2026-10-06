@@ -111,6 +111,8 @@ jobs:
           de_DE.UTF-8 fr system de
           de_DE.UTF-8 fr empty fr
           CASES
+          env -u OPENXLR_LANGUAGE -u LC_ALL LANG=en_US.UTF-8 LC_MESSAGES=de_DE.UTF-8 OPENXLR_TEST_LANGUAGE_PREFERENCE=system OPENXLR_TEST_EXPECT_LANGUAGE=de OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
+          env -u OPENXLR_LANGUAGE -u LC_ALL -u LC_MESSAGES LANG=es_MX.UTF-8 OPENXLR_TEST_LANGUAGE_PREFERENCE=system OPENXLR_TEST_EXPECT_LANGUAGE=es OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
 
       - name: A tooltip at a screen edge does not take the click
         run: OPENXLR_TEST_TOOLTIP=1 xvfb-run -a -s '-screen 0 1600x1000x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~ToolTipInputTests

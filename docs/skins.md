@@ -81,7 +81,10 @@ The Deck preserves its owned glyphs and key geometry. Gradients on surfaces
 use their first stop; images and control templates stay in the window. Hex
 RGB and alpha-first ARGB colours are accepted, as are black, white,
 transparent, red, green, blue, yellow, gray and grey. Other named colours use
-the token default unless the window publishes their resolved colour. Meter
+the token default unless the window publishes their resolved colour. Only
+entries declared in the named-colour table qualify; inherited JavaScript
+properties such as `constructor` or `__proto__` are not colours, including
+when used as gradient stops. Meter
 and LED colours are flat; invalid or crossed meter thresholds use the defaults.
 Documents are limited to 256 KiB and must be regular files. Up to 32 XDG data
 roots are considered. No document can supply SVG, code or an asset URL.

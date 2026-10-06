@@ -24,7 +24,8 @@ function colour(value) {
     value = value.stops[0].color;
   }
   if (typeof value !== 'string') return null;
-  if (named[value.toLowerCase()]) return named[value.toLowerCase()];
+  const name = value.toLowerCase();
+  if (Object.hasOwn(named, name)) return named[name];
   if (!/^#(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i.test(value)) return null;
   let hex = value.slice(1);
   if (hex.length <= 4) hex = [...hex].map(c => c + c).join('');

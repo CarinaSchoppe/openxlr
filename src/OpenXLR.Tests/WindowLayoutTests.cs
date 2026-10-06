@@ -41,7 +41,7 @@ public sealed class WindowLayoutTests
                 // Each startup scenario runs in its own test process, with
                 // a private preference file and the process's actual locale.
                 if (Environment.GetEnvironmentVariable("OPENXLR_TEST_LANGUAGE_PREFERENCE") is { } preference)
-                    new UiSettings { Language = preference == "system" ? null : preference }.SaveRequired();
+                    new UiSettings { Language = preference == "system" ? null : preference }.SaveChecked();
                 var numericCulture = CultureInfo.CurrentCulture;
                 var systemCulture = CultureInfo.CurrentUICulture;
                 AppBuilder.Configure<App>().UseSkia().UseHarfBuzz().UseX11().SetupWithoutStarting();
@@ -381,16 +381,32 @@ public sealed class WindowLayoutTests
                 string savedPreferences = File.ReadAllText(preferences);
                 File.Delete(preferences);
                 Directory.CreateDirectory(preferences);
-                optionsVm.SelectedLanguage = optionsVm.LanguageChoices.Single(c => c.Id == "es");
+                language.SelectedItem = optionsVm.LanguageChoices.Single(c => c.Id == "es");
                 Dispatcher.UIThread.RunJobs();
                 Assert.Same(optionsVm.LanguageChoices[0], language.SelectedItem);
                 Assert.NotNull(optionsVm.LanguageError);
                 Assert.Equal(activeLanguage, Localizer.Language);
                 Directory.Delete(preferences);
                 OpenXLR.UI.OpenXlrPaths.WriteAtomic(preferences, savedPreferences);
-                optionsVm.SelectedLanguage = optionsVm.LanguageChoices.Single(c => c.Id == "es");
+                language.SelectedItem = optionsVm.LanguageChoices.Single(c => c.Id == "es");
                 Assert.Equal("es", UiSettings.Load().Language);
                 Assert.Null(optionsVm.LanguageError);
+                // Queued rejected choices must not roll back a later saved
+                // choice, even before the dispatcher gets another turn.
+                File.Delete(preferences);
+                Directory.CreateDirectory(preferences);
+                language.SelectedItem = optionsVm.LanguageChoices.Single(c => c.Id == "de");
+                language.SelectedItem = optionsVm.LanguageChoices.Single(c => c.Id == "fr");
+                Directory.Delete(preferences);
+                OpenXLR.UI.OpenXlrPaths.WriteAtomic(preferences, savedPreferences);
+                var newerLanguage = optionsVm.LanguageChoices.Single(c => c.Id == "zh-Hant");
+                language.SelectedItem = newerLanguage;
+                Dispatcher.UIThread.RunJobs();
+                Assert.Same(newerLanguage, language.SelectedItem);
+                Assert.Same(newerLanguage, optionsVm.SelectedLanguage);
+                Assert.Equal(newerLanguage.Id, UiSettings.Load().Language);
+                Assert.Null(optionsVm.LanguageError);
+                Assert.Equal(activeLanguage, Localizer.Language);
                 optionsVm.SelectedLanguage = optionsVm.LanguageChoices[0];
                 Layout(options, 980, 800);
                 foreach (var row in options.GetVisualDescendants().OfType<WrapPanel>())

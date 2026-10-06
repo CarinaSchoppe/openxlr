@@ -153,7 +153,8 @@ locked restore and tests. Do not disable locked mode to make an update pass.
 
 ## Pull requests
 
-Desktop text belongs in the four resource catalogues. Keep resource keys
+Desktop text belongs in the resource catalogues listed in
+[docs/localization.md](docs/localization.md). Keep resource keys
 stable and preserve numbered format arguments in every language. Do not
 translate protocol ids, user names or text supplied by plugins. The first
 pass and its remaining scope are documented in

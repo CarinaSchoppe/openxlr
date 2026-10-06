@@ -90,11 +90,10 @@ public sealed class OptionsViewModel : ViewModelBase
             catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
             {
                 LanguageError = Localizer.Format("LanguageSaveError", ex.Message);
-                // Notify the picker of the rejected choice so it returns to
-                // the last saved language. The running language is unchanged.
-                var previous = _selectedLanguage;
-                Set(ref _selectedLanguage, value);
-                Set(ref _selectedLanguage, previous);
+                // Restore after the binding finishes its source write, so
+                // the same choice can be retried. Reject keeps any newer
+                // saved choice when selection changes before dispatch resumes.
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => Reject(ref _selectedLanguage, value, nameof(SelectedLanguage)));
             }
         }
     }
@@ -105,7 +104,7 @@ public sealed class OptionsViewModel : ViewModelBase
             throw new ArgumentException("Unsupported window language", nameof(language));
         // Unlike the legacy best-effort Save, a refused language write is
         // reported to the user rather than appearing to have been saved.
-        (UiSettings.LoadRequired() with { Language = language }).SaveRequired();
+        (UiSettings.LoadRequired() with { Language = language }).SaveChecked();
     }
 
     private string? _languageError;
@@ -329,21 +328,6 @@ public sealed class OptionsViewModel : ViewModelBase
             Raise(nameof(StartupHint));
             Persist();
         }
-    }
-
-    /// <summary>
-    /// Put a rejected toggle back where it was. The check box has already
-    /// drawn itself in the new state, and a notification carrying the value
-    /// the property already had does not move it: the binding compares
-    /// against what it last wrote and pushes nothing. Publishing the rejected
-    /// value and then the real one does move it.
-    /// </summary>
-    private void Reject(ref bool field, bool rejected, string name)
-    {
-        field = rejected;
-        Raise(name);
-        field = !rejected;
-        Raise(name);
     }
 
     private string? _startupError;

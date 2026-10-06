@@ -265,7 +265,7 @@ public sealed class LanguageSettingsTests
         try
         {
             Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", directory);
-            new UiSettings { Language = saved }.SaveRequired();
+            new UiSettings { Language = saved }.SaveChecked();
             string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
             string original = File.ReadAllText(path);
             await using var client = new DaemonClient();
@@ -341,7 +341,7 @@ public sealed class LanguageSettingsTests
             Assert.Equal(System.Text.Json.JsonValueKind.Null, saved.RootElement.GetProperty("futureEmpty").ValueKind);
             // Other window writes must retain the saved language and those
             // same fields, rather than undo the preservation on the next save.
-            (UiSettings.Load() with { MinimizeToTray = true }).SaveRequired();
+            (UiSettings.Load() with { MinimizeToTray = true }).SaveChecked();
             using var later = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
             Assert.Equal("de", later.RootElement.GetProperty("language").GetString());
             Assert.True(later.RootElement.GetProperty("minimizeToTray").GetBoolean());
@@ -365,7 +365,7 @@ public sealed class LanguageSettingsTests
             Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", directory);
             var initial = new UiSettings { Skin = "material", StartMinimized = true,
                 CheckForUpdates = true, CollapsedSections = ["InputsTile"] };
-            initial.SaveRequired();
+            initial.SaveChecked();
             foreach (string? language in Localizer.Languages.Select(c => c.Id).Append(null))
             {
                 OptionsViewModel.SaveLanguage(language);

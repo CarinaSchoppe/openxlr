@@ -81,13 +81,13 @@ public sealed record UiSettings
         return settings.CollapsedSections is null ? settings with { CollapsedSections = [] } : settings;
     }
 
+    internal void SaveChecked() => OpenXlrPaths.WriteAtomicJson(FilePath, this, Json);
+
     public void Save()
     {
-        try { SaveRequired(); }
+        try { SaveChecked(); }
         catch (Exception) { /* best effort */ }
     }
-
-    internal void SaveRequired() => OpenXlrPaths.WriteAtomicJson(FilePath, this, Json);
 }
 
 /// <summary>

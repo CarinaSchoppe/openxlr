@@ -19,7 +19,9 @@ independent of the daemon, audio profiles, layout and skins. Changing it preserv
 other window preferences, including fields owned by newer window features.
 Other window preference writes retain those unfamiliar fields too. A failed
 save is reported and the picker returns
-to its previous choice. Unreadable or malformed preferences are not replaced
+to its previous choice after the selection binding finishes. The same choice
+can then be retried once the file is writable. A pending rejected selection
+does not undo a later successful selection. Unreadable or malformed preferences are not replaced
 by a language save. Closing and launching the app again applies the
 choice; simply reopening a window or activating the existing tray instance
 does not. Audio and open plugin editors are not rebuilt for a language
@@ -149,7 +151,7 @@ LANG=de_DE.UTF-8 LC_ALL=de_DE.UTF-8 OPENXLR_LANGUAGE=en OPENXLR_TEST_LANGUAGE_PR
 Also run system selection with `es_MX.UTF-8`, `fr_CA.UTF-8` and an unsupported
 locale such as `it_IT.UTF-8`, expecting `es`, `fr` and `en`. No real desktop
 preferences or daemon state are written by this fixture.
-CI runs these startup cases, all four saved choices, temporary overrides,
+CI runs these startup cases, saved choices for all shipped catalogues, temporary overrides,
 an explicit system override and an empty launch override, plus message-locale
 and base-locale selection when `LC_ALL` is unset. Each case uses a
 separate process, so the application initializes once with those inputs.

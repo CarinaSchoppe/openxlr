@@ -17,6 +17,20 @@ public abstract class ViewModelBase : INotifyPropertyChanged
     protected void Raise([CallerMemberName] string? name = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
+    /// <summary>
+    /// Restore a rejected two-way edit. Controls already display the attempted
+    /// value, so publish it before the original to invalidate the cached source
+    /// value. Neither notification invokes the property setter.
+    /// </summary>
+    protected void Reject<T>(ref T field, T rejected, [CallerMemberName] string? name = null)
+    {
+        T previous = field;
+        field = rejected;
+        Raise(name);
+        field = previous;
+        Raise(name);
+    }
+
     /// <summary>Set a field and notify; returns false if unchanged.</summary>
     protected bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
     {

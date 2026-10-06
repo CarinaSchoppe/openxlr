@@ -11,7 +11,8 @@ The `language` field in `~/.config/openxlr/ui.json` is `null` for the system
 language, or `en`, `de`, `es`, `fr`. It is local window state, independent of
 the daemon, audio profiles, layout and skins. Changing it preserves the
 other window preferences. A failed save is reported and the picker returns
-to its previous choice. Closing and launching the app again applies the
+to its previous choice. Unreadable or malformed preferences are not replaced
+by a language save. Closing and launching the app again applies the
 choice; simply reopening a window or activating the existing tray instance
 does not. Audio and open plugin editors are not rebuilt for a language
 change.

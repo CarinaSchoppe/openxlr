@@ -173,6 +173,9 @@ public sealed class LanguageSettingsTests
             }
             Assert.Throws<ArgumentException>(() => OptionsViewModel.SaveLanguage("../de"));
             string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
+            OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, "{\"skin\":\"material\",\"broken\":");
+            Assert.Throws<System.Text.Json.JsonException>(() => OptionsViewModel.SaveLanguage("de"));
+            Assert.Equal("{\"skin\":\"material\",\"broken\":", File.ReadAllText(path));
             File.Delete(path);
             Directory.CreateDirectory(path);
             Assert.ThrowsAny<IOException>(() => OptionsViewModel.SaveLanguage("de"));

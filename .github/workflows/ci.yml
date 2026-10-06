@@ -81,8 +81,11 @@ jobs:
       - name: Lint shell scripts
         run: shellcheck --severity=error tools/check-version.sh tools/check-locked-restore.sh packaging/ppa/make-source.sh packaging/omarchy/openxlr-omarchy-enable
 
-      - name: Window layout at narrow and wide sizes
-        run: OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
+      - name: Window layout in all four languages at narrow and wide sizes
+        run: |
+          for language in en de es fr; do
+            OPENXLR_LANGUAGE="$language" OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
+          done
 
       - name: A tooltip at a screen edge does not take the click
         run: OPENXLR_TEST_TOOLTIP=1 xvfb-run -a -s '-screen 0 1600x1000x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~ToolTipInputTests

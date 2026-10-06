@@ -134,16 +134,16 @@
         <TextBlock Text="{Binding PluginDirectories}" FontSize="11" Foreground="{DynamicResource Ox.Text.Muted}" TextWrapping="Wrap"/>
         <TextBlock Text="{loc:Text Key=PickAPluginYouDownloadedAndOpenXLRPuts}"
                    FontSize="11" Foreground="{DynamicResource Ox.Text.Muted}" TextWrapping="Wrap"/>
-        <StackPanel Orientation="Horizontal" Spacing="8">
+        <WrapPanel ItemSpacing="8" LineSpacing="6">
           <Button Name="InstallFile" Content="{loc:Text Key=InstallFile}" Padding="14,5" Click="OnInstallPluginFile"/>
           <Button Name="InstallFolder" Content="{loc:Text Key=InstallFolder}" Padding="14,5" Click="OnInstallPluginFolder"/>
           <Button Name="Rescan" Content="{loc:Text Key=Rescan}" Padding="14,5" Click="OnRescanPlugins"
                   ToolTip.Tip="{loc:Text Key=ReadThePluginDirectoriesAgainForPluginsInstalled}"/>
-        </StackPanel>
-        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+        </WrapPanel>
+        <WrapPanel ItemSpacing="8" LineSpacing="6" Margin="0,4,0,0">
           <Button Name="ManageFolders" Content="{loc:Text Key=ManageWindowsPlugins}" Padding="14,5" Click="OnManagePluginFolders"/>
           <Button Content="{loc:Text Key=NativeEditors}" Padding="14,5" Click="OnNativeEditorRules"/>
-        </StackPanel>
+        </WrapPanel>
         <!-- A bundle the scanner could not read is passed over rather than
              warned about again, so this is where it is accounted for. Plain
              text, like the rest of the section: a control of its own would be

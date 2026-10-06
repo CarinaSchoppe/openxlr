@@ -346,6 +346,12 @@ public sealed class WindowLayoutTests
                 Assert.Null(optionsVm.LanguageError);
                 optionsVm.SelectedLanguage = optionsVm.LanguageChoices[0];
                 Layout(options, 980, 800);
+                foreach (var row in options.GetVisualDescendants().OfType<WrapPanel>())
+                {
+                    var actions = row.Children.Where(c => c.IsVisible).ToArray();
+                    AssertNoOverlap(actions);
+                    foreach (Control action in actions) AssertInside(action, row);
+                }
                 // The cards grow as features land, and the window sizes itself
                 // to them. On a tall screen that produced a window the height
                 // of the monitor, so the cap is what the scroll region needs to

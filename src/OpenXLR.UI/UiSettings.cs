@@ -58,12 +58,15 @@ public sealed record UiSettings
     {
         try
         {
-            if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(FilePath), Json) ?? new UiSettings();
+            return LoadRequired();
         }
         catch (Exception) { /* corrupt file must not stop the app */ }
         return new UiSettings();
     }
+
+    internal static UiSettings LoadRequired() => File.Exists(FilePath)
+        ? JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(FilePath), Json) ?? new UiSettings()
+        : new UiSettings();
 
     public void Save()
     {

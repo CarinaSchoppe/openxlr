@@ -497,7 +497,7 @@ public sealed partial class MainViewModel : ViewModelBase
         get
         {
             var picked = MonitorOutputs.Where(o => o.IsSelected).Select(o => o.Label).ToList();
-            return picked.Count == 0 ? "not routed"
+            return picked.Count == 0 ? Localizer.Text("NotRouted")
                  : picked.Count <= 2 ? string.Join(" + ", picked)
                  : $"{picked[0]} + {picked.Count - 1} more";
         }

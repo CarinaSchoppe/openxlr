@@ -24,10 +24,6 @@
   <data name="APPLICATIONS" xml:space="preserve">
     <value>ANWENDUNGEN</value>
   </data>
-  <data name="ProfileOverwriteMessage" xml:space="preserve">
-    <value>Für dieses Gerät existiert bereits das Profil „{0}“.
-Speichern ersetzt es durch die aktuelle Szene.</value>
-  </data>
   <data name="ARenamedVirtualMicrophoneKeepsItsOldName" xml:space="preserve">
     <value>Ein umbenanntes virtuelles Mikrofon behält in anderen Anwendungen bis zum Daemon-Neustart seinen alten Namen. Starte neu, wenn keine Aufnahme läuft.</value>
   </data>
@@ -103,6 +99,9 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   <data name="BridgeAgainEveryFolderYabridgeKnowsForWindows" xml:space="preserve">
     <value>Alle bei yabridge registrierten Ordner für neu installierte Windows-Plugins erneut einbinden</value>
   </data>
+  <data name="BridgeWineSPlugins" xml:space="preserve">
+    <value>Wine-Plugins einbinden</value>
+  </data>
   <data name="BuyMeACoffee" xml:space="preserve">
     <value>Spendiere einen Kaffee</value>
   </data>
@@ -175,9 +174,6 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   </data>
   <data name="Controls" xml:space="preserve">
     <value>Regler</value>
-  </data>
-  <data name="LanguageSaveError" xml:space="preserve">
-    <value>Sprache konnte nicht gespeichert werden: {0}</value>
   </data>
   <data name="CurrentSystemDefaultOutput" xml:space="preserve">
     <value>Aktueller System-Standardausgang</value>
@@ -305,11 +301,11 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   <data name="InputToChannel" xml:space="preserve">
     <value>Eingang zum Kanal</value>
   </data>
-  <data name="Inserts" xml:space="preserve">
-    <value>Inserts</value>
-  </data>
   <data name="InsertCount" xml:space="preserve">
     <value>Inserts ({0})</value>
+  </data>
+  <data name="Inserts" xml:space="preserve">
+    <value>Inserts</value>
   </data>
   <data name="InstallAClapOrVst3FileOrA" xml:space="preserve">
     <value>Eine .clap- oder .vst3-Datei oder ein Windows-Plugin über yabridge installieren</value>
@@ -337,6 +333,9 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   </data>
   <data name="LanguageRestartHint" xml:space="preserve">
     <value>Die Sprache gilt beim nächsten Start von OpenXLR. Audio läuft weiter.</value>
+  </data>
+  <data name="LanguageSaveError" xml:space="preserve">
+    <value>Sprache konnte nicht gespeichert werden: {0}</value>
   </data>
   <data name="LeftLevel" xml:space="preserve">
     <value>Linker Pegel</value>
@@ -391,9 +390,6 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   </data>
   <data name="MixerLayout" xml:space="preserve">
     <value>Mixer-Layout</value>
-  </data>
-  <data name="MoreThanOneSupportedInterfaceIsAttachedPick" xml:space="preserve">
-    <value>Mehrere unterstützte Interfaces sind angeschlossen. Wähle das von OpenXLR gesteuerte Gerät.</value>
   </data>
   <data name="MoveDown" xml:space="preserve">
     <value>Nach unten</value>
@@ -451,6 +447,9 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   </data>
   <data name="NotInPath" xml:space="preserve">
     <value>Nicht im Signalweg</value>
+  </data>
+  <data name="NotRouted" xml:space="preserve">
+    <value>Nicht geroutet</value>
   </data>
   <data name="NotRunning" xml:space="preserve">
     <value>Läuft nicht</value>
@@ -548,6 +547,9 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   <data name="PluginUI" xml:space="preserve">
     <value>Plugin-Oberfläche</value>
   </data>
+  <data name="PluginsAreLookedForInTheHomeAnd" xml:space="preserve">
+    <value>Plugins werden in den Plugin-Ordnern des Benutzers und Systems gesucht.</value>
+  </data>
   <data name="PluginsProcessingXLR1BeforeItReachesThe" xml:space="preserve">
     <value>Plugins auf XLR 1 vor den Mixen</value>
   </data>
@@ -562,6 +564,10 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   </data>
   <data name="ProfileName" xml:space="preserve">
     <value>Profilname</value>
+  </data>
+  <data name="ProfileOverwriteMessage" xml:space="preserve">
+    <value>Für dieses Gerät existiert bereits das Profil „{0}“.
+Speichern ersetzt es durch die aktuelle Szene.</value>
   </data>
   <data name="Profiles" xml:space="preserve">
     <value>Profile</value>
@@ -623,8 +629,17 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   <data name="RestartDaemon" xml:space="preserve">
     <value>Daemon neu starten</value>
   </data>
+  <data name="RestartFailedCheckTheUserServiceLogs" xml:space="preserve">
+    <value>Neustart fehlgeschlagen. Prüfe die Protokolle des Benutzerdienstes.</value>
+  </data>
+  <data name="RestartFailedCheckTheUserServiceLogsA" xml:space="preserve">
+    <value>Neustart fehlgeschlagen. Prüfe die Protokolle des Benutzerdienstes. Ein manuell gestarteter Daemon muss manuell neu gestartet werden.</value>
+  </data>
   <data name="RestartTheOpenXLRUserServiceAudioWillBe" xml:space="preserve">
     <value>OpenXLR-Benutzerdienst neu starten. Audio wird kurz unterbrochen.</value>
+  </data>
+  <data name="RestartingDaemon" xml:space="preserve">
+    <value>Daemon wird neu gestartet...</value>
   </data>
   <data name="RightLevel" xml:space="preserve">
     <value>Rechter Pegel</value>
@@ -665,8 +680,15 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   <data name="SelectAPluginToManageIt" xml:space="preserve">
     <value>Wähle ein Plugin zur Verwaltung.</value>
   </data>
+  <data name="SelectInterfaceTip" xml:space="preserve">
+    <value>{0}
+Von OpenXLR gesteuertes Interface wählen</value>
+  </data>
   <data name="SendThisMixToTheSecondComputerOn" xml:space="preserve">
     <value>Diesen Mix über USB Aux an den zweiten Computer senden. Das Aktivieren unterbricht Audio kurz, während der Stream neu startet.</value>
+  </data>
+  <data name="ServiceRestartedWaitingForTheDaemonConnection" xml:space="preserve">
+    <value>Dienst neu gestartet. Warten auf die Daemon-Verbindung.</value>
   </data>
   <data name="ShowCLAPPlugins" xml:space="preserve">
     <value>CLAP-Plugins anzeigen</value>
@@ -685,6 +707,12 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   </data>
   <data name="Skin" xml:space="preserve">
     <value>Skin</value>
+  </data>
+  <data name="SkippedBundlesChecking" xml:space="preserve">
+    <value>Übersprungene Bundles werden geprüft…</value>
+  </data>
+  <data name="SkippedBundlesUnavailable" xml:space="preserve">
+    <value>Übersprungene Bundles: nicht verfügbar</value>
   </data>
   <data name="StartAudioInTheBackground" xml:space="preserve">
     <value>Audio im Hintergrund starten</value>
@@ -740,6 +768,12 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   <data name="USBAuxIn" xml:space="preserve">
     <value>USB Aux in</value>
   </data>
+  <data name="UpdatesHaveNotBeenChecked" xml:space="preserve">
+    <value>Updates wurden noch nicht geprüft</value>
+  </data>
+  <data name="UpdatingWineTrace" xml:space="preserve">
+    <value>Wine-Protokollierung wird aktualisiert…</value>
+  </data>
   <data name="UseOpenXLRControls" xml:space="preserve">
     <value>OpenXLR-Regler verwenden</value>
   </data>
@@ -782,8 +816,20 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   <data name="WindowsPlugins" xml:space="preserve">
     <value>Windows-Plugins</value>
   </data>
+  <data name="WindowsPluginsCheckingForYabridge" xml:space="preserve">
+    <value>Windows-Plugins: yabridge wird geprüft…</value>
+  </data>
+  <data name="WindowsPluginsTheDaemonDidNotAnswer" xml:space="preserve">
+    <value>Windows-Plugins: Der Daemon hat nicht geantwortet.</value>
+  </data>
   <data name="WindowsVST3AndCLAPPlugins" xml:space="preserve">
     <value>Windows-VST3- und CLAP-Plugins</value>
+  </data>
+  <data name="WineTraceCheckingTheDaemon" xml:space="preserve">
+    <value>Wine-Protokollierung: Daemon wird geprüft…</value>
+  </data>
+  <data name="WineTraceUnavailableTheDaemonMustBeConnected" xml:space="preserve">
+    <value>Wine-Protokollierung nicht verfügbar. Der Daemon muss verbunden sein und diesen Schalter unterstützen.</value>
   </data>
   <data name="WineUninstaller" xml:space="preserve">
     <value>Wine-Deinstallation</value>
@@ -793,9 +839,5 @@ Speichern ersetzt es durch die aktuelle Szene.</value>
   </data>
   <data name="XLR2Gain" xml:space="preserve">
     <value>XLR 2 Gain</value>
-  </data>
-  <data name="SelectInterfaceTip" xml:space="preserve">
-    <value>{0}
-Von OpenXLR gesteuertes Interface wählen</value>
   </data>
 </root>

@@ -24,10 +24,6 @@
   <data name="APPLICATIONS" xml:space="preserve">
     <value>APPLICATIONS</value>
   </data>
-  <data name="ProfileOverwriteMessage" xml:space="preserve">
-    <value>A profile named "{0}" already exists for this device.
-Saving will replace it with the current scene.</value>
-  </data>
   <data name="ARenamedVirtualMicrophoneKeepsItsOldName" xml:space="preserve">
     <value>A renamed virtual microphone keeps its old name in other applications until the daemon restarts. Restart when nothing is recording from it.</value>
   </data>
@@ -103,6 +99,9 @@ Saving will replace it with the current scene.</value>
   <data name="BridgeAgainEveryFolderYabridgeKnowsForWindows" xml:space="preserve">
     <value>Bridge again every folder yabridge knows, for Windows plugins installed since</value>
   </data>
+  <data name="BridgeWineSPlugins" xml:space="preserve">
+    <value>Bridge Wine's plugins</value>
+  </data>
   <data name="BuyMeACoffee" xml:space="preserve">
     <value>Buy me a coffee</value>
   </data>
@@ -175,9 +174,6 @@ Saving will replace it with the current scene.</value>
   </data>
   <data name="Controls" xml:space="preserve">
     <value>Controls</value>
-  </data>
-  <data name="LanguageSaveError" xml:space="preserve">
-    <value>Could not save the language: {0}</value>
   </data>
   <data name="CurrentSystemDefaultOutput" xml:space="preserve">
     <value>Current system default output</value>
@@ -305,11 +301,11 @@ Saving will replace it with the current scene.</value>
   <data name="InputToChannel" xml:space="preserve">
     <value>Input to channel</value>
   </data>
-  <data name="Inserts" xml:space="preserve">
-    <value>Inserts</value>
-  </data>
   <data name="InsertCount" xml:space="preserve">
     <value>Inserts ({0})</value>
+  </data>
+  <data name="Inserts" xml:space="preserve">
+    <value>Inserts</value>
   </data>
   <data name="InstallAClapOrVst3FileOrA" xml:space="preserve">
     <value>Install a .clap or .vst3 file, or a Windows plugin through yabridge</value>
@@ -337,6 +333,9 @@ Saving will replace it with the current scene.</value>
   </data>
   <data name="LanguageRestartHint" xml:space="preserve">
     <value>Language applies the next time OpenXLR starts. Audio keeps running.</value>
+  </data>
+  <data name="LanguageSaveError" xml:space="preserve">
+    <value>Could not save the language: {0}</value>
   </data>
   <data name="LeftLevel" xml:space="preserve">
     <value>Left level</value>
@@ -391,9 +390,6 @@ Saving will replace it with the current scene.</value>
   </data>
   <data name="MixerLayout" xml:space="preserve">
     <value>Mixer layout</value>
-  </data>
-  <data name="MoreThanOneSupportedInterfaceIsAttachedPick" xml:space="preserve">
-    <value>More than one supported interface is attached; pick which one OpenXLR drives</value>
   </data>
   <data name="MoveDown" xml:space="preserve">
     <value>Move down</value>
@@ -451,6 +447,9 @@ Saving will replace it with the current scene.</value>
   </data>
   <data name="NotInPath" xml:space="preserve">
     <value>Not in path</value>
+  </data>
+  <data name="NotRouted" xml:space="preserve">
+    <value>not routed</value>
   </data>
   <data name="NotRunning" xml:space="preserve">
     <value>not running</value>
@@ -548,6 +547,9 @@ Saving will replace it with the current scene.</value>
   <data name="PluginUI" xml:space="preserve">
     <value>Plugin UI</value>
   </data>
+  <data name="PluginsAreLookedForInTheHomeAnd" xml:space="preserve">
+    <value>Plugins are looked for in the home and system plugin directories.</value>
+  </data>
   <data name="PluginsProcessingXLR1BeforeItReachesThe" xml:space="preserve">
     <value>Plugins processing XLR 1 before it reaches the mixes</value>
   </data>
@@ -562,6 +564,10 @@ Saving will replace it with the current scene.</value>
   </data>
   <data name="ProfileName" xml:space="preserve">
     <value>profile name</value>
+  </data>
+  <data name="ProfileOverwriteMessage" xml:space="preserve">
+    <value>A profile named "{0}" already exists for this device.
+Saving will replace it with the current scene.</value>
   </data>
   <data name="Profiles" xml:space="preserve">
     <value>Profiles</value>
@@ -623,8 +629,17 @@ Saving will replace it with the current scene.</value>
   <data name="RestartDaemon" xml:space="preserve">
     <value>Restart daemon</value>
   </data>
+  <data name="RestartFailedCheckTheUserServiceLogs" xml:space="preserve">
+    <value>Restart failed. Check the user service logs.</value>
+  </data>
+  <data name="RestartFailedCheckTheUserServiceLogsA" xml:space="preserve">
+    <value>Restart failed. Check the user service logs; a manually started daemon must be restarted by hand.</value>
+  </data>
   <data name="RestartTheOpenXLRUserServiceAudioWillBe" xml:space="preserve">
     <value>Restart the OpenXLR user service. Audio will be interrupted briefly.</value>
+  </data>
+  <data name="RestartingDaemon" xml:space="preserve">
+    <value>Restarting daemon...</value>
   </data>
   <data name="RightLevel" xml:space="preserve">
     <value>Right level</value>
@@ -665,8 +680,15 @@ Saving will replace it with the current scene.</value>
   <data name="SelectAPluginToManageIt" xml:space="preserve">
     <value>Select a plugin to manage it.</value>
   </data>
+  <data name="SelectInterfaceTip" xml:space="preserve">
+    <value>{0}
+Select the interface OpenXLR drives</value>
+  </data>
   <data name="SendThisMixToTheSecondComputerOn" xml:space="preserve">
     <value>Send this mix to the second computer on the USB Aux port. Enabling briefly interrupts the interface's audio while its stream restarts.</value>
+  </data>
+  <data name="ServiceRestartedWaitingForTheDaemonConnection" xml:space="preserve">
+    <value>Service restarted. Waiting for the daemon connection.</value>
   </data>
   <data name="ShowCLAPPlugins" xml:space="preserve">
     <value>Show CLAP plugins</value>
@@ -685,6 +707,12 @@ Saving will replace it with the current scene.</value>
   </data>
   <data name="Skin" xml:space="preserve">
     <value>Skin</value>
+  </data>
+  <data name="SkippedBundlesChecking" xml:space="preserve">
+    <value>Skipped bundles: checking…</value>
+  </data>
+  <data name="SkippedBundlesUnavailable" xml:space="preserve">
+    <value>Skipped bundles: unavailable</value>
   </data>
   <data name="StartAudioInTheBackground" xml:space="preserve">
     <value>Start audio in the background</value>
@@ -740,6 +768,12 @@ Saving will replace it with the current scene.</value>
   <data name="USBAuxIn" xml:space="preserve">
     <value>USB Aux in</value>
   </data>
+  <data name="UpdatesHaveNotBeenChecked" xml:space="preserve">
+    <value>Updates have not been checked</value>
+  </data>
+  <data name="UpdatingWineTrace" xml:space="preserve">
+    <value>Updating Wine trace…</value>
+  </data>
   <data name="UseOpenXLRControls" xml:space="preserve">
     <value>Use OpenXLR controls</value>
   </data>
@@ -782,8 +816,20 @@ Saving will replace it with the current scene.</value>
   <data name="WindowsPlugins" xml:space="preserve">
     <value>Windows plugins</value>
   </data>
+  <data name="WindowsPluginsCheckingForYabridge" xml:space="preserve">
+    <value>Windows plugins: checking for yabridge…</value>
+  </data>
+  <data name="WindowsPluginsTheDaemonDidNotAnswer" xml:space="preserve">
+    <value>Windows plugins: the daemon did not answer.</value>
+  </data>
   <data name="WindowsVST3AndCLAPPlugins" xml:space="preserve">
     <value>Windows VST3 and CLAP plugins</value>
+  </data>
+  <data name="WineTraceCheckingTheDaemon" xml:space="preserve">
+    <value>Wine trace: checking the daemon…</value>
+  </data>
+  <data name="WineTraceUnavailableTheDaemonMustBeConnected" xml:space="preserve">
+    <value>Wine trace unavailable. The daemon must be connected and support this switch.</value>
   </data>
   <data name="WineUninstaller" xml:space="preserve">
     <value>Wine uninstaller</value>
@@ -793,9 +839,5 @@ Saving will replace it with the current scene.</value>
   </data>
   <data name="XLR2Gain" xml:space="preserve">
     <value>XLR 2 gain</value>
-  </data>
-  <data name="SelectInterfaceTip" xml:space="preserve">
-    <value>{0}
-Select the interface OpenXLR drives</value>
   </data>
 </root>

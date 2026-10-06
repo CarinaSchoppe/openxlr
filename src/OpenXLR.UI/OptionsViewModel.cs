@@ -88,7 +88,7 @@ public sealed class OptionsViewModel : ViewModelBase
                 Set(ref _selectedLanguage, value);
                 LanguageError = null;
             }
-            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
             {
                 LanguageError = Localizer.Format("LanguageSaveError", ex.Message);
                 // Notify the picker of the rejected choice so it returns to
@@ -106,17 +106,17 @@ public sealed class OptionsViewModel : ViewModelBase
             throw new ArgumentException("Unsupported window language", nameof(language));
         // Unlike the legacy best-effort Save, a refused language write is
         // reported to the user rather than appearing to have been saved.
-        (UiSettings.Load() with { Language = language }).SaveRequired();
+        (UiSettings.LoadRequired() with { Language = language }).SaveRequired();
     }
 
     private string? _languageError;
     public string? LanguageError { get => _languageError; private set => Set(ref _languageError, value); }
 
-    private string _pluginDirectories = "Plugins are looked for in the home and system plugin directories.";
+    private string _pluginDirectories = Localizer.Text("PluginsAreLookedForInTheHomeAnd");
     /// <summary>Where installs go, once the daemon has said.</summary>
     public string PluginDirectories { get => _pluginDirectories; private set => Set(ref _pluginDirectories, value); }
 
-    private string _windowsPlugins = "Windows plugins: checking for yabridge…";
+    private string _windowsPlugins = Localizer.Text("WindowsPluginsCheckingForYabridge");
     /// <summary>yabridge and Wine as found, and how many folders are bridged.</summary>
     public string WindowsPlugins { get => _windowsPlugins; private set => Set(ref _windowsPlugins, value); }
 
@@ -138,7 +138,7 @@ public sealed class OptionsViewModel : ViewModelBase
     /// <summary>Wine's own plugin folders waiting to be bridged, absolute.</summary>
     public System.Collections.Generic.IReadOnlyList<string> WineFolders { get; private set; } = [];
 
-    private string _bridgeWineLabel = "Bridge Wine's plugins";
+    private string _bridgeWineLabel = Localizer.Text("BridgeWineSPlugins");
     /// <summary>What the button offers, named after what it will bridge.</summary>
     public string BridgeWineLabel { get => _bridgeWineLabel; private set => Set(ref _bridgeWineLabel, value); }
 
@@ -152,7 +152,7 @@ public sealed class OptionsViewModel : ViewModelBase
     public string? MemoryLockNote { get => _memoryLockNote; private set { if (Set(ref _memoryLockNote, value)) Raise(nameof(HasMemoryLockNote)); } }
     public bool HasMemoryLockNote => !string.IsNullOrEmpty(_memoryLockNote);
 
-    private string _skippedPlugins = "Skipped bundles: checking…";
+    private string _skippedPlugins = Localizer.Text("SkippedBundlesChecking");
     public string SkippedPlugins { get => _skippedPlugins; private set => Set(ref _skippedPlugins, value); }
     public ObservableCollection<string> SkippedPluginDetails { get; } = [];
 
@@ -173,7 +173,7 @@ public sealed class OptionsViewModel : ViewModelBase
     public bool? PluginWineTrace => _pluginWineTrace;
     private bool _settingPluginWineTrace;
     public bool CanSetPluginWineTrace => _pluginWineTrace is not null && !_settingPluginWineTrace;
-    private string? _pluginWineTraceStatus = "Wine trace: checking the daemon…";
+    private string? _pluginWineTraceStatus = Localizer.Text("WineTraceCheckingTheDaemon");
     public string? PluginWineTraceStatus { get => _pluginWineTraceStatus; private set => Set(ref _pluginWineTraceStatus, value); }
 
     public async System.Threading.Tasks.Task SetPluginWineTraceAsync(bool enabled)
@@ -181,7 +181,7 @@ public sealed class OptionsViewModel : ViewModelBase
         if (!CanSetPluginWineTrace) return;
         _settingPluginWineTrace = true;
         Raise(nameof(CanSetPluginWineTrace));
-        PluginWineTraceStatus = "Updating Wine trace…";
+        PluginWineTraceStatus = Localizer.Text("UpdatingWineTrace");
         try
         {
             var setup = await _client.SetPluginWineTraceAsync(enabled, TimeSpan.FromSeconds(30));
@@ -209,10 +209,10 @@ public sealed class OptionsViewModel : ViewModelBase
         Raise(nameof(PluginWineTrace));
         Raise(nameof(CanSetPluginWineTrace));
         PluginWineTraceStatus = _pluginWineTrace is null
-            ? "Wine trace unavailable. The daemon must be connected and support this switch." : null;
+            ? Localizer.Text("WineTraceUnavailableTheDaemonMustBeConnected") : null;
         SkippedPluginDetails.Clear();
         int? skipped = setup?["skippedFailedCount"]?.GetValue<int>();
-        SkippedPlugins = skipped is null ? "Skipped bundles: unavailable" : $"Skipped after a failed scan: {skipped}";
+        SkippedPlugins = skipped is null ? Localizer.Text("SkippedBundlesUnavailable") : $"Skipped after a failed scan: {skipped}";
         foreach (var bundle in setup?["skippedFailedBundles"] as System.Text.Json.Nodes.JsonArray ?? [])
         {
             string? when = bundle?["failedAt"]?.GetValue<string>();
@@ -227,7 +227,7 @@ public sealed class OptionsViewModel : ViewModelBase
         {
             WindowsEditorNote = null;
             MemoryLockNote = null;
-            WindowsPlugins = "Windows plugins: the daemon did not answer.";
+            WindowsPlugins = Localizer.Text("WindowsPluginsTheDaemonDidNotAnswer");
             CanSyncWindows = false;
             CanManageWindows = false;
             return;
@@ -261,7 +261,7 @@ public sealed class OptionsViewModel : ViewModelBase
         CanBridgeWine = WineFolders.Count > 0;
         BridgeWineLabel = WineFolders.Count > 1
             ? $"Bridge Wine's {WineFolders.Count} plugin folders"
-            : "Bridge Wine's plugins";
+            : Localizer.Text("BridgeWineSPlugins");
     }
 
     /// <summary>One line on Windows plugins, from what the daemon found.</summary>

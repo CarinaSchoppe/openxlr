@@ -43,6 +43,11 @@ The choice is saved in
 part of the mixer layout, the daemon's preferences or a profile, and
 changing it never touches audio. Windows that are already open repaint;
 nothing is rebuilt and nothing is restarted.
+If the terminal cannot read `ui.json`, it uses the default appearance.
+A malformed document, including duplicate keys or a value other than a
+JSON object, is left untouched when saving a terminal skin choice. Repair
+the file before saving a new choice; settings unrelated to the skin are
+preserved in a valid object.
 
 If a skin ever makes something unreadable, start the window once with
 

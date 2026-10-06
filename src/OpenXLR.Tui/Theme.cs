@@ -390,6 +390,7 @@ internal static class UiSettingsFile
         catch (IOException) { return null; }
         catch (JsonException) { return null; }
         catch (InvalidOperationException) { return null; }
+        catch (ArgumentException) { return null; } // duplicate JSON object keys
         catch (UnauthorizedAccessException) { return null; }
     }
 
@@ -398,15 +399,20 @@ internal static class UiSettingsFile
     {
         try
         {
-            JsonObject root = File.Exists(Path) && JsonNode.Parse(File.ReadAllText(Path)) is JsonObject existing
-                ? existing
-                : new JsonObject();
+            JsonObject root;
+            if (File.Exists(Path))
+            {
+                if (JsonNode.Parse(File.ReadAllText(Path)) is not JsonObject existing) return false;
+                root = existing;
+            }
+            else root = new JsonObject();
             root["skin"] = id;
             OpenXlrPaths.WriteAtomic(Path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
             return true;
         }
         catch (IOException) { return false; }
         catch (JsonException) { return false; }
+        catch (ArgumentException) { return false; } // leave duplicate-key documents untouched
         catch (UnauthorizedAccessException) { return false; }
     }
 }

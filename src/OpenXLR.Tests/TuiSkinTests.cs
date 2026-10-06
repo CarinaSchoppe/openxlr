@@ -365,6 +365,34 @@ public sealed class TuiSkinTests : IDisposable
         Assert.Equal("nord", UiSettingsFile.ReadSkin());
     }
 
+    [Theory]
+    [InlineData("{\"skin\":\"nord\",\"skin\":\"gruvbox\"}")]
+    [InlineData("{\"skin\":\"nord\",\"startDaemonAtLogin\":true,\"startDaemonAtLogin\":false}")]
+    [InlineData("null")]
+    [InlineData("false")]
+    [InlineData("42")]
+    [InlineData("\"nord\"")]
+    [InlineData("[]")]
+    [InlineData("{broken")]
+    public void MalformedSavedDocumentsCannotCrashStartupOrBeOverwritten(string document)
+    {
+        string config = Path.Combine(_root, "duplicates-config");
+        Directory.CreateDirectory(Path.Combine(config, "openxlr"));
+        Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", config);
+        string file = Path.Combine(config, "openxlr", "ui.json");
+        File.WriteAllText(file, document);
+
+        Assert.Null(UiSettingsFile.ReadSkin());
+        Assert.False(UiSettingsFile.WriteSkin("opendeck"));
+        Assert.Equal(document, File.ReadAllText(file));
+
+        File.WriteAllText(file, """{"skin":"nord","startDaemonAtLogin":true}""");
+        Assert.Equal("nord", UiSettingsFile.ReadSkin());
+        Assert.True(UiSettingsFile.WriteSkin("opendeck"));
+        Assert.Equal("opendeck", UiSettingsFile.ReadSkin());
+        Assert.Contains("startDaemonAtLogin", File.ReadAllText(file), StringComparison.Ordinal);
+    }
+
     // --- the skins this repository ships ---
 
     [Fact]

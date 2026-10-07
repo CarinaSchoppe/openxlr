@@ -67,6 +67,51 @@ public sealed class HttpApiSettingsTests : IDisposable
         Assert.Contains("Could not save", vm.SubmixerNote);
     }
 
+    [Theory]
+    [InlineData("null")]
+    [InlineData("[]")]
+    [InlineData("{\"httpApiEnabled\":false,\"broken\":")]
+    public async Task SwitchesRefuseDamagedPreferencesWithoutReplacingThem(string invalid)
+    {
+        string file = Path.Combine(UiSettings.ConfigDir, "daemon.json");
+        OpenXLR.Core.OpenXlrPaths.WriteAtomic(file, invalid);
+        await using var client = new DaemonClient();
+        var vm = new OptionsViewModel(client, new MainViewModel(client));
+        vm.HttpApiEnabled = false;
+        Assert.True(vm.HttpApiEnabled);
+        Assert.Contains("Could not save", vm.HttpApiNote);
+        Assert.Equal(invalid, File.ReadAllText(file));
+        vm.Submixer = false;
+        Assert.True(vm.Submixer);
+        Assert.Contains("Could not save", vm.SubmixerNote);
+        Assert.Equal(invalid, File.ReadAllText(file));
+    }
+
+    [Fact]
+    public async Task SwitchesPreserveUnknownDaemonPreferences()
+    {
+        string file = Path.Combine(UiSettings.ConfigDir, "daemon.json");
+        OpenXLR.Core.OpenXlrPaths.WriteAtomic(file, """
+            {"submixer":false,"futureSecurity":{"enabled":false},"futureEmpty":null}
+            """);
+        await using var client = new DaemonClient();
+        var main = new MainViewModel(client);
+        var vm = new OptionsViewModel(client, main);
+        vm.HttpApiEnabled = false;
+        await WaitUntilAsync(() => main.DaemonRestart.CanRestart && vm.HttpApiNote is not null);
+        vm.Submixer = true;
+        await WaitUntilAsync(() => main.DaemonRestart.CanRestart && vm.SubmixerNote is not null);
+        using var saved = System.Text.Json.JsonDocument.Parse(File.ReadAllText(file));
+        Assert.False(saved.RootElement.GetProperty("httpApiEnabled").GetBoolean());
+        Assert.True(saved.RootElement.GetProperty("submixer").GetBoolean());
+        Assert.False(saved.RootElement.GetProperty("futureSecurity").GetProperty("enabled").GetBoolean());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, saved.RootElement.GetProperty("futureEmpty").ValueKind);
+        // Core reads and writes the same preference shape as the window.
+        DaemonSettings.Load().Save();
+        using var roundTrip = System.Text.Json.JsonDocument.Parse(File.ReadAllText(file));
+        Assert.Equal(saved.RootElement.ToString(), roundTrip.RootElement.ToString());
+    }
+
     // Run by WindowLayoutTests on its real Avalonia UI thread. General
     // asynchronous tests can resume on different threads between cases.
     internal static void CheckBoundSwitchRollback()

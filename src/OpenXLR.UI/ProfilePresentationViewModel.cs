@@ -46,10 +46,10 @@ public sealed partial class MainViewModel
 
     internal void ReportPresentationError(string message) => Status = _presentationError = message;
 
-    internal bool SavePresentationChoice(UiSettings settings)
+    internal bool SavePresentationChoice(Func<UiSettings, UiSettings> change)
     {
-        try { settings.SaveChecked(); return true; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        try { change(UiSettings.LoadRequired()).SaveChecked(); return true; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             Status = $"Window settings could not be saved: {ex.Message}";
             return false;

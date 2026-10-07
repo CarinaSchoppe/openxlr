@@ -413,7 +413,7 @@ public sealed class OptionsViewModel : ViewModelBase
         {
             if (_httpApiEnabled == value) return;
             if (!_main.DaemonRestart.CanRestart) { Reject(ref _httpApiEnabled, value, nameof(HttpApiEnabled)); return; }
-            try { (DaemonPrefs.Load() with { HttpApiEnabled = value }).Save(); }
+            try { (DaemonPrefs.LoadRequired() with { HttpApiEnabled = value }).Save(); }
             catch (Exception ex)
             {
                 HttpApiNote = $"Could not save the setting: {ex.Message}";
@@ -440,7 +440,7 @@ public sealed class OptionsViewModel : ViewModelBase
             if (!_main.DaemonRestart.CanRestart) { Reject(ref _submixer, value, nameof(Submixer)); return; }
             try
             {
-                (DaemonPrefs.Load() with { Submixer = value }).Save();
+                (DaemonPrefs.LoadRequired() with { Submixer = value }).Save();
             }
             catch (Exception ex)
             {

@@ -61,9 +61,6 @@ public sealed record UiSettings
     [System.Text.Json.Serialization.JsonExtensionData]
     public Dictionary<string, JsonElement>? AdditionalPreferences { get; init; }
 
-
-
-
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
@@ -130,6 +127,8 @@ public sealed record DaemonPrefs
 {
     public bool? Submixer { get; init; }
     public bool HttpApiEnabled { get; init; } = true;
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? AdditionalPreferences { get; init; }
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -141,14 +140,14 @@ public sealed record DaemonPrefs
 
     public static DaemonPrefs Load()
     {
-        try
-        {
-            if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<DaemonPrefs>(File.ReadAllText(FilePath), Json) ?? new DaemonPrefs();
-        }
+        try { return LoadRequired(); }
         catch (Exception) { /* corrupt file: behave as unset */ }
         return new DaemonPrefs();
     }
+
+    internal static DaemonPrefs LoadRequired() => !File.Exists(FilePath) ? new DaemonPrefs()
+        : JsonSerializer.Deserialize<DaemonPrefs>(File.ReadAllText(FilePath), Json)
+            ?? throw new JsonException("Daemon preferences must be a JSON object.");
 
     public void Save() => OpenXlrPaths.WriteAtomicJson(FilePath, this, Json);
 }

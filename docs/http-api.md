@@ -36,6 +36,9 @@ query strings are not accepted. Keep the token out of logs and bug reports.
 service. This briefly interrupts audio and disconnects all clients. If the
 restart fails, the window says the choice is saved but still needs a restart.
 If the setting cannot be saved, the switch returns to its previous position.
+API and submixer switches refuse a malformed `daemon.json` without replacing
+it or restarting the service. Repair the file before retrying. Unknown fields
+in a valid daemon preference document are preserved by both the window and daemon.
 The window stays responsive during the restart. API and mixer switches and the
 other restart buttons remain unavailable until that restart finishes.
 Disabling blocks every `/api/v1` resource, command and event connection with

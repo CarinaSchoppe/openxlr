@@ -212,6 +212,20 @@ public sealed class WindowOrderTests
             Wait(() => Ui(() => Order()[2] == "InputsTile"));
             before = Ui(Order);
             string path = Path.Combine(config, "openxlr", "ui.json");
+            string validPreferences = File.ReadAllText(path);
+            foreach (string invalid in new[] { "null", "[]", "{\"language\":\"de\",\"broken\":" })
+            {
+                OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, invalid);
+                Drag("InputsTile", "SubmixerTile", false);
+                Wait(() => Ui(() => main!.FindControl<TextBlock>("ArrangementNote")!.Text!.Contains("Could not save")));
+                Assert.Equal(before, Ui(Order));
+                Assert.Equal(invalid, File.ReadAllText(path));
+                var inputs = Ui(() => main!.FindControl<Expander>("InputsTile")!);
+                Ui(() => { inputs.IsExpanded = true; return true; });
+                Assert.False(Ui(() => inputs.IsExpanded));
+                Assert.Equal(invalid, File.ReadAllText(path));
+                OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, validPreferences);
+            }
             File.Move(path, path + ".saved"); Directory.CreateDirectory(path);
             try
             {

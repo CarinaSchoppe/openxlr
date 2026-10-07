@@ -2037,6 +2037,9 @@ Native plugin editors control their own sizing.
 If a compact-mode or selected-channel preference cannot be saved, its control
 returns to the previous choice and the window reports the error. The displayed
 channels and audio routing stay as they were; retry after fixing the save error.
+Compact choices, section ordering and collapsing also refuse a malformed
+window preference file without replacing it. Repair the file before retrying;
+unrelated and unknown preferences are retained when saving a valid document.
 
 Profiles saved from the window also recall its skin, appearance mode, section order, collapsed sections,
 compact view and selected compact channel. Channel and mix icons, colours,

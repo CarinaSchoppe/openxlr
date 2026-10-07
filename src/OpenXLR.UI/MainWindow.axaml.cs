@@ -351,7 +351,7 @@ public partial class MainWindow : Window
         List<string> collapsed = [];
         foreach (string name in SectionTiles)
             if (this.FindControl<Expander>(name) is { IsExpanded: false }) collapsed.Add(name);
-        if (!_vm.SavePresentationChoice(UiSettings.Load() with { CollapsedSections = collapsed }))
+        if (!_vm.SavePresentationChoice(settings => settings with { CollapsedSections = collapsed }))
         {
             _restoringSections = true;
             try { changed.IsExpanded = wasExpanded; }

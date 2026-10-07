@@ -43,7 +43,7 @@ public sealed partial class MainViewModel
         set
         {
             if (_compactMixer == value) return;
-            if (!SavePresentationChoice(UiSettings.Load() with { CompactMixer = value }))
+            if (!SavePresentationChoice(settings => settings with { CompactMixer = value }))
             {
                 Reject(ref _compactMixer, value);
                 return;
@@ -61,7 +61,7 @@ public sealed partial class MainViewModel
         {
             if (_applying || ReferenceEquals(_selectedCompactChannel, value)) return;
             if (value is not null && !Channels.Contains(value)) return;
-            if (!SavePresentationChoice(UiSettings.Load() with { CompactChannel = value?.Id }))
+            if (!SavePresentationChoice(settings => settings with { CompactChannel = value?.Id }))
             {
                 // A selection binding finishes caching the attempted item when
                 // this setter returns. Restore it afterward so it can be retried.

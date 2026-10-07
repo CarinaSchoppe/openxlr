@@ -19,6 +19,8 @@ public sealed record DaemonSettings
 {
     public bool? Submixer { get; init; }
     public bool HttpApiEnabled { get; init; } = true;
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, JsonElement>? AdditionalPreferences { get; init; }
 
     private static readonly JsonSerializerOptions Json = new()
     {

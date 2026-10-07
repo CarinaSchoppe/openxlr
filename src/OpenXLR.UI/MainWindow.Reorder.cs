@@ -75,11 +75,11 @@ public partial class MainWindow
         {
             // A failed save leaves the displayed order as it was. Reload the
             // other preferences so a skin change or collapsed tile stays saved.
-            (UiSettings.Load() with { SectionOrder = order }).SaveChecked();
+            (UiSettings.LoadRequired() with { SectionOrder = order }).SaveChecked();
             ApplySectionOrder(order);
             ReportArrangement(null);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
             ReportArrangement("Could not save the section order: " + ex.Message);
         }

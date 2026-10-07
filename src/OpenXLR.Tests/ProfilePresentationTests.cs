@@ -192,6 +192,41 @@ public sealed class ProfilePresentationTests
             Assert.Equal(JsonValueKind.Null, prefs.GetProperty("futureEmpty").ValueKind);
         });
 
+    [Theory]
+    [InlineData("null")]
+    [InlineData("[]")]
+    [InlineData("{\"language\":\"de\",\"broken\":")]
+    public void CompactEditsRefuseDamagedPreferencesAndAllowRetry(string invalid)
+        => InConfig(() =>
+        {
+            string path = Path.Combine(UiSettings.ConfigDir, "ui.json");
+            var client = new DaemonClient();
+            try
+            {
+                var vm = new MainViewModel(client);
+                var first = new ChannelViewModel(client, "first", "First", []);
+                var second = new ChannelViewModel(client, "second", "Second", []);
+                vm.Channels.Add(first);
+                vm.Channels.Add(second);
+                vm.SelectedCompactChannel = first;
+                string previous = File.ReadAllText(path);
+                OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, invalid);
+                vm.CompactMixer = true;
+                Assert.False(vm.CompactMixer);
+                vm.SelectedCompactChannel = second;
+                Assert.Same(first, vm.SelectedCompactChannel);
+                Assert.Contains("could not be saved", vm.Status);
+                Assert.Equal(invalid, File.ReadAllText(path));
+                OpenXLR.UI.OpenXlrPaths.WriteAtomic(path, previous);
+                vm.CompactMixer = true;
+                vm.SelectedCompactChannel = second;
+                Assert.True(vm.CompactMixer);
+                Assert.Same(second, vm.SelectedCompactChannel);
+                Assert.Equal("second", UiSettings.Load().CompactChannel);
+            }
+            finally { client.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+        });
+
     private static JsonNode Recall(string skin) => JsonSerializer.SerializeToNode(new
     {
         revision = Guid.NewGuid().ToString("N"), settings = new { compactMixer = true, compactChannel = "music", skin,

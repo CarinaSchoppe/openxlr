@@ -39,6 +39,7 @@ public sealed class SkinWindowTests
             ABrokenSkinLeavesTheWindowUsableAndSaysWhy(main);
             ControlAppearancesSwitchAndTheFaderStillWorks(main);
             NeitherShippedAppearanceBreaksTheLayoutOrTheLabels(main, options, flow);
+            EveryBuiltInSkinKeepsTheMainLabelsReadable(main);
             EveryWindowWearsTheSkin(main);
             ACheckBoxLabelTakesItsOwnToken(options);
             IndicatorsAndMetersDrawInsideTheBoxTheyAreGiven();
@@ -231,7 +232,7 @@ public sealed class SkinWindowTests
                     string where = $"{id} at {width}";
 
                     // The seven input toggles stay usable and inside the window.
-                    foreach (var row in main.GetVisualDescendants().OfType<UniformGrid>())
+                    foreach (var row in new[] { main.FindControl<WrapPanel>("InputControls")!, main.FindControl<WrapPanel>("Input2Controls")! })
                         foreach (var toggle in row.Children.Where(c => c.IsVisible))
                         {
                             Assert.True(toggle.Bounds.Width > 40, $"a toggle shrank to {toggle.Bounds.Width}. {where}");
@@ -282,6 +283,22 @@ public sealed class SkinWindowTests
                     $"the skin shrank the {what["default:".Length..]} from {shipped} to {skinned}");
             }
         }
+    }
+
+    private static void EveryBuiltInSkinKeepsTheMainLabelsReadable(MainWindow main)
+    {
+        foreach (SkinEntry skin in new[] { new SkinEntry(SkinPackage.Default, []) }.Concat(SkinCatalog.BuiltIn()))
+        {
+            Assert.Empty(SkinService.Apply(skin));
+            foreach (double width in new[] { 640d, 1040 })
+            {
+                Layout(main, width, 900);
+                MainWindowLabelTests.Check(main);
+                if (width == 640) MainWindowLabelTests.CheckLongDeviceLabels(main);
+                Capture(main, $"labels-{skin.Id}-{width}");
+            }
+        }
+        SkinService.Apply(new SkinEntry(SkinPackage.Default, []));
     }
 
     /// <summary>Keep the smallest measurement of one kind of control per skin.</summary>

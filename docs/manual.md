@@ -124,10 +124,12 @@ on the original Wave XLR. See [hardware support](hardware-support.md).
 The mixer cards follow the window width, up to a limit of 1300 logical
 pixels, so faders and dropdowns keep a usable length on a maximized
 ultrawide instead of stretching across the screen. The window has no
-minimum width of its own: it squeezes down to about 640 pixels, where
-the widest row, the seven input toggles, still fits. A window shorter
-than its content scrolls vertically. Mix master cards wrap onto further
-rows when needed. Long plugin names are shortened with an ellipsis, with
+minimum width of its own: it squeezes down to about 640 pixels. Header
+actions and input toggles wrap when needed so their labels stay readable.
+Long interface names are shortened with an ellipsis and shown in full in
+their tooltip. A window shorter than its content scrolls vertically. Mix
+master cards wrap onto further rows when needed. Long plugin names are
+shortened with an ellipsis, with
 the full name in the tooltip. Plugin control and chain windows keep
 actions below their headings, and actions wrap when space is limited.
 A tooltip sits against the control it describes rather than against the

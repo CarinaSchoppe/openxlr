@@ -4,6 +4,7 @@
 Arguments are passed on to `dotnet test`, so a build that lives somewhere
 other than the default output can be tested with `--artifacts-path <dir>`.
 OPENXLR_TEST_FILTER selects a focused regression instead of the full audio suite.
+LV2_PATH defaults to the native test fixtures; set it explicitly for DSP plugins.
 """
 import os
 from pathlib import Path
@@ -14,10 +15,12 @@ import time
 
 
 def main():
+    repository = Path(__file__).resolve().parent.parent
     with tempfile.TemporaryDirectory(prefix="openxlr-monitor-test-") as runtime:
         env = dict(os.environ, XDG_RUNTIME_DIR=runtime, PIPEWIRE_RUNTIME_DIR=runtime,
                    XDG_CONFIG_HOME=runtime + "/config", XDG_STATE_HOME=runtime + "/state",
                    XDG_DATA_HOME=runtime + "/data",
+                   LV2_PATH=os.environ.get("LV2_PATH", str(repository / "native/tests")),
                    CLAP_PATH=runtime + "/plugins", VST3_PATH=runtime + "/plugins",
                    PULSE_SERVER="unix:" + runtime + "/pulse/native",
                    PIPEWIRE_REMOTE="pipewire-0", OPENXLR_TEST_MONITOR_VOLUME="1")
@@ -56,7 +59,7 @@ def main():
                                 "-c", "Release", "--no-build", "--filter",
                                 os.environ.get("OPENXLR_TEST_FILTER", "FullyQualifiedName~MonitorVolumeIntegrationTests|FullyQualifiedName~ProfileStartupTests|FullyQualifiedName~DspAudioIntegrationTests|FullyQualifiedName~StereoLinkTests|FullyQualifiedName~PluginLatencyIntegrationTests|FullyQualifiedName~SoundCheckIntegrationTests|FullyQualifiedName~ChannelInsertIntegrationTests|FullyQualifiedName~ChannelTransitionIntegrationTests|FullyQualifiedName~InsertHoldTests|FullyQualifiedName~HttpMixerFeatureIntegrationTests"), *sys.argv[1:]],
                                env=env, check=True, timeout=300,
-                               cwd=Path(__file__).resolve().parent.parent)
+                               cwd=repository)
             except Exception:
                 log.flush()
                 log.seek(0)

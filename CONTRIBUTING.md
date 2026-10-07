@@ -46,6 +46,7 @@ node --test packaging/omarchy/tests/*.test.mjs
 shellcheck --severity=error packaging/omarchy/openxlr-omarchy-enable
 make -C native  # C/C++, PipeWire, lilv, LV2 and X11 development headers
 make -C native test-audio test-clap test-vst3 test-scan  # audio bounds, stall detection, CLAP bus layouts, VST3 parameter and stream checks, scan phase markers
+make -C native tests/latency.lv2/latency.so tests/gain.lv2/gain.so  # fixtures for the private audio suite
 dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~Lv2BundleTests  # run with lilv installed, even if the earlier suite ran without it
 python3 tools/test-monitor-volume.py  # private PipeWire server and session bus; pipewire-pulse, wireplumber, pactl, dbus-daemon
 xvfb-run -a make -C native test-editor  # also needs Xvfb and xauth
@@ -115,14 +116,14 @@ It permits path and result objects, but not a stream buffer of a kilobyte
 or more for each four-byte header read. Separate format cases cover empty
 and truncated headers, the two-byte Windows signature and the ELF signature.
 
-The private PipeWire runner also checks profile startup ordering. To exercise
-ClipGuard with recorded test audio, low cut and a native LSP gate, run
-`OPENXLR_TEST_DSP=1 python3 tools/test-monitor-volume.py` after a native-enabled
+The private PipeWire runner also checks profile startup ordering and channel
+inserts. Its default LV2 path is `native/tests`; build both fixture bundles
+above before running it. An explicit `LV2_PATH` is kept instead of that default.
+To exercise ClipGuard with recorded test audio, low cut and a native LSP gate, run
+`OPENXLR_TEST_DSP=1 OPENXLR_TEST_FILTER=FullyQualifiedName~DspAudioIntegrationTests LV2_PATH=/usr/lib/lv2 python3 tools/test-monitor-volume.py` after a native-enabled
 build, with swh-plugins and LSP LV2 plugins installed. The runner isolates
-plugin scans from user-installed CLAP and VST3 bundles. Channel-insert tests also
-need the gain fixture: build it with `make -C native tests/gain.lv2/gain.so`
-and include `$PWD/native/tests` in `LV2_PATH` when starting the runner. For a
-combined DSP run, include the installed LSP and SWH directories as well, for
+plugin scans from user-installed CLAP and VST3 bundles. For a combined DSP run,
+include the fixture path and installed LSP and SWH directories as well, for
 example `LV2_PATH="$PWD/native/tests:/usr/lib/lv2" OPENXLR_TEST_DSP=1 python3 tools/test-monitor-volume.py`
 on a system whose LV2 packages live under `/usr/lib/lv2`. This environment is
 only for the test process; it is not a daemon configuration change. The runner

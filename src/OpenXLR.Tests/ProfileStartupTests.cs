@@ -42,6 +42,73 @@ public sealed class ProfileStartupTests
     }
 
     [Theory]
+    [InlineData("marker-directory")]
+    [InlineData("marker-link-loop")]
+    [InlineData("profile-link-loop")]
+    public async Task UnreadableProfileMetadataDoesNotPreventStateReplies(string failure)
+    {
+        string dir = Directory.CreateTempSubdirectory("openxlr-profile-metadata-").FullName;
+        string? previous = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", dir);
+        string profiles = Path.Combine(OpenXlrPaths.ConfigDir, "profiles", "0fd9-00a6");
+        string marker = Path.Combine(profiles, "recall-on-connect");
+        try
+        {
+            new DaemonSettings { Submixer = false }.Save();
+            var config = new ConfigurationBuilder().Build();
+            using var devices = new DeviceManager(NullLogger<DeviceManager>.Instance, config, () => [new Dock()]);
+            devices.SweepOnce();
+            using var lifetime = new Lifetime();
+            using var mixer = new MixerService(NullLogger<MixerService>.Instance, config, devices);
+            var hub = new WebSocketHub(devices, mixer, NullLogger<WebSocketHub>.Instance, lifetime);
+            Assert.True((await hub.ExecuteForApiAsync("""{"cmd":"saveProfile","name":"Night"}""")).Ok);
+            ProfileStore.SetRecallOnConnect("0fd9:00a6", "Night");
+            if (failure == "profile-link-loop")
+            {
+                Directory.Move(profiles, profiles + ".saved");
+                Directory.CreateSymbolicLink(profiles, profiles);
+            }
+            else
+            {
+                File.Delete(marker);
+                if (failure == "marker-directory") Directory.CreateDirectory(marker);
+                else File.CreateSymbolicLink(marker, marker);
+            }
+
+            var result = await hub.ExecuteForApiAsync("""{"cmd":"getState","requestId":"metadata"}""");
+            Assert.True(result.Ok);
+            var state = Assert.IsType<StateMessage>(result.Messages[0]);
+            Assert.Equal("0fd9:00a6", state.Device!.UsbId);
+            Assert.Equal("Night", state.ActiveProfile);
+            Assert.Contains("profiles", state.Warning!, StringComparison.OrdinalIgnoreCase);
+            Assert.Null(state.RecallOnConnect);
+            Assert.Equal(failure == "profile-link-loop" ? [] : new[] { "Night" }, state.Profiles);
+            Assert.Null(Assert.Single(result.Messages.OfType<CommandResultMessage>()).Error);
+
+            if (failure == "profile-link-loop")
+            {
+                File.Delete(profiles);
+                Directory.Move(profiles + ".saved", profiles);
+            }
+            else
+            {
+                if (failure == "marker-directory") Directory.Delete(marker);
+                else File.Delete(marker);
+                ProfileStore.SetRecallOnConnect("0fd9:00a6", "Night");
+            }
+            state = hub.Snapshot();
+            Assert.Null(state.Warning);
+            Assert.Equal("Night", state.RecallOnConnect);
+            Assert.Equal(new[] { "Night" }, state.Profiles);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", previous);
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Theory]
     [InlineData("none")]
     [InlineData("missing")]
     [InlineData("corrupt")]

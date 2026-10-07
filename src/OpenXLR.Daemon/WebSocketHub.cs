@@ -70,18 +70,39 @@ public sealed class WebSocketHub
     // the device lock so a newer connection cannot inherit an obsolete value.
     private long _manualProfileRevision;
 
-    internal StateMessage Snapshot() =>
-        _devices.Snapshot() with
+    internal StateMessage Snapshot()
+    {
+        StateMessage state = _devices.Snapshot();
+        string? deviceId = state.Device?.UsbId;
+        IReadOnlyList<string> profiles = [];
+        string? recall = null;
+        string? profileWarning = null;
+        if (deviceId is not null)
+        {
+            try
+            {
+                profiles = OpenXLR.Core.ProfileStore.List(deviceId);
+                recall = OpenXLR.Core.ProfileStore.RecallOnConnect(deviceId);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // A broken profile directory or recall marker must not take
+                // the device and mixer controls away from connected clients.
+                profileWarning = $"Profiles could not be read: {ex.Message}";
+            }
+        }
+        return state with
         {
             DaemonVersion = OpenXLR.Daemon.DaemonVersion.Current,
-            Warning = string.Join(" ", new[] { _devices.Warning, _mixer.PersistenceWarning }.Where(w => w is not null)) is { Length: > 0 } w ? w : null,
-            ActiveProfile = ActiveDeviceId() is string apId && _activeProfile.TryGetValue(apId, out string? ap) ? ap : null,
+            Warning = string.Join(" ", new[] { _devices.Warning, _mixer.PersistenceWarning, profileWarning }.Where(w => w is not null)) is { Length: > 0 } w ? w : null,
+            ActiveProfile = deviceId is not null && _activeProfile.TryGetValue(deviceId, out string? ap) ? ap : null,
             Mixer = _mixer.Snapshot(),
             Devices = _mixer.Devices(),
-            Profiles = ActiveDeviceId() is string devId ? OpenXLR.Core.ProfileStore.List(devId) : [],
-            RecallOnConnect = ActiveDeviceId() is string rcId ? OpenXLR.Core.ProfileStore.RecallOnConnect(rcId) : null,
+            Profiles = profiles,
+            RecallOnConnect = recall,
             Detected = [.. _devices.Detected().Select(d => new DetectedDevice(d.UsbId, d.Name, d.Active))],
         };
+    }
 
     /// <summary>A correlation id longer than this is refused rather than echoed.</summary>
     internal const int MaxRequestId = 64;

@@ -98,6 +98,7 @@ static void restart() {
   assert(handler.restartComponent(RestartFlags::kLatencyChanged | RestartFlags::kIoChanged) == kResultOk);
   assert(v.restart_requested.exchange(false));
   assert(handler.restartComponent(RestartFlags::kReloadComponent) == kResultOk);
+
   assert(v.restart_requested);
 }
 

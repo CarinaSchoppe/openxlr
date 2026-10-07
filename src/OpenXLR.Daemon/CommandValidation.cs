@@ -28,6 +28,18 @@ public static class CommandValidation
     {
         switch (cmd.Cmd)
         {
+            case "addPluginSearchPath":
+            case "removePluginSearchPath":
+                return PluginSearchPaths.Valid(cmd.Kind, cmd.Path) ? null : "invalid plugin format or search path";
+
+            case "setMixLatencyCompensation":
+                return cmd.Value.ValueKind is JsonValueKind.True or JsonValueKind.False
+                    ? null : "setMixLatencyCompensation: value must be a boolean";
+
+            case "soundCheck":
+                return cmd.Channel is "xlr1" or "xlr2" && layout.HasChannel(cmd.Channel)
+                    && cmd.Action is "record" or "loop" or "live" or "stop" ? null
+                    : "soundCheck: need an XLR channel and record, loop, live or stop action";
             case "getNativeEditorRules":
                 return null;
             case "setNativeEditorRule":
@@ -41,11 +53,24 @@ public static class CommandValidation
             case "setWindowsPluginEnabled":
             case "deleteWindowsPlugin":
                 return CheckPluginPath(cmd);
+            case "setExclusiveGroup":
+                if (cmd.Group is not null && !ExclusiveGroupsModel.ValidId(cmd.Group)) return "invalid group ID";
+                var group = new ExclusiveGroupDefinition(cmd.Group ?? "new", cmd.Name!, cmd.Channels!);
+                return ExclusiveGroupsModel.Validate(group)
+                    ?? (cmd.Channels!.Any(ch => !layout.HasChannel(ch)) ? "unknown channel in exclusive group" : null);
+            case "deleteExclusiveGroup":
+            case "cycleExclusiveGroup":
+                if (!ExclusiveGroupsModel.ValidId(cmd.Group)) return "need a valid group ID";
+                return cmd.Cmd == "cycleExclusiveGroup" && (cmd.Mix is null || !layout.HasMix(cmd.Mix))
+                    ? "need a known mix" : null;
             case "createCaptureChannel":
                 if (BadName(cmd.Name)) return "createCaptureChannel: name must contain 1 to 60 printable characters";
                 return CaptureBinding.IsValid(cmd.Source, cmd.CapturePair) ? null : "createCaptureChannel: need an external source and a pair from 0 to 31";
-            case "createChannel":
             case "createMix":
+                if (cmd.Kind is not (null or "virtualMic" or "monitor"))
+                    return "createMix: kind must be virtualMic or monitor";
+                return BadName(cmd.Name) ? "createMix: name must contain 1 to 60 printable characters" : null;
+            case "createChannel":
                 return BadName(cmd.Name) ? $"{cmd.Cmd}: name must contain 1 to 60 printable characters" : null;
             case "renameChannel":
             case "deleteChannel":
@@ -56,12 +81,22 @@ public static class CommandValidation
             case "renameMix":
             case "deleteMix":
                 if (cmd.Mix is null) return $"{cmd.Cmd}: need 'mix'";
-                if (TooLong(cmd.Mix, 36) || !layout.HasVirtualMix(cmd.Mix))
-                    return $"{cmd.Cmd}: '{Short(cmd.Mix)}' is not a virtual microphone";
+                if (TooLong(cmd.Mix, 36) || !layout.HasEditableMix(cmd.Mix))
+                    return $"{cmd.Cmd}: '{Short(cmd.Mix)}' is not an editable mix";
                 return cmd.Cmd == "renameMix" && BadName(cmd.Name) ? "renameMix: name must contain 1 to 60 printable characters" : null;
+            case "setLayoutAppearance":
+                if ((cmd.Channel is null) == (cmd.Mix is null)) return "setLayoutAppearance: specify one channel or mix";
+                if (cmd.Channel is not null && !layout.HasChannel(cmd.Channel) || cmd.Mix is not null && !layout.HasMix(cmd.Mix))
+                    return "setLayoutAppearance: unknown layout item";
+                return LayoutAppearance.IsValid(cmd.Appearance) && (cmd.Mix is null || !cmd.Appearance!.Hidden) ? null : "setLayoutAppearance: invalid icon, colour or order";
+            case "setDisplayOrder":
+                if (cmd.Channels is null || cmd.Mixes is null || cmd.Channels.Count > LayoutAppearance.MaxEntries ||
+                    cmd.Mixes.Count > LayoutAppearance.MaxEntries || cmd.Channels.Concat(cmd.Mixes).Any(id => id is null || id.Length is 0 or > 36))
+                    return "setDisplayOrder: need bounded channel and mix ID lists";
+                return null;
             case "setLayoutOrder":
                 if (cmd.Channels is null || cmd.Mixes is null) return "setLayoutOrder: need 'channels' and 'mixes'";
-                if (cmd.Channels.Count > MixerConfig.MaxApplicationChannels || cmd.Mixes.Count > MixerConfig.MaxVirtualMixes)
+                if (cmd.Channels.Count > MixerConfig.MaxApplicationChannels || cmd.Mixes.Count > MixerConfig.MaxUserMixes)
                     return "setLayoutOrder: too many IDs";
                 if (cmd.Channels.Concat(cmd.Mixes).Any(id => id is null || id.Length is 0 or > 36))
                     return "setLayoutOrder: invalid ID";
@@ -122,6 +157,20 @@ public static class CommandValidation
             case "setEnforcedDefaults":
                 if (TooLong(cmd.Sink, MaxText) || TooLong(cmd.Source, MaxText)) return "setEnforcedDefaults: device name too long";
                 return null;
+
+            case "renameInsert":
+                if (cmd.Channel is null || cmd.InsertId is null || !layout.IsInsertKey(cmd.Channel)
+                    || layout.InsertInChain(cmd.Channel, cmd.InsertId) is null) return "renameInsert: select an existing insert";
+                return string.IsNullOrWhiteSpace(cmd.Name) || cmd.Name.Length > MaxText || cmd.Name.Any(char.IsControl)
+                    ? "renameInsert: name must be 1 to 256 characters without control characters" : null;
+
+            case "holdInsert":
+                if (!Guid.TryParseExact(cmd.HoldId, "N", out _)) return "holdInsert: holdId must be a UUID without separators";
+                if (cmd.Action is not ("begin" or "renew" or "end")) return "holdInsert: action must be begin, renew or end";
+                if (cmd.Action != "begin") return null;
+                if (cmd.Channel is null || !layout.IsInsertKey(cmd.Channel)) return "holdInsert: select an existing chain";
+                return cmd.InsertId is not null && layout.InsertInChain(cmd.Channel, cmd.InsertId) is null
+                    ? "holdInsert: select an existing insert" : null;
             case "setInserts":
                 if (cmd.Channel is null || cmd.Inserts is null) return "setInserts: need 'channel' and 'inserts'";
                 if (!layout.IsInsertKey(cmd.Channel)) return $"setInserts: '{Short(cmd.Channel)}' has no insert chain";

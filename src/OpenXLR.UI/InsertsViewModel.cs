@@ -1,3 +1,4 @@
+using OpenXLR.UI.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -23,13 +24,14 @@ public sealed record PluginChoice(string Uri, string Name, string Category, Json
 /// picker to add more. Edits go to the daemon as a whole new chain (order
 /// matters); parameter moves go live one control at a time.
 /// </summary>
-public sealed class InsertsViewModel : ViewModelBase
+public sealed partial class InsertsViewModel : ViewModelBase
 {
     private readonly DaemonClient _client;
     private readonly string _channel;
     private readonly int _channels;
     private bool _applying;
     private bool _pluginsRequested;
+    private int _catalogGeneration;
 
     /// <param name="channel">Insert key: "xlr1", "xlr2", or "mix:&lt;id&gt;".</param>
     /// <param name="channels">1 for the mono mic path, 2 for a stereo mix.</param>
@@ -39,23 +41,27 @@ public sealed class InsertsViewModel : ViewModelBase
         _channel = channel;
         _channels = channels;
         Title = title ?? channel;
+        SoundCheck = new SoundCheckViewModel(client, channel);
     }
 
     /// <summary>What the chain belongs to, for window titles ("XLR 1", "Stream mix").</summary>
-    public string Title { get; }
+    private string _title = "";
+    public string Title { get => _title; set => Set(ref _title, value); }
+    public bool CanSoundCheck => _channel is "xlr1" or "xlr2";
+    public SoundCheckViewModel SoundCheck { get; }
 
     public Task ShowNativeEditorAsync(InsertViewModel insert)
         => _client.ShowInsertUiAsync(_channel, insert.Id);
 
     /// <summary>Chain window subtitle: where these plugins sit in the path.</summary>
-    public string ChainHint => _channels == 1
-        ? "Plugins, in order, before this input reaches the mixes"
-        : "Stereo plugins, in order, before this mix reaches its outputs";
+    public string ChainHint => _channel.StartsWith("mix:", StringComparison.Ordinal)
+        ? "Stereo plugins, in order, before this mix reaches its outputs"
+        : "Plugins, in order, before this channel reaches the mixes";
 
     /// <summary>Picker header: which plugins fit this chain.</summary>
     public string PickerHint => _channels == 1
         ? "Plugins that can run mono on the mic path"
-        : "Plugins that fit a stereo mix (two inputs, two outputs)";
+        : "Plugins that fit a stereo chain (two inputs, two outputs)";
 
     public ObservableCollection<InsertViewModel> Items { get; } = [];
     public ObservableCollection<PluginChoice> PluginChoices { get; } = [];
@@ -71,7 +77,7 @@ public sealed class InsertsViewModel : ViewModelBase
     };
 
     /// <summary>Label for a compact button that opens the chain window.</summary>
-    public string ButtonText => Items.Count == 0 ? "Inserts" : $"Inserts ({Items.Count})";
+    public string ButtonText => Items.Count == 0 ? Localizer.Text("Inserts") : Localizer.Format("InsertCount", Items.Count);
 
     private PluginChoice? _selectedPlugin;
     public PluginChoice? SelectedPlugin
@@ -95,16 +101,28 @@ public sealed class InsertsViewModel : ViewModelBase
         => _catalogTask ??= client.RequestPluginsAsync(TimeSpan.FromSeconds(20));
 
     /// <summary>Fetch the catalog once per connection (lilv's scan can take a moment).</summary>
-    public async void EnsurePluginsLoaded()
+    public void EnsurePluginsLoaded() => _ = LoadPluginsAsync();
+
+    internal async Task LoadPluginsAsync()
     {
         if (_pluginsRequested) return;
         _pluginsRequested = true;
         Note = "Scanning plugins…";
-        JsonNode? plugins = await CatalogAsync(_client);
-        Dispatcher.UIThread.Post(() =>
+        int generation = ++_catalogGeneration;
+        Task<JsonNode?> request = CatalogAsync(_client);
+        JsonNode? plugins = await request.ConfigureAwait(false);
+        await Dispatcher.UIThread.InvokeAsync(() =>
         {
+            if (generation != _catalogGeneration) return;
             PluginChoices.Clear();
-            if (plugins is not JsonArray arr) { Note = "Plugin list unavailable"; _pluginsRequested = false; _catalogTask = null; return; }
+            SelectedPlugin = null;
+            if (plugins is not JsonArray arr)
+            {
+                Note = "Plugin list unavailable";
+                _pluginsRequested = false;
+                if (ReferenceEquals(_catalogTask, request)) _catalogTask = null;
+                return;
+            }
             foreach (JsonNode? p in arr)
             {
                 if (p is null) continue;
@@ -120,7 +138,7 @@ public sealed class InsertsViewModel : ViewModelBase
                     p["kind"]?.GetValue<string>() ?? "lv2",
                     p["nativeUiBlocked"]?.GetValue<bool>() == true));
             }
-            foreach (InsertViewModel insert in Items) insert.RefreshNativeFlags();
+            foreach (InsertViewModel insert in Items) insert.RefreshCatalogue();
             string width = _channels == 1 ? "mono" : "stereo";
             Note = PluginChoices.Count == 0
                 ? $"No {width} plugins found. Install some, or add one with the buttons below"
@@ -144,7 +162,17 @@ public sealed class InsertsViewModel : ViewModelBase
         return channels == 1 ? ins == 1 && outs == 1 : ins >= 2 && outs >= 2;
     }
 
-    public void ResetForNewConnection() { _pluginsRequested = false; _catalogTask = null; }
+    public void ResetForNewConnection()
+    {
+        _catalogGeneration++;
+        _pluginsRequested = false;
+        _catalogTask = null;
+        PluginChoices.Clear();
+        SelectedPlugin = null;
+        Note = null;
+        foreach (var insert in Items) insert.ForgetPendingParameters();
+        ResetEffectWorkflow();
+    }
 
     /// <summary>
     /// After a plugin was installed: every chain fetches the catalogue
@@ -159,9 +187,6 @@ public sealed class InsertsViewModel : ViewModelBase
     public void Refetch() { _pluginsRequested = false; EnsurePluginsLoaded(); }
 
     internal DaemonClient Client => _client;
-
-    /// <summary>Whether the catalog has arrived for this chain.</summary>
-    public bool CatalogReady => PluginChoices.Count > 0;
 
     /// <summary>Apply the daemon's view of this channel's chain.</summary>
     public void Apply(JsonNode? chain)
@@ -179,17 +204,21 @@ public sealed class InsertsViewModel : ViewModelBase
                 JsonNode? ins = entry?["insert"];
                 if (ins is null) continue;
                 string id = ins["id"]!.GetValue<string>();
-                if (!byId.TryGetValue(id, out InsertViewModel? vm))
+                if (!byId.TryGetValue(id, out InsertViewModel? vm)
+                    || vm.Plugin != ins["plugin"]!.GetValue<string>()
+                    || vm.Kind != (ins["kind"]?.GetValue<string>() ?? "lv2"))
                     vm = new InsertViewModel(this, id, ins["plugin"]!.GetValue<string>(), ins["label"]?.GetValue<string>() ?? id,
                         ins["kind"]?.GetValue<string>() ?? "lv2");
                 vm.ApplyFromDaemon(ins, entry?["error"]?.GetValue<string>(),
                     entry?["nativeHostRunning"]?.GetValue<bool>() == true,
                     entry?["nativeUiBlocked"]?.GetValue<bool>() == true,
                     entry?["nativeUiBlockReason"]?.GetValue<string>());
+                vm.LatencyMilliseconds = entry?["latencyMilliseconds"]?.GetValue<double>();
                 next.Add(vm);
             }
             if (!next.SequenceEqual(Items))
             {
+                foreach (var removed in Items.Except(next)) removed.Detach();
                 Items.Clear();
                 foreach (InsertViewModel vm in next) Items.Add(vm);
                 Raise(nameof(HasItems));
@@ -198,6 +227,7 @@ public sealed class InsertsViewModel : ViewModelBase
             }
         }
         finally { _applying = false; }
+        CheckComparison();
     }
 
     // --- edits, all expressed as a new whole chain ---
@@ -206,6 +236,7 @@ public sealed class InsertsViewModel : ViewModelBase
 
     public void Add(PluginChoice plugin)
     {
+        EffectEdited();
         var chain = Snapshot();
         chain.Add(new Dictionary<string, object?>
         {
@@ -220,13 +251,17 @@ public sealed class InsertsViewModel : ViewModelBase
     }
 
     public void Remove(InsertViewModel item)
-        => _ = _client.SetInsertsAsync(_channel, Snapshot(skip: item.Id));
+    {
+        EffectEdited();
+        _ = _client.SetInsertsAsync(_channel, Snapshot(skip: item.Id));
+    }
 
     public void Move(InsertViewModel item, int delta)
     {
         int i = Items.IndexOf(item);
         int j = i + delta;
         if (i < 0 || j < 0 || j >= Items.Count) return;
+        EffectEdited();
         var order = Items.ToList();
         (order[i], order[j]) = (order[j], order[i]);
         _ = _client.SetInsertsAsync(_channel, Snapshot(order));
@@ -234,22 +269,27 @@ public sealed class InsertsViewModel : ViewModelBase
 
     internal void SendBypass(InsertViewModel item, bool bypass)
     {
-        if (!_applying) _ = _client.SetInsertBypassAsync(_channel, item.Id, bypass);
+        if (!_applying) { EffectEdited(); _ = _client.SetInsertBypassAsync(_channel, item.Id, bypass); }
     }
 
     internal void SendParam(InsertViewModel item, string symbol, double value)
     {
         if (_applying) return;
-        string key = $"ins:{item.Id}:{symbol}";
+        EffectEdited();
+        string key = ParameterKey(item.Id, symbol);
         SliderSync.Touch(key);
         SliderSync.Send(key, () => _ = _client.SetInsertParamAsync(_channel, item.Id, symbol, value));
     }
+
+    // Channel and insert IDs cannot contain '/', so each control has one key
+    // even when a profile uses the same insert ID in several channels.
+    internal string ParameterKey(string id, string symbol) => $"ins:{_channel}/{id}/{symbol}";
 
     internal bool Applying => _applying;
 
     internal void SendHostChoice()
     {
-        if (!_applying) _ = _client.SetInsertsAsync(_channel, Snapshot());
+        if (!_applying) { EffectEdited(); _ = _client.SetInsertsAsync(_channel, Snapshot()); }
     }
 
     /// <summary>The current chain as the daemon wants it, minus an optional id.</summary>
@@ -257,7 +297,7 @@ public sealed class InsertsViewModel : ViewModelBase
         => [.. (order ?? Items).Where(i => i.Id != skip).Select(i => (object)i.ToPayload())];
 
     /// <summary>Parameter metadata for a plugin uri, from the catalog.</summary>
-    internal JsonNode? ParamsFor(string uri) => PluginChoices.FirstOrDefault(p => p.Uri == uri)?.Params;
+    internal JsonNode? ParamsFor(string kind, string uri) => PluginChoices.FirstOrDefault(p => p.Kind == kind && p.Uri == uri)?.Params;
 }
 
 public sealed class InsertViewModel : ViewModelBase
@@ -275,8 +315,17 @@ public sealed class InsertViewModel : ViewModelBase
 
     public string Id { get; }
     public string Plugin { get; }
-    public string Label { get; }
+    private string _label = "";
+    public string Label { get => _label; private set => Set(ref _label, value); }
     public string Kind { get; }
+    private double? _latencyMilliseconds;
+    public double? LatencyMilliseconds
+    {
+        get => _latencyMilliseconds;
+        internal set { if (Set(ref _latencyMilliseconds, value)) Raise(nameof(LatencyText)); }
+    }
+    public string LatencyText => LatencyMilliseconds is { } ms && double.IsFinite(ms) && ms >= 0
+        ? $"Plugin latency: {ms:0.###} ms" : "Plugin latency: unavailable (use native hosting to measure LV2 latency)";
     public string Format => Kind.ToUpperInvariant();
 
     /// <summary>The channel chain this insert belongs to (row buttons route through it).</summary>
@@ -287,10 +336,10 @@ public sealed class InsertViewModel : ViewModelBase
     /// it calls available is by definition supported.
     /// </summary>
     public bool NativeEditorSupported => _owner.PluginChoices.Any(
-        p => p.Uri == Plugin && (p.NativeEditorSupported || p.NativeEditorAvailable));
+        p => p.Kind == Kind && p.Uri == Plugin && (p.NativeEditorSupported || p.NativeEditorAvailable));
 
     /// <summary>The helper is here too, so turning the host on can work.</summary>
-    public bool NativeHostInstalled => _owner.PluginChoices.Any(p => p.Uri == Plugin && p.NativeEditorAvailable);
+    public bool NativeHostInstalled => _owner.PluginChoices.Any(p => p.Kind == Kind && p.Uri == Plugin && p.NativeEditorAvailable);
 
     private bool _nativeUiBlocked;
     private string? _nativeUiBlockReason;
@@ -299,7 +348,7 @@ public sealed class InsertViewModel : ViewModelBase
         ? _nativeUiBlockReason ?? "This native editor is disabled in Options. Use the OpenXLR controls."
         : null;
 
-    public bool NativeEditorAvailable => !NativeUiBlocked && NativeHostInstalled && NativeHost && !Bypass && !HasError && NativeHostRunning;
+    public bool NativeEditorAvailable => !NativeUiBlocked && NativeHostInstalled && !Bypass && !HasError && NativeHostRunning;
 
     /// <summary>
     /// The switch can be turned on only where the helper is installed. It
@@ -313,7 +362,11 @@ public sealed class InsertViewModel : ViewModelBase
         : "Open this plugin's controls";
 
     /// <summary>Everything the row and the controls window derive from the host state.</summary>
-    internal void RefreshNativeFlags() => RaiseNativeFlags();
+    internal void RefreshCatalogue()
+    {
+        RaiseNativeFlags();
+        if (_paramsRequested) BuildParams();
+    }
 
     private void RaiseNativeFlags()
     {
@@ -367,7 +420,7 @@ public sealed class InsertViewModel : ViewModelBase
         private set { if (Set(ref _nativeHostRunning, value)) RaiseNativeFlags(); }
     }
 
-    public string StateText => HasError ? "problem" : Bypass ? "bypassed" : "active";
+    public string StateText => HasError ? Localizer.Text("Problem") : Bypass ? Localizer.Text("Bypassed") : Localizer.Text("Active");
 
     /// <summary>Green LED: in the chain and processing. Red otherwise (bypassed or failed).</summary>
     public bool IsActive => !Bypass && !HasError;
@@ -386,17 +439,14 @@ public sealed class InsertViewModel : ViewModelBase
     /// opening). If the catalog is not here yet, ask for it and build as
     /// soon as it lands.
     /// </summary>
+    private bool _paramsRequested;
     public void EnsureParams()
     {
-        if (Params.Count > 0) return;
-        if (_owner.CatalogReady) { BuildParams(); return; }
-        void OnCatalog(object? s, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        if (!_paramsRequested)
         {
-            if (!_owner.CatalogReady || Params.Count > 0) return;
-            _owner.PluginChoices.CollectionChanged -= OnCatalog;
+            _paramsRequested = true;
             BuildParams();
         }
-        _owner.PluginChoices.CollectionChanged += OnCatalog;
         _owner.EnsurePluginsLoaded();
     }
 
@@ -443,6 +493,7 @@ public sealed class InsertViewModel : ViewModelBase
     public void ApplyFromDaemon(JsonNode ins, string? error, bool nativeHostRunning,
         bool nativeUiBlocked = false, string? nativeUiBlockReason = null)
     {
+        Label = ins["label"]?.GetValue<string>() ?? Plugin;
         _nativeUiBlocked = nativeUiBlocked;
         _nativeUiBlockReason = nativeUiBlockReason;
         _bypass = ins["bypass"]?.GetValue<bool>() ?? false;
@@ -454,16 +505,19 @@ public sealed class InsertViewModel : ViewModelBase
         RaiseNativeFlags();
         Error = error;
         NativeHostRunning = nativeHostRunning;
-        _params.Clear();
+        // A late echo must not replace a pending local value in snapshots
+        // either. Dictionary removals keep its enumerator valid on .NET.
+        foreach (string symbol in _params.Keys)
+            if (!SliderSync.RecentlyTouched(_owner.ParameterKey(Id, symbol))) _params.Remove(symbol);
         if (ins["params"] is JsonObject po)
             foreach ((string k, JsonNode? v) in po)
-                if (v is not null) _params[k] = v.GetValue<double>();
+                if (v is not null && !_params.ContainsKey(k)) _params[k] = v.GetValue<double>();
         foreach (InsertParamViewModel p in Params)
         {
             // While a control is being dragged the daemon's echo lags the
             // slider; applying it would make the thumb jitter (the mixer's
             // faders use the same guard).
-            if (SliderSync.RecentlyTouched($"ins:{Id}:{p.Symbol}")) continue;
+            if (SliderSync.RecentlyTouched(_owner.ParameterKey(Id, p.Symbol))) continue;
             if (_params.TryGetValue(p.Symbol, out double v)) p.ApplyFromDaemon(v);
         }
     }
@@ -477,8 +531,10 @@ public sealed class InsertViewModel : ViewModelBase
 
     private void BuildParams()
     {
+        Params.Clear();
+        Groups.Clear();
         RaiseNativeFlags();
-        if (_owner.ParamsFor(Plugin) is not JsonArray arr) return;
+        if (_owner.ParamsFor(Kind, Plugin) is not JsonArray arr) return;
         foreach (JsonNode? p in arr)
         {
             if (p is null) continue;
@@ -494,8 +550,28 @@ public sealed class InsertViewModel : ViewModelBase
         RebuildGroups();
     }
 
+    private readonly HashSet<string> _editedParameters = [];
+    internal void FlushPendingParameters()
+    {
+        foreach (string symbol in _editedParameters) SliderSync.Flush(_owner.ParameterKey(Id, symbol));
+        ForgetPendingParameters();
+    }
+
+    internal void ForgetPendingParameters()
+    {
+        foreach (string symbol in _editedParameters) SliderSync.Forget(_owner.ParameterKey(Id, symbol));
+        _editedParameters.Clear();
+    }
+
+    internal void Detach()
+    {
+        ForgetPendingParameters();
+        InsertWindows.CloseControls(this);
+    }
+
     internal void SendParam(string symbol, double value)
     {
+        _editedParameters.Add(symbol);
         _params[symbol] = value;
         _owner.SendParam(this, symbol, value);
     }

@@ -15,6 +15,7 @@ public sealed partial record MixerConfig
 {
     public required IReadOnlyList<MixDefinition> Mixes { get; init; }
     public required IReadOnlyList<ChannelDefinition> Channels { get; init; }
+    public IReadOnlyList<ExclusiveGroupDefinition> ExclusiveGroups { get; init; } = [];
 
     /// <summary>
     /// The layout carried over from the user's Wave Link setup: three mixes
@@ -77,6 +78,9 @@ public enum MixKind
 
 public sealed record MixDefinition(string Id, string Name, MixKind Kind)
 {
+    /// <summary>User mixes can be edited; the two built-in monitors and Aux stay structural.</summary>
+    public bool IsEditable => Kind == MixKind.VirtualMic || Kind == MixKind.Monitor && Id is not ("monitor" or "monitor2");
+
     public double Volume { get; init; } = 1.0;
     public bool Muted { get; init; }
 
@@ -131,8 +135,16 @@ public sealed record ChannelDefinition(string Id, string Name)
 /// <summary>Live mixer state pushed to clients.</summary>
 public sealed record MixerState
 {
+    /// <summary>Opt-in alignment of mix insert latency; absent settings preserve the low-latency path.</summary>
+    public bool CompensateMixLatency { get; init; }
+    public Dictionary<string, double> MixDelayMilliseconds { get; init; } = [];
+    public string? MixLatencyError { get; init; }
+
+
+    public SoundCheckState SoundCheck { get; init; } = new(null, "idle", 0);
     public required IReadOnlyList<MixStatus> Mixes { get; init; }
     public required IReadOnlyList<ChannelStatus> Channels { get; init; }
+    public IReadOnlyList<ExclusiveGroupDefinition> ExclusiveGroups { get; init; } = [];
 
     /// <summary>First selected monitor output, or null (legacy single view).</summary>
     public string? MonitorOutput { get; init; }
@@ -140,9 +152,11 @@ public sealed record MixerState
     /// <summary>node.names of every sink the monitor mixes feed.</summary>
     public IReadOnlyList<string> MonitorOutputs { get; init; } = [];
 
+    /// <summary>The default output feed, independent of the displayed mix order.</summary>
+    public string? PrimaryMonitorMix { get; init; }
+
     /// <summary>
-    /// Which monitor mix feeds an output, by output name; an output absent
-    /// here is fed by the first monitor mix.
+    /// Explicit mix feeds by output name; an output absent here uses PrimaryMonitorMix.
     /// </summary>
     public IReadOnlyDictionary<string, string> MonitorFeeds { get; init; } = new Dictionary<string, string>();
 
@@ -190,7 +204,10 @@ public sealed record MixerState
 }
 
 /// <param name="Kind">"monitor", "virtualMic" or "auxPort", so clients can tell monitor mixes apart.</param>
-public sealed record MixStatus(string Id, string Name, double Volume, bool Muted, string Kind = "monitor");
+public sealed record MixStatus(string Id, string Name, double Volume, bool Muted, string Kind = "monitor", bool Editable = false)
+{
+    public LayoutAppearance Appearance { get; init; } = LayoutAppearance.Default;
+}
 
 /// <param name="Present">
 /// False when the active device has no jack behind this channel, so a client
@@ -201,7 +218,10 @@ public sealed record ChannelStatus(string Id, string Name,
     IReadOnlyDictionary<string, double> Levels,
     IReadOnlyList<string> MutedIn,
     bool Hardware = false, string? CaptureSource = null, int CapturePair = 0, bool CaptureConnected = false,
-    bool Present = true);
+    bool Present = true, string? ExclusiveGroup = null)
+{
+    public LayoutAppearance Appearance { get; init; } = LayoutAppearance.Default;
+}
 
 
 /// <summary>

@@ -12,6 +12,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using OpenXLR.UI;
+using OpenXLR.UI.Localization;
 using OpenXLR.UI.Skinning;
 
 namespace OpenXLR.Tests;
@@ -39,6 +40,7 @@ public sealed class SkinWindowTests
             ABrokenSkinLeavesTheWindowUsableAndSaysWhy(main);
             ControlAppearancesSwitchAndTheFaderStillWorks(main);
             NeitherShippedAppearanceBreaksTheLayoutOrTheLabels(main, options, flow);
+            EveryBuiltInSkinKeepsTheMainLabelsReadable(main);
             EveryWindowWearsTheSkin(main);
             ACheckBoxLabelTakesItsOwnToken(options);
             IndicatorsAndMetersDrawInsideTheBoxTheyAreGiven();
@@ -51,7 +53,46 @@ public sealed class SkinWindowTests
             ThePluginBypassKeyIsLegibleInBothAppearances();
             TheOptionsColumnsCarryABalancedShareOfTheCards(options);
             TheWindowActuallyRepaintsWhenTheSkinChanges(main);
+            ProfileRecallReportsAnInvalidInstalledSkin(main);
+            AppearanceModeWindowTests.Check(main, options, flow);
+            TouchControlsWindowTests.Check(main, options, flow);
         });
+    }
+
+    private static void ProfileRecallReportsAnInvalidInstalledSkin(MainWindow main)
+    {
+        string data = Directory.CreateTempSubdirectory("openxlr-profile-skin-").FullName;
+        string? oldHome = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+        string? oldDirs = Environment.GetEnvironmentVariable("XDG_DATA_DIRS");
+        UiSettings previous = UiSettings.Load();
+        var skin = SkinService.Current;
+        try
+        {
+            Environment.SetEnvironmentVariable("XDG_DATA_HOME", data);
+            Environment.SetEnvironmentVariable("XDG_DATA_DIRS", Path.Combine(data, "none"));
+            string folder = Path.Combine(SkinCatalog.UserSkinDir, "badprofile");
+            Directory.CreateDirectory(folder);
+            File.WriteAllText(Path.Combine(folder, "skin.json"), """
+                {"schema":1,"name":"Broken profile skin","tokens":{"Ox.Text.Primary":"not a colour"}}
+                """);
+            var recall = new JsonObject { ["revision"] = Guid.NewGuid().ToString("N"),
+                ["settings"] = new JsonObject { ["skin"] = "badprofile" } };
+            var vm = (MainViewModel)typeof(MainWindow).GetField("_vm", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(main)!;
+            typeof(MainViewModel).GetMethod("ApplyProfilePresentation", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .Invoke(vm, [recall]);
+            Pump(main);
+            Assert.NotEmpty(SkinService.Errors);
+            Assert.Contains("Profile skin 'badprofile':", vm.Status);
+            Assert.Contains("Ox.Text.Primary", vm.Status);
+        }
+        finally
+        {
+            previous.SaveChecked();
+            SkinService.Apply(skin);
+            Environment.SetEnvironmentVariable("XDG_DATA_HOME", oldHome);
+            Environment.SetEnvironmentVariable("XDG_DATA_DIRS", oldDirs);
+            Directory.Delete(data, true);
+        }
     }
 
     private static void SkinsReachOpenWindowsAndTheDefaultComesBackExactly(
@@ -231,7 +272,7 @@ public sealed class SkinWindowTests
                     string where = $"{id} at {width}";
 
                     // The seven input toggles stay usable and inside the window.
-                    foreach (var row in main.GetVisualDescendants().OfType<UniformGrid>())
+                    foreach (var row in new[] { main.FindControl<WrapPanel>("InputControls")!, main.FindControl<WrapPanel>("Input2Controls")! })
                         foreach (var toggle in row.Children.Where(c => c.IsVisible))
                         {
                             Assert.True(toggle.Bounds.Width > 40, $"a toggle shrank to {toggle.Bounds.Width}. {where}");
@@ -257,9 +298,9 @@ public sealed class SkinWindowTests
 
                 // The names a screen reader reads do not come from the skin.
                 Assert.Contains(main.GetVisualDescendants().OfType<ToggleButton>(),
-                    t => Avalonia.Automation.AutomationProperties.GetName(t) == "Bypass this plugin");
+                    t => Avalonia.Automation.AutomationProperties.GetName(t) == Localizer.Text("BypassThisPlugin"));
                 Assert.NotNull(options.FindControl<ComboBox>("SkinPicker"));
-                Assert.Equal("Skin", Avalonia.Automation.AutomationProperties
+                Assert.Equal(Localizer.Text("Skin"), Avalonia.Automation.AutomationProperties
                     .GetName(options.FindControl<ComboBox>("SkinPicker")!));
 
                 // A focused control still shows a focus adorner.
@@ -282,6 +323,22 @@ public sealed class SkinWindowTests
                     $"the skin shrank the {what["default:".Length..]} from {shipped} to {skinned}");
             }
         }
+    }
+
+    private static void EveryBuiltInSkinKeepsTheMainLabelsReadable(MainWindow main)
+    {
+        foreach (SkinEntry skin in new[] { new SkinEntry(SkinPackage.Default, []) }.Concat(SkinCatalog.BuiltIn()))
+        {
+            Assert.Empty(SkinService.Apply(skin));
+            foreach (double width in new[] { 640d, 1040 })
+            {
+                Layout(main, width, 900);
+                MainWindowLabelTests.Check(main);
+                if (width == 640) MainWindowLabelTests.CheckLongDeviceLabels(main);
+                Capture(main, $"labels-{skin.Id}-{width}");
+            }
+        }
+        SkinService.Apply(new SkinEntry(SkinPackage.Default, []));
     }
 
     /// <summary>Keep the smallest measurement of one kind of control per skin.</summary>
@@ -407,11 +464,15 @@ public sealed class SkinWindowTests
             ("about", new AboutWindow()),
             ("apps", new AppsWindow { DataContext = vm }),
             ("layout", new MixerSetupWindow { DataContext = vm }),
+            ("exclusive-groups", new ExclusiveGroupsWindow(vm)),
             ("mix-inserts", new MixInsertsWindow { DataContext = vm.Mixes[0].Inserts }),
             ("insert-controls", new InsertControlsWindow { DataContext = vm.Inserts.Items[0] }),
             ("plugin-picker", new PluginPickerWindow { DataContext = vm.Inserts }),
             ("native-editors", new NativeEditorRulesWindow()),
             ("plugin-folders", new PluginFoldersWindow()),
+            ("sound-check", new SoundCheckWindow { DataContext = vm.Inserts.SoundCheck }),
+
+            ("effect-workflow", new EffectWorkflowWindow { DataContext = vm.Inserts }),
             ("updates", new UpdatesWindow { DataContext = vm.Updates }),
         ];
         try
@@ -932,15 +993,27 @@ public sealed class SkinWindowTests
         var action = Rectangular(main).OfType<Button>()
             .First(b => b is not ToggleButton and not DropDownButton && b.IsEffectivelyEnabled);
         int clicks = 0;
-        action.Click += (_, _) => clicks++;
-        action.Focus();
-        Pump(main);
-        Assert.True(action.IsFocused, "a key no longer takes focus");
-        action.RaiseEvent(new KeyEventArgs
-            { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter, KeyModifiers = KeyModifiers.None });
-        Pump(main);
-        Assert.Equal(1, clicks);
-        action.Click -= (_, _) => clicks++;
+        void OnClick(object? sender, RoutedEventArgs args) => clicks++;
+        Window[] previousWindows = main.OwnedWindows.ToArray();
+        action.Click += OnClick;
+        try
+        {
+            action.Focus();
+            Pump(main);
+            Assert.True(action.IsFocused, "a key no longer takes focus");
+            action.RaiseEvent(new KeyEventArgs
+                { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter, KeyModifiers = KeyModifiers.None });
+            Pump(main);
+            Assert.Equal(1, clicks);
+        }
+        finally
+        {
+            action.Click -= OnClick;
+            // The real action may open a modal dialog. Close only this
+            // probe's windows so later native input can reach the mixer.
+            foreach (Window window in main.OwnedWindows.Except(previousWindows).ToArray()) window.Close();
+            Pump(main);
+        }
 
         // A toggle still toggles, and its lettering still follows the state.
         var toggle = Rectangular(main).OfType<ToggleButton>()
@@ -1116,9 +1189,9 @@ public sealed class SkinWindowTests
                         $"{where}: the window grew to {window.Bounds.Height}");
 
                     Button add = window.GetVisualDescendants().OfType<Button>()
-                        .First(b => (b.Content as string) == "Add");
+                        .First(b => (b.Content as string) == Localizer.Text("Add"));
                     Button close = window.GetVisualDescendants().OfType<Button>()
-                        .First(b => (b.Content as string) == "Close");
+                        .First(b => (b.Content as string) == Localizer.Text("Close"));
                     ComboBox picker = window.FindControl<ComboBox>("InstalledPicker")!;
                     ScrollViewer list = window.FindControl<ScrollViewer>("KnownApps")!;
 
@@ -1238,16 +1311,17 @@ public sealed class SkinWindowTests
             Assert.Equal(2, columns.Length);
 
             string[] Headings(StackPanel column) =>
-                [.. column.GetVisualDescendants().OfType<TextBlock>()
-                    .Where(t => t.Classes.Contains("h") && t.Text is { Length: > 0 } s
-                                && s == s.ToUpperInvariant())
-                    .Select(t => t.Text!)];
+                // A script need not have upper case. The heading is the
+                // first heading label in each card, including nested rows.
+                [.. column.Children.OfType<Border>().Where(card => card.Classes.Contains("card"))
+                    .Select(card => card.GetVisualDescendants().OfType<TextBlock>()
+                        .First(t => t.Classes.Contains("h")).Text!)];
 
             // The appearance card sits with the plugin card, not on the long
             // side with the startup and device cards.
-            Assert.Equal(["AT LOGIN", "WINDOW", "AUDIO", "SYSTEM DEFAULT DEVICES", "INTERFACE"],
+            Assert.Equal([Localizer.Text("ATLOGIN"), Localizer.Text("WINDOW"), Localizer.Text("AUDIO"), "LOCAL API", Localizer.Text("SYSTEMDEFAULTDEVICES"), Localizer.Text("INTERFACE")],
                 Headings(columns[0]));
-            Assert.Equal(["PLUGINS", "APPEARANCE", "UPDATES", "SUPPORT"], Headings(columns[1]));
+            Assert.Equal([Localizer.Text("PLUGINS"), Localizer.Text("APPEARANCE"), Localizer.Text("UPDATES"), Localizer.Text("SUPPORT")], Headings(columns[1]));
 
             double tall = Math.Max(columns[0].Bounds.Height, columns[1].Bounds.Height);
             double shortSide = Math.Min(columns[0].Bounds.Height, columns[1].Bounds.Height);

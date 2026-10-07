@@ -52,6 +52,26 @@ public static class SkinService
     private static readonly Dictionary<string, SolidColorBrush> LiveBrushes = new(StringComparer.Ordinal);
 
     private static readonly List<IDisposable> Images = [];
+    private static readonly Lazy<SkinEntry> LightMaterial = new(ReadLightMaterial);
+    private static Application? _application;
+    private static bool _settingVariant;
+
+    /// <summary>The saved Material mode. Installed skins retain their own colours.</summary>
+    public static string Mode { get; private set; } = AppearanceModes.System;
+
+    public static bool CanChooseMode => !Overridden && Current.Id == SkinPackage.DefaultId;
+
+    internal static SkinEntry MaterialLight => LightMaterial.Value;
+
+    private static SkinEntry ReadLightMaterial()
+    {
+        using Stream? stream = typeof(SkinService).Assembly.GetManifestResourceStream(
+            "OpenXLR.UI.Assets.Appearance.material-light.json");
+        if (stream is null) return new(SkinPackage.Default, ["The Material light palette is missing."]);
+        using var reader = new StreamReader(stream);
+        SkinReadResult result = SkinReader.Read("material-light", reader.ReadToEnd(), SkinOrigin.BuiltIn, null);
+        return new(result.Package ?? SkinPackage.Default, result.Errors);
+    }
 
     /// <summary>The skin in force.</summary>
     public static SkinEntry Current { get; private set; } = new(SkinPackage.Default, []);
@@ -65,6 +85,9 @@ public static class SkinService
 
     /// <summary>True when the launch override decided the appearance, so Options can say so.</summary>
     public static bool Overridden { get; private set; }
+
+    /// <summary>Whether mixer controls use the larger touch targets.</summary>
+    public static bool TouchControls { get; private set; }
 
     /// <summary>Raised on the UI thread after a skin is applied, for what resources cannot reach.</summary>
     public static event Action? Changed;
@@ -95,10 +118,43 @@ public static class SkinService
     /// </summary>
     public static void Initialize()
     {
+        UiSettings settings = UiSettings.Load();
+        TouchControls = settings.TouchControls;
         string? id = Environment.GetEnvironmentVariable(OverrideVariable);
         Overridden = id is { Length: > 0 };
-        if (!Overridden) id = UiSettings.Load().Skin;
-        Apply(SkinCatalog.Find(id) ?? new SkinEntry(SkinPackage.Default, []));
+        if (!Overridden) id = settings.Skin;
+        if (!ReferenceEquals(_application, Application.Current))
+        {
+            if (_application is not null) _application.ActualThemeVariantChanged -= OnThemeVariantChanged;
+            _application = Application.Current;
+            if (_application is not null) _application.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+        ApplyPreference(settings.AppearanceMode, SkinCatalog.Find(id) ?? new SkinEntry(SkinPackage.Default, []));
+    }
+
+    private static void OnThemeVariantChanged(object? sender, EventArgs args)
+    {
+        if (!_settingVariant && CanChooseMode && Mode == AppearanceModes.System) Apply(Current);
+    }
+
+    /// <summary>Restore an already saved preference without writing settings again.</summary>
+    internal static IReadOnlyList<string> ApplyPreference(string? mode, SkinEntry entry)
+    {
+        Mode = AppearanceModes.Normalize(mode);
+        if (Application.Current is { } application)
+        {
+            _settingVariant = true;
+            try
+            {
+                // A forced default skin remains the known dark recovery appearance.
+                // Other explicit skins keep their own palette over the desktop's controls.
+                application.RequestedThemeVariant = entry.Id != SkinPackage.DefaultId ? ThemeVariant.Default
+                    : Overridden || Mode == AppearanceModes.Dark ? ThemeVariant.Dark
+                    : Mode == AppearanceModes.Light ? ThemeVariant.Light : ThemeVariant.Default;
+            }
+            finally { _settingVariant = false; }
+        }
+        return Apply(entry);
     }
 
     /// <summary>
@@ -121,15 +177,23 @@ public static class SkinService
         List<IDisposable> previous = [.. Images];
         Images.Clear();
 
-        var realizer = new Realizer(entry.Package, errors);
+        SkinPackage palette = entry.Package;
+        if (entry.Id == SkinPackage.DefaultId && !Overridden &&
+            (Mode == AppearanceModes.Light || Mode == AppearanceModes.System && application.ActualThemeVariant == ThemeVariant.Light))
+        {
+            palette = MaterialLight.Package;
+            errors.AddRange(MaterialLight.Errors);
+        }
+        var realizer = new Realizer(palette, errors);
         IResourceDictionary resources = application.Resources;
         foreach (SkinToken token in SkinTokens.All)
         {
-            SkinValue? value = entry.Package.Tokens.GetValueOrDefault(token.Name);
+            SkinValue? value = palette.Tokens.GetValueOrDefault(token.Name);
             object? realized = value is null ? token.Default : realizer.Realize(token, value);
             // A value the realizer refused falls back to the default, so one
             // bad image never leaves a hole in the window.
             realized ??= token.Default;
+            realized = SizedValue(token.Name, realized);
 
             if (IsLive(token))
             {
@@ -143,7 +207,7 @@ public static class SkinService
             ApplyBridges(token, realized, resources, errors);
         }
 
-        ApplyControls(entry.Package, application, resources, errors);
+        ApplyControls(palette, application, resources, errors);
         DeckPalette.Publish(entry.Id, resources, errors);
 
         Images.AddRange(realizer.Bitmaps);
@@ -199,19 +263,68 @@ public static class SkinService
 
     /// <summary>
     /// Save this skin as the one to wear and put it on. The choice lives in
-    /// ui.json alone: it is not part of the mixer layout, the daemon's
-    /// preferences or any audio profile, so switching appearance never touches
-    /// what is playing.
+    /// ui.json and can also be recalled by a profile. Switching appearance
+    /// itself never touches what is playing.
     /// </summary>
     public static IReadOnlyList<string> Choose(string id)
     {
         SkinEntry entry = SkinCatalog.Find(id) ?? new SkinEntry(SkinPackage.Default, []);
-        (UiSettings.Load() with { Skin = entry.Id == SkinPackage.DefaultId ? null : entry.Id }).Save();
-        return Apply(entry);
+        UiSettings settings = UiSettings.LoadRequired() with { Skin = entry.Id == SkinPackage.DefaultId ? null : entry.Id };
+        settings.SaveChecked();
+        Overridden = false;
+        return ApplyPreference(settings.AppearanceMode, entry);
+    }
+
+    /// <summary>Persist a Material mode before changing any visible resources.</summary>
+    public static IReadOnlyList<string> ChooseMode(string mode)
+    {
+        if (!AppearanceModes.IsValid(mode)) throw new ArgumentException("Unknown appearance mode.", nameof(mode));
+        (UiSettings.LoadRequired() with { AppearanceMode = mode }).SaveChecked();
+        Overridden = false;
+        return ApplyPreference(mode, Current);
+    }
+
+    /// <summary>Persist sizing before changing live resources; skin overrides remain intact.</summary>
+    public static void ChooseControlSizing(bool touch)
+    {
+        (UiSettings.LoadRequired() with { TouchControls = touch }).SaveChecked();
+        ApplyControlSizing(touch);
+    }
+
+    internal static void ApplyControlSizing(bool touch)
+    {
+        if (TouchControls == touch) return;
+        TouchControls = touch;
+        if (Application.Current is { } application)
+            foreach (string name in SkinTokens.TouchMinimums.Keys)
+            {
+                object? value = Current.Package.Tokens.GetValueOrDefault(name) is SkinNumber number
+                    ? number.Value : SkinTokens.Find(name)!.Default;
+                value = SizedValue(name, value);
+                if (value is null) application.Resources.Remove(name);
+                else application.Resources[name] = value;
+            }
+        Changed?.Invoke();
+    }
+
+    private static object? SizedValue(string name, object? value)
+    {
+        double minimum = TouchControls && SkinTokens.TouchMinimums.TryGetValue(name, out double floor) ? floor : 0;
+        if (name is "Ox.Mixer.SliderMinHeight" or "Ox.Mixer.DeviceSliderHeight")
+        {
+            // The draggable target can be larger than the skin's drawn cap.
+            // Keep either inside its row, including explicit Standard sizing.
+            if (Current.Package.Tokens.GetValueOrDefault("Ox.Mixer.ControlMinSize") is SkinNumber control)
+                minimum = Math.Max(minimum, control.Value);
+            if (minimum > 0 && Current.Package.Tokens.GetValueOrDefault("Ox.Fader.Thumb.Height") is SkinNumber thumb)
+                minimum = Math.Max(minimum, thumb.Value);
+        }
+        return minimum > 0 ? Math.Max(value is double size ? size : 0, minimum) : value;
     }
 
     /// <summary>Read the skin folders again and put the current choice back on.</summary>
-    public static IReadOnlyList<string> Reload() => Apply(SkinCatalog.Find(Current.Id) ?? new SkinEntry(SkinPackage.Default, []));
+    public static IReadOnlyList<string> Reload() =>
+        ApplyPreference(Mode, SkinCatalog.Find(Current.Id) ?? new SkinEntry(SkinPackage.Default, []));
 
     /// <summary>Turns validated values into the Avalonia objects the resources hold.</summary>
     private sealed class Realizer(SkinPackage package, List<string> errors)

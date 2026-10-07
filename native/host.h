@@ -59,6 +59,8 @@ typedef struct {
   // Each tick, outside the guard: whatever the plugin asked for meanwhile.
   void (*main_thread)(Host *h);
   void (*unload)(Host *h);
+  // Algorithmic latency in samples; UINT32_MAX means unavailable. Main thread.
+  uint32_t (*latency)(Host *h);
   // These formats can arrive through Wine and need the coordinate nudge.
   bool editor_coordinate_nudge;
 } Backend;
@@ -97,6 +99,8 @@ struct Host {
   _Atomic bool failure_explained;  // host_fail has written the reason
   _Atomic bool monitor_stop;
   unsigned heartbeat_ticks;
+  uint32_t reported_latency;
+  bool latency_reported;
   // Audio-callback progress. The audio thread bumps entered before the
   // plugin's process call and left after it returns, so the two differ
   // exactly while a call is outstanding and entered stops moving when one
@@ -199,6 +203,7 @@ void control_set_observed(Control *c, float value);
 bool control_is_output(const Control *c);
 void *control_backend(const Control *c);
 
+extern const Backend sound_check_backend;
 extern const Backend lv2_backend;
 extern const Backend clap_backend;
 extern const Backend vst3_backend;

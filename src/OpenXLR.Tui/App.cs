@@ -44,10 +44,17 @@ internal sealed class App
     private string _promptText = string.Empty;
     private Action<string>? _promptDone;
 
-    public App(DaemonLink link, Theme theme)
+    private Theme _selectedTheme;
+    private bool _skinOverride;
+    private int _systemScheme;
+
+    public App(DaemonLink link, Theme theme, string appearanceMode = AppearanceModes.System, bool skinOverride = false)
     {
         Link = link;
-        Theme = theme;
+        Theme = _selectedTheme = theme;
+        AppearanceMode = AppearanceModes.Normalize(appearanceMode);
+        _skinOverride = skinOverride;
+        ApplyAppearance();
         _views =
         [
             new MixerView(), new MatrixView(), new InputsView(), new OutputsView(), new AppsView(),
@@ -58,6 +65,10 @@ internal sealed class App
     public DaemonLink Link { get; }
 
     public Theme Theme { get; private set; }
+
+    public string AppearanceMode { get; private set; }
+
+    public bool FollowsSystem => !_skinOverride && _selectedTheme.Id == "default" && AppearanceMode == AppearanceModes.System;
 
     public bool Running { get; private set; } = true;
 
@@ -89,8 +100,28 @@ internal sealed class App
 
     public void UseTheme(Theme theme)
     {
-        Theme = theme;
+        _selectedTheme = theme;
+        _skinOverride = false;
+        ApplyAppearance();
     }
+
+    public void UseAppearance(string mode)
+    {
+        AppearanceMode = AppearanceModes.Normalize(mode);
+        _skinOverride = false;
+        ApplyAppearance();
+    }
+
+    public void UseSystemScheme(int scheme)
+    {
+        if (_systemScheme == scheme) return;
+        _systemScheme = scheme;
+        ApplyAppearance();
+    }
+
+    private void ApplyAppearance() => Theme = !_skinOverride && _selectedTheme.Id == "default" &&
+        (AppearanceMode == AppearanceModes.Light || FollowsSystem && _systemScheme == 2)
+            ? Theme.MaterialLight : _selectedTheme;
 
     public void ShowTab(int index)
     {
@@ -332,7 +363,7 @@ internal sealed class App
             "          Left/Right mix; PgUp/PgDn jump ten channels.",
             "          Space mute; -/+ five points; [/] one point.",
             "          r rename; n new channel; N new mic; c capture input.",
-            "          d delete; Ctrl+Left/Right reorder channel or mic.",
+            "          M monitor mix; d delete; Ctrl+Left/Right reorder.",
             "Matrix    Up/Down channel; Left/Right mix; Space mute; -/+ [/] level.",
             "Inputs    Up/Down control; Left/Right or -/+ level; [/] fine.",
             "          Ctrl+Left/Right fine; Space toggle; Home/End limits.",

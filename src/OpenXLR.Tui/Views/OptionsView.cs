@@ -8,12 +8,14 @@ namespace OpenXLR.Tui;
 /// </summary>
 internal sealed class OptionsView : View
 {
+    private static readonly string[] Modes = [AppearanceModes.System, AppearanceModes.Light, AppearanceModes.Dark];
+    private static readonly string[] ModeNames = ["System", "Light", "Dark"];
     private readonly RowList _list = new();
     private IReadOnlyList<SkinEntry> _skins = SkinCatalog.Scan();
 
     public override string Title => "Options";
 
-    public override string Keys => "Enter use skin  R reload skins";
+    public override string Keys => "Left/Right mode  Enter use skin  R reload skins";
 
     public override void Draw(Screen screen, Rect area, App app)
     {
@@ -33,7 +35,20 @@ internal sealed class OptionsView : View
 
     private List<Row> Build(App app)
     {
-        List<Row> rows = [new HeadingRow("Appearance")];
+        List<Row> rows =
+        [
+            new HeadingRow("Appearance"),
+            new ChoiceRow("Material mode", ModeNames, Array.IndexOf(Modes, app.AppearanceMode), index =>
+            {
+                if (!UiSettingsFile.WriteAppearanceMode(Modes[index]))
+                {
+                    app.Say("Material mode could not be saved; keeping the previous appearance");
+                    return;
+                }
+                app.UseAppearance(Modes[index]);
+                app.Say("Material mode saved; other skins keep their own colours");
+            }),
+        ];
         foreach (SkinEntry skin in _skins) rows.Add(new SkinRow(skin, app));
 
         rows.Add(new HeadingRow("Daemon"));
@@ -71,10 +86,13 @@ internal sealed class OptionsView : View
             Theme theme = skin.Id == "default"
                 ? Theme.Material
                 : skin.Read() is { } json ? Theme.FromJson(json, skin.Id, skin.Name) : Theme.Material;
+            if (!UiSettingsFile.WriteSkin(skin.Id))
+            {
+                app.Say($"{skin.Name} could not be saved; keeping the previous appearance");
+                return true;
+            }
             app.UseTheme(theme);
-            app.Say(UiSettingsFile.WriteSkin(skin.Id)
-                ? $"{skin.Name} is the appearance here and in the window"
-                : $"{skin.Name} is on for this run, the saved choice could not be written");
+            app.Say($"{skin.Name} is the appearance here and in the window");
             return true;
         }
     }

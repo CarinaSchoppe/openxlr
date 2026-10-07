@@ -1,3 +1,5 @@
+using OpenXLR.UI.Localization;
+using System.Globalization;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using Avalonia;
@@ -13,10 +15,9 @@ namespace OpenXLR.Tests;
 public sealed class WindowLayoutTests
 {
     /// <summary>
-    /// The widest fixed row in the mixer, the seven input toggles, needs about
-    /// 660 logical pixels. The window must not refuse to go narrower than that.
+    /// Keep the existing narrow-window allowance as the controls reflow.
     /// </summary>
-    private const double WidestFixedRow = 660;
+    private const double MaximumAllowedMinimumWidth = 660;
 
     /// <summary>Faders and dropdowns stop growing here, however wide the screen is.</summary>
     private const double ContentCap = 1300;
@@ -37,7 +38,17 @@ public sealed class WindowLayoutTests
                 Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", config);
                 Environment.SetEnvironmentVariable("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent");
                 Environment.SetEnvironmentVariable("XDG_RUNTIME_DIR", config);
+                // Each startup scenario runs in its own test process, with
+                // a private preference file and the process's actual locale.
+                if (Environment.GetEnvironmentVariable("OPENXLR_TEST_LANGUAGE_PREFERENCE") is { } preference)
+                    new UiSettings { Language = preference == "system" ? null : preference }.SaveChecked();
+                var numericCulture = CultureInfo.CurrentCulture;
+                var systemCulture = CultureInfo.CurrentUICulture;
                 AppBuilder.Configure<App>().UseSkia().UseHarfBuzz().UseX11().SetupWithoutStarting();
+                Assert.Same(numericCulture, CultureInfo.CurrentCulture);
+                Assert.Same(systemCulture, CultureInfo.CurrentUICulture);
+                if (Environment.GetEnvironmentVariable("OPENXLR_TEST_EXPECT_LANGUAGE") is { } expectedLanguage)
+                    Assert.Equal(expectedLanguage, Localizer.Language);
                 Application.Current!.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
                 var main = new MainWindow();
                 if (Environment.GetEnvironmentVariable("OPENXLR_LAYOUT_FONT") is { Length: > 0 } font)
@@ -48,11 +59,36 @@ public sealed class WindowLayoutTests
                     .GetValue(main)!).DisposeAsync().AsTask().GetAwaiter().GetResult();
                 Dispatcher.UIThread.RunJobs();
                 ProfileSliderWindowTests.Check();
+                SkinChoiceWindowTests.CheckFailedChoiceCanBeRetried();
+                CompactPresentationWindowTests.CheckBoundChoiceRollback();
+                UserMonitorWindowTests.Check();
+                VolumeRangeWindowTests.Check();
+                HttpApiSettingsTests.CheckBoundSwitchRollback();
                 EditorRulesReconnectWindowTests.Check();
                 var vm = new MainViewModel(new DaemonClient());
                 main.DataContext = vm;
                 typeof(MainViewModel).GetMethod("ApplyMixer", BindingFlags.Instance | BindingFlags.NonPublic)!
                     .Invoke(vm, [JsonNode.Parse("""{"mixes":[],"channels":[],"inserts":{}}""")]);
+                // The language changes displayed status, never incoming wire
+                // keys or application identity. Exercise stopped apps too:
+                // a missing running field otherwise silently defaults true.
+                var applyStreams = typeof(MainViewModel).GetMethod("ApplyStreams", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                foreach ((bool running, bool active, string text) in new[]
+                    { (false, false, "NotRunning"), (true, false, "Running"), (true, true, "Playing") })
+                {
+                    applyStreams.Invoke(vm, [new JsonObject { ["streams"] = new JsonArray(new JsonObject
+                    {
+                        ["identity"] = "wine/app.exe", ["label"] = "Cámara {0} 日本語", ["channelId"] = "browser",
+                        ["running"] = running, ["active"] = active,
+                    }) }]);
+                    var app = Assert.Single(vm.Apps);
+                    Assert.Equal(running, app.Running);
+                    Assert.Equal(active, app.Active);
+                    Assert.Equal(Localizer.Text(text), app.StatusText);
+                    Assert.Equal("wine/app.exe", app.Identity);
+                    Assert.Equal("Cámara {0} 日本語", app.Label);
+                }
+                applyStreams.Invoke(vm, [null]);
                 AddInsert(vm.Inserts);
                 AddInsert(vm.Inserts2);
                 for (int i = 0; i < 8; i++)
@@ -72,14 +108,17 @@ public sealed class WindowLayoutTests
                 main.DataContext = null;
                 main.DataContext = vm;
                 main.Show();
+                LocalizationRenderingTests.Check();
 
-                // No floor above the widest row: the window squeezes to 640.
-                Assert.InRange(main.MinWidth, 0, WidestFixedRow);
+                // The window must still allow its existing narrow size.
+                Assert.InRange(main.MinWidth, 0, MaximumAllowedMinimumWidth);
 
                 foreach (double width in new[] { 640d, 760, 1040, 1800, 2400 })
                 {
                     Layout(main, width, 900);
                     Assert.Equal(width, main.ClientSize.Width);
+                    MainWindowLabelTests.Check(main);
+                    if (width == 640) MainWindowLabelTests.CheckLongDeviceLabels(main);
                     if (width == 640)
                     {
                         var output = main.FindControl<Slider>("OutputVolumeSlider")!;
@@ -125,7 +164,7 @@ public sealed class WindowLayoutTests
                     else Assert.InRange(content.Bounds.Width, ContentCap / 2, ContentCap);
 
                     // Every input toggle keeps a usable width and stays in the window.
-                    foreach (var row in main.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.UniformGrid>())
+                    foreach (var row in new[] { main.FindControl<WrapPanel>("InputControls")!, main.FindControl<WrapPanel>("Input2Controls")! })
                         foreach (var toggle in row.Children.Where(c => c.IsVisible))
                         {
                             Assert.True(toggle.Bounds.Width > 40, $"A toggle shrank to {toggle.Bounds.Width}. {where}");
@@ -190,7 +229,7 @@ public sealed class WindowLayoutTests
                     double manageCenter = manageApps.TranslatePoint(default, main)!.Value.Y + manageApps.Bounds.Height / 2;
                     Assert.InRange(Math.Abs(headingCenter - manageCenter), 0, 1);
                     Assert.True(manageApps.TranslatePoint(default, main)!.Value.X > heading.TranslatePoint(default, main)!.Value.X + heading.Bounds.Width);
-                    var editLayout = main.GetVisualDescendants().OfType<Button>().Single(b => b.Content as string == "Edit layout");
+                    var editLayout = main.GetVisualDescendants().OfType<Button>().Single(b => b.Content as string == Localizer.Text("EditLayout"));
                     Assert.Equal(editLayout.Padding, manageApps.Padding);
                     Assert.Equal(editLayout.FontSize, manageApps.FontSize);
                     Assert.Equal(editLayout.MinHeight, manageApps.MinHeight);
@@ -242,7 +281,7 @@ public sealed class WindowLayoutTests
                 var manageEditors = controls.FindControl<Button>("ManageNativeEditors")!;
                 Assert.True(manageEditors.IsVisible);
                 var actionRows = controls.FindControl<WrapPanel>("PluginActions")!;
-                Assert.Equal("Bypass", ((Avalonia.Controls.Primitives.ToggleButton)actionRows.Children[actionRows.Children.IndexOf(manageEditors) - 1]).Content);
+                Assert.Equal(Localizer.Text("Bypass"), ((Avalonia.Controls.Primitives.ToggleButton)actionRows.Children[actionRows.Children.IndexOf(manageEditors) - 1]).Content);
                 foreach (var button in actionRows.Children.Where(c => c.IsVisible)) AssertInside(button, controls);
                 Capture(controls, "plugin-compatibility-420");
 
@@ -270,6 +309,27 @@ public sealed class WindowLayoutTests
                     }
                 }
                 Capture(chain, "chain-440");
+                var workflow = new EffectWorkflowWindow { DataContext = vm.Inserts };
+                windows.Add(workflow);
+                workflow.Show();
+                Layout(workflow, workflow.MinWidth, workflow.MinHeight);
+                foreach (var actions in workflow.GetVisualDescendants().OfType<WrapPanel>())
+                {
+                    AssertNoOverlap(actions.Children.ToArray());
+                    foreach (var action in actions.Children) AssertInside(action, actions);
+                }
+                Assert.True(((ScrollViewer)workflow.Content!).Bounds.Height > 50);
+                Capture(workflow, "effect-workflow-minimum");
+
+                var soundCheck = new SoundCheckWindow { DataContext = vm.Inserts.SoundCheck };
+                windows.Add(soundCheck);
+                soundCheck.Show();
+                Layout(soundCheck, soundCheck.MinWidth, soundCheck.MinHeight);
+                var soundActions = soundCheck.GetVisualDescendants().OfType<WrapPanel>().Single();
+                AssertNoOverlap(soundActions.Children.ToArray());
+                foreach (var action in soundActions.Children) AssertInside(action, soundActions);
+                Assert.True(soundCheck.GetVisualDescendants().OfType<ScrollViewer>().Single().Bounds.Height > 50);
+                Capture(soundCheck, "sound-check-minimum");
 
                 vm.Inputs.Add(new AudioDeviceItem("test_source", "Second microphone", false));
                 vm.Inputs.Add(new AudioDeviceItem("OpenXLR_stream", "Own mix", true));
@@ -294,6 +354,31 @@ public sealed class WindowLayoutTests
                 Assert.True(captureDialog.IsVisible); // incomplete input cannot submit
                 Capture(captureDialog, "capture-input-360");
                 captureDialog.Close();
+                var groupsVm = new MainViewModel(new DaemonClient());
+                typeof(MainViewModel).GetMethod("ApplyMixer", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(groupsVm, [JsonNode.Parse("""
+                        {"mixes":[{"id":"monitor","name":"Monitor","volume":1}],
+                         "channels":[{"id":"xlr1","name":"Microphone one","levels":{"monitor":1},"mutedIn":[]},
+                                     {"id":"xlr2","name":"Microphone two","levels":{"monitor":1},"mutedIn":["monitor"]}],
+                         "exclusiveGroups":[{"id":"mics","name":"Microphones","channels":["xlr1","xlr2"]}]}
+                        """)]);
+                var groupsDialog = new ExclusiveGroupsWindow(groupsVm);
+                windows.Add(groupsDialog);
+                groupsDialog.Show();
+                Layout(groupsDialog, 360, 340);
+                var groupControls = groupsDialog.GetVisualDescendants().ToArray();
+                var groupSave = groupControls.OfType<Button>().Single(b => b.Name == "SaveGroup");
+                groupSave.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                Assert.True(groupsDialog.IsVisible);
+                Assert.Contains("at least two", groupControls.OfType<TextBlock>().Single(b => b.Name == "GroupError").Text);
+                var groupPicker = groupControls.OfType<ComboBox>().Single(b => b.Name == "Groups");
+                groupPicker.SelectedIndex = 1;
+                Dispatcher.UIThread.RunJobs();
+                Assert.All(groupControls.OfType<CheckBox>(), b => Assert.True(b.IsChecked));
+                Assert.Equal("Microphones", groupControls.OfType<TextBox>().Single(b => b.Name == "GroupName").Text);
+                Assert.True(groupControls.OfType<Button>().Single(b => b.Name == "DeleteGroup").IsEnabled);
+                Capture(groupsDialog, "exclusive-groups-360");
+                groupsDialog.Close();
                 setup.Close();
 
                 for (int i = 0; i < 32; i++) vm.Channels.Add(new ChannelViewModel(new DaemonClient(), "key-channel" + i, "Shortcut channel " + i, []));
@@ -309,17 +394,83 @@ public sealed class WindowLayoutTests
                 keyScroll.Offset = new Vector(0, keyScroll.Extent.Height);
                 Layout(keyWindow, 360, 340);
                 Assert.True(keyScroll.Extent.Width <= keyScroll.Viewport.Width + 1);
-                Assert.Contains(keyWindow.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "Current system default output");
+                Assert.Contains(keyWindow.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == Localizer.Text("CurrentSystemDefaultOutput"));
                 Assert.DoesNotContain(keyWindow.GetVisualDescendants().OfType<TextBlock>(), t => t.Text?.StartsWith("AudioDeviceItem {") == true);
                 Capture(keyWindow, "desktop-output-keys-360");
                 keyWindow.Close();
 
-                new UiSettings { StartMinimized = true, MinimizeToTray = true }.Save();
+                (UiSettings.Load() with { StartMinimized = true, MinimizeToTray = true }).Save();
                 var optionsVm = new OptionsViewModel(new DaemonClient(), vm);
                 var options = new OptionsWindow { DataContext = optionsVm };
                 windows.Add(options);
                 options.Show();
+                var language = options.FindControl<ComboBox>("LanguagePicker")!;
+                Assert.Equal(Localizer.Languages.Count + 1, language.ItemCount);
+                string? savedLanguage = UiSettings.Load().Language;
+                string? pickerLanguage = savedLanguage is null or "" or "system" ? null
+                    : Localizer.Resolve(savedLanguage, CultureInfo.CurrentUICulture);
+                Assert.Equal(pickerLanguage, optionsVm.SelectedLanguage!.Id);
+                Assert.Same(optionsVm.SelectedLanguage, language.SelectedItem);
+                string activeLanguage = Localizer.Language;
+                var overrideNote = options.FindControl<TextBlock>("LanguageOverrideNote")!;
+                if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENXLR_LANGUAGE")))
+                {
+                    Assert.True(Localizer.Overridden);
+                    Assert.True(overrideNote.IsVisible);
+                    Assert.Equal(Localizer.Format("LanguageOverrideHint", activeLanguage), overrideNote.Text);
+                }
+                else
+                {
+                    Assert.False(Localizer.Overridden);
+                    Assert.False(overrideNote.IsVisible);
+                }
+                optionsVm.SelectedLanguage = optionsVm.LanguageChoices.Single(c => c.Id == "fr");
+                Assert.Equal("fr", UiSettings.Load().Language);
+                Assert.Equal(activeLanguage, Localizer.Language);
+                Assert.Equal(Localizer.Text("OpenXLROptions"), options.Title);
+                optionsVm.SelectedLanguage = optionsVm.LanguageChoices[0];
+                Assert.Null(UiSettings.Load().Language);
+                string preferences = Path.Combine(UiSettings.ConfigDir, "ui.json");
+                string savedPreferences = File.ReadAllText(preferences);
+                File.Delete(preferences);
+                Directory.CreateDirectory(preferences);
+                language.SelectedItem = optionsVm.LanguageChoices.Single(c => c.Id == "es");
+                Dispatcher.UIThread.RunJobs();
+                Assert.Same(optionsVm.LanguageChoices[0], language.SelectedItem);
+                Assert.NotNull(optionsVm.LanguageError);
+                Assert.Equal(activeLanguage, Localizer.Language);
+                Directory.Delete(preferences);
+                OpenXLR.UI.OpenXlrPaths.WriteAtomic(preferences, savedPreferences);
+                language.SelectedItem = optionsVm.LanguageChoices.Single(c => c.Id == "es");
+                Assert.Equal("es", UiSettings.Load().Language);
+                Assert.Null(optionsVm.LanguageError);
+                // Queued rejected choices must not roll back a later saved
+                // choice, even before the dispatcher gets another turn.
+                File.Delete(preferences);
+                Directory.CreateDirectory(preferences);
+                language.SelectedItem = optionsVm.LanguageChoices.Single(c => c.Id == "de");
+                language.SelectedItem = optionsVm.LanguageChoices.Single(c => c.Id == "fr");
+                Directory.Delete(preferences);
+                OpenXLR.UI.OpenXlrPaths.WriteAtomic(preferences, savedPreferences);
+                var newerLanguage = optionsVm.LanguageChoices.Single(c => c.Id == "zh-Hant");
+                language.SelectedItem = newerLanguage;
+                Dispatcher.UIThread.RunJobs();
+                Assert.Same(newerLanguage, language.SelectedItem);
+                Assert.Same(newerLanguage, optionsVm.SelectedLanguage);
+                Assert.Equal(newerLanguage.Id, UiSettings.Load().Language);
+                Assert.Null(optionsVm.LanguageError);
+                Assert.Equal(activeLanguage, Localizer.Language);
+                optionsVm.SelectedLanguage = optionsVm.LanguageChoices[0];
+                var apiToggle = options.FindControl<CheckBox>("HttpApiEnabled");
+                Assert.NotNull(apiToggle);
+                Assert.Equal(optionsVm.HttpApiEnabled, apiToggle.IsChecked);
                 Layout(options, 980, 800);
+                foreach (var row in options.GetVisualDescendants().OfType<WrapPanel>())
+                {
+                    var actions = row.Children.Where(c => c.IsVisible).ToArray();
+                    AssertNoOverlap(actions);
+                    foreach (Control action in actions) AssertInside(action, row);
+                }
                 // The cards grow as features land, and the window sizes itself
                 // to them. On a tall screen that produced a window the height
                 // of the monitor, so the cap is what the scroll region needs to
@@ -338,18 +489,18 @@ public sealed class WindowLayoutTests
                 var close = options.FindControl<ComboBox>("CloseBehavior")!;
                 Assert.Equal(1, launch.SelectedIndex);
                 Assert.Equal(0, close.SelectedIndex);
-                Assert.Equal("Tray only", ((ComboBoxItem)launch.SelectedItem!).Content);
-                Assert.Equal("Keep running in tray", ((ComboBoxItem)close.SelectedItem!).Content);
+                Assert.Equal(Localizer.Text("TrayOnly"), ((ComboBoxItem)launch.SelectedItem!).Content);
+                Assert.Equal(Localizer.Text("KeepRunningInTray"), ((ComboBoxItem)close.SelectedItem!).Content);
                 foreach (var picker in new[] { launch, close })
                 {
                     AssertInside(picker, options);
                     AssertNoOverlap(((Grid)picker.Parent!).Children.Where(c => c.IsVisible).ToArray());
                 }
-                foreach (string heading in new[] { "AT LOGIN", "WINDOW", "AUDIO" })
+                foreach (string heading in new[] { Localizer.Text("ATLOGIN"), Localizer.Text("WINDOW"), Localizer.Text("AUDIO") })
                     Assert.Single(options.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == heading);
                 var notes = options.FindControl<StackPanel>("SoftwareMixerNotes")!;
                 var audioHeading = options.GetVisualDescendants().OfType<TextBlock>()
-                    .Single(t => t.Text == "AUDIO");
+                    .Single(t => t.Text == Localizer.Text("AUDIO"));
                 Assert.Equal(audioHeading.TranslatePoint(default, options)!.Value.X,
                     notes.TranslatePoint(default, options)!.Value.X);
                 var noteLines = notes.Children.OfType<TextBlock>().Where(t => t.IsVisible).ToArray();
@@ -391,7 +542,7 @@ public sealed class WindowLayoutTests
                 Assert.True(memoryWarning.Bounds.Height > memoryWarning.FontSize * 2);
                 AssertInside(memoryWarning, (Control)memoryWarning.Parent!);
                 Assert.Single(options.GetVisualDescendants().OfType<Button>(),
-                    b => b.IsEffectivelyVisible && Equals(b.Content, "Memory-lock setup"));
+                    b => b.IsEffectivelyVisible && Equals(b.Content, Localizer.Text("MemoryLockSetup")));
                 memoryWarning.BringIntoView();
                 Layout(options, 980, 800);
                 Capture(options, "options-plugin-runtime");
@@ -452,6 +603,8 @@ public sealed class WindowLayoutTests
                 optionsVm.ApplyPluginSetup(JsonNode.Parse("""
                     {"yabridge":"5.1.1","wine":true,"bridgeProvider":"system",
                      "windowsImportDirectory":"~/.local/share/openxlr/windows-plugins",
+                     "searchDirectories":[{"kind":"lv2","path":"/usr/lib/lv2","custom":false,"exists":true},
+                       {"kind":"clap","path":"/offline/custom plugins","custom":true,"exists":false}],
                      "windowsDirectories":["/home/test/.wine/drive_c/Program Files/Common Files/VST3",
                      "/home/test/Downloads/A plugin collection with a long folder name/Windows/VST3/x64"]}
                     """));
@@ -461,6 +614,12 @@ public sealed class WindowLayoutTests
                 foreach (double width in new[] { 480d, 720 })
                 {
                     Layout(folders, width, width >= 720 ? 820 : 680);
+                    var searchPaths = folders.FindControl<ListBox>("SearchDirectoryList")!;
+                    Assert.Equal(2, searchPaths.ItemCount);
+                    searchPaths.SelectedIndex = 0;
+                    Assert.False(folders.FindControl<Button>("RemoveSearchPath")!.IsEnabled);
+                    searchPaths.SelectedIndex = 1;
+                    Assert.True(folders.FindControl<Button>("RemoveSearchPath")!.IsEnabled);
                     var list = folders.FindControl<ListBox>("FolderList")!;
                     Assert.Equal(2, list.ItemCount);
                     Assert.InRange(list.Bounds.Height, 220, 240);
@@ -496,6 +655,13 @@ public sealed class WindowLayoutTests
                     Capture(folders, "plugin-folders-" + width);
                 }
                 AssertLiveLayoutOrder(main, vm);
+                PluginCatalogueUiTests.CheckStaleReplies();
+
+                SoundCheckWindowTests.CheckPendingClose();
+
+                ChannelWindowLifetimeTests.CheckRemoval(main, vm.Inserts.Client);
+
+                EffectWorkflowWindowTests.CheckControlOwnership(main, vm.Inserts.Client);
             }
             catch (Exception ex) { failure = ex; }
             finally
@@ -529,6 +695,14 @@ public sealed class WindowLayoutTests
                 .OrderBy(s => s.TranslatePoint(default, channel)!.Value.Y).ToArray();
             Assert.Equal(["monitor", "chat", "stream"], sliders.Select(s => ((SendViewModel)s.DataContext!).MixId));
         }
+        model.SelectedCompactChannel = model.Channels[1];
+        model.CompactMixer = true;
+        Layout(main, 640, 900);
+        Assert.Single(channels, c => c.IsVisible);
+        Assert.Same(model.SelectedCompactChannel, channels.Single(c => c.IsVisible).DataContext);
+        model.CompactMixer = false;
+        Layout(main, 640, 900);
+        Assert.All(channels, c => Assert.True(c.IsVisible));
         var mixes = main.GetVisualDescendants().OfType<Border>()
             .Where(b => b.DataContext is MixViewModel && b.Width == 232)
             .OrderBy(b => b.TranslatePoint(default, main)!.Value.Y)

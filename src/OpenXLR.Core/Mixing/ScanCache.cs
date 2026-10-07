@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Globalization;
+using System.IO.Enumeration;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -202,7 +203,7 @@ public sealed class ScanCache
             using var stamp = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             byte[] numbers = new byte[16];
             var directories = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (string file in Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+            foreach (string file in BundleFiles(bundle, directories: directories).Order(StringComparer.Ordinal))
             {
                 FileIdentity identity = FileStamp(file, directories);
                 // The newest file alone can hide an updated Windows source
@@ -219,6 +220,42 @@ public sealed class ScanCache
             return (BinaryPrimitives.ReadInt64LittleEndian(stamp.GetHashAndReset()), total, DirectoryTarget(bundle));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    /// <summary>
+    /// Keep valid resource aliases, but reject directory cycles before they
+    /// multiply the file list. A shared entry budget also bounds an acyclic
+    /// tree with many aliases. Such a bundle can still run without a cache.
+    /// </summary>
+    internal static IEnumerable<string> BundleFiles(string bundle, int entryBudget = 100_000,
+        Dictionary<string, string>? directories = null)
+    {
+        var pending = new Stack<(string Path, bool Leaving)>();
+        var ancestors = new HashSet<string>(StringComparer.Ordinal);
+        pending.Push((bundle, false));
+        while (pending.TryPop(out var next))
+        {
+            if (next.Leaving)
+            {
+                ancestors.Remove(next.Path);
+                continue;
+            }
+            string canonical = WindowsPluginWrappers.Canonical(next.Path);
+            if (!ancestors.Add(canonical)) throw new IOException("A plugin bundle contains a directory link cycle.");
+            pending.Push((canonical, true));
+            directories?.TryAdd(Path.GetFullPath(next.Path), canonical);
+            // Enumeration already knows the entry kind. Keep that result so
+            // resource files need no separate directory stat before stamping.
+            var entries = new FileSystemEnumerable<(string Path, bool Directory)>(next.Path,
+                static (ref FileSystemEntry entry) => (entry.ToFullPath(), entry.IsDirectory),
+                new EnumerationOptions { AttributesToSkip = 0, IgnoreInaccessible = false });
+            foreach (var entry in entries)
+            {
+                if (entryBudget-- <= 0) throw new IOException("A plugin bundle exceeds the cache directory entry limit.");
+                if (entry.Directory) pending.Push((entry.Path, false));
+                else yield return entry.Path;
+            }
+        }
     }
 
     /// <summary>

@@ -5,13 +5,16 @@ Stop the daemon before editing this file manually: while running, its normal
 settings saves overwrite the file with the live configuration.
 
 `userChannels` is an ordered list of application and capture channels and
-`userMixes` an ordered list of virtual microphones. Each entry has a stable
+`userMixes` an ordered list of user mixes. A mix may set `kind` to
+`monitor` or `virtualMic`; absent `kind` means `virtualMic` for old files.
+Other kinds are ignored. Each entry has a stable
 `id` and a display `name`. For example:
 
 ```json
 {
   "userChannels": [{"id": "podcast", "name": "Interview"}],
-  "userMixes": [{"id": "recording", "name": "Recording"}]
+  "userMixes": [{"id": "recording", "name": "Recording"},
+                {"id": "headphones", "name": "Headphones", "kind": "monitor"}]
 }
 ```
 
@@ -19,8 +22,7 @@ These are fields in the existing settings object; retain its other fields when
 editing. Missing or null lists keep the legacy defaults. A single invalid entry
 is dropped and logged with its path, and the rest of the file still applies; a
 file that cannot be parsed at all is copied to `mixer.json.corrupt` before the
-next save replaces it. An empty mix list removes the editable virtual
-microphones. An empty application list falls back to System so incoming
+next save replaces it. An empty mix list removes all user mixes. An empty application list falls back to System so incoming
 applications have a destination.
 
 Hardware inputs, Monitor A (`monitor`), Monitor B (`monitor2`) and Aux
@@ -29,7 +31,7 @@ Invalid or duplicate entries are ignored; ids compare without regard to case,
 and an entry that repeats a structural id is dropped. IDs contain at most 36
 lowercase ASCII letters, digits, underscores or hyphens, beginning with a
 letter. Names contain 1 to 60 printable characters and are trimmed. At most
-32 editable channels and 16 virtual microphones are restored.
+32 editable channels and 16 user mixes in total are restored.
 
 Node names derive from IDs, not labels. The list order survives a settings
 save and restart. Removed application destinations fall back to the first
@@ -93,24 +95,27 @@ debounced, retried behaviour.
   into its sink at that moment move to the first remaining application
   channel; then its sink is unloaded, and a capture channel's link to its
   source with it. The last application channel stays.
-- `createMix {name}` adds a virtual microphone. The channel sinks feed the
-  mix sinks by name pattern, so every channel grows a send into the new mix
-  by itself, muted before the capture device is published. If a channel's
-  send has not appeared within three seconds the mix is removed again and
+- `createMix {name, kind?}` adds a virtual microphone by default. With
+  `kind: "monitor"` it adds an output mix without a post sink or virtual
+  microphone. Its master uses the existing desktop volume and mute controls,
+  including the 150% ceiling. The channel sinks feed the mix sinks by name pattern, so every channel grows a send into the new mix
+  by itself, muted before the optional capture device is published. If a
+  channel's send has not appeared within three seconds the mix is removed again and
   the command fails, for the same reason.
-- `renameMix {mix, name}` changes the name in OpenXLR only. Reloading the
-  capture device would drop every app recording from it onto another
-  source, so its PipeWire description keeps the old name until the daemon
-  restarts; the state carries `renamedSinceStart` and the window shows a
+- `renameMix {mix, name}` changes the name in OpenXLR only. The mix or
+  capture device stays in place so clients using it are not interrupted;
+  its PipeWire description keeps the old name until the daemon restarts; the state carries `renamedSinceStart` and the window shows a
   restart hint.
-- `deleteMix {mix}` removes the virtual microphone, its sends, inserts and
-  capture device. Anything recording from it loses the device.
+- `deleteMix {mix}` removes a user mix and its sends and inserts. For a
+  virtual microphone it also removes the capture device; its recorders lose
+  that device.
   Outputs listening to that mix keep the other mixes in their feed, or return
   to the first monitor mix if none remain. An enforced default source
-  that was this microphone is cleared. All of that is part of the saved
-  deletion and rolls back with it when saving fails.
+  that was this microphone is cleared. An enforced default sink that was
+  the deleted mix is cleared too, leaving the desktop to choose a default. All of that is part
+  of the saved deletion and rolls back with it when saving fails.
 - `setLayoutOrder {channels, mixes}` reorders the editable ids. Supply every
-  application and capture channel id and every virtual-microphone id exactly
+  application and capture channel id and every user-mix id exactly
   once; hardware inputs, Monitor A/B and Aux keep their positions. No node
   changes. Open windows apply the published order to channel tiles, mix
   controls and send rows while retaining the existing controls and their
@@ -185,3 +190,90 @@ ignored on read, in this file and in profiles.
 If a channel or mix deletion cannot be saved, its previous routing settings
 and any pending volume or mute writes are restored together. The normal
 reconciliation keeps retrying those writes when PipeWire becomes available.
+
+## Mixer presentation
+
+Display metadata lives in the `appearance` map in `mixer.json`, keyed by
+`channel:<id>` or `mix:<id>`, with `icon`, `colour`, `hidden` and optional `order`.
+Missing entries retain the existing appearance and layout order. Equal or
+missing positions use the original layout order. Deleted items lose their
+metadata. This is saved mixer presentation and is also included in profiles.
+The entry limit covers the full layout, including all editable channels,
+both kinds of user mix and structural items. User monitor mixes retain
+their editable state alongside their icons, colours and display order.
+Saving a failed edit restores the previous presentation. No PipeWire nodes
+are rebuilt by these edits. `setLayoutOrder` changes routing order for editable items; the window calls it
+when **Use displayed order for routing** is chosen. `setDisplayOrder` overrides its visual order for all items.
+
+The live state names the default output feed in `primaryMonitorMix`. This is
+the first monitor mix in routing order, even if display ordering puts another
+mix first. It is derived state, not an additional saved routing preference.
+
+Profiles include this map as `mixer.appearance`. A missing or null map keeps
+current presentation; `{}` clears it. Entries for deleted channels or mixes
+are dropped when recalling. Malformed entries reject the whole profile before
+hardware or mixer settings change. Presentation ordering never changes the
+routing order of channels and mixes.
+
+Control sizing is a window preference, not routing or layout metadata. Profiles
+can store it as `presentation.touchControls`: true selects Touch, false selects
+Standard, and an absent or null field keeps the local preference.
+
+Window-saved profiles also carry the separate window presentation, including
+skin, System/Light/Dark appearance mode, collapsed sections and compact view.
+Those preferences are stored locally in `ui.json`, not as mixer layout values;
+changing them never rebuilds audio routes. An older profile without a mode
+preserves the current mode. See [profile presentation](api.md).
+The window's Arrange handles use `setDisplayOrder` for channels and mixes,
+with both complete ID lists from the latest state. Hidden channels remain in
+the lists. The drag inserts the source before or after its destination; it
+does not exchange the two items or reorder intervening items. No optimistic
+order is applied before the daemon's state and acknowledgement arrive.
+The five window sections use a separate `sectionOrder` preference in
+`ui.json` and in the profile's `presentation.sectionOrder`; it is independent
+of routing and skin resources.
+
+## Exclusive channel groups
+
+The layout editor's **Exclusive groups** button creates or edits a named
+group of channels. Choose at least two members and save. An existing group
+can be selected to rename it, replace its members or delete it. A channel
+can belong to only one group. Failed saves leave membership and mutes
+unchanged; the dialog keeps the error visible for correction.
+
+The settings file stores `exclusiveGroups`, for example:
+
+```json
+"exclusiveGroups": [
+  {"id":"microphones","name":"Microphones","channels":["xlr1","headset"]}
+]
+```
+
+Membership and each mix's selection survive restarts and are included in
+new profiles. Legacy profiles preserve membership. Channel deletion removes
+that member; a group with fewer than two channels dissolves without changing
+remaining mutes. Malformed settings entries and overlapping groups are
+ignored on load. The limits are 16 groups and 2 to 35 members per group.
+
+Use the existing send mute button to open a member in a particular mix.
+The other members close in that mix, keeping their levels and their sends
+in every other mix. All members may be muted. When creating a group or
+recalling a profile with multiple open members in a mix, that whole group
+starts silent in the affected mix. Select the wanted member explicitly.
+
+The commands are `setExclusiveGroup {group?, name, channels}`,
+`deleteExclusiveGroup {group}` and `cycleExclusiveGroup {group, mix}`.
+The first two save before replying. Cycling uses the saved member order
+and resolves from current daemon state, including repeated key presses.
+No nodes or additional gain stages are created for groups.
+
+
+### Channel insert paths
+
+All channel ids are valid insert keys. Software and external-capture channels
+use the public `OpenXLR_ch_<id>` sink. While a chain exists, a hidden
+`OpenXLR_bus_<id>` combine distributes the processed signal to the mixes. Display
+order does not alter effect order or sends. Adding the first or removing the
+last insert recreates only that channel sink with the same name. Empty chains
+use the original combine sink and no hidden bus. Deleting a user channel removes its
+insert definition in the same saved settings change as its routing.

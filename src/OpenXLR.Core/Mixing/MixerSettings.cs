@@ -13,10 +13,19 @@ namespace OpenXLR.Core.Mixing;
 /// </summary>
 public sealed record MixerSettings
 {
+    /// <summary>Display metadata keyed by channel:id or mix:id; independent of audio scenes.</summary>
+    public Dictionary<string, LayoutAppearance> Appearance { get; init; } = [];
+
+    /// <summary>Channel groups with independent send selection in each mix.</summary>
+    public List<ExclusiveGroupDefinition> ExclusiveGroups { get; init; } = [];
+
+    /// <summary>Opt-in alignment of mix insert latency; absent settings preserve the low-latency path.</summary>
+    public bool CompensateMixLatency { get; init; }
+
     /// <summary>Ordered application channels; null preserves the legacy defaults.</summary>
     public List<UserChannelDefinition>? UserChannels { get; init; }
 
-    /// <summary>Ordered virtual microphones; null preserves Stream and Chat.</summary>
+    /// <summary>Ordered user mixes; null preserves Stream and Chat.</summary>
     public List<UserMixDefinition>? UserMixes { get; init; }
 
     /// <summary>
@@ -164,4 +173,8 @@ public sealed record MixerSettings
 public sealed record SavedApp(string Identity, string Label, string ChannelId);
 
 public sealed record UserChannelDefinition(string Id, string Name, string? CaptureSource = null, int CapturePair = 0);
-public sealed record UserMixDefinition(string Id, string Name);
+public sealed record UserMixDefinition(string Id, string Name)
+{
+    /// <summary>Absent in older settings, which contain only virtual microphones.</summary>
+    public string Kind { get; init; } = "virtualMic";
+}

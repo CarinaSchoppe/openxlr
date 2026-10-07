@@ -1,3 +1,4 @@
+using OpenXLR.UI.Localization;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -9,6 +10,11 @@ public sealed record DeviceChoice(string? Name, string Label);
 
 /// <summary>One skin in the appearance picker; the id is what ui.json keeps.</summary>
 public sealed record SkinChoice(string Id, string Label);
+public sealed record AppearanceModeChoice(string Id, string Label);
+
+public sealed record ControlSizingChoice(bool Touch, string Label);
+
+public sealed record LanguageChoice(string? Id, string Label);
 
 /// <summary>
 /// Backs the Options window. Startup toggles apply immediately to the system
@@ -34,6 +40,9 @@ public sealed class OptionsViewModel : ViewModelBase
         _main = main;
 
         UiSettings s = UiSettings.Load();
+        string? language = s.Language is null or "" or "system" ? null
+            : Localizer.Resolve(s.Language, System.Globalization.CultureInfo.CurrentUICulture);
+        _selectedLanguage = LanguageChoices.First(c => c.Id == language);
         _startDaemonAtLogin = s.StartDaemonAtLogin;
         _openWindowAtLogin = s.OpenWindowAtLogin;
         _minimizeToTray = s.MinimizeToTray;
@@ -42,14 +51,18 @@ public sealed class OptionsViewModel : ViewModelBase
         _startupError = RepairNote(StartupIntegration.LastRepair);
         // No saved choice means the daemon runs whatever its unit asked for,
         // which for every shipped unit is the submixer on.
-        _submixer = DaemonPrefs.Load().Submixer ?? true;
+        var daemon = DaemonPrefs.Load();
+        _submixer = daemon.Submixer ?? true;
+        _httpApiEnabled = daemon.HttpApiEnabled;
 
         BuildChoices();
         BuildSkinChoices();
         _applying = true;
         try
         {
+            SelectedControlSizing = ControlSizingChoices.First(c => c.Touch == Skinning.SkinService.TouchControls);
             SelectedSkin = SkinChoices.FirstOrDefault(c => c.Id == Skinning.SkinService.Current.Id) ?? SkinChoices[0];
+            SelectedAppearanceMode = AppearanceModeChoices.First(c => c.Id == Skinning.SkinService.Mode);
             EnforcedOutput = OutputChoices.FirstOrDefault(c => c.Name == main.EnforcedDefaultSink) ?? OutputChoices[0];
             EnforcedInput = InputChoices.FirstOrDefault(c => c.Name == main.EnforcedDefaultSource) ?? InputChoices[0];
         }
@@ -59,11 +72,59 @@ public sealed class OptionsViewModel : ViewModelBase
 
     // --- plugins ---
 
-    private string _pluginDirectories = "Plugins are looked for in the home and system plugin directories.";
+    // Language names stay in their own language, even when the user picked a
+    // language they cannot read. Saving only this field preserves all other
+    // preferences, including choices made since Options was opened.
+    public System.Collections.Generic.IReadOnlyList<LanguageChoice> LanguageChoices { get; } =
+    [
+        new(null, Localizer.Text("SystemLanguage")),
+        ..Localizer.Languages,
+    ];
+
+    private LanguageChoice? _selectedLanguage;
+    public LanguageChoice? SelectedLanguage
+    {
+        get => _selectedLanguage;
+        set
+        {
+            if (value is null || !LanguageChoices.Contains(value) || value == _selectedLanguage) return;
+            try
+            {
+                SaveLanguage(value.Id);
+                Set(ref _selectedLanguage, value);
+                LanguageError = null;
+            }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                LanguageError = Localizer.Format("LanguageSaveError", ex.Message);
+                // Restore after the binding finishes its source write, so
+                // the same choice can be retried. Reject keeps any newer
+                // saved choice when selection changes before dispatch resumes.
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => Reject(ref _selectedLanguage, value, nameof(SelectedLanguage)));
+            }
+        }
+    }
+
+    internal static void SaveLanguage(string? language)
+    {
+        if (language is not null && !Localizer.IsSupported(language))
+            throw new ArgumentException("Unsupported window language", nameof(language));
+        // Unlike the legacy best-effort Save, a refused language write is
+        // reported to the user rather than appearing to have been saved.
+        (UiSettings.LoadRequired() with { Language = language }).SaveChecked();
+    }
+
+    private string? _languageError;
+    public string? LanguageError { get => _languageError; private set => Set(ref _languageError, value); }
+
+    public string? LanguageOverrideNote => Localizer.Overridden
+        ? Localizer.Format("LanguageOverrideHint", Localizer.Language) : null;
+
+    private string _pluginDirectories = Localizer.Text("PluginsAreLookedForInTheHomeAnd");
     /// <summary>Where installs go, once the daemon has said.</summary>
     public string PluginDirectories { get => _pluginDirectories; private set => Set(ref _pluginDirectories, value); }
 
-    private string _windowsPlugins = "Windows plugins: checking for yabridge…";
+    private string _windowsPlugins = Localizer.Text("WindowsPluginsCheckingForYabridge");
     /// <summary>yabridge and Wine as found, and how many folders are bridged.</summary>
     public string WindowsPlugins { get => _windowsPlugins; private set => Set(ref _windowsPlugins, value); }
 
@@ -85,7 +146,7 @@ public sealed class OptionsViewModel : ViewModelBase
     /// <summary>Wine's own plugin folders waiting to be bridged, absolute.</summary>
     public System.Collections.Generic.IReadOnlyList<string> WineFolders { get; private set; } = [];
 
-    private string _bridgeWineLabel = "Bridge Wine's plugins";
+    private string _bridgeWineLabel = Localizer.Text("BridgeWineSPlugins");
     /// <summary>What the button offers, named after what it will bridge.</summary>
     public string BridgeWineLabel { get => _bridgeWineLabel; private set => Set(ref _bridgeWineLabel, value); }
 
@@ -99,7 +160,7 @@ public sealed class OptionsViewModel : ViewModelBase
     public string? MemoryLockNote { get => _memoryLockNote; private set { if (Set(ref _memoryLockNote, value)) Raise(nameof(HasMemoryLockNote)); } }
     public bool HasMemoryLockNote => !string.IsNullOrEmpty(_memoryLockNote);
 
-    private string _skippedPlugins = "Skipped bundles: checking…";
+    private string _skippedPlugins = Localizer.Text("SkippedBundlesChecking");
     public string SkippedPlugins { get => _skippedPlugins; private set => Set(ref _skippedPlugins, value); }
     public ObservableCollection<string> SkippedPluginDetails { get; } = [];
 
@@ -120,7 +181,7 @@ public sealed class OptionsViewModel : ViewModelBase
     public bool? PluginWineTrace => _pluginWineTrace;
     private bool _settingPluginWineTrace;
     public bool CanSetPluginWineTrace => _pluginWineTrace is not null && !_settingPluginWineTrace;
-    private string? _pluginWineTraceStatus = "Wine trace: checking the daemon…";
+    private string? _pluginWineTraceStatus = Localizer.Text("WineTraceCheckingTheDaemon");
     public string? PluginWineTraceStatus { get => _pluginWineTraceStatus; private set => Set(ref _pluginWineTraceStatus, value); }
 
     public async System.Threading.Tasks.Task SetPluginWineTraceAsync(bool enabled)
@@ -128,7 +189,7 @@ public sealed class OptionsViewModel : ViewModelBase
         if (!CanSetPluginWineTrace) return;
         _settingPluginWineTrace = true;
         Raise(nameof(CanSetPluginWineTrace));
-        PluginWineTraceStatus = "Updating Wine trace…";
+        PluginWineTraceStatus = Localizer.Text("UpdatingWineTrace");
         try
         {
             var setup = await _client.SetPluginWineTraceAsync(enabled, TimeSpan.FromSeconds(30));
@@ -148,6 +209,10 @@ public sealed class OptionsViewModel : ViewModelBase
         await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => ApplyPluginSetup(setup));
     }
 
+    public System.Collections.ObjectModel.ObservableCollection<PluginSearchDirectoryItem> SearchDirectories { get; } = [];
+    private string? _searchPathWarning;
+    public string? SearchPathWarning { get => _searchPathWarning; private set => Set(ref _searchPathWarning, value); }
+
     internal void ApplyPluginSetup(System.Text.Json.Nodes.JsonNode? setup)
     {
         // Only the reply sets the value. Raise even when it stayed the same,
@@ -156,10 +221,16 @@ public sealed class OptionsViewModel : ViewModelBase
         Raise(nameof(PluginWineTrace));
         Raise(nameof(CanSetPluginWineTrace));
         PluginWineTraceStatus = _pluginWineTrace is null
-            ? "Wine trace unavailable. The daemon must be connected and support this switch." : null;
+            ? Localizer.Text("WineTraceUnavailableTheDaemonMustBeConnected") : null;
+        SearchDirectories.Clear();
+        SearchPathWarning = setup?["searchPathWarning"]?.GetValue<string>();
+        foreach (var item in setup?["searchDirectories"] as System.Text.Json.Nodes.JsonArray ?? [])
+            if (item?["kind"]?.GetValue<string>() is { } kind && item["path"]?.GetValue<string>() is { } path)
+                SearchDirectories.Add(new(kind, path, item["custom"]?.GetValue<bool>() == true, item["exists"]?.GetValue<bool>() == true));
         SkippedPluginDetails.Clear();
         int? skipped = setup?["skippedFailedCount"]?.GetValue<int>();
-        SkippedPlugins = skipped is null ? "Skipped bundles: unavailable" : $"Skipped after a failed scan: {skipped}";
+        SkippedPlugins = skipped is null ? Localizer.Text("SkippedBundlesUnavailable")
+            : Localizer.Format("SkippedBundlesAfterFailedScan", skipped);
         foreach (var bundle in setup?["skippedFailedBundles"] as System.Text.Json.Nodes.JsonArray ?? [])
         {
             string? when = bundle?["failedAt"]?.GetValue<string>();
@@ -174,7 +245,7 @@ public sealed class OptionsViewModel : ViewModelBase
         {
             WindowsEditorNote = null;
             MemoryLockNote = null;
-            WindowsPlugins = "Windows plugins: the daemon did not answer.";
+            WindowsPlugins = Localizer.Text("WindowsPluginsTheDaemonDidNotAnswer");
             CanSyncWindows = false;
             CanManageWindows = false;
             return;
@@ -208,7 +279,7 @@ public sealed class OptionsViewModel : ViewModelBase
         CanBridgeWine = WineFolders.Count > 0;
         BridgeWineLabel = WineFolders.Count > 1
             ? $"Bridge Wine's {WineFolders.Count} plugin folders"
-            : "Bridge Wine's plugins";
+            : Localizer.Text("BridgeWineSPlugins");
     }
 
     /// <summary>One line on Windows plugins, from what the daemon found.</summary>
@@ -275,21 +346,6 @@ public sealed class OptionsViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// Put a rejected toggle back where it was. The check box has already
-    /// drawn itself in the new state, and a notification carrying the value
-    /// the property already had does not move it: the binding compares
-    /// against what it last wrote and pushes nothing. Publishing the rejected
-    /// value and then the real one does move it.
-    /// </summary>
-    private void Reject(ref bool field, bool rejected, string name)
-    {
-        field = rejected;
-        Raise(name);
-        field = !rejected;
-        Raise(name);
-    }
-
     private string? _startupError;
     public string? StartupError { get => _startupError; private set => Set(ref _startupError, value); }
 
@@ -305,10 +361,10 @@ public sealed class OptionsViewModel : ViewModelBase
 
     public string StartupHint => (StartDaemonAtLogin, OpenWindowAtLogin) switch
     {
-        (true, true) => "Audio and the app will start when you sign in.",
-        (false, true) => "The app will start at login. Start the audio service separately to use it.",
-        (true, false) => "Audio will start at login without the app or tray icon.",
-        _ => "Neither audio nor the app will start at login.",
+        (true, true) => Localizer.Text("AudioAndTheAppWillStartWhenYou"),
+        (false, true) => Localizer.Text("TheAppWillStartAtLoginStartThe"),
+        (true, false) => Localizer.Text("AudioWillStartAtLoginWithoutTheApp"),
+        _ => Localizer.Text("NeitherAudioNorTheAppWillStartAt"),
     };
 
     // The selectors keep the existing saved booleans, including their defaults.
@@ -349,6 +405,29 @@ public sealed class OptionsViewModel : ViewModelBase
         }
     }
 
+    private bool _httpApiEnabled;
+    public bool HttpApiEnabled
+    {
+        get => _httpApiEnabled;
+        set
+        {
+            if (_httpApiEnabled == value) return;
+            if (!_main.DaemonRestart.CanRestart) { Reject(ref _httpApiEnabled, value, nameof(HttpApiEnabled)); return; }
+            try { (DaemonPrefs.Load() with { HttpApiEnabled = value }).Save(); }
+            catch (Exception ex)
+            {
+                HttpApiNote = $"Could not save the setting: {ex.Message}";
+                Reject(ref _httpApiEnabled, value, nameof(HttpApiEnabled));
+                return;
+            }
+            Set(ref _httpApiEnabled, value);
+            _ = RestartForSettingAsync(api: true);
+        }
+    }
+
+    private string? _httpApiNote;
+    public string? HttpApiNote { get => _httpApiNote; private set => Set(ref _httpApiNote, value); }
+
     // --- submixer on/off (daemon-side setting, applied by restarting it) ---
 
     private bool _submixer;
@@ -357,20 +436,20 @@ public sealed class OptionsViewModel : ViewModelBase
         get => _submixer;
         set
         {
-            if (!Set(ref _submixer, value)) return;
+            if (_submixer == value) return;
+            if (!_main.DaemonRestart.CanRestart) { Reject(ref _submixer, value, nameof(Submixer)); return; }
             try
             {
-                new DaemonPrefs { Submixer = value }.Save();
+                (DaemonPrefs.Load() with { Submixer = value }).Save();
             }
             catch (Exception ex)
             {
+                Reject(ref _submixer, value, nameof(Submixer));
                 SubmixerNote = $"Could not save the setting: {ex.Message}";
                 return;
             }
-            SubmixerNote = StartupIntegration.RestartDaemon()
-                ? (value ? "Daemon restarted with the submixer on."
-                         : "Daemon restarted in hardware-control mode; the sound card keeps its stock layout and inserts are not loaded.")
-                : "Saved. Restart the daemon to apply (systemctl --user restart openxlr-daemon).";
+            Set(ref _submixer, value);
+            _ = RestartForSettingAsync(api: false);
         }
     }
 
@@ -379,6 +458,20 @@ public sealed class OptionsViewModel : ViewModelBase
     {
         get => _submixerNote;
         private set => Set(ref _submixerNote, value);
+    }
+
+    private async System.Threading.Tasks.Task RestartForSettingAsync(bool api)
+    {
+        SetNote("Saved. Restarting the audio service...");
+        bool restarted = await _main.DaemonRestart.RestartAsync();
+        SetNote(restarted ? "Setting saved and the audio service restarted."
+            : "Saved. Restart the audio service to apply the setting.");
+
+        void SetNote(string note)
+        {
+            if (api) HttpApiNote = note;
+            else SubmixerNote = note;
+        }
     }
 
     // Start from the file so fields owned elsewhere (the main window's
@@ -416,6 +509,73 @@ public sealed class OptionsViewModel : ViewModelBase
 
     // --- appearance ---
 
+    public System.Collections.Generic.IReadOnlyList<AppearanceModeChoice> AppearanceModeChoices { get; } =
+        [new(AppearanceModes.System, "System"), new(AppearanceModes.Light, "Light"), new(AppearanceModes.Dark, "Dark")];
+
+    private AppearanceModeChoice? _selectedAppearanceMode;
+    public AppearanceModeChoice? SelectedAppearanceMode
+    {
+        get => _selectedAppearanceMode;
+        set
+        {
+            AppearanceModeChoice? previous = _selectedAppearanceMode;
+            if (!Set(ref _selectedAppearanceMode, value) || _applying || value is null) return;
+            try { ReportSkin(Skinning.SkinService.ChooseMode(value.Id)); }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                _selectedAppearanceMode = previous;
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    Reject(ref _selectedAppearanceMode, value, nameof(SelectedAppearanceMode)));
+                SkinError = $"Appearance mode could not be saved: {ex.Message}";
+            }
+        }
+    }
+
+    public System.Collections.Generic.IReadOnlyList<ControlSizingChoice> ControlSizingChoices { get; } =
+        [new(false, "Standard"), new(true, "Touch")];
+
+    private ControlSizingChoice? _selectedControlSizing;
+    public ControlSizingChoice? SelectedControlSizing
+    {
+        get => _selectedControlSizing;
+        set
+        {
+            var previous = _selectedControlSizing;
+            if (!Set(ref _selectedControlSizing, value) || _applying || value is null) return;
+            try
+            {
+                Skinning.SkinService.ChooseControlSizing(value.Touch);
+                ReportSkin(Skinning.SkinService.Errors);
+            }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                _selectedControlSizing = previous;
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    Reject(ref _selectedControlSizing, value, nameof(SelectedControlSizing)));
+                SkinError = $"Control sizing could not be saved: {ex.Message}";
+            }
+        }
+    }
+
+    public bool CanChooseAppearanceMode => Skinning.SkinService.CanChooseMode;
+    public string AppearanceModeNote => Skinning.SkinService.Overridden
+        ? "The launch override keeps its appearance until a new skin is chosen."
+        : CanChooseAppearanceMode ? "System follows the desktop. This choice is included when saving a profile."
+        : "This skin supplies its own colours. The mode applies when Material is selected.";
+
+    internal void RefreshAppearance()
+    {
+        _applying = true;
+        try
+        {
+            SelectedSkin = SkinChoices.FirstOrDefault(c => c.Id == Skinning.SkinService.Current.Id) ?? SkinChoices[0];
+            SelectedAppearanceMode = AppearanceModeChoices.First(c => c.Id == Skinning.SkinService.Mode);
+            SelectedControlSizing = ControlSizingChoices.First(c => c.Touch == Skinning.SkinService.TouchControls);
+        }
+        finally { _applying = false; }
+        ReportSkin(Skinning.SkinService.Errors);
+    }
+
     public ObservableCollection<SkinChoice> SkinChoices { get; } = [];
 
     private SkinChoice? _selectedSkin;
@@ -429,8 +589,17 @@ public sealed class OptionsViewModel : ViewModelBase
         get => _selectedSkin;
         set
         {
+            SkinChoice? previous = _selectedSkin;
             if (!Set(ref _selectedSkin, value) || _applying || value is null) return;
-            ReportSkin(Skinning.SkinService.Choose(value.Id));
+            try { ReportSkin(Skinning.SkinService.Choose(value.Id)); }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                _selectedSkin = previous;
+                // Finish the selection binding's source write before restoring
+                // it, so the same choice can be retried after the file is fixed.
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => Reject(ref _selectedSkin, value, nameof(SelectedSkin)));
+                SkinError = "The skin could not be saved: " + ex.Message;
+            }
         }
     }
 
@@ -481,20 +650,27 @@ public sealed class OptionsViewModel : ViewModelBase
             note = (note.Length == 0 ? "" : note + " ")
                 + $"This run was started with {Skinning.SkinService.OverrideVariable} set, so the launch chose it.";
         SkinNote = note;
+        Raise(nameof(CanChooseAppearanceMode));
+        Raise(nameof(AppearanceModeNote));
         SkinError = errors.Count == 0 ? null : string.Join("\n", errors);
     }
 
     private void BuildChoices()
     {
-        OutputChoices.Add(new DeviceChoice(null, "(don't enforce)"));
-        OutputChoices.Add(new DeviceChoice("@monitor", "Follow MONITOR output (system volume controls)"));
+        OutputChoices.Add(new DeviceChoice(null, Localizer.Text("DonTEnforce")));
+        OutputChoices.Add(new DeviceChoice("@monitor", Localizer.Text("FollowMONITOROutputSystemVolumeControls")));
         // "#phones" entries are channel-pair routing targets, not real sinks a
         // system default can point to.
         foreach (AudioDeviceItem d in _main.Outputs.Where(d => !d.Name.Contains("#phones", StringComparison.Ordinal)))
             OutputChoices.Add(new DeviceChoice(d.Name, d.Label));
 
-        InputChoices.Add(new DeviceChoice(null, "(don't enforce)"));
+        InputChoices.Add(new DeviceChoice(null, Localizer.Text("DonTEnforce")));
         foreach (AudioDeviceItem d in _main.Inputs)
             InputChoices.Add(new DeviceChoice(d.Name, d.Label));
     }
+}
+
+public sealed record PluginSearchDirectoryItem(string Kind, string Path, bool Custom, bool Exists)
+{
+    public string Label => $"{Kind.ToUpperInvariant()} · {(Custom ? "Added" : "Default / environment")} · {(Exists ? "Available" : "Missing or inaccessible")}\n{Path}";
 }

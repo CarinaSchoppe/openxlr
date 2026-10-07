@@ -17,6 +17,17 @@ internal sealed class Theme
     /// <summary>The shipped appearance, which is the window's own defaults (SkinTokens.cs).</summary>
     public static Theme Material { get; } = new();
 
+    /// <summary>The window's light Material values, shared as data rather than duplicated colours.</summary>
+    public static Theme MaterialLight { get; } = ReadMaterialLight();
+
+    private static Theme ReadMaterialLight()
+    {
+        using Stream? stream = typeof(Theme).Assembly.GetManifestResourceStream("OpenXLR.Tui.MaterialLight.json");
+        if (stream is null) return Material;
+        using StreamReader reader = new(stream);
+        return FromJson(reader.ReadToEnd(), "default", "Material");
+    }
+
     public string Id { get; private set; } = "default";
 
     public string Name { get; private set; } = "Material";
@@ -370,7 +381,7 @@ internal static class SkinCatalog
 }
 
 /// <summary>
-/// The one setting the terminal mixer keeps, which is the skin, held in the
+/// The appearance settings the terminal mixer keeps, held in the
 /// same <c>ui.json</c> the window uses so choosing an appearance in either one
 /// is the same choice. Every other setting in that file is left untouched.
 /// </summary>
@@ -378,41 +389,42 @@ internal static class UiSettingsFile
 {
     private static string Path => OpenXlrPaths.ConfigFile("ui.json");
 
-    public static string? ReadSkin()
+    public static string? ReadSkin() => ReadString("skin");
+
+    public static string ReadAppearanceMode() => AppearanceModes.Normalize(ReadString("appearanceMode"));
+
+    private static string? ReadString(string key)
     {
         try
         {
-            if (!File.Exists(Path)) return null;
-            return JsonNode.Parse(File.ReadAllText(Path)) is JsonObject root
-                ? root["skin"]?.GetValue<string>()
-                : null;
+            return Read()[key] is JsonValue value && value.TryGetValue(out string? text) ? text : null;
         }
-        catch (IOException) { return null; }
-        catch (JsonException) { return null; }
-        catch (InvalidOperationException) { return null; }
-        catch (ArgumentException) { return null; } // duplicate JSON object keys
-        catch (UnauthorizedAccessException) { return null; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException)
+        { return null; }
     }
 
-    /// <summary>Writes the chosen skin back, keeping every other property the file holds.</summary>
-    public static bool WriteSkin(string id)
+    private static JsonObject Read()
+    {
+        if (!File.Exists(Path)) return new JsonObject();
+        return JsonNode.Parse(File.ReadAllText(Path)) as JsonObject
+            ?? throw new JsonException("Window preferences must be a JSON object.");
+    }
+
+    /// <summary>Writes the chosen appearance back, keeping every other property the file holds.</summary>
+    public static bool WriteSkin(string id) => Write("skin", id);
+
+    public static bool WriteAppearanceMode(string mode) => AppearanceModes.IsValid(mode) && Write("appearanceMode", mode);
+
+    private static bool Write(string key, string value)
     {
         try
         {
-            JsonObject root;
-            if (File.Exists(Path))
-            {
-                if (JsonNode.Parse(File.ReadAllText(Path)) is not JsonObject existing) return false;
-                root = existing;
-            }
-            else root = new JsonObject();
-            root["skin"] = id;
+            JsonObject root = Read();
+            root[key] = value;
             OpenXlrPaths.WriteAtomic(Path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
             return true;
         }
-        catch (IOException) { return false; }
-        catch (JsonException) { return false; }
-        catch (ArgumentException) { return false; } // leave duplicate-key documents untouched
-        catch (UnauthorizedAccessException) { return false; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException)
+        { return false; }
     }
 }

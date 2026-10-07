@@ -1,3 +1,4 @@
+using OpenXLR.UI.Localization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,30 +17,44 @@ public partial class MainWindow : Window
     private readonly DaemonClient _client;
     private readonly MainViewModel _vm;
     private readonly DesktopKeys _desktopKeys;
+    private readonly PlasmaVolumeRange? _volumeRange;
     private TrayIcon? _tray;
     private bool _reallyExit;
     private bool _hideToTrayPending;
     private readonly CancellationTokenSource _lifetime = new();
     private bool _automaticUpdateCheckStarted;
 
-    public MainWindow() : this(new DaemonClient()) { }
+    public MainWindow() : this(new DaemonClient(), syncDesktopVolume: true) { }
 
     /// <summary>
     /// For the window tests, which point the client at a port nothing serves
     /// so a developer's running daemon is not part of the test.
     /// </summary>
-    internal MainWindow(DaemonClient client)
+    internal MainWindow(DaemonClient client, bool syncDesktopVolume = false)
     {
         _client = client;
         InitializeComponent();
         _vm = new MainViewModel(_client);
+        if (syncDesktopVolume && PlasmaVolumeRange.IsPlasma)
+        {
+            _volumeRange = new PlasmaVolumeRange(_vm.ApplyDesktopVolumeBoost,
+                error => _vm.VolumeRangeError = error, action => Dispatcher.UIThread.Post(action));
+            _vm.DesktopVolumeBoostRequested += _volumeRange.Set;
+            _volumeRange.Start();
+            Activated += (_, _) => _volumeRange.Refresh();
+        }
         _desktopKeys = new DesktopKeys(_client);
         _ = _desktopKeys.StartAsync();
         DataContext = _vm;
         _client.Start();          // connects, and keeps retrying if the daemon isn't up yet
         HeaderVersion.Text = $"v{AppVersion.Current}";
+        UpdateControlSizing();
+        Skinning.SkinService.Changed += UpdateControlSizing;
+        Closed += (_, _) => Skinning.SkinService.Changed -= UpdateControlSizing;
         SetupTray();
         RestoreSectionState();
+        _vm.PresentationRecalled += OnPresentationRecalled;
+        SetupReordering();
         Opened += async (_, _) =>
         {
             if (_automaticUpdateCheckStarted) return;
@@ -91,6 +106,11 @@ public partial class MainWindow : Window
             _lifetime.Cancel();
             DisposeTray();
             _desktopKeys.Dispose();
+            if (_volumeRange is not null)
+            {
+                _vm.DesktopVolumeBoostRequested -= _volumeRange.Set;
+                await _volumeRange.DisposeAsync();
+            }
             await _client.DisposeAsync();
             _lifetime.Dispose();
             // A window that started hidden is not the lifetime's MainWindow,
@@ -125,9 +145,9 @@ public partial class MainWindow : Window
         try
         {
             var menu = new NativeMenu();
-            var show = new NativeMenuItem("Show mixer");
+            var show = new NativeMenuItem(Localizer.Text("ShowMixer"));
             show.Click += (_, _) => Dispatcher.UIThread.Post(ShowMixer);
-            var quit = new NativeMenuItem("Quit OpenXLR");
+            var quit = new NativeMenuItem(Localizer.Text("QuitOpenXLR"));
             quit.Click += (_, _) => Dispatcher.UIThread.Post(Quit);
             menu.Items.Add(show);
             menu.Items.Add(new NativeMenuItemSeparator());
@@ -189,16 +209,15 @@ public partial class MainWindow : Window
         string name = ProfileNameBox.Text?.Trim() ?? "";
         if (name.Length == 0) return;
         bool exists = _vm.Profiles.Any(p => string.Equals(p, name, StringComparison.OrdinalIgnoreCase));
-        if (exists && !await ConfirmAsync("Overwrite profile?",
-                $"A profile named \"{name}\" already exists for this device.\n" +
-                "Saving will replace it with the current scene."))
+        if (exists && !await ConfirmAsync(Localizer.Text("OverwriteProfile"),
+                Localizer.Format("ProfileOverwriteMessage", name)))
             return;
         _vm.SaveProfile(name);
         ProfileNameBox.Text = "";
     }
 
-    private Task<bool> ConfirmAsync(string title, string message, string yesLabel = "Overwrite")
-        => Dialogs.ConfirmAsync(this, title, message, yesLabel);
+    private Task<bool> ConfirmAsync(string title, string message, string? yesLabel = null)
+        => Dialogs.ConfirmAsync(this, title, message, yesLabel ?? Localizer.Text("Overwrite"));
 
     private void OnProfileLoad(object? sender, RoutedEventArgs e)
     {
@@ -235,6 +254,12 @@ public partial class MainWindow : Window
         // that is bypassed or not running, opens the generated controls.
         if (insert.NativeEditorAvailable) await insert.Owner.ShowNativeEditorAsync(insert);
         else InsertWindows.OpenControls(this, insert);
+    }
+
+    private void OnChannelInserts(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is ChannelViewModel channel)
+            InsertWindows.OpenChain(this, channel.Inserts, channel.Id);
     }
 
     private void OnMixInserts(object? sender, RoutedEventArgs e)
@@ -275,30 +300,62 @@ public partial class MainWindow : Window
         ["InputsTile", "HeadphonesTile", "MonitorTile", "ApplicationsTile", "SubmixerTile"];
     private bool _restoringSections;
 
+    private void UpdateControlSizing() => Classes.Set("large-targets",
+        Skinning.SkinService.TouchControls ||
+        Skinning.SkinService.Current.Package.Tokens.GetValueOrDefault("Ox.Mixer.ControlMinSize") is Skinning.SkinNumber { Value: > 0 });
+
+    private void OnPresentationRecalled()
+    {
+        CancelReorder();
+        ApplySectionOrder(UiSettings.Load().SectionOrder);
+        ApplySectionState();
+        UiSettings settings = UiSettings.Load();
+        Skinning.SkinService.ApplyControlSizing(settings.TouchControls);
+        if (!Skinning.SkinService.Overridden)
+        {
+            string? id = settings.Skin;
+            var entry = Skinning.SkinCatalog.Find(id);
+            var errors = Skinning.SkinService.ApplyPreference(settings.AppearanceMode,
+                entry ?? new Skinning.SkinEntry(Skinning.SkinPackage.Default, []));
+            if (entry is null) _vm.ReportPresentationError($"Profile skin '{id}' is unavailable; using the default skin.");
+            else if (errors.Count > 0) _vm.ReportPresentationError($"Profile skin '{id}': {string.Join(" ", errors)}");
+        }
+    }
+
     private void RestoreSectionState()
     {
-        var collapsed = new HashSet<string>(UiSettings.Load().CollapsedSections, StringComparer.Ordinal);
+        ApplySectionState();
+        foreach (string name in SectionTiles)
+            if (this.FindControl<Expander>(name) is { } tile)
+                tile.PropertyChanged += (_, e) =>
+                {
+                    if (e.Property == Expander.IsExpandedProperty && !_restoringSections && e.OldValue is bool wasExpanded)
+                        SaveSectionState(tile, wasExpanded);
+                };
+    }
+
+    private void ApplySectionState()
+    {
+        var collapsed = new HashSet<string>(UiSettings.Load().CollapsedSections ?? [], StringComparer.Ordinal);
         _restoringSections = true;
         try
         {
             foreach (string name in SectionTiles)
-            {
-                if (this.FindControl<Expander>(name) is not Expander tile) continue;
-                tile.IsExpanded = !collapsed.Contains(name);
-                tile.PropertyChanged += (_, e) =>
-                {
-                    if (e.Property == Expander.IsExpandedProperty && !_restoringSections) SaveSectionState();
-                };
-            }
+                if (this.FindControl<Expander>(name) is { } tile) tile.IsExpanded = !collapsed.Contains(name);
         }
         finally { _restoringSections = false; }
     }
 
-    private void SaveSectionState()
+    private void SaveSectionState(Expander changed, bool wasExpanded)
     {
         List<string> collapsed = [];
         foreach (string name in SectionTiles)
             if (this.FindControl<Expander>(name) is { IsExpanded: false }) collapsed.Add(name);
-        (UiSettings.Load() with { CollapsedSections = collapsed }).Save();
+        if (!_vm.SavePresentationChoice(UiSettings.Load() with { CollapsedSections = collapsed }))
+        {
+            _restoringSections = true;
+            try { changed.IsExpanded = wasExpanded; }
+            finally { _restoringSections = false; }
+        }
     }
 }

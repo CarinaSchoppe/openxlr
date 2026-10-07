@@ -19,6 +19,7 @@ public sealed class PipeWireAdapter
     private const string ClipGuardPluginFile = "hard_limiter_1413.so";
 
     private readonly Func<DspFeatureAvailability>? _clipGuardAvailabilityOverride;
+    private readonly Func<(int Used, int Limit)?>? _pulseFileUsageOverride;
     private readonly Action? _progress;
     private readonly List<uint> _modules = [];
     private readonly List<Process> _loopbacks = [];
@@ -27,6 +28,11 @@ public sealed class PipeWireAdapter
     private readonly WineSession _wine;
     private readonly Action<string>? _note;
     private PipeWireGraph? _graph;
+    internal bool MeasurePluginLatency { get; set; }
+    private bool NeedsLatencyHost(InsertDefinition insert) => MeasurePluginLatency && insert.Kind == "lv2"
+        && PluginCatalog.Find(insert) is { ReportsLatency: not false } info
+        && NativePluginHost.HostInstalled && NativePluginHost.SupportsFeatures(info.RequiredFeatures);
+
 
     /// <summary>Use a registry subscription for this adapter until the returned lease is disposed.</summary>
     public IDisposable WatchGraph(Action<string>? note = null)
@@ -75,6 +81,12 @@ public sealed class PipeWireAdapter
     internal PipeWireAdapter(Func<DspFeatureAvailability> clipGuardAvailabilityOverride)
     {
         _clipGuardAvailabilityOverride = clipGuardAvailabilityOverride;
+        _wine = new WineSession();
+    }
+
+    internal PipeWireAdapter(Func<(int Used, int Limit)?> pulseFileUsageOverride)
+    {
+        _pulseFileUsageOverride = pulseFileUsageOverride;
         _wine = new WineSession();
     }
 
@@ -257,7 +269,12 @@ public sealed class PipeWireAdapter
     /// stream (leg) without reloading the combine, and a removed mix drops
     /// its leg. Verified on PipeWire 1.6 through pactl.
     /// </param>
-    public uint CreateCombineSink(string nodeName, string slaves, string description, bool visible = true)
+    /// <param name="initiallyMuted">
+    /// Keep a replacement channel closed from creation, including before
+    /// session policy reconnects applications. The caller opens it only after
+    /// restoring its sends; remembered sink props must not open it sooner.
+    /// </param>
+    public uint CreateCombineSink(string nodeName, string slaves, string description, bool visible = true, bool initiallyMuted = false)
     {
         string outp = Run("pactl",
             "load-module", "module-combine-sink",
@@ -267,7 +284,8 @@ public sealed class PipeWireAdapter
             // a suspended monitor makes the channel's level meter read silence
             // even while audio flows through the sink.
             "sink_properties=" + PropList($"node.description={PropValue(description)}" +
-            $" priority.session=100 node.suspend-on-idle=false node.virtual={(visible ? "false" : "true")}"));
+            $" priority.session=100 node.suspend-on-idle=false node.virtual={(visible ? "false" : "true")}" +
+            (initiallyMuted ? " state.restore-props=false node.param.Props=" + PropValue("{ mute = true }") : "")));
         uint id = uint.Parse(outp.Trim());
         _modules.Add(id);
         return id;
@@ -458,6 +476,7 @@ public sealed class PipeWireAdapter
     /// </summary>
     public (int Used, int Limit)? PulseFileUsage()
     {
+        if (_pulseFileUsageOverride is not null) return _pulseFileUsageOverride();
         try
         {
             // Our own session's server: the one running as our user. On a
@@ -681,8 +700,27 @@ public sealed class PipeWireAdapter
     /// mic into it) and a source half (link onward to the channel).
     /// </summary>
     public FilterHandle CreateMicFilter(string id, int lowCutHz, bool clipGuard,
-        IReadOnlyList<InsertDefinition>? inserts = null)
-        => CreateFilterChain($"OpenXLR_lc_{id}_in", $"OpenXLR_lc_{id}_out", "OpenXLR Mic Filter", 1, lowCutHz, clipGuard, inserts);
+        IReadOnlyList<InsertDefinition>? inserts = null, int channels = 1)
+        => CreateFilterChain($"OpenXLR_lc_{id}_in", $"OpenXLR_lc_{id}_out", "OpenXLR Mic Filter", channels, lowCutHz, clipGuard, inserts);
+
+    internal FilterHandle CreateSoundCheck(string id, out int rate)
+    {
+        if (!NativePluginHost.HostInstalled)
+            throw new InvalidOperationException("Sound Check needs the OpenXLR native audio helper. Install a package that includes it, or rebuild with EnableNativeLv2Host=true.");
+        rate = ParseGraphSampleRate(Run("pw-metadata", "-n", "settings"));
+        string node = "OpenXLR_soundcheck_" + id;
+        var host = new NativePluginHost(new() { Id = id, Kind = "soundcheck", Plugin = "soundcheck" },
+            node, 1, rate, NativePluginHost.Executable, [], meterSymbols: new HashSet<string> { "frames", "mode" });
+        _nativeHosts.Add(host);
+        var filter = new FilterHandle(node, node, node, host.Process) { NativeHost = host };
+        if (!WaitForPorts(node, "playback", false, TimeSpan.FromSeconds(3), host.Process)
+            || !WaitForPorts(node, "capture", true, TimeSpan.FromSeconds(3), host.Process))
+        {
+            StopFilter(filter);
+            throw new InvalidOperationException("Sound Check audio ports did not appear.");
+        }
+        return filter;
+    }
 
     /// <summary>A stereo insert chain for a mix, spliced between the mix and its consumers.</summary>
     public FilterHandle CreateMixChain(string id, string description, IReadOnlyList<InsertDefinition> inserts)
@@ -697,7 +735,7 @@ public sealed class PipeWireAdapter
     private FilterHandle CreateFilterChain(string sinkName, string srcName, string description, int channels,
         int lowCutHz, bool clipGuard, IReadOnlyList<InsertDefinition>? inserts)
     {
-        if (inserts?.Any(i => !i.Bypass && i.RunsNatively) == true)
+        if (inserts?.Any(i => !i.Bypass && (i.RunsNatively || NeedsLatencyHost(i))) == true)
             return CreateHostedChain(sinkName, srcName, description, channels, lowCutHz, clipGuard, inserts);
         if (clipGuard)
         {
@@ -748,6 +786,30 @@ public sealed class PipeWireAdapter
             $"playback.props = {{ node.name = {srcName} media.class = Audio/Source " +
             $"audio.channels = {channels} audio.position = {position} node.suspend-on-idle = false " +
             "priority.session = 100 } }";
+        try { return StartFilterChain(sinkName, srcName, spa); }
+        catch (InvalidOperationException failure)
+        {
+            // Some distributions ship filter-chain without its LV2 module.
+            // Retry DSP in our existing host, without opting into an editor.
+            var active = inserts?.Where(i => !i.Bypass).ToArray() ?? [];
+            if (NativePluginHost.HostInstalled && active.Length > 0
+                && active.All(i => i.Kind == "lv2" && PluginCatalog.Find(i) is { } plugin
+                    && NativePluginHost.SupportsFeatures(plugin.RequiredFeatures)))
+            {
+                try
+                {
+                    var fallback = CreateHostedChain(sinkName, srcName, description, channels, lowCutHz, clipGuard, inserts!, forceNativeLv2: true);
+                    return fallback;
+                }
+                catch (Exception fallbackError)
+                { throw new InvalidOperationException(failure.Message + " Native LV2 fallback also failed: " + fallbackError.Message, fallbackError); }
+            }
+            throw;
+        }
+    }
+
+    private FilterHandle StartFilterChain(string sinkName, string srcName, string spa)
+    {
         var psi = new ProcessStartInfo("pw-cli")
         {
             RedirectStandardOutput = true,
@@ -757,6 +819,7 @@ public sealed class PipeWireAdapter
         psi.ArgumentList.Add("load-module");
         psi.ArgumentList.Add("libpipewire-module-filter-chain");
         psi.ArgumentList.Add(spa);
+        PluginSearchPaths.ApplyLv2(psi);
         var p = Process.Start(psi) ?? throw new InvalidOperationException("failed to start pw-cli");
         // pw-cli -m intentionally lives for the module's lifetime. Drain both
         // pipes continuously: leaving redirected output unread can fill the OS
@@ -778,16 +841,39 @@ public sealed class PipeWireAdapter
         {
             string detail = StopFailedFilter(handle, stdoutTask, stderrTask);
             string missing = !sinkReady ? sinkName : srcName;
-            throw new InvalidOperationException(
-                $"PipeWire filter chain did not create the required ports for {missing}" +
-                (detail.Length == 0 ? "" : $": {detail}"));
+            string failure = $"PipeWire filter chain did not create the required ports for {missing}"
+                + (detail.Length == 0 ? "" : $": {detail}");
+            throw new InvalidOperationException(failure);
         }
         return handle;
     }
 
+    /// <summary>Two bounded delay lines after a mix, with controls updated without rebuilding plugins.</summary>
+    internal FilterHandle CreateMixDelay(string id)
+    {
+        string sink = $"OpenXLR_delay_{id}_in", source = $"OpenXLR_delay_{id}_out";
+        string spa = $"{{ node.description = \"OpenXLR mix latency alignment\" " +
+            "filter.graph = { nodes = [ " +
+            "{ type = builtin name = left label = delay config = { max-delay = 2.0 } control = { \"Delay (s)\" = 0.0 } } " +
+            "{ type = builtin name = right label = delay config = { max-delay = 2.0 } control = { \"Delay (s)\" = 0.0 } } ] " +
+            "inputs = [ \"left:In\" \"right:In\" ] outputs = [ \"left:Out\" \"right:Out\" ] } " +
+            $"capture.props = {{ node.name = {sink} media.class = Audio/Sink audio.channels = 2 audio.position = [ FL FR ] node.suspend-on-idle = false node.hidden = true }} " +
+            $"playback.props = {{ node.name = {source} media.class = Audio/Source audio.channels = 2 audio.position = [ FL FR ] node.suspend-on-idle = false node.hidden = true }} }}";
+        return StartFilterChain(sink, source, spa);
+    }
+
+    internal void SetMixDelay(FilterHandle filter, double milliseconds)
+    {
+        if (!double.IsFinite(milliseconds) || milliseconds is < 0 or > MixLatency.MaxMilliseconds)
+            throw new ArgumentOutOfRangeException(nameof(milliseconds));
+        int id = FindNodeId(filter.SinkName) ?? throw new InvalidOperationException("The latency filter is unavailable.");
+        string value = (milliseconds / 1000).ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+        Run("pw-cli", "set-param", id.ToString(), "Props", $"{{ params = [ \"left:Delay (s)\" {value} \"right:Delay (s)\" {value} ] }}");
+    }
+
     /// <summary>Splice native editors into the chain, retaining filter-chain for other plugins.</summary>
     private FilterHandle CreateHostedChain(string sinkName, string sourceName, string description, int channels,
-        int lowCutHz, bool clipGuard, IReadOnlyList<InsertDefinition> inserts)
+        int lowCutHz, bool clipGuard, IReadOnlyList<InsertDefinition> inserts, bool forceNativeLv2 = false)
     {
         var stages = new List<FilterHandle>();
         var insertStages = new List<(string Id, FilterHandle Stage)>();
@@ -808,7 +894,7 @@ public sealed class PipeWireAdapter
                         $"{(string.IsNullOrWhiteSpace(insert.Label) ? insert.Plugin : insert.Label)} is unavailable or requires unsupported host features.");
                 string node = $"{sinkName}_stage_{insertStages.Count}";
                 FilterHandle stage;
-                if (insert.RunsNatively)
+                if (insert.RunsNatively || NeedsLatencyHost(insert) || forceNativeLv2 && insert.Kind == "lv2")
                 {
                     if (!NativePluginHost.HostInstalled)
                         throw new InvalidOperationException("The native plugin host is not installed.");
@@ -830,7 +916,10 @@ public sealed class PipeWireAdapter
                     stage = CreateFilterChain(node + "_in", node + "_out", description, channels, 0, false, [insert]);
                     stages.Add(stage);
                 }
-                insertStages.Add((insert.Id, stage));
+                // A filter-chain stage may itself fall back to a hosted
+                // insert. Index the actual host so status, editor controls
+                // and live parameter updates keep using the same insert id.
+                insertStages.Add((insert.Id, stage.InsertStages.FirstOrDefault(s => s.Id == insert.Id).Stage ?? stage));
             }
             for (int i = 1; i < stages.Count; i++)
                 if (LinkNodes(stages[i - 1].SourceName, "capture", stages[i].SinkName, "playback").Pairs.Count < channels)
@@ -1093,15 +1182,35 @@ public sealed class PipeWireAdapter
             return i < 0 ? "" : port[(i + 1)..];
         }
         var pairs = new List<(string From, string To)>();
+        bool complete = true;
         for (int i = 0; i < ins.Count && (outs.Count > 0); i++)
         {
             string to = ins[i];
             string from = outs.FirstOrDefault(o => Chan(o) != "" && Chan(o) == Chan(to))
                 ?? outs[Math.Min(i, outs.Count - 1)];
             try { Run("pw-link", from, to); pairs.Add((from, to)); }
-            catch (InvalidOperationException) { /* racing a disappearing port */ }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("File exists", StringComparison.Ordinal))
+            { pairs.Add((from, to)); }
+            catch (InvalidOperationException) { complete = false; } // racing a disappearing port
         }
-        return new PortLink(pairs);
+        return new PortLink(pairs) { Complete = complete };
+    }
+
+    /// <summary>Wait for both sides of an owned stereo route after asynchronous node creation.</summary>
+    internal PortLink LinkStereoNodes(string fromNode, string fromPrefix, string toNode, string toPrefix,
+        TimeSpan? timeout = null)
+    {
+        long deadline = Environment.TickCount64 + (long)(timeout ?? TimeSpan.FromSeconds(3)).TotalMilliseconds;
+        do
+        {
+            var link = LinkNodes(fromNode, fromPrefix, toNode, toPrefix);
+            if (link.Pairs.Count == 2) return link;
+            // Never leave one side attached across retries or on failure.
+            Unlink(link);
+            if (Environment.TickCount64 >= deadline)
+                throw new InvalidOperationException($"The stereo route from {fromNode} to {toNode} is incomplete.");
+            Thread.Sleep(25);
+        } while (true);
     }
 
     /// <summary>
@@ -1139,9 +1248,12 @@ public sealed class PipeWireAdapter
     /// </summary>
     public LinkHealth EnsureLinks(PortLink link)
     {
+        if (!link.Complete) return LinkHealth.Broken;
         var health = LinkHealth.Healthy;
+        var known = GraphLinks();
         foreach ((string from, string to) in link.Pairs)
         {
+            if (known.Contains((from, to))) continue;
             try
             {
                 Run("pw-link", from, to);
@@ -1154,6 +1266,50 @@ public sealed class PipeWireAdapter
             }
         }
         return health;
+    }
+
+    private JsonElement[]? _linkObjects;
+    private HashSet<(string From, string To)> _graphLinks = [];
+    private HashSet<(string From, string To)> GraphLinks()
+    {
+        lock (DumpGate)
+        {
+            var objects = GraphObjects();
+            if (ReferenceEquals(objects, _linkObjects)) return _graphLinks;
+            _graphLinks = ParseGraphLinks(objects);
+            _linkObjects = objects;
+            return _graphLinks;
+        }
+    }
+
+    internal static HashSet<(string From, string To)> ParseGraphLinks(IEnumerable<JsonElement> objects)
+    {
+        var nodes = new Dictionary<int, string>();
+        var ports = new Dictionary<int, (int Node, string Name)>();
+        var links = new List<(int From, int To)>();
+        foreach (var entry in objects)
+        {
+            if (!entry.TryGetProperty("id", out var id) || !id.TryGetInt32(out int number)
+                || !entry.TryGetProperty("type", out var type) || !entry.TryGetProperty("info", out var info)) continue;
+            if (type.GetString() == "PipeWire:Interface:Link")
+            {
+                if (info.TryGetProperty("output-port-id", out var from) && from.TryGetInt32(out int source)
+                    && info.TryGetProperty("input-port-id", out var to) && to.TryGetInt32(out int target)) links.Add((source, target));
+                continue;
+            }
+            if (!info.TryGetProperty("props", out var props)) continue;
+            if (type.GetString() == "PipeWire:Interface:Node" && props.TryGetProperty("node.name", out var name))
+                nodes[number] = name.GetString() ?? "";
+            else if (type.GetString() == "PipeWire:Interface:Port" && props.TryGetProperty("node.id", out var node)
+                && int.TryParse(node.ToString(), out int owner) && props.TryGetProperty("port.name", out var port))
+                ports[number] = (owner, port.GetString() ?? "");
+        }
+        var result = new HashSet<(string, string)>();
+        foreach (var (from, to) in links)
+            if (ports.TryGetValue(from, out var source) && ports.TryGetValue(to, out var target)
+                && nodes.TryGetValue(source.Node, out string? sourceName) && nodes.TryGetValue(target.Node, out string? targetName))
+                result.Add(($"{sourceName}:{source.Name}", $"{targetName}:{target.Name}"));
+        return result;
     }
 
     /// <summary>Remove a set of port links made by <see cref="LinkNodes"/>.</summary>
@@ -1240,6 +1396,12 @@ public sealed class PipeWireAdapter
 
             string? name = props.TryGetProperty("node.name", out JsonElement n) ? n.GetString() : null;
             if (name is null) continue;
+
+            if (name.StartsWith("OpenXLR_delay_", StringComparison.Ordinal)) continue;
+
+            if (name.StartsWith("OpenXLR_soundcheck_", StringComparison.Ordinal)) continue;
+
+            if (name.StartsWith("OpenXLR_bus_", StringComparison.Ordinal)) continue;
             string mc = props.TryGetProperty("media.class", out JsonElement m) ? m.GetString() ?? "" : "";
 
             bool isSink = mc == "Audio/Sink";
@@ -1657,7 +1819,11 @@ public sealed record FilterHandle(string Id, string SinkName, string SourceName,
 public sealed record DspFeatureAvailability(bool Available, string? Error);
 
 /// <summary>A set of direct port links between two nodes.</summary>
-public sealed record PortLink(IReadOnlyList<(string From, string To)> Pairs);
+public sealed record PortLink(IReadOnlyList<(string From, string To)> Pairs)
+{
+    /// <summary>Every discovered pair connected successfully when the route was created.</summary>
+    internal bool Complete { get; init; } = true;
+}
 
 /// <summary>Outcome of verifying a <see cref="PortLink"/>'s pairs.</summary>
 public enum LinkHealth { Healthy, Relinked, Broken }

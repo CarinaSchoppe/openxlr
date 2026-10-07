@@ -94,6 +94,10 @@ public sealed class DaemonClient : IAsyncDisposable
     public Task<JsonNode?> InstallPluginAsync(string path, TimeSpan timeout)
         => PluginOperationAsync("installPlugin", timeout, new Dictionary<string, object> { ["path"] = path });
 
+    public Task<JsonNode?> ChangePluginSearchPathAsync(string kind, string path, bool add, TimeSpan timeout)
+        => PluginOperationAsync(add ? "addPluginSearchPath" : "removePluginSearchPath", timeout,
+            new Dictionary<string, object> { ["kind"] = kind, ["path"] = path });
+
     public Task<JsonNode?> AddWindowsPluginFolderAsync(string path, TimeSpan timeout)
         => PluginOperationAsync("addWindowsPluginFolder", timeout, new Dictionary<string, object> { ["path"] = path });
 
@@ -311,7 +315,7 @@ public sealed class DaemonClient : IAsyncDisposable
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setActiveDevice", ["device"] = usbId });
 
     public Task SaveProfileAsync(string name)
-        => SendAsync(new Dictionary<string, object> { ["cmd"] = "saveProfile", ["name"] = name });
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "saveProfile", ["name"] = name, ["presentation"] = UiSettings.Load().ExportPresentation() });
 
     public Task LoadProfileAsync(string name)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "loadProfile", ["name"] = name });
@@ -356,18 +360,28 @@ public sealed class DaemonClient : IAsyncDisposable
         => EditLayoutAsync(new() { ["cmd"] = "setMainOutput", ["device"] = device });
     public Task<string?> RouteFocusedAppAsync(string channel)
         => EditLayoutAsync(new() { ["cmd"] = "routeFocusedApp", ["channel"] = channel });
+    public Task<string?> SetExclusiveGroupAsync(string? group, string name, IReadOnlyList<string> channels)
+        => EditLayoutAsync(new() { ["cmd"] = "setExclusiveGroup", ["group"] = group!, ["name"] = name, ["channels"] = channels });
+    public Task<string?> DeleteExclusiveGroupAsync(string group)
+        => EditLayoutAsync(new() { ["cmd"] = "deleteExclusiveGroup", ["group"] = group });
     public Task<string?> CreateChannelAsync(string name)
         => EditLayoutAsync(new() { ["cmd"] = "createChannel", ["name"] = name });
     public Task<string?> RenameChannelAsync(string channel, string name)
         => EditLayoutAsync(new() { ["cmd"] = "renameChannel", ["channel"] = channel, ["name"] = name });
     public Task<string?> DeleteChannelAsync(string channel)
         => EditLayoutAsync(new() { ["cmd"] = "deleteChannel", ["channel"] = channel });
-    public Task<string?> CreateMixAsync(string name)
-        => EditLayoutAsync(new() { ["cmd"] = "createMix", ["name"] = name });
+    public Task<string?> CreateMixAsync(string name, string kind = "virtualMic")
+        => EditLayoutAsync(new() { ["cmd"] = "createMix", ["name"] = name, ["kind"] = kind });
     public Task<string?> RenameMixAsync(string mix, string name)
         => EditLayoutAsync(new() { ["cmd"] = "renameMix", ["mix"] = mix, ["name"] = name });
     public Task<string?> DeleteMixAsync(string mix)
         => EditLayoutAsync(new() { ["cmd"] = "deleteMix", ["mix"] = mix });
+    public Task<string?> SetLayoutAppearanceAsync(string id, bool mix, string icon, string? colour, bool hidden)
+        => EditLayoutAsync(new() { ["cmd"] = "setLayoutAppearance", [mix ? "mix" : "channel"] = id,
+            ["appearance"] = new { icon, colour, hidden } });
+    public Task<string?> SetDisplayOrderAsync(IReadOnlyList<string> channels, IReadOnlyList<string> mixes)
+        => EditLayoutAsync(new() { ["cmd"] = "setDisplayOrder", ["channels"] = channels, ["mixes"] = mixes });
+
     public Task<string?> SetLayoutOrderAsync(IReadOnlyList<string> channels, IReadOnlyList<string> mixes)
         => EditLayoutAsync(new() { ["cmd"] = "setLayoutOrder", ["channels"] = channels, ["mixes"] = mixes });
 
@@ -422,6 +436,9 @@ public sealed class DaemonClient : IAsyncDisposable
         => SendAsync(new Dictionary<string, object?> { ["cmd"] = "assignApp", ["identity"] = identity, ["channel"] = channel, ["label"] = label });
 
     /// <summary>Send or stop sending the Aux mix to the USB Aux port.</summary>
+    public Task SetMixLatencyCompensationAsync(bool enabled)
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "setMixLatencyCompensation", ["value"] = enabled });
+
     public Task SetAuxPortEnabledAsync(bool on)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setAuxPortEnabled", ["value"] = on });
 
@@ -434,8 +451,17 @@ public sealed class DaemonClient : IAsyncDisposable
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setSoftClipGuard", ["value"] = on });
 
     /// <summary>Replace a channel's plugin insert chain (ordered).</summary>
+    public Task<string?> SoundCheckAsync(string channel, string action)
+        => EditLayoutAsync(new() { ["cmd"] = "soundCheck", ["channel"] = channel, ["action"] = action });
+
     public Task SetInsertsAsync(string channel, IReadOnlyList<object> inserts)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setInserts", ["channel"] = channel, ["inserts"] = inserts });
+
+    public Task<string?> ReplaceInsertsAsync(string channel, JsonArray inserts)
+        => EditLayoutAsync(new() { ["cmd"] = "setInserts", ["channel"] = channel, ["inserts"] = inserts });
+
+    public Task<string?> RenameInsertAsync(string channel, string insertId, string name)
+        => EditLayoutAsync(new() { ["cmd"] = "renameInsert", ["channel"] = channel, ["insertId"] = insertId, ["name"] = name });
 
     public Task SetInsertBypassAsync(string channel, string insertId, bool bypass)
         => SendAsync(new Dictionary<string, object>

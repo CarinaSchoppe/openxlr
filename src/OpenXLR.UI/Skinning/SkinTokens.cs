@@ -84,6 +84,18 @@ public static class SkinTokens
     private static SkinToken Family(string name, string? value, params SkinBridge[] bridges) =>
         new(name, SkinTokenKind.FontFamily, value is null ? null : new FontFamily(value), bridges);
 
+    /// <summary>Touch mode floors, applied after validated skin sizes.</summary>
+    internal static readonly IReadOnlyDictionary<string, double> TouchMinimums = new Dictionary<string, double>
+    {
+        ["Ox.Mixer.ControlMinSize"] = 44,
+        ["Ox.Mixer.SliderMinHeight"] = 44,
+        ["Ox.Mixer.DeviceSliderHeight"] = 44,
+        ["Ox.Mixer.SmallControlMinSize"] = 44,
+        ["Ox.Mixer.InsertControlMinSize"] = 44,
+        ["Ox.Mixer.ChannelWidth"] = 180,
+        ["Ox.Mixer.MixWidth"] = 280,
+    };
+
     /// <summary>Corner radii and border widths are bounded so a skin cannot swallow a control.</summary>
     public const double MaxCornerRadius = 48;
     public const double MaxThickness = 16;
@@ -119,6 +131,15 @@ public static class SkinTokens
         Brush("Ox.Link.ForegroundPointerOver", "#8cc4ff"),
         Brush("Ox.Badge.Background", "#2a2e38"),
         Brush("Ox.Divider", "#2d313c"),
+
+        // Mixer control sizing.
+        Number("Ox.Mixer.ControlMinSize", null, 0, 64),
+        Number("Ox.Mixer.SliderMinHeight", null, 0, 96),
+        Number("Ox.Mixer.DeviceSliderHeight", 30, 30, 96),
+        Number("Ox.Mixer.SmallControlMinSize", 0, 0, 64),
+        Number("Ox.Mixer.InsertControlMinSize", 24, 16, 64),
+        Number("Ox.Mixer.ChannelWidth", 132, 132, 400),
+        Number("Ox.Mixer.MixWidth", 232, 232, 500),
 
         // Typography.
         Number("Ox.Label.FontSize", 12, 8, 24),

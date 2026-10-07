@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace OpenXLR.UI;
 
@@ -14,6 +15,15 @@ namespace OpenXLR.UI;
 /// </summary>
 public sealed record UiSettings
 {
+    /// <summary>Last applied daemon recall, preserved across reconnects and window restarts.</summary>
+    public string? AppliedPresentation { get; init; }
+    [System.Text.Json.Serialization.JsonConverter(typeof(LocalTouchControlsConverter))]
+    public bool TouchControls { get; init; }
+    public bool CompactMixer { get; init; }
+    public string? CompactChannel { get; init; }
+    /// <summary>Window language: null follows the system; a shipped catalogue id overrides it.</summary>
+    public string? Language { get; init; }
+
     public bool StartDaemonAtLogin { get; init; }
     public bool OpenWindowAtLogin { get; init; }
     public bool MinimizeToTray { get; init; }
@@ -33,13 +43,26 @@ public sealed record UiSettings
     public string? AutostartExecutable { get; init; }
     /// <summary>Names of the main window's tiles the user collapsed (INPUTS, HEADPHONES, ...).</summary>
     public IReadOnlyList<string> CollapsedSections { get; init; } = [];
+    /// <summary>Display order of the main window's tiles, independent of skins and audio routing.</summary>
+    public IReadOnlyList<string> SectionOrder { get; init; } = [];
     /// <summary>
     /// The appearance the window wears, by skin id; null is the one the
-    /// application ships with. It lives here and nowhere else: the mixer
-    /// layout, the daemon's preferences and the audio profiles know nothing
-    /// about it, so changing appearance cannot disturb what is playing.
+    /// application ships with. Profiles may recall this choice; changing
+    /// appearance itself cannot disturb what is playing.
     /// </summary>
     public string? Skin { get; init; }
+    [JsonConverter(typeof(LocalAppearanceModeConverter))]
+    public string AppearanceMode { get; init; } = AppearanceModes.System;
+
+    /// <summary>
+    /// Retain fields written by other or newer window features. A language
+    /// or startup preference change must not erase an unfamiliar setting.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, JsonElement>? AdditionalPreferences { get; init; }
+
+
+
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -55,18 +78,46 @@ public sealed record UiSettings
     {
         try
         {
-            if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(FilePath), Json) ?? new UiSettings();
+            return LoadRequired();
         }
         catch (Exception) { /* corrupt file must not stop the app */ }
         return new UiSettings();
     }
 
+    internal static UiSettings LoadRequired()
+    {
+        if (!File.Exists(FilePath)) return new UiSettings();
+        var settings = JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(FilePath), Json)
+            ?? throw new JsonException("Window preferences must be a JSON object.");
+        // JSON can explicitly set a non-nullable collection to null. The
+        // window enumerates this list when restoring its tiles.
+        return settings.CollapsedSections is null ? settings with { CollapsedSections = [] } : settings;
+    }
+
+    public WindowPresentation ExportPresentation() => new()
+    {
+        TouchControls = TouchControls, CompactMixer = CompactMixer, CompactChannel = CompactChannel, Skin = Skin,
+        AppearanceMode = AppearanceModes.Normalize(AppearanceMode),
+        CollapsedSections = (CollapsedSections ?? []).ToArray(), SectionOrder = (SectionOrder ?? []).ToArray(),
+    };
+
+    internal UiSettings WithPresentation(WindowPresentation value, string revision) => this with
+    {
+        TouchControls = value.TouchControls ?? TouchControls,
+        CompactMixer = value.CompactMixer, CompactChannel = value.CompactChannel, Skin = value.Skin,
+        AppearanceMode = value.AppearanceMode ?? AppearanceModes.Normalize(AppearanceMode),
+        CollapsedSections = value.CollapsedSections.ToArray(), SectionOrder = value.SectionOrder.ToArray(),
+        AppliedPresentation = revision,
+    };
+
+    internal void SaveChecked() => OpenXlrPaths.WriteAtomicJson(FilePath, this, Json);
+
     public void Save()
     {
-        try { OpenXlrPaths.WriteAtomicJson(FilePath, this, Json); }
+        try { SaveChecked(); }
         catch (Exception) { /* best effort */ }
     }
+
 }
 
 /// <summary>
@@ -78,6 +129,7 @@ public sealed record UiSettings
 public sealed record DaemonPrefs
 {
     public bool? Submixer { get; init; }
+    public bool HttpApiEnabled { get; init; } = true;
 
     private static readonly JsonSerializerOptions Json = new()
     {

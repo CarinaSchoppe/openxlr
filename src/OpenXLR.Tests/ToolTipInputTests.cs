@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Automation;
@@ -8,6 +7,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using OpenXLR.UI;
+using OpenXLR.UI.Localization;
 
 namespace OpenXLR.Tests;
 
@@ -94,10 +94,10 @@ public sealed class ToolTipInputTests
             Thread.Sleep(500);
             Ui(() =>
             {
-                cog = Named<Button>(main!, "Open this plugin's controls");
-                bypass = Named<ToggleButton>(main!, "Bypass this plugin");
+                cog = Named<Button>(main!, Localizer.Text("OpenThisPluginSControls"));
+                bypass = Named<ToggleButton>(main!, Localizer.Text("BypassThisPlugin"));
                 profiles = main!.GetVisualDescendants().OfType<DropDownButton>()
-                    .First(d => d.Content as string == "Profiles");
+                    .First(d => d.Content as string == Localizer.Text("Profiles"));
                 cog.AddHandler(Button.ClickEvent, (_, _) => cogClicks++, handledEventsToo: true);
                 bypass.AddHandler(Button.ClickEvent, (_, _) => bypassClicks++, handledEventsToo: true);
                 profiles.AddHandler(Button.ClickEvent, (_, _) => profileClicks++, handledEventsToo: true);
@@ -219,50 +219,7 @@ public sealed class ToolTipInputTests
         return false;
     }
 
-    /// <summary>
-    /// Pointer events from the X server through XTEST, on a connection of this
-    /// thread's own, so they reach whichever native window is in front.
-    /// </summary>
-    private sealed class XPointer : IDisposable
-    {
-        [DllImport("libX11.so.6")] private static extern IntPtr XOpenDisplay(IntPtr name);
-        [DllImport("libX11.so.6")] private static extern int XCloseDisplay(IntPtr display);
-        [DllImport("libX11.so.6")] private static extern int XFlush(IntPtr display);
-        [DllImport("libXtst.so.6")] private static extern int XTestFakeMotionEvent(
-            IntPtr display, int screen, int x, int y, ulong delay);
-        [DllImport("libXtst.so.6")] private static extern int XTestFakeButtonEvent(
-            IntPtr display, uint button, int press, ulong delay);
 
-        private IntPtr _display;
-
-        public XPointer()
-        {
-            _display = XOpenDisplay(IntPtr.Zero);
-            Assert.True(_display != IntPtr.Zero, "The test needs an X display to move a pointer on.");
-        }
-
-        public void MoveTo(int x, int y)
-        {
-            XTestFakeMotionEvent(_display, -1, x, y, 0);
-            XFlush(_display);
-        }
-
-        public void Click()
-        {
-            XTestFakeButtonEvent(_display, 1, 1, 0);
-            XFlush(_display);
-            Thread.Sleep(60);
-            XTestFakeButtonEvent(_display, 1, 0, 0);
-            XFlush(_display);
-        }
-
-        public void Dispose()
-        {
-            if (_display == IntPtr.Zero) return;
-            XCloseDisplay(_display);
-            _display = IntPtr.Zero;
-        }
-    }
 }
 
 public sealed class ToolTipFactAttribute : FactAttribute

@@ -73,7 +73,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 
 | Type | When | Content |
 |---|---|---|
-| `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes), `recallOnConnect` (the profile recalled when the device connects, or null), `warning` (one sentence the user should see, or null: mixer settings that cannot be written to disk, which the daemon keeps retrying with backoff, or a device set aside after three hung USB transfers in one run). In the mixer state, each channel carries `hardware` (true for the fixed input channels), `captureSource` (exact external source name or null), `capturePair` (zero-based pair), `captureConnected` (its capture route exists), and `present` (false when the active device has no jack behind that channel, which is `xlr2` and `aux` on every model but the Wave XLR Pro; true for every channel with no device connected). An absent channel stays in the list and keeps its levels, so a client leaves it out of its strips rather than forgetting it. A capture channel is editable but cannot receive application assignments; `renamedSinceStart` says a virtual microphone was renamed since the daemon started (its PipeWire device keeps the old name until a restart), and `layoutWarning` is a sentence for the layout editor when pipewire-pulse nears its open-file limit, or null. Each mix carries `id`, `name`, `volume`, `muted` and `kind` (`monitor`, `virtualMic` or `auxPort`), which gives a client the mix's volume ceiling; `outputVolume` is the first selected output's volume, 0 to 1.5, or null with no output selected. In `devices`, every entry that is a sink carries `volume` (desktop scale, 1.0 = 100%) and `muted`; sources and the Wave XLR Pro pseudo-outputs omit both. A state is pushed whenever a sink's volume or mute changes |
+| `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes), `recallOnConnect` (the profile recalled when the device connects, or null), `warning` (one sentence the user should see, or null: mixer settings that cannot be written to disk, which the daemon keeps retrying with backoff, or a device set aside after three hung USB transfers in one run). In the mixer state, each channel carries `hardware` (true for the fixed input channels), `captureSource` (exact external source name or null), `capturePair` (zero-based pair), `captureConnected` (its capture route exists), and `present` (false when the active device has no jack behind that channel, which is `xlr2` and `aux` on every model but the Wave XLR Pro; true for every channel with no device connected). An absent channel stays in the list and keeps its levels, so a client leaves it out of its strips rather than forgetting it. A capture channel is editable but cannot receive application assignments; `renamedSinceStart` says a user mix was renamed since the daemon started (its PipeWire device keeps the old name until a restart), and `layoutWarning` is a sentence for the layout editor when pipewire-pulse nears its open-file limit, or null. Each mix carries `id`, `name`, `volume`, `muted`, `editable` (whether rename, delete and saved ordering are allowed) and `kind` (`monitor`, `virtualMic` or `auxPort`), which gives a client the mix's volume ceiling; `outputVolume` is the first selected output's volume, 0 to 1.5, or null with no output selected. In `devices`, every entry that is a sink carries `volume` (desktop scale, 1.0 = 100%) and `muted`; sources and the Wave XLR Pro pseudo-outputs omit both. A state is pushed whenever a sink's volume or mute changes |
 | `diagnostics` | in answer to `getDiagnostics` | `blocks`, mapping vendor block names to hex strings or read errors. An XLR Dock adds `paths`, the card number and the path each of its gain, mute and headphone controls takes (`Alsa` through the card's mixer, `Block` through the dock's config block when the card lacks the control, `None` when the USB handle is closed too, so the control is unavailable), and `alsa`, the values read through the card. `usbFault` carries the last USB fault of this run and `error` a dump that failed |
 | `meters` | 15 Hz while the mixer is built | live stereo levels per channel and mix |
 | `plugins` | in answer to `listPlugins` | the installed LV2, CLAP and VST3 plugins with their controls, within the message size limit above and always including the plugins the saved chains use; `supported` is false, with `unsupportedFeatures` listed, for a plugin that needs a host feature the PipeWire chain lacks. `audioIns` and `audioOuts` are the plugin's own port counts, or for VST3 its main buses' default width; a VST3 entry also carries `widths`, the chain widths in channels (1 and 2 are the ones the host carries) its main buses accepted when the helper asked the way the host asks at load, so a plugin that reports 2 and lists 1 in `widths` can be inserted on a mono input. An entry without `widths` (LV2, CLAP, or a description an older helper wrote) fits a mono input with one port each way and a stereo mix with two or more |
@@ -105,7 +105,7 @@ written above it; false on every other model), `lowImpedance`,
 `mixer`, `devices`, `profiles`, `activeProfile`, `recallOnConnect` and
 `detected` (`usbId`, `name`, `active` for every attached interface). The
 mixer state carries `mixes`, `channels`, `monitorOutput` (the first selected
-output), `monitorOutputs`, `monitorFeeds`, `outputVolume`,
+output), `monitorOutputs`, `monitorFeeds`, `primaryMonitorMix`, `outputVolume`,
 `auxPortEnabled`, `lowCutHz`, `softClipGuard`, `softClipGuardAvailable`,
 `softClipGuardError`, `inserts` (chains by insert key, `xlr1`, `xlr2` or
 `mix:<id>`; each entry carries `insert`, `error`, `meters`,
@@ -123,7 +123,7 @@ changing the other channel or later valid frames. This protects metering and
 its JSON messages; it does not modify the audio signal sent to outputs.
 
 Commands are single JSON objects with a `cmd` field. The layout commands
-(`createChannel` through `setLayoutOrder` below) succeed only after the
+(`createChannel` through `setDisplayOrder` below) succeed only after the
 new layout is written to `mixer.json`; a failed write restores the previous
 layout and answers with an error. Any command may carry a `requestId` of up to 64 characters; the
 daemon then answers with a `commandResult {requestId, error}` message after
@@ -144,15 +144,20 @@ that final acknowledgement (or an `error` without a request id):
 | `createChannel` | `name` | add an application channel, muted in every mix, without touching existing nodes; its generated stable id is in the next state. Undone with an error when its sends have not appeared within 3 s |
 | `renameChannel` | `channel`, `name` | rename an application or capture channel; an application channel's playback device is reloaded under the new name and the streams on it are put back (a short gap on that channel only), a capture channel's label changes without touching its route |
 | `deleteChannel` | `channel` | remove an application or capture channel; apps and remembered assignments on it move to the first remaining application channel. The last application channel cannot be removed |
-| `createMix` | `name` | add a virtual microphone; every channel gets a muted send into it before the capture device is published. Undone with an error when a channel's send has not appeared within 3 s |
-| `renameMix` | `mix`, `name` | rename a virtual microphone in OpenXLR; the PipeWire device keeps its old description until the daemon restarts (reloading it would throw recording apps off), and the mixer state's `renamedSinceStart` says so |
-| `deleteMix` | `mix` | remove a virtual microphone with its sends, inserts and capture device |
-| `setLayoutOrder` | `channels[]`, `mixes[]` | complete ordered lists of editable-channel and virtual-microphone ids; structural nodes stay fixed |
-| `setChannelMuted` | `channel`, `mix`, `value` | one send mute |
+| `createMix` | `name`, optional `kind` | add a virtual microphone (`kind: "virtualMic"`, the default) or a monitor mix (`kind: "monitor"`) without a capture device; every channel gets a muted send into it before an optional capture device is published. Undone with an error when a channel's send has not appeared within 3 s |
+| `renameMix` | `mix`, `name` | rename a user mix in OpenXLR; the PipeWire device keeps its old description until the daemon restarts (reloading it would throw recording apps off), and the mixer state's `renamedSinceStart` says so |
+| `deleteMix` | `mix` | remove a user mix with its sends, inserts and optional capture device |
+| `setLayoutOrder` | `channels[]`, `mixes[]` | complete ordered lists of editable-channel and user-mix ids; structural nodes stay fixed |
+| `setLayoutAppearance` | exactly one of `channel`, `mix`; `appearance {icon, colour, hidden}` | update presentation only; icon is empty or one of ● ♪ ♫ ✦ ◆ ▶ ◉, colour is null or #RRGGBB, hidden applies to channels only; omitted appearance fields reset to defaults; existing order is retained |
+| `setDisplayOrder` | `channels[]`, `mixes[]` | complete ordered lists including structural IDs; changes display order without changing routing priority |
+| `setExclusiveGroup` | `group?`, `name`, `channels[]` | create a group when `group` is absent, otherwise replace a known group's name and membership; saved before acknowledgement |
+| `deleteExclusiveGroup` | `group` | remove a known group while preserving current send mutes; saved before acknowledgement |
+| `cycleExclusiveGroup` | `group`, `mix` | select the next member in this mix, or the first if all are muted; resolved on the daemon so rapid presses advance in order |
+| `setChannelMuted` | `channel`, `mix`, `value` | one send mute; opening a grouped send first closes its peers in this mix |
 | `setMixVolume` / `setMixMuted` | `mix`, `value` | mix masters; monitor volume range 0 to 1.5, other mixes 0 to 1; values outside the range are clamped |
 | `setMonitorOutputs` | `devices[]` | every sink the monitor mixes feed; a newly listed output is fed by the first monitor mix |
 | `setMonitorOutput` | `device` | a single monitor sink; `null` disconnects the route |
-| `setMonitorFeed` | `device`, `mix` | what feeds one selected output: any existing mix id, including `stream`, `chat`, `auxout` and custom virtual microphones, or distinct ids joined with `+` to sum them. The Pro's own jacks follow one feed together. The state's `monitorFeeds` lists exceptions from the first monitor mix in layout order. Unknown or repeated mix ids and unselected outputs are rejected. Deleting the last included mix returns that output to the first monitor mix; deliberately silent matrix outputs stay silent |
+| `setMonitorFeed` | `device`, `mix` | what feeds one selected output: any existing mix id, including `stream`, `chat`, `auxout` and custom virtual microphones, or distinct ids joined with `+` to sum them. The Pro's own jacks follow one feed together. The state's `monitorFeeds` lists exceptions from `primaryMonitorMix`, the first monitor mix in routing order. Unknown or repeated mix ids and unselected outputs are rejected. Deleting the last included mix returns that output to the first monitor mix |
 | `setAuxPortEnabled` | `value` | send the Aux mix to the USB Aux port |
 | `setOutputVolume` | `value` | volume of the selected monitor devices, 0 to 1.5; the range the devices themselves take, so a desktop level above unity can be held and written back unchanged. Values outside it are clamped, and the state reports what reached the devices. With no output selected the command succeeds and changes nothing |
 | `listPlugins` | none | the installed LV2, CLAP and VST3 plugins, answered with a `plugins` message |
@@ -168,7 +173,14 @@ that final acknowledgement (or an `error` without a request id):
 | `deleteWindowsPlugin` | `path` | permanently delete one standalone plugin file or bundle and its wrappers, then refresh the catalogue. Refused for unregistered, Wine-installed, symbolic-link or in-use sources; answered with `pluginInstall`. Clients must confirm deletion with the user first |
 | `syncWindowsPlugins` | none | run yabridge's sync over the folders it knows, clean missing-source wrappers belonging to those folders unless inserts still use them, then read the catalogues again; answered with `pluginInstall` |
 | `rescanPlugins` | none | read the plugin directories again, for plugins installed by other means; answered with `pluginInstall` |
+| `soundCheck` | `channel`, `action` | use `xlr1` or `xlr2` and `record`, `loop`, `live` or `stop`. One microphone session at a time; recording replaces the sample and ends after ten seconds, looping needs at least 0.1 seconds. Live keeps the sample, stop discards it. Requires the native helper and a connected microphone. Commands acknowledge with `requestId` using the normal command reply. |
+
+| `renameInsert` | `channel`, `insertId`, `name` | rename an existing instance with 1 to 256 characters and no control characters. Only its label changes; the running plugin, parameters and ports are retained. |
+
+| `holdInsert` | `holdId`, `action`, `channel?`, `insertId?` | temporarily activate effects while a key is held. `holdId` is a UUID without separators; `action` is `begin`, `renew` or `end`. Begin needs a channel and optionally an insert id, otherwise it selects the whole chain. Renew and end need only the hold id. |
 | `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is `xlr1`, `xlr2` or `mix:<id>`, each insert is `{id, kind, plugin, label?, bypass?, params?}` where `kind` is `"lv2"` with the plugin URI, `"clap"` with the plugin's id, or `"vst3"` with the class id as 32 hex digits; a CLAP or VST3 insert always runs in the native host, so its `nativeHost` reads true whatever was sent. An insert being added is refused when its plugin cannot run at the chain's width (one channel on an input, two on a mix, by `widths` or the port counts as `plugins` describes them); an insert already in the chain, the same plugin under the same id, is left to the chain builder, so one can always be removed; an id kept while its `kind` or `plugin` changes counts as an addition |
+
+| `setInserts` | `channel`, `inserts[]` | replace a chain; `channel` is any existing channel id (hardware, software or external capture), or `mix:<id>`, each insert is `{id, kind, plugin, label?, bypass?, params?}` where `kind` is `"lv2"` with the plugin URI, `"clap"` with the plugin's id, or `"vst3"` with the class id as 32 hex digits; a CLAP or VST3 insert always runs in the native host, so its `nativeHost` reads true whatever was sent. An insert being added is refused when its plugin cannot run at the chain's width (one channel on XLR 1/2, two on Aux, software/capture channels and mixes, by `widths` or the port counts as `plugins` describes them); an insert already in the chain, the same plugin under the same id, is left to the chain builder, so one can always be removed; an id kept while its `kind` or `plugin` changes counts as an addition |
 | `setInsertBypass` | `channel`, `insertId`, `value` | bypass one insert |
 | `setInsertParam` | `channel`, `insertId`, `symbol`, `value` | one plugin control, by the catalogue's `symbol` (LV2 port symbol or decimal CLAP/VST3 parameter id); use catalogue ranges and scale points. Refused when the insert is not in the chain or the catalogue does not declare the symbol for its plugin |
 | `getNativeEditorRules` | none | read release defaults and explicit user overrides for native editor compatibility |
@@ -189,6 +201,32 @@ that final acknowledgement (or an `error` without a request id):
 | `resetDevice` | none | write the recorded defaults back to a device using connect-time restoration and forget its last settings (an error until the daemon has seen the device connect after a power cycle once); on the Wave XLR Pro, which keeps its own settings, write OpenXLR's baseline instead: gain 30 dB on both inputs, every processing stage and phantom off, headphones and aux level at half, the crossfade fully on PC, routing untouched, refused while the gain lock is on. The capabilities say `builtInDefaults` when a model has a baseline |
 | `getDiagnostics` | none | vendor block dump for bug reports |
 
+`saveProfile` accepts an optional `presentation` object containing
+`touchControls` (optional boolean), `compactMixer` (boolean), `compactChannel` (nullable ID, at most 36 characters),
+`skin` (nullable ID, at most 64 characters), optional `appearanceMode`
+(`"system"`, `"light"` or `"dark"`), `collapsedSections` and `sectionOrder`
+(distinct lists of at most 16 nonempty IDs, at most 64 characters each).
+Identifiers cannot contain control characters. An omitted or null mode preserves
+the window's current mode when recalled, so older profiles retain their behaviour.
+An invalid explicit mode rejects the profile before applying it. An empty object
+restores the other presentation defaults while preserving the mode. Omitting
+`presentation` preserves presentation already saved in that profile, allowing
+older clients to update audio without discarding it.
+Missing or null `touchControls` preserves local sizing; true selects Touch and false Standard.
+
+A successful profile recall publishes `state.profilePresentation` as
+`{ "revision": "<32-character recall ID>", "settings": { ... } }`, or null for
+a profile without window choices. This remains in state so a disconnected
+window can catch up. The window persists the revision together with the choices
+and applies it only once, including across window restarts. A fresh explicit or
+on-connect recall gets a new ID even for the same profile. Failed recalls do not
+publish new presentation. Unknown section IDs are retained but not displayed;
+unavailable skins use the window's default. These choices affect no startup,
+update or security preferences. The window recalls compact view, skin, appearance mode,
+collapsed sections and section order. An active drag is cancelled before the recalled order is applied.
+The mixer scene separately stores `appearance` as described in
+[mixer presentation](mixer-layout.md#presentation).
+
 When `loadProfile` writes the device settings but the mixer settings fail, the
 error says the device settings were applied and gives the mixer error. A
 profile file that fails validation, or that cannot be parsed, is refused
@@ -196,10 +234,17 @@ before anything is applied; the error starts with `profile '<name>':`. A bad
 mixer field is named; a non-finite device level is reported as `Saved device
 levels must be finite numbers.` without one.
 
+An unreadable profile directory or recall marker does not prevent a `state`
+reply. `warning` describes the read failure; unavailable profile names are
+empty and an unavailable recall choice is null. Device and mixer state and
+the last active profile remain available. A later successful read clears
+the profile warning without restarting the daemon.
+
 An output's feed names one mix or several joined with `+`, every one at
 unity; a blend at other levels is a mix of its own. An absent entry in
-`monitorFeeds` selects the first monitor mix. The per-route levels of
-0.1.40 and 0.1.41 (`outputRoutes`, `setOutputRoute`) are gone: a saved
+`monitorFeeds` selects `primaryMonitorMix`, independent of the displayed mix
+order; it is null if there is no monitor mix. Older daemons omit that field;
+their first monitor mix is the default. The per-route levels of 0.1.40 and 0.1.41 (`outputRoutes`, `setOutputRoute`) are gone: a saved
 list is ignored and the command is unknown.
 
 `setEnforcedDefaults` accepts `sink: "@monitor"` to follow the first selected
@@ -505,3 +550,150 @@ dial rings and the keys agree; on a monitor mix sink it goes through the
 existing mix setter, so state and graph updates follow the same path as the
 mixer mute control; on any other output it uses pipewire-pulse's atomic
 toggle. The daemon pushes state whenever a sink's volume or mute changes.
+
+Mixer channel and mix state entries carry `appearance {icon, colour, hidden, order}`.
+Older clients may ignore it. Display order is reflected in the state arrays;
+channel levels, routing IDs and mix kinds retain their existing meaning.
+
+### Exclusive channel groups
+
+`mixer.exclusiveGroups` contains `{id, name, channels[]}` entries. Each
+`mixer.channels[]` also carries `exclusiveGroup` (a group ID, or `null`).
+There are at most 16 groups, each with 2 to 35 distinct existing channel
+IDs. A channel belongs to at most one group. Group IDs use the layout ID
+format, names contain 1 to 60 printable characters, and generated IDs stay
+stable across renames. Invalid live edits fail without changing state.
+
+Selection is represented by the existing `channels[].mutedIn` lists, not a
+second selection flag. Unmuting a member closes peers only in the addressed
+mix. Muting it leaves no selection; send levels remain unchanged. A failed
+peer mute holds the selected member silent while the existing cell recovery
+retries. Group creation, editing and profile recall close all members in a
+mix when the supplied state would open more than one. They never choose an
+arbitrary microphone. A missing channel is pruned on restore or deletion;
+groups with fewer than two remaining members disappear without opening sends.
+
+Profiles include `mixer.exclusiveGroups` and existing per-send mutes. Missing
+or `null` groups in older profiles preserve membership; `[]` removes it.
+Malformed or overlapping profile groups refuse the profile before changes.
+Hardware `set` mute controls remain device-wide; use `setChannelMuted` for
+per-mix selection. Grouped XLR 1 uses software monitoring at the interface's
+headphone jacks so the device's direct path cannot bypass this selection.
+
+The HTTP transport can be disabled with `httpApiEnabled` in `daemon.json`
+(default true), applied on daemon restart. This does not disable `/ws` or
+change its commands. The Options switch saves and restarts the service.
+[HTTP resource reads](http-api.md) use this same state and dispatcher.
+
+### Plugin search paths
+
+`getPluginSetup` includes `searchDirectories`, a list of `{kind, path, custom,
+exists}` entries for LV2, CLAP and VST3, and optional `searchPathWarning`.
+Default and environment paths remain active; `custom` marks additions in
+`plugin-paths.json`. Missing paths remain visible and removable. Existence is
+a directory check, not a guarantee that every bundle can be read or loaded.
+When `LV2_PATH` is unset, lilv's compiled defaults remain active and are not
+listed; additional LV2 paths extend catalogue discovery only. Set `LV2_PATH`
+explicitly to make custom LV2 directories available to live hosts. An explicit
+value is applied to both discovery and child hosts even without added paths.
+
+`addPluginSearchPath {kind, path}` and `removePluginSearchPath {kind, path}`
+accept `kind` equal to `lv2`, `clap` or `vst3` and an absolute directory path,
+at most 4096 characters, without colons or control characters. The filesystem
+root and broad system directories are refused. Paths are resolved through
+symbolic links; a parent or child of a known search directory is refused.
+Add requires an existing directory; removal works offline.
+At most 32 additions across all formats are stored. Changes are saved atomically
+before the existing catalogue refresh runs, under the installation lock.
+An already registered addition or absent removal succeeds without rescanning.
+Recursive discovery stops after 16,384 entries per root and reports that limit.
+Both commands return the existing `pluginInstall` result and correlated error
+handling. A failed save leaves the old paths intact; a corrupt configuration
+must be repaired before editing it. Unresolvable saved entries are ignored with
+`searchPathWarning`; healthy entries remain available and edits are refused until
+the saved paths can be read completely. No plugin file is removed.
+
+If PipeWire cannot load an LV2 chain, OpenXLR can retry it with the native host
+when that host supports every active insert. `nativeHostRunning` reports the
+actual running host even if `insert.nativeHost` is false; the latter remains
+the saved preference. Clients use the live flag to offer an available editor.
+Fallback is local to the failed chain and does not change other instances of
+the same plugin. A later rebuild attempts the saved host preference again.
+
+### Plugin latency and optional mix alignment
+
+`setMixLatencyCompensation` takes a boolean `value`. It saves the mixer-wide
+preference before acknowledgement; it defaults to false and is not part of a
+profile scene. Changing it rebuilds plugin paths and briefly interrupts audio.
+The same command is available over the HTTP command transport.
+
+Each insert status includes nullable `latencyMilliseconds`: the plugin's live
+algorithmic latency, or null while not reported, stopped or unavailable. A bypass
+reports zero. LV2 metadata can declare that a plugin has no latency port; those
+running inserts report zero. Native LV2, CLAP and VST3 hosts report samples at
+their active sample rate. LV2 latency ports are measured in an isolated host
+when compensation is enabled and that host supports the plugin's required
+features. The saved native-editor preference is not changed.
+
+Mixer state exposes `compensateMixLatency`, `mixDelayMilliseconds` (mix id to
+applied delay) and nullable `mixLatencyError`. With valid reports from every
+active mix insert, each mix receives the difference between its total insert
+latency and the slowest mix's total. Unknown reports or a total above 2000 ms
+disable alignment for all mixes and expose a reason, rather than treating
+unknown as zero or truncating the requested delay. Input inserts precede the
+fan-out and are reported but are not separately aligned against other inputs.
+Device latency, transport/resampler offsets, intentional echo effects and the
+hardware direct-monitor path are outside this algorithmic mix alignment.
+
+### Sound Check state
+
+`mixer.soundCheck` contains `channel` (null when idle), `mode` (`idle`,
+`recording`, `looping` or `live`), `seconds` (recorded duration, 0 to 10) and
+nullable `error`. Progress arrives in mixer state updates. The sample exists
+only in helper memory, before software input processing and inserts but after
+hardware gain and processing. No recording or session state is saved in profiles.
+Device changes, helper failure, daemon restart and a ten-minute session limit
+end replay and restore the physical input. `stop` is idempotent; commands for
+another microphone are refused while a session is active.
+
+A stopped Sound Check with an error retains its `channel` with `mode:"idle"`
+so clients show the reason only on the affected microphone. Explicit stop
+clears that error; a new recording replaces it.
+
+Channel inserts process the signal before its per-mix sends. Software and
+external-capture channels retain their public sink name. Adding the first or
+removing the last insert recreates that sink and restores its feeds. Other
+chain changes keep the sink. Hidden `OpenXLR_bus_*` sinks exist only for channels
+with insert definitions and carry the post-insert fan-out
+and are excluded from device selection. The existing parameter, bypass and
+native-editor commands use the same channel ids. Channel deletion also removes
+its saved inserts; a failed layout save restores the previous chain definition.
+
+### Effect chain workflows
+
+Copy, paste, presets and A/B in the UI use the existing `setInserts` command
+with `requestId`. Every plugin and parameter is checked by the daemon before
+the chain is replaced. Pasting and loading presets allocate fresh slot ids;
+A/B snapshots retain their ids within one chain. `renameInsert` updates only
+the saved label and state, so a display edit does not rebuild audio.
+
+### Momentary effect keys
+
+`holdInsert` restores each insert's original bypass value when its last hold
+ends. Overlapping keys share that original state. Begin is idempotent for the
+same id and target; reusing an id for another target is rejected. At most 128
+holds are active. Renew within five seconds; expired or cancelled holds cannot
+be recreated by renewal. End and renewal of an unknown hold are harmless.
+
+The live insert state shows the effective bypass state. Settings and profile
+exports retain the original values, and these commands do not schedule disk
+writes. A manual bypass change or chain replacement cancels its holds; profile
+recall and teardown cancel all holds. Parameter edits and renaming do not need
+to cancel a hold. A chain replacement applies every bypass value supplied by
+its caller after cancelling the holds, including values on preserved instances.
+Clients editing a chain during a hold should choose the intended persistent
+bypass values rather than copying its temporarily active state blindly.
+
+The deadline starts after effects finish loading. Expiry is handled by the
+normal daemon sweep, so a lost client restores effects after five seconds plus
+sweep and graph-rewire time. No new polling process is needed.

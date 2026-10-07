@@ -8,8 +8,8 @@ cannot reach a file outside its own folder.
 OpenXLR ships thirteen appearances, all compiled into the application, so
 every package has them and there is nothing to install:
 
-- **Material**, the default, which is what the window has always looked
-  like. It is what every unset value falls back to.
+- **Material**, the default, with System, Light and Dark modes. Its dark
+  values are the fallback for tokens a custom skin leaves unset.
 - **Deck**, which dresses the window in the visual language of the
   OpenDeck keys and the Wave interfaces: near-black faceplates, black keys
   whose lettering is backlit green when a control is on and red when
@@ -42,16 +42,35 @@ including after the picker has listed it. A file that exceeds the limit or
 grows during that read keeps the default palette; repairing it allows the
 next load to use it again.
 
-The choice is saved in
-`~/.config/openxlr/ui.json` as `"skin": "<id>"` and nowhere else: it is not
-part of the mixer layout, the daemon's preferences or a profile, and
-changing it never touches audio. Windows that are already open repaint;
-nothing is rebuilt and nothing is restarted.
+Material has a **Mode** choice: **System** (the default), **Light** or
+**Dark**. System follows desktop appearance changes while the window is open;
+it does not poll. Light and Dark keep the selected appearance. Material's
+light palette uses the existing skin tokens and does not add another skin to
+the picker. Deck, Omarchy and installed skins keep their own colours; choose
+Material to use the mode again.
+
+The choices are saved in `~/.config/openxlr/ui.json` as `"skin": "<id>"`
+and `"appearanceMode": "system"`, `"light"` or `"dark"`. Missing or invalid
+local mode values use System without discarding other window preferences.
+Profiles saved from the window capture both values. Older profiles with no
+mode keep the current mode when recalled.
+A skin unavailable on this installation falls back to the shipped default.
+A recalled skin with invalid values uses the same validation fallbacks as
+manually choosing it, and the window reports the errors.
+The launch skin override takes precedence until a new skin or mode is
+explicitly chosen and saved in Options. Desktop changes and profile recalls
+do not clear it. A failed save keeps the previous appearance. Changing a skin
+never touches audio. Windows that are already open repaint;
+nothing is rebuilt and nothing is restarted. If the window cannot save a new
+skin or mode, the previous appearance and picker selection stay active and
+Options shows the error. Fix the permissions or file problem, then select the
+same choice again.
+An existing preference file must be a readable JSON object. A skin choice
+refuses malformed or non-object data without replacing it. Unknown fields,
+including settings from independent window features, survive skin changes.
 If the terminal cannot read `ui.json`, it uses the default appearance.
-A malformed document, including duplicate keys or a value other than a
-JSON object, is left untouched when saving a terminal skin choice. Repair
-the file before saving a new choice; settings unrelated to the skin are
-preserved in a valid object.
+Duplicate-key documents are also left untouched by the terminal; repair the
+file before saving a new choice.
 
 If a skin ever makes something unreadable, start the window once with
 
@@ -59,11 +78,20 @@ If a skin ever makes something unreadable, start the window once with
 OPENXLR_SKIN=default openxlr
 ```
 
-which ignores the saved choice for that run and leaves it saved, so you
-can pick another one from Options. Options says when a run was started
-that way. Any id works there, not only `default`, which is the quickest
+which starts with the known dark Material appearance and leaves the saved
+choice intact, so you can pick another one from Options. Options says when a
+run was started that way. Any id works there, not only `default`, which is the quickest
 way to try a skin without selecting it.
 
+The terminal uses the same mode and Material palette. Its Options tab changes
+**Material mode** with Left/Right. System reads and subscribes to the desktop
+portal's [colour-scheme setting](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Settings.html)
+through `gdbus`; the helper is optional, and no portal or no preference falls
+back to Dark. The subscription runs only for System with Material and stops
+when another mode or skin is chosen. `--skin` and `OPENXLR_SKIN` keep their
+explicit palette until a successful Options choice. The terminal does not
+consume the window's profile-presentation receipt; the window remains the
+client that applies those profile preferences.
 ## Stream Deck colours
 
 The OpenDeck plugin uses the same saved skin for key surfaces, lettering,
@@ -470,6 +498,27 @@ Cells are laid out on whole pixels, and a ladder too narrow to draw is
 drawn as one continuous bar instead, so a segmented meter never comes out
 as a smear.
 
+### Mixer control sizing
+
+Options offers Standard and Touch mixer controls independently of the Compact
+single-channel view. Standard uses the skin values below. Touch uses minimum
+44-unit control targets, 180-unit channel strips and 280-unit mix tiles. Larger
+skin values remain larger. With Touch or an explicit control-size minimum, a
+taller custom fader cap raises the slider minimum to contain it. These resources
+affect the main mixer, including its inline insert actions; plugin-native windows
+retain their own controls. Touch minima also apply to compact button class styles;
+Standard defaults restore those styles' original minima.
+
+| Token | Kind | Default | Range | What it paints |
+|---|---|---|---|---|
+| `Ox.Mixer.ControlMinSize` | number | framework | 0 to 64 | minimum mixer control width and height |
+| `Ox.Mixer.SliderMinHeight` | number | framework | 0 to 96 | minimum mixer slider height |
+| `Ox.Mixer.DeviceSliderHeight` | number | 30 | 30 to 96 | slider height in device control rows |
+| `Ox.Mixer.SmallControlMinSize` | number | 0 | 0 to 64 | minimum compact mixer control size |
+| `Ox.Mixer.InsertControlMinSize` | number | 24 | 16 to 64 | minimum inline insert control size |
+| `Ox.Mixer.ChannelWidth` | number | 132 | 132 to 400 | mixer channel strip width |
+| `Ox.Mixer.MixWidth` | number | 232 | 232 to 500 | mix master tile width |
+
 ### The meter's scale
 
 A meter reads **RMS dBFS**: 0 is -60 dBFS and below, 1 is 0 dBFS, so a
@@ -664,11 +713,10 @@ six flat indicator colours.
 - It cannot change the OpenDeck plugin's key art. The plugin draws its own
   images on the device; the Deck skin borrows that visual language for the
   window, not the other way round.
-- It cannot hold a light and a dark version of itself, or follow the
-  desktop's preference. A skin is one set of values. OpenXLR's own values
-  are dark, and the toolkit values a skin leaves at `framework` are the
-  ones that follow the desktop. A light appearance of OpenXLR's own is on
-  the roadmap, not in this format.
+- It cannot hold a light and a dark version of itself. A skin is one set
+  of values; only Material selects its internal light or dark palette.
+  The toolkit values a custom skin leaves at `framework` still follow
+  the desktop.
 - It cannot skin the tray icon, the desktop notification or any window
   another application draws.
 
@@ -718,12 +766,10 @@ chosen one leaves the window on Material, and `ui.json` keeps the name
 until you choose something else, so putting the folder back brings it
 straight back.
 
-To reset the appearance completely, choose Material in Options, or close
-the window and delete the `"skin"` line from
-`~/.config/openxlr/ui.json`. That line is the whole of the skin's presence
-on your machine, and nothing about the mixer, the daemon or your audio
-devices is kept in that file at all, so neither route can disturb what is
-playing.
+To reset the appearance completely, choose Material and System in Options,
+or close the window and remove `skin` and `appearanceMode` from
+`~/.config/openxlr/ui.json`. These preferences do not change the mixer,
+the daemon or audio devices, so neither route disturbs what is playing.
 
 ## Adding a token
 
@@ -732,3 +778,9 @@ value the window hard-codes cannot be skinned. If something you want to
 change has no token here, that is a missing token rather than a limit of
 the format, and it is a small change to the source. See
 [AGENTS.md](../AGENTS.md) and open an issue or a pull request.
+
+Preference changes require an existing `ui.json` to be a readable JSON object.
+Malformed or non-object data is refused without replacing it, and Options
+keeps the previous selection. After fixing the file, select the choice again.
+Fields owned by other window features, including the language choice, remain
+intact through skin, sizing or appearance changes and profile recalls.

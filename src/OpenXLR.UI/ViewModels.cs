@@ -1,3 +1,4 @@
+using OpenXLR.UI.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -15,6 +16,20 @@ public abstract class ViewModelBase : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void Raise([CallerMemberName] string? name = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+    /// <summary>
+    /// Restore a rejected two-way edit. Controls already display the attempted
+    /// value, so publish it before the original to invalidate the cached source
+    /// value. Neither notification invokes the property setter.
+    /// </summary>
+    protected void Reject<T>(ref T field, T rejected, [CallerMemberName] string? name = null)
+    {
+        T previous = field;
+        field = rejected;
+        Raise(name);
+        field = previous;
+        Raise(name);
+    }
 
     /// <summary>Set a field and notify; returns false if unchanged.</summary>
     protected bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
@@ -42,7 +57,12 @@ public sealed partial class MainViewModel : ViewModelBase
     public MainViewModel(DaemonClient client)
     {
         _client = client;
+        UiSettings settings = UiSettings.Load();
+        MinimizeToTray = settings.MinimizeToTray;
+        _compactMixer = settings.CompactMixer;
+        _compactChannelId = settings.CompactChannel;
         OutputVolumeRange = new VolumeRangeViewModel(() => OutputVolume = Math.Min(OutputVolume, 1));
+        OutputVolumeRange.Changed += RequestDesktopVolumeBoost;
         Inserts = new InsertsViewModel(client, "xlr1", 1, "XLR 1");
         Inserts2 = new InsertsViewModel(client, "xlr2", 1, "XLR 2");
         _client.StateReceived += node => Dispatcher.UIThread.Post(() => Apply(node));
@@ -54,7 +74,9 @@ public sealed partial class MainViewModel : ViewModelBase
             {
                 DeviceConnected = false; Status = "daemon not running";
                 Inserts.ResetForNewConnection(); Inserts2.ResetForNewConnection();
+                Inserts.SoundCheck.Apply(null); Inserts2.SoundCheck.Apply(null);
                 foreach (MixViewModel mv in Mixes) mv.Inserts.ResetForNewConnection();
+                foreach (ChannelViewModel channel in Channels) channel.Inserts.ResetForNewConnection();
             }
             else { Inserts.EnsurePluginsLoaded(); Inserts2.EnsurePluginsLoaded(); }
         });
@@ -67,6 +89,7 @@ public sealed partial class MainViewModel : ViewModelBase
             InsertsViewModel.ForgetCatalogue();
             Inserts.Refetch(); Inserts2.Refetch();
             foreach (MixViewModel mv in Mixes) mv.Inserts.Refetch();
+            foreach (ChannelViewModel channel in Channels.Where(c => c.Id is not ("xlr1" or "xlr2"))) channel.Inserts.Refetch();
         };
     }
 
@@ -77,8 +100,8 @@ public sealed partial class MainViewModel : ViewModelBase
 
     /// <summary>What the empty SUBMIXER tile says: the two reasons differ.</summary>
     public string MixerPlaceholder => !DaemonConnected
-        ? "Daemon not running."
-        : "Submixer is off. Turn it on in Options for per-app channels, mixes, virtual microphones and inserts; OpenXLR is controlling the hardware only.";
+        ? Localizer.Text("DaemonNotRunningSentence")
+        : Localizer.Text("SubmixerIsOffTurnItOnInOptions");
 
     private bool _deviceConnected;
     public bool DeviceConnected { get => _deviceConnected; private set { if (Set(ref _deviceConnected, value)) Raise(nameof(StatusLine)); } }
@@ -86,12 +109,12 @@ public sealed partial class MainViewModel : ViewModelBase
     private string _deviceName = "none";
     public string DeviceName { get => _deviceName; private set { if (Set(ref _deviceName, value)) Raise(nameof(StatusLine)); } }
 
-    private string _status = "connecting…";
+    private string _status = Localizer.Text("Connecting");
     public string Status { get => _status; private set { if (Set(ref _status, value)) Raise(nameof(StatusLine)); } }
 
-    public string StatusLine => !DaemonConnected ? "Daemon not running"
+    public string StatusLine => !DaemonConnected ? Localizer.Text("DaemonNotRunning")
         : DeviceConnected ? DeviceName
-        : "No device";
+        : Localizer.Text("NoDevice");
 
     // --- hardware controls ---
 
@@ -182,6 +205,15 @@ public sealed partial class MainViewModel : ViewModelBase
 
     // Software ClipGuard (host-side limiter) for devices without the
     // hardware one.
+    private bool _compensateMixLatency;
+    public bool CompensateMixLatency
+    {
+        get => _compensateMixLatency;
+        set { if (Set(ref _compensateMixLatency, value) && !_applying) _ = _client.SetMixLatencyCompensationAsync(value); }
+    }
+    private string? _mixLatencyError;
+    public string? MixLatencyError { get => _mixLatencyError; private set => Set(ref _mixLatencyError, value); }
+
     private bool _softClipGuard;
     public bool SoftClipGuard
     {
@@ -225,7 +257,7 @@ public sealed partial class MainViewModel : ViewModelBase
             }
         }
     }
-    public string SoftLowCutText => _softLowCutHz == 0 ? "Low Cut Off" : $"Low Cut {_softLowCutHz}";
+    public string SoftLowCutText => _softLowCutHz == 0 ? Localizer.Text("LowCutOff") : Localizer.Format("LowCutFrequency", _softLowCutHz);
 
     private bool _showSoftLowCut;
     public bool ShowSoftLowCut { get => _showSoftLowCut; private set => Set(ref _showSoftLowCut, value); }
@@ -415,8 +447,8 @@ public sealed partial class MainViewModel : ViewModelBase
     public int PhantomSettleSeconds2 { get => _phantomSettleSeconds2; set { if (Set(ref _phantomSettleSeconds2, value)) Raise(nameof(Mute2Label)); } }
 
     // The mute button counts the hold down while the firmware settles 48V.
-    public string MuteLabel => PhantomSettling ? $"48V {PhantomSettleSeconds}s" : "Mute";
-    public string Mute2Label => PhantomSettling2 ? $"48V {PhantomSettleSeconds2}s" : "Mute";
+    public string MuteLabel => PhantomSettling ? $"48V {PhantomSettleSeconds}s" : Localizer.Text("Mute");
+    public string Mute2Label => PhantomSettling2 ? $"48V {PhantomSettleSeconds2}s" : Localizer.Text("Mute");
 
     private bool _clipGuard;
     public bool ClipGuard { get => _clipGuard; set { if (Set(ref _clipGuard, value) && !_applying) _ = _client.SetControlAsync("clipGuard", value); } }
@@ -496,7 +528,7 @@ public sealed partial class MainViewModel : ViewModelBase
         get
         {
             var picked = MonitorOutputs.Where(o => o.IsSelected).Select(o => o.Label).ToList();
-            return picked.Count == 0 ? "not routed"
+            return picked.Count == 0 ? Localizer.Text("NotRouted")
                  : picked.Count <= 2 ? string.Join(" + ", picked)
                  : $"{picked[0]} + {picked.Count - 1} more";
         }
@@ -515,10 +547,38 @@ public sealed partial class MainViewModel : ViewModelBase
     public string? EnforcedDefaultSource { get; private set; }
 
     /// <summary>Mirrors the ui.json preference; MainWindow consults it on close.</summary>
-    public bool MinimizeToTray { get; set; } = UiSettings.Load().MinimizeToTray;
+    public bool MinimizeToTray { get; set; }
 
 
     public VolumeRangeViewModel OutputVolumeRange { get; }
+    internal event Action<bool>? DesktopVolumeBoostRequested;
+    private bool? _desktopVolumeBoost;
+    private string? _volumeRangeError;
+    public string? VolumeRangeError { get => _volumeRangeError; internal set { if (Set(ref _volumeRangeError, value)) Raise(nameof(HasVolumeRangeError)); } }
+    public bool HasVolumeRangeError => !string.IsNullOrEmpty(VolumeRangeError);
+
+    internal void ApplyDesktopVolumeBoost(bool boost)
+    {
+        _desktopVolumeBoost = boost;
+        OutputVolumeRange.Apply(boost);
+        foreach (var mix in Mixes.Where(m => m.IsMonitor)) mix.VolumeRange.Apply(boost);
+    }
+
+    private void RequestDesktopVolumeBoost(bool boost)
+    {
+        if (DesktopVolumeBoostRequested is null) return; // Other desktops retain per-control ranges.
+        ApplyDesktopVolumeBoost(boost);
+        DesktopVolumeBoostRequested.Invoke(boost);
+    }
+
+    private MixViewModel CreateMix(JsonNode node)
+    {
+        var mix = new MixViewModel(_client, node["id"]!.GetValue<string>(), node["name"]!.GetValue<string>())
+            { Kind = node["kind"]?.GetValue<string>() ?? "monitor" };
+        if (mix.IsMonitor && _desktopVolumeBoost is bool boost) mix.VolumeRange.Apply(boost);
+        mix.VolumeRange.Changed += boost => { if (mix.IsMonitor) RequestDesktopVolumeBoost(boost); };
+        return mix;
+    }
 
     private double _outputVolume;
     public double OutputVolume
@@ -559,10 +619,14 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public Task<string?> CreateCaptureChannel(string name, string source, int pair)
         => Edit(_client.CreateCaptureChannelAsync(name, source, pair));
+    public IReadOnlyList<ExclusiveGroupItem> ExclusiveGroups { get; private set; } = [];
+    public Task<string?> SetExclusiveGroup(string? group, string name, IReadOnlyList<string> channels)
+        => Edit(_client.SetExclusiveGroupAsync(group, name, channels));
+    public Task<string?> DeleteExclusiveGroup(string group) => Edit(_client.DeleteExclusiveGroupAsync(group));
     public Task<string?> CreateChannel(string name) => Edit(_client.CreateChannelAsync(name));
     public Task<string?> RenameChannel(string id, string name) => Edit(_client.RenameChannelAsync(id, name));
     public Task<string?> DeleteChannel(string id) => Edit(_client.DeleteChannelAsync(id));
-    public Task<string?> CreateMix(string name) => Edit(_client.CreateMixAsync(name));
+    public Task<string?> CreateMix(string name, string kind = "virtualMic") => Edit(_client.CreateMixAsync(name, kind));
     public Task<string?> RenameMix(string id, string name) => Edit(_client.RenameMixAsync(id, name));
     public Task<string?> DeleteMix(string id) => Edit(_client.DeleteMixAsync(id));
 
@@ -570,15 +634,30 @@ public sealed partial class MainViewModel : ViewModelBase
     public Task<string?> MoveChannel(string id, int delta) => Reorder(id, delta, isMix: false);
     public Task<string?> MoveMix(string id, int delta) => Reorder(id, delta, isMix: true);
 
+    internal Task<string?> PlaceDisplayItem(string source, string target, bool after, bool isMix)
+    {
+        string[] channels = Channels.Select(c => c.Id).ToArray();
+        string[] mixes = Mixes.Select(m => m.Id).ToArray();
+        string[] current = isMix ? mixes : channels;
+        string[] ordered = DisplayOrder.Place(current, source, target, after);
+        if (current.SequenceEqual(ordered)) return Task.FromResult<string?>(null);
+        return Edit(_client.SetDisplayOrderAsync(isMix ? channels : ordered, isMix ? ordered : mixes));
+    }
+
+    public Task<string?> UseDisplayOrderForRouting()
+        => Edit(_client.SetLayoutOrderAsync(
+            Channels.Where(c => c.IsEditable).Select(c => c.Id).ToArray(),
+            Mixes.Where(m => m.IsEditable).Select(m => m.Id).ToArray()));
+
     private Task<string?> Reorder(string id, int delta, bool isMix)
     {
-        List<string> channels = [.. Channels.Where(c => c.IsEditable).Select(c => c.Id)];
-        List<string> mixes = [.. Mixes.Where(m => m.IsEditable).Select(m => m.Id)];
+        List<string> channels = [.. Channels.Select(c => c.Id)];
+        List<string> mixes = [.. Mixes.Select(m => m.Id)];
         List<string> list = isMix ? mixes : channels;
         int from = list.IndexOf(id), to = from + delta;
         if (from < 0 || to < 0 || to >= list.Count) return Task.FromResult<string?>(null);
         (list[from], list[to]) = (list[to], list[from]);
-        return Edit(_client.SetLayoutOrderAsync(channels, mixes));
+        return Edit(_client.SetDisplayOrderAsync(channels, mixes));
     }
 
     private async Task<string?> Edit(Task<string?> result)
@@ -707,6 +786,7 @@ public sealed partial class MainViewModel : ViewModelBase
             Status = DeviceConnected ? "ready" : "no device";
         }
         finally { _applying = false; }
+        ApplyProfilePresentation(node["profilePresentation"]);
         StateApplied?.Invoke();
     }
 
@@ -866,17 +946,20 @@ public sealed partial class MainViewModel : ViewModelBase
         foreach (MonitorOutputItem item in MonitorOutputs) item.Sync(current.Contains(item.Name));
 
         var allMixes = (mixer?["mixes"] as JsonArray)?.Where(m => m is not null).ToList() ?? [];
-        var monitorMixes = allMixes.Where(m => (m!["kind"]?.GetValue<string>() ?? "monitor") == "monitor")
+        var monitorMixes = allMixes.Where(m => m!["id"]?.GetValue<string>() is "monitor" or "monitor2")
             .Select(m => new MixOption(m!["id"]!.GetValue<string>(), m["name"]?.GetValue<string>() ?? m["id"]!.GetValue<string>())).ToList();
-        // With two or more monitor mixes an output can also hear them all,
+        // An output can also hear the two built-in monitor mixes,
         // summed: "Monitor A+B" for headphones that want the desktop from A
         // and a separately processed mic from B.
         if (monitorMixes.Count > 1)
-            monitorMixes.Add(new MixOption(string.Join("+", monitorMixes.Select(m => m.Id)), SummedName(monitorMixes.Select(m => m.Name))));
-        monitorMixes.AddRange(allMixes.Where(m => (m!["kind"]?.GetValue<string>() ?? "monitor") != "monitor")
+        {
+            var summed = monitorMixes.OrderBy(m => m.Id, StringComparer.Ordinal).ToArray();
+            monitorMixes.Add(new MixOption(string.Join("+", summed.Select(m => m.Id)), SummedName(summed.Select(m => m.Name))));
+        }
+        monitorMixes.AddRange(allMixes.Where(m => m!["id"]?.GetValue<string>() is not ("monitor" or "monitor2"))
             .Select(m => new MixOption(m!["id"]!.GetValue<string>(), m["name"]?.GetValue<string>() ?? m["id"]!.GetValue<string>())));
         var feeds = mixer?["monitorFeeds"] as JsonObject;
-        string primaryMonitor = monitorMixes.FirstOrDefault()?.Id ?? "monitor";
+        string primaryMonitor = mixer?["primaryMonitorMix"]?.GetValue<string>() ?? monitorMixes.FirstOrDefault()?.Id ?? "monitor";
         foreach (MonitorOutputItem item in MonitorOutputs)
             item.SyncFeed(monitorMixes, feeds?[item.Name]?.GetValue<string>() ?? primaryMonitor);
         Raise(nameof(MonitorSummary));
@@ -1001,7 +1084,10 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private void ApplyMixer(JsonNode? mixer)
     {
-        if (mixer is null) { HasMixer = false; RenamedSinceStart = false; LayoutWarning = ""; return; }
+        ExclusiveGroups = (mixer?["exclusiveGroups"] as JsonArray)?.OfType<JsonObject>()
+            .Select(g => new ExclusiveGroupItem(g["id"]!.GetValue<string>(), g["name"]!.GetValue<string>(),
+                g["channels"]!.AsArray().Select(ch => ch!.GetValue<string>()).ToArray())).ToArray() ?? [];
+        if (mixer is null) { Inserts.SoundCheck.Apply(null); Inserts2.SoundCheck.Apply(null); HasMixer = false; RenamedSinceStart = false; LayoutWarning = ""; return; }
         HasMixer = true;
         RenamedSinceStart = mixer["renamedSinceStart"]?.GetValue<bool>() ?? false;
         LayoutWarning = mixer["layoutWarning"]?.GetValue<string>() ?? "";
@@ -1009,8 +1095,12 @@ public sealed partial class MainViewModel : ViewModelBase
         SoftClipGuardAvailable = mixer["softClipGuardAvailable"]?.GetValue<bool>() ?? false;
         SoftClipGuardError = mixer["softClipGuardError"]?.GetValue<string>();
         SoftClipGuard = mixer["softClipGuard"]?.GetValue<bool>() ?? false;
+        CompensateMixLatency = mixer["compensateMixLatency"]?.GetValue<bool>() ?? false;
+        MixLatencyError = mixer["mixLatencyError"]?.GetValue<string>();
         Inserts.Apply(mixer["inserts"]?["xlr1"]);
         Inserts2.Apply(mixer["inserts"]?["xlr2"]);
+        Inserts.SoundCheck.Apply(mixer["soundCheck"]);
+        Inserts2.SoundCheck.Apply(mixer["soundCheck"]);
         bool auxAudible = mixer["monitorFeeds"] is JsonObject monitorFeeds && monitorFeeds.Any(
             feed => (feed.Value?.GetValue<string>() ?? "").Split('+').Contains("auxout"));
 
@@ -1018,8 +1108,8 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             SyncList(Mixes, mixes, m => m["id"]!.GetValue<string>(),
                 (m, vm) => vm.ApplyFromDaemon(m),
-                m => new MixViewModel(_client, m["id"]!.GetValue<string>(), m["name"]!.GetValue<string>())
-                    { Kind = m["kind"]?.GetValue<string>() ?? "monitor" });
+                CreateMix,
+                vm => InsertWindows.CloseChain(vm.Inserts));
             bool auxOn = mixer["auxPortEnabled"]?.GetValue<bool>() ?? true;
             foreach (MixViewModel mv in Mixes.Where(mv => mv.IsAuxPort)) mv.ApplyAuxPort(auxOn);
             // Aux can feed a selected output even without a USB Aux port.
@@ -1043,7 +1133,9 @@ public sealed partial class MainViewModel : ViewModelBase
             string[] mixIds = [.. Mixes.Select(m => m.Id)];
             SyncList(Channels, channels, c => c["id"]!.GetValue<string>(),
                 (c, vm) => { vm.SyncSends(mixIds); vm.ApplyFromDaemon(c); },
-                c => new ChannelViewModel(_client, c["id"]!.GetValue<string>(), c["name"]!.GetValue<string>(), mixIds));
+                c => new ChannelViewModel(_client, c["id"]!.GetValue<string>(), c["name"]!.GetValue<string>(), mixIds,
+                    c["id"]!.GetValue<string>() switch { "xlr1" => Inserts, "xlr2" => Inserts2, _ => null }),
+                vm => InsertWindows.CloseChain(vm.Inserts));
             // Send rows carry the mix's name, not its id.
             foreach (ChannelViewModel c in Channels)
                 foreach (SendViewModel send in c.Sends)
@@ -1053,16 +1145,19 @@ public sealed partial class MainViewModel : ViewModelBase
             // so the window, the terminal mixer and the bar agree.
             foreach (ChannelViewModel c in Channels)
             {
+                c.Inserts.Apply(mixer["inserts"]?[c.Id]);
+                c.Inserts.EnsurePluginsLoaded();
                 c.Visible = c.Present;
                 foreach (SendViewModel send in c.Sends.Where(s => s.MixId == "auxout"))
                     send.Visible = !DeviceConnected || CapOutputRouting || auxAudible;
             }
         }
+        RefreshChannelPresentation();
     }
 
     /// <summary>Follow daemon order while retaining existing objects and their bindings.</summary>
     private static void SyncList<T>(ObservableCollection<T> target, JsonArray source,
-        Func<JsonNode, string> idOf, Action<JsonNode, T> update, Func<JsonNode, T> create)
+        Func<JsonNode, string> idOf, Action<JsonNode, T> update, Func<JsonNode, T> create, Action<T> remove)
         where T : class, IHasId
     {
         var seen = new HashSet<string>();
@@ -1091,7 +1186,11 @@ public sealed partial class MainViewModel : ViewModelBase
             position++;
         }
         for (int i = target.Count - 1; i >= 0; i--)
-            if (!seen.Contains(target[i].Id)) target.RemoveAt(i);
+            if (!seen.Contains(target[i].Id))
+            {
+                remove(target[i]);
+                target.RemoveAt(i);
+            }
     }
 }
 
@@ -1183,8 +1282,8 @@ public sealed class AppStreamViewModel : ViewModelBase
         finally { _applying = false; }
     }
 
-    /// <summary>"playing" / "running" / "not running", for the manage dialog.</summary>
-    public string StatusText => Active ? "playing" : Running ? "running" : "not running";
+    /// <summary>Localized application status for the manage dialog.</summary>
+    public string StatusText => Active ? Localizer.Text("Playing") : Running ? Localizer.Text("Running") : Localizer.Text("NotRunning");
 
     public void Forget() => _ = _client.ForgetAppAsync(Identity);
 }
@@ -1283,6 +1382,7 @@ public sealed class MonitorOutputItem : ViewModelBase
 /// <summary>A mix (monitor/stream/chat): master level and mute.</summary>
 public sealed class MixViewModel : ViewModelBase, IHasId
 {
+    public LayoutAppearanceViewModel Appearance { get; } = new();
     private readonly DaemonClient _client;
     private bool _applying;
 
@@ -1299,8 +1399,9 @@ public sealed class MixViewModel : ViewModelBase, IHasId
     /// <summary>Display name; the daemon renames virtual microphones live.</summary>
     public string Name { get => _name; set => Set(ref _name, value); }
 
-    /// <summary>Editable: a virtual microphone. Monitors and Aux are structural.</summary>
-    public bool IsEditable => Kind == "virtualMic";
+    private bool? _editable;
+    /// <summary>The daemon owns editability; older daemons only allow virtual microphones.</summary>
+    public bool IsEditable => _editable ?? Kind == "virtualMic";
 
     /// <summary>What a structural mix is, for the layout editor.</summary>
     public string KindLabel => Kind switch { "monitor" => "monitor mix", "auxPort" => "USB Aux port", _ => "" };
@@ -1363,6 +1464,9 @@ public sealed class MixViewModel : ViewModelBase, IHasId
 
     public void ApplyFromDaemon(JsonNode n)
     {
+        Appearance.Apply(n["appearance"]);
+        bool? editable = n["editable"]?.GetValue<bool>();
+        if (_editable != editable) { _editable = editable; Raise(nameof(IsEditable)); }
         _applying = true;
         try
         {
@@ -1386,22 +1490,26 @@ public sealed class MixViewModel : ViewModelBase, IHasId
 /// <summary>A channel with one send (level + mute) per mix.</summary>
 public sealed class ChannelViewModel : ViewModelBase, IHasId
 {
-    public ChannelViewModel(DaemonClient client, string id, string name, IReadOnlyList<string> mixIds)
+    public LayoutAppearanceViewModel Appearance { get; } = new();
+    public ChannelViewModel(DaemonClient client, string id, string name, IReadOnlyList<string> mixIds, InsertsViewModel? inserts = null)
     {
         _client = client; Id = id; _name = name;
+        Inserts = inserts ?? new InsertsViewModel(client, id, id is "xlr1" or "xlr2" ? 1 : 2, name);
         foreach (string mixId in mixIds) Sends.Add(new SendViewModel(client, id, mixId));
     }
 
+    public InsertsViewModel Inserts { get; }
     private readonly DaemonClient _client;
     public string Id { get; }
 
     private string _name;
     /// <summary>Display name; the daemon renames application channels live.</summary>
-    public string Name { get => _name; set => Set(ref _name, value); }
+    public string Name { get => _name; set { if (Set(ref _name, value)) Inserts.Title = value; } }
 
     private bool _isHardware;
     /// <summary>A hardware input (XLR 1, XLR 2, Aux In): structural, not editable.</summary>
     public bool IsHardware { get => _isHardware; set { if (Set(ref _isHardware, value)) { Raise(nameof(IsEditable)); Raise(nameof(IsApplication)); } } }
+    public bool HasStripInserts => Id is not ("xlr1" or "xlr2");
     public bool IsEditable => !IsHardware;
     private string? _captureSource;
     public string? CaptureSource { get => _captureSource; set { if (Set(ref _captureSource, value)) Raise(nameof(IsApplication)); } }
@@ -1435,6 +1543,9 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
         }
     }
 
+    private bool _displayVisible = true;
+    public bool DisplayVisible { get => _displayVisible; set => Set(ref _displayVisible, value); }
+
     private bool _visible = true;
     public bool Visible { get => _visible; set => Set(ref _visible, value); }
 
@@ -1445,6 +1556,7 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
 
     public void ApplyFromDaemon(JsonNode n)
     {
+        Appearance.Apply(n["appearance"]);
         if (n["name"]?.GetValue<string>() is { Length: > 0 } name) Name = name;
         IsHardware = n["hardware"]?.GetValue<bool>() ?? false;
         Present = n["present"]?.GetValue<bool>() ?? true;

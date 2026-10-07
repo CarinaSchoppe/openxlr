@@ -1,0 +1,720 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="ADDINSTALLEDAPPLICATION" xml:space="preserve">
+    <value>添加已安装的应用</value>
+  </data>
+  <data name="APPEARANCE" xml:space="preserve">
+    <value>外观</value>
+  </data>
+  <data name="APPLICATIONS" xml:space="preserve">
+    <value>应用</value>
+  </data>
+  <data name="ATLOGIN" xml:space="preserve">
+    <value>登录时</value>
+  </data>
+  <data name="AUDIO" xml:space="preserve">
+    <value>音频</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>关于</value>
+  </data>
+  <data name="AboutOpenXLR" xml:space="preserve">
+    <value>关于 OpenXLR</value>
+  </data>
+  <data name="Active" xml:space="preserve">
+    <value>活动</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>添加</value>
+  </data>
+  <data name="AddCaptureInput" xml:space="preserve">
+    <value>添加采集输入</value>
+  </data>
+  <data name="AddChannel" xml:space="preserve">
+    <value>添加通道</value>
+  </data>
+  <data name="AddFolder" xml:space="preserve">
+    <value>添加文件夹</value>
+  </data>
+  <data name="AddPlugin" xml:space="preserve">
+    <value>添加插件</value>
+  </data>
+  <data name="AddPluginInsert" xml:space="preserve">
+    <value>添加插件效果</value>
+  </data>
+  <data name="AddVolumeAndMuteKeys" xml:space="preserve">
+    <value>添加音量和静音快捷键</value>
+  </data>
+  <data name="AllowNativeEditor" xml:space="preserve">
+    <value>允许原生编辑器</value>
+  </data>
+  <data name="ApplicationChannelsMixesVirtualMicrophonesAndInserts" xml:space="preserve">
+    <value>应用通道、混音、虚拟麦克风和插入效果。</value>
+  </data>
+  <data name="ApplyAndConfigureKeys" xml:space="preserve">
+    <value>应用并配置快捷键</value>
+  </data>
+  <data name="AudioAndTheAppWillStartWhenYou" xml:space="preserve">
+    <value>音频和应用将在登录时启动。</value>
+  </data>
+  <data name="AudioFlow" xml:space="preserve">
+    <value>音频信号流</value>
+  </data>
+  <data name="AudioWillStartAtLoginWithoutTheApp" xml:space="preserve">
+    <value>登录时启动音频，不启动应用或托盘图标。</value>
+  </data>
+  <data name="BridgeAgainEveryFolderYabridgeKnowsForWindows" xml:space="preserve">
+    <value>重新桥接 yabridge 已知文件夹中后来安装的 Windows 插件</value>
+  </data>
+  <data name="BridgeWineSPlugins" xml:space="preserve">
+    <value>桥接 Wine 的插件</value>
+  </data>
+  <data name="BuyMeACoffee" xml:space="preserve">
+    <value>请我喝杯咖啡</value>
+  </data>
+  <data name="Bypass" xml:space="preserve">
+    <value>旁路</value>
+  </data>
+  <data name="BypassThisPlugin" xml:space="preserve">
+    <value>旁路此插件</value>
+  </data>
+  <data name="Bypassed" xml:space="preserve">
+    <value>已旁路</value>
+  </data>
+  <data name="CHANNELS" xml:space="preserve">
+    <value>通道</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="ChangingThisRestartsTheAudioServiceAndBriefly" xml:space="preserve">
+    <value>更改此项会重启音频服务并短暂中断音频。</value>
+  </data>
+  <data name="Channel" xml:space="preserve">
+    <value>通道</value>
+  </data>
+  <data name="ChannelToMix" xml:space="preserve">
+    <value>通道到混音</value>
+  </data>
+  <data name="CheckAgain" xml:space="preserve">
+    <value>再次检查</value>
+  </data>
+  <data name="CheckGitHubForStableReleasesAtStartupAt" xml:space="preserve">
+    <value>启动时在 GitHub 检查稳定版本
+（每天最多一次）</value>
+  </data>
+  <data name="CheckNow" xml:space="preserve">
+    <value>立即检查</value>
+  </data>
+  <data name="ChooseAFolderThenSelectAnIndividualPlugin" xml:space="preserve">
+    <value>选择文件夹，然后在下方选择一个插件。</value>
+  </data>
+  <data name="ChooseAnApplication" xml:space="preserve">
+    <value>选择应用</value>
+  </data>
+  <data name="ClearSelection" xml:space="preserve">
+    <value>×  清除选择</value>
+  </data>
+  <data name="ClickAnyElementToTraceItsSignalPath" xml:space="preserve">
+    <value>点击任意元素以追踪其信号路径</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="CollectDiagnostics" xml:space="preserve">
+    <value>收集诊断信息</value>
+  </data>
+  <data name="Compressor" xml:space="preserve">
+    <value>压缩器</value>
+  </data>
+  <data name="Connecting" xml:space="preserve">
+    <value>正在连接…</value>
+  </data>
+  <data name="ContributorsAndCredits" xml:space="preserve">
+    <value>贡献者与致谢</value>
+  </data>
+  <data name="Controls" xml:space="preserve">
+    <value>控制</value>
+  </data>
+  <data name="CurrentSystemDefaultOutput" xml:space="preserve">
+    <value>当前系统默认输出</value>
+  </data>
+  <data name="DaemonNotRunning" xml:space="preserve">
+    <value>守护进程未运行</value>
+  </data>
+  <data name="DaemonNotRunningSentence" xml:space="preserve">
+    <value>守护进程未运行。</value>
+  </data>
+  <data name="DeepWineTraceForPluginScans" xml:space="preserve">
+    <value>插件扫描的深度 Wine 跟踪</value>
+  </data>
+  <data name="DefaultInput" xml:space="preserve">
+    <value>默认输入</value>
+  </data>
+  <data name="DefaultOutput" xml:space="preserve">
+    <value>默认输出</value>
+  </data>
+  <data name="Defaults" xml:space="preserve">
+    <value>默认值</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="DeleteFile" xml:space="preserve">
+    <value>删除文件</value>
+  </data>
+  <data name="DeleteThisProfile" xml:space="preserve">
+    <value>删除此配置文件</value>
+  </data>
+  <data name="DesktopKeys" xml:space="preserve">
+    <value>桌面快捷键</value>
+  </data>
+  <data name="Devices" xml:space="preserve">
+    <value>设备</value>
+  </data>
+  <data name="DirectMonitorBlendLeftOnlyYourMicRight" xml:space="preserve">
+    <value>直接监听混合：左侧仅麦克风，右侧仅电脑音频</value>
+  </data>
+  <data name="DisableInOpenXLR" xml:space="preserve">
+    <value>在 OpenXLR 中禁用</value>
+  </data>
+  <data name="DiscordCommunity" xml:space="preserve">
+    <value>Discord 社区</value>
+  </data>
+  <data name="Dismiss" xml:space="preserve">
+    <value>忽略提示</value>
+  </data>
+  <data name="DonTEnforce" xml:space="preserve">
+    <value>（不强制）</value>
+  </data>
+  <data name="EditLayout" xml:space="preserve">
+    <value>编辑布局</value>
+  </data>
+  <data name="EnableDesktopIntegration" xml:space="preserve">
+    <value>启用桌面集成</value>
+  </data>
+  <data name="EnableSoftwareMixer" xml:space="preserve">
+    <value>启用软件混音器</value>
+  </data>
+  <data name="Expander" xml:space="preserve">
+    <value>扩展器</value>
+  </data>
+  <data name="FindAnInstalledPlugin" xml:space="preserve">
+    <value>查找已安装的插件…</value>
+  </data>
+  <data name="FixWindowsEditorInput" xml:space="preserve">
+    <value>修复 Windows 编辑器输入</value>
+  </data>
+  <data name="Flow" xml:space="preserve">
+    <value>信号流</value>
+  </data>
+  <data name="FollowMONITOROutputSystemVolumeControls" xml:space="preserve">
+    <value>跟随 MONITOR 输出（系统音量控制）</value>
+  </data>
+  <data name="FollowSelectedMonitorOutput" xml:space="preserve">
+    <value>跟随所选监听输出</value>
+  </data>
+  <data name="Forget" xml:space="preserve">
+    <value>忘记</value>
+  </data>
+  <data name="FrontJack" xml:space="preserve">
+    <value>前置插孔</value>
+  </data>
+  <data name="GainLockTheDaemonRejectsEveryGainChange" xml:space="preserve">
+    <value>增益锁定：启用时守护进程拒绝所有增益更改</value>
+  </data>
+  <data name="HEADPHONES" xml:space="preserve">
+    <value>耳机</value>
+  </data>
+  <data name="HandThePluginsAWindowsInstallerLeftIn" xml:space="preserve">
+    <value>将 Windows 安装程序在 Wine 中安装的插件交给 yabridge</value>
+  </data>
+  <data name="INPUTS" xml:space="preserve">
+    <value>输入</value>
+  </data>
+  <data name="INTERFACE" xml:space="preserve">
+    <value>接口</value>
+  </data>
+  <data name="InputToChannel" xml:space="preserve">
+    <value>输入到通道</value>
+  </data>
+  <data name="InsertCount" xml:space="preserve">
+    <value>插入效果（{0}）</value>
+  </data>
+  <data name="Inserts" xml:space="preserve">
+    <value>插入效果</value>
+  </data>
+  <data name="InstallAClapOrVst3FileOrA" xml:space="preserve">
+    <value>安装 .clap 或 .vst3 文件，或通过 yabridge 安装 Windows 插件</value>
+  </data>
+  <data name="InstallAVst3OrLv2BundleOrEvery" xml:space="preserve">
+    <value>安装 .vst3 或 .lv2 插件包，或文件夹内的所有插件</value>
+  </data>
+  <data name="InstallFile" xml:space="preserve">
+    <value>安装文件</value>
+  </data>
+  <data name="InstallFolder" xml:space="preserve">
+    <value>安装文件夹</value>
+  </data>
+  <data name="InterfaceConnection" xml:space="preserve">
+    <value>接口连接</value>
+  </data>
+  <data name="KNOWNAPPLICATIONS" xml:space="preserve">
+    <value>已知应用</value>
+  </data>
+  <data name="KeepRunningInTray" xml:space="preserve">
+    <value>继续在托盘中运行</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>语言</value>
+  </data>
+  <data name="LanguageOverrideHint" xml:space="preserve">
+    <value>OPENXLR_LANGUAGE 为本次启动选择 {0}。不带此变量重启后，已保存的选择才会生效。</value>
+  </data>
+  <data name="LanguageRestartHint" xml:space="preserve">
+    <value>语言将在 OpenXLR 下次启动时生效。音频继续运行。</value>
+  </data>
+  <data name="LanguageSaveError" xml:space="preserve">
+    <value>无法保存语言：{0}</value>
+  </data>
+  <data name="LeftLevel" xml:space="preserve">
+    <value>左声道电平</value>
+  </data>
+  <data name="LevelLock" xml:space="preserve">
+    <value>电平锁定</value>
+  </data>
+  <data name="LoadThisProfile" xml:space="preserve">
+    <value>加载此配置文件</value>
+  </data>
+  <data name="Lock" xml:space="preserve">
+    <value>锁定</value>
+  </data>
+  <data name="LowCut" xml:space="preserve">
+    <value>低切</value>
+  </data>
+  <data name="LowCutFrequency" xml:space="preserve">
+    <value>低切 {0}</value>
+  </data>
+  <data name="LowCutOff" xml:space="preserve">
+    <value>低切关闭</value>
+  </data>
+  <data name="LowImp" xml:space="preserve">
+    <value>低阻抗</value>
+  </data>
+  <data name="MIXES" xml:space="preserve">
+    <value>混音</value>
+  </data>
+  <data name="MONITOR" xml:space="preserve">
+    <value>监听</value>
+  </data>
+  <data name="Manage" xml:space="preserve">
+    <value>管理</value>
+  </data>
+  <data name="ManageThisPluginSNativeEditorCompatibilityRule" xml:space="preserve">
+    <value>管理此插件的原生编辑器兼容性规则</value>
+  </data>
+  <data name="Manual" xml:space="preserve">
+    <value>手册</value>
+  </data>
+  <data name="MemoryLockSetup" xml:space="preserve">
+    <value>内存锁定设置</value>
+  </data>
+  <data name="MicPC" xml:space="preserve">
+    <value>麦克风 ↔ 电脑</value>
+  </data>
+  <data name="MixToOutput" xml:space="preserve">
+    <value>混音到输出</value>
+  </data>
+  <data name="MixerLayout" xml:space="preserve">
+    <value>混音器布局</value>
+  </data>
+  <data name="MoveDown" xml:space="preserve">
+    <value>下移</value>
+  </data>
+  <data name="MovePluginDown" xml:space="preserve">
+    <value>下移插件</value>
+  </data>
+  <data name="MovePluginUp" xml:space="preserve">
+    <value>上移插件</value>
+  </data>
+  <data name="MoveUp" xml:space="preserve">
+    <value>上移</value>
+  </data>
+  <data name="Mute" xml:space="preserve">
+    <value>静音</value>
+  </data>
+  <data name="MutedInactive" xml:space="preserve">
+    <value>已静音 / 不活动</value>
+  </data>
+  <data name="NativeEditorCompatibility" xml:space="preserve">
+    <value>原生编辑器兼容性</value>
+  </data>
+  <data name="NativeEditors" xml:space="preserve">
+    <value>原生编辑器</value>
+  </data>
+  <data name="NativeHost" xml:space="preserve">
+    <value>原生宿主</value>
+  </data>
+  <data name="NeitherAudioNorTheAppWillStartAt" xml:space="preserve">
+    <value>登录时不启动音频或应用。</value>
+  </data>
+  <data name="NewChannelEGPodcast" xml:space="preserve">
+    <value>新通道，例如播客</value>
+  </data>
+  <data name="NoDevice" xml:space="preserve">
+    <value>无设备</value>
+  </data>
+  <data name="NoInsertsYet" xml:space="preserve">
+    <value>尚无插入效果。</value>
+  </data>
+  <data name="NoNativeEditorsAreBlocked" xml:space="preserve">
+    <value>没有被阻止的原生编辑器。</value>
+  </data>
+  <data name="NoProfilesSavedYet" xml:space="preserve">
+    <value>尚无已保存的配置文件</value>
+  </data>
+  <data name="NoRegisteredFolders" xml:space="preserve">
+    <value>没有已注册的文件夹。</value>
+  </data>
+  <data name="NotInPath" xml:space="preserve">
+    <value>不在 PATH 中</value>
+  </data>
+  <data name="NotRouted" xml:space="preserve">
+    <value>未路由</value>
+  </data>
+  <data name="NotRunning" xml:space="preserve">
+    <value>未运行</value>
+  </data>
+  <data name="OnConnect" xml:space="preserve">
+    <value>连接时</value>
+  </data>
+  <data name="OnLaunch" xml:space="preserve">
+    <value>启动时</value>
+  </data>
+  <data name="OpenOnGitHub" xml:space="preserve">
+    <value>在 GitHub 上打开</value>
+  </data>
+  <data name="OpenTheManualSectionOnDesktopKeys" xml:space="preserve">
+    <value>打开手册的桌面快捷键章节</value>
+  </data>
+  <data name="OpenTheManualSectionOnInstallingPlugins" xml:space="preserve">
+    <value>打开手册的插件安装章节</value>
+  </data>
+  <data name="OpenTheManualSectionOnPluginEditors" xml:space="preserve">
+    <value>打开手册的插件编辑器章节</value>
+  </data>
+  <data name="OpenTheManualSectionOnSkins" xml:space="preserve">
+    <value>打开手册的皮肤章节</value>
+  </data>
+  <data name="OpenTheManualSectionOnThePipewirePulse" xml:space="preserve">
+    <value>打开手册的 pipewire-pulse 打开文件数量限制章节</value>
+  </data>
+  <data name="OpenThisPluginSControls" xml:space="preserve">
+    <value>打开此插件的控制面板</value>
+  </data>
+  <data name="OpenThisPluginSOwnEditorOnThe" xml:space="preserve">
+    <value>在当前音频实例上打开此插件的原生编辑器</value>
+  </data>
+  <data name="OpenXLRApplications" xml:space="preserve">
+    <value>OpenXLR 应用</value>
+  </data>
+  <data name="OpenXLRAudioFlow" xml:space="preserve">
+    <value>OpenXLR · 音频信号流</value>
+  </data>
+  <data name="OpenXLRDesktopKeys" xml:space="preserve">
+    <value>OpenXLR 桌面快捷键</value>
+  </data>
+  <data name="OpenXLRMixerLayout" xml:space="preserve">
+    <value>OpenXLR 混音器布局</value>
+  </data>
+  <data name="OpenXLROptions" xml:space="preserve">
+    <value>OpenXLR 选项</value>
+  </data>
+  <data name="OpenXLRUpdates" xml:space="preserve">
+    <value>OpenXLR 更新</value>
+  </data>
+  <data name="Options" xml:space="preserve">
+    <value>选项</value>
+  </data>
+  <data name="Overwrite" xml:space="preserve">
+    <value>覆盖</value>
+  </data>
+  <data name="OverwriteProfile" xml:space="preserve">
+    <value>覆盖配置文件？</value>
+  </data>
+  <data name="PLUGINS" xml:space="preserve">
+    <value>插件</value>
+  </data>
+  <data name="Phantom" xml:space="preserve">
+    <value>幻象供电</value>
+  </data>
+  <data name="Phones1" xml:space="preserve">
+    <value>耳机 1</value>
+  </data>
+  <data name="Phones2" xml:space="preserve">
+    <value>耳机 2</value>
+  </data>
+  <data name="Playing" xml:space="preserve">
+    <value>正在播放</value>
+  </data>
+  <data name="PluginState" xml:space="preserve">
+    <value>插件状态</value>
+  </data>
+  <data name="PluginUI" xml:space="preserve">
+    <value>插件界面</value>
+  </data>
+  <data name="PluginsAreLookedForInTheHomeAnd" xml:space="preserve">
+    <value>在用户和系统插件目录中查找插件。</value>
+  </data>
+  <data name="PluginsProcessingXLR1BeforeItReachesThe" xml:space="preserve">
+    <value>混音前处理 XLR 1 的插件</value>
+  </data>
+  <data name="PluginsProcessingXLR2BeforeItReachesThe" xml:space="preserve">
+    <value>混音前处理 XLR 2 的插件</value>
+  </data>
+  <data name="Problem" xml:space="preserve">
+    <value>问题</value>
+  </data>
+  <data name="ProfileName" xml:space="preserve">
+    <value>配置文件名</value>
+  </data>
+  <data name="ProfileOverwriteMessage" xml:space="preserve">
+    <value>此设备已存在名为“{0}”的配置文件。
+保存将以当前场景替换它。</value>
+  </data>
+  <data name="Profiles" xml:space="preserve">
+    <value>配置文件</value>
+  </data>
+  <data name="PutEveryControlBackToThePluginS" xml:space="preserve">
+    <value>将所有控制恢复为插件默认值</value>
+  </data>
+  <data name="QuitApp" xml:space="preserve">
+    <value>退出应用</value>
+  </data>
+  <data name="QuitOpenXLR" xml:space="preserve">
+    <value>退出 OpenXLR</value>
+  </data>
+  <data name="ReadThePluginDirectoriesAgainForPluginsInstalled" xml:space="preserve">
+    <value>重新读取插件目录以发现通过其他方式安装的插件</value>
+  </data>
+  <data name="ReadTheSkinFoldersAgainForASkin" xml:space="preserve">
+    <value>重新读取皮肤文件夹以发现新增或修改的皮肤</value>
+  </data>
+  <data name="RearJack" xml:space="preserve">
+    <value>后置插孔</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>刷新</value>
+  </data>
+  <data name="ReleaseNotesArePlainTextOpenXLRNeverInstalls" xml:space="preserve">
+    <value>发行说明为纯文本。OpenXLR 从不自动安装更新。</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>重新加载</value>
+  </data>
+  <data name="RemoveFromAllChains" xml:space="preserve">
+    <value>从所有效果链中移除</value>
+  </data>
+  <data name="RemoveFromList" xml:space="preserve">
+    <value>从列表中移除</value>
+  </data>
+  <data name="RemovePlugin" xml:space="preserve">
+    <value>移除插件</value>
+  </data>
+  <data name="Rename" xml:space="preserve">
+    <value>重命名</value>
+  </data>
+  <data name="Rescan" xml:space="preserve">
+    <value>重新扫描</value>
+  </data>
+  <data name="RescanRetriesTheseBundlesAChangedBundleOr" xml:space="preserve">
+    <value>重新扫描会重试这些插件包。插件包或扫描器更改后也会自动重试。</value>
+  </data>
+  <data name="ResetDeviceToDefaults" xml:space="preserve">
+    <value>恢复设备默认值</value>
+  </data>
+  <data name="RestartDaemon" xml:space="preserve">
+    <value>重启守护进程</value>
+  </data>
+  <data name="RestartFailedCheckTheUserServiceLogs" xml:space="preserve">
+    <value>重启失败。请查看用户服务日志。</value>
+  </data>
+  <data name="RestartTheOpenXLRUserServiceAudioWillBe" xml:space="preserve">
+    <value>重启 OpenXLR 用户服务。音频会短暂中断。</value>
+  </data>
+  <data name="RestartingDaemon" xml:space="preserve">
+    <value>正在重启守护进程...</value>
+  </data>
+  <data name="RightLevel" xml:space="preserve">
+    <value>右声道电平</value>
+  </data>
+  <data name="RunThisPluginInItsOwnProcess" xml:space="preserve">
+    <value>在独立进程中运行此插件</value>
+  </data>
+  <data name="Running" xml:space="preserve">
+    <value>正在运行</value>
+  </data>
+  <data name="SUBMIXER" xml:space="preserve">
+    <value>子混音器</value>
+  </data>
+  <data name="SUPPORT" xml:space="preserve">
+    <value>支持</value>
+  </data>
+  <data name="SYSTEMDEFAULTDEVICES" xml:space="preserve">
+    <value>系统默认设备</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="SaveAndRecallCompleteScenesHardwareDSPPlus" xml:space="preserve">
+    <value>保存和调用完整场景：硬件 DSP 及整个子混音</value>
+  </data>
+  <data name="SearchByNameOrCategory" xml:space="preserve">
+    <value>按名称或类别搜索</value>
+  </data>
+  <data name="SelectAFolderToSeeItsPlugins" xml:space="preserve">
+    <value>选择文件夹以查看其中的插件。</value>
+  </data>
+  <data name="SelectAPluginToManageIt" xml:space="preserve">
+    <value>选择插件以进行管理。</value>
+  </data>
+  <data name="SelectInterfaceTip" xml:space="preserve">
+    <value>{0}
+选择 OpenXLR 控制的接口</value>
+  </data>
+  <data name="ServiceRestartedWaitingForTheDaemonConnection" xml:space="preserve">
+    <value>服务已重启。正在等待守护进程连接。</value>
+  </data>
+  <data name="ShowCLAPPlugins" xml:space="preserve">
+    <value>显示 CLAP 插件</value>
+  </data>
+  <data name="ShowLV2Plugins" xml:space="preserve">
+    <value>显示 LV2 插件</value>
+  </data>
+  <data name="ShowMixer" xml:space="preserve">
+    <value>显示混音器</value>
+  </data>
+  <data name="ShowTheLiveAudioRoutingGraph" xml:space="preserve">
+    <value>显示实时音频路由图</value>
+  </data>
+  <data name="ShowVST3Plugins" xml:space="preserve">
+    <value>显示 VST3 插件</value>
+  </data>
+  <data name="Skin" xml:space="preserve">
+    <value>皮肤</value>
+  </data>
+  <data name="SkippedBundlesChecking" xml:space="preserve">
+    <value>跳过的插件包：正在检查…</value>
+  </data>
+  <data name="SkippedBundlesUnavailable" xml:space="preserve">
+    <value>跳过的插件包：不可用</value>
+  </data>
+  <data name="StartAudioInTheBackground" xml:space="preserve">
+    <value>在后台启动音频</value>
+  </data>
+  <data name="StartTheOpenXLRApp" xml:space="preserve">
+    <value>启动 OpenXLR 应用</value>
+  </data>
+  <data name="StereoPluginsProcessingThisMixBeforeItReaches" xml:space="preserve">
+    <value>输出前处理此混音的立体声插件</value>
+  </data>
+  <data name="StreamState" xml:space="preserve">
+    <value>音频流状态</value>
+  </data>
+  <data name="SwitchSystemOutput0" xml:space="preserve">
+    <value>切换系统输出：{0}</value>
+  </data>
+  <data name="SyncWindowsPlugins" xml:space="preserve">
+    <value>同步 Windows 插件</value>
+  </data>
+  <data name="SystemLanguage" xml:space="preserve">
+    <value>系统语言</value>
+  </data>
+  <data name="TheAppWillStartAtLoginStartThe" xml:space="preserve">
+    <value>应用将在登录时启动。请单独启动音频服务以使用它。</value>
+  </data>
+  <data name="ToUSBAuxPort" xml:space="preserve">
+    <value>到 USB Aux 端口</value>
+  </data>
+  <data name="TrayOnly" xml:space="preserve">
+    <value>仅托盘</value>
+  </data>
+  <data name="UPDATES" xml:space="preserve">
+    <value>更新</value>
+  </data>
+  <data name="USBAuxIn" xml:space="preserve">
+    <value>USB Aux 输入</value>
+  </data>
+  <data name="UpdatesHaveNotBeenChecked" xml:space="preserve">
+    <value>尚未检查更新</value>
+  </data>
+  <data name="UpdatingWineTrace" xml:space="preserve">
+    <value>正在更新 Wine 跟踪…</value>
+  </data>
+  <data name="UseOpenXLRControls" xml:space="preserve">
+    <value>使用 OpenXLR 控制</value>
+  </data>
+  <data name="UseReleaseDefault" xml:space="preserve">
+    <value>使用发行版默认值</value>
+  </data>
+  <data name="VTStrength" xml:space="preserve">
+    <value>VT 强度</value>
+  </data>
+  <data name="ViewChanges" xml:space="preserve">
+    <value>查看更改</value>
+  </data>
+  <data name="ViewResult" xml:space="preserve">
+    <value>查看结果</value>
+  </data>
+  <data name="VoiceTune" xml:space="preserve">
+    <value>Voice Tune</value>
+  </data>
+  <data name="Volume" xml:space="preserve">
+    <value>音量</value>
+  </data>
+  <data name="WINDOW" xml:space="preserve">
+    <value>窗口</value>
+  </data>
+  <data name="WhenClosing" xml:space="preserve">
+    <value>关闭时</value>
+  </data>
+  <data name="WhichMixThisOutputHears" xml:space="preserve">
+    <value>此输出播放哪个混音。</value>
+  </data>
+  <data name="WindowsPluginsCheckingForYabridge" xml:space="preserve">
+    <value>Windows 插件：正在检查 yabridge…</value>
+  </data>
+  <data name="WindowsPluginsTheDaemonDidNotAnswer" xml:space="preserve">
+    <value>Windows 插件：守护进程未响应。</value>
+  </data>
+  <data name="WindowsVST3AndCLAPPlugins" xml:space="preserve">
+    <value>Windows VST3 和 CLAP 插件</value>
+  </data>
+  <data name="WineTraceCheckingTheDaemon" xml:space="preserve">
+    <value>Wine 跟踪：正在检查守护进程…</value>
+  </data>
+  <data name="WineTraceUnavailableTheDaemonMustBeConnected" xml:space="preserve">
+    <value>Wine 跟踪不可用。守护进程必须已连接并支持此开关。</value>
+  </data>
+  <data name="WineUninstaller" xml:space="preserve">
+    <value>Wine 卸载程序</value>
+  </data>
+  <data name="XLR1Gain" xml:space="preserve">
+    <value>XLR 1 增益</value>
+  </data>
+  <data name="XLR2Gain" xml:space="preserve">
+    <value>XLR 2 增益</value>
+  </data>
+</root>

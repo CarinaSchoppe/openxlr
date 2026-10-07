@@ -51,9 +51,16 @@ python3 tools/test-monitor-volume.py  # private PipeWire server and session bus;
 xvfb-run -a make -C native test-editor  # also needs Xvfb and xauth
 OPENXLR_TEST_DESKTOP=1 xvfb-run -a dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~TrayWindowTests
 OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
+OPENXLR_TEST_ORDER=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowOrderTests
 OPENXLR_TEST_TOOLTIP=1 xvfb-run -a -s '-screen 0 1600x1000x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~ToolTipInputTests
 OPENXLR_TEST_SKIN=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~SkinWindowTests
 ```
+
+Run the general suite and private audio suite sequentially when they share
+one build output directory. Native-helper fixtures temporarily replace the
+helper beside the test assembly and restore it afterward. Another test
+process can otherwise execute that fixture instead of the real audio host.
+Separate worktrees with separate build outputs can run concurrently.
 
 The monitor gain test plays a constant 0.1 signal, not a sine. On PipeWire
 1.0.x the two combine legs of a summed monitor feed are not sample-aligned,
@@ -66,6 +73,23 @@ The desktop keys tests in the main suite start a private session bus with
 `dbus-daemon` and skip when it is not installed. `OPENXLR_TEST_KWIN=1` adds
 a check that asks a running KDE Plasma session for its focused process; it
 routes no audio and is not part of CI.
+
+`python3 tools/test-plasma-volume.py` runs a separate virtual KWin Wayland
+session with private configuration, runtime sockets and D-Bus. It needs KWin,
+XWayland, Plasma 6's volume QML module, Qt 6 Quick Controls and Test, and the
+`kreadconfig6` and `kwriteconfig6` helpers. Set `OPENXLR_TEST_QML_RUNNER` if
+Qt 6's `qmltestrunner` is outside the usual system paths. Build Release first.
+Repeat with `AVALONIA_GLOBAL_SCALE_FACTOR=1.5` to check scaled controls.
+
+The check uses the actual Plasma `GlobalConfig` object and a Wayland checkbox
+with the same binding as Plasma's volume settings. It drives the real OpenXLR
+window through the shipped XWayland backend, checks both directions, preserves
+67% across range changes, clamps boosted levels to 100%, keeps independent
+monitor levels and follows changes while hidden and after restoring the window.
+A loopback fake daemon captures the commands; it does not control host audio.
+This complements the private PipeWire audio tests, not a physical-device or
+full Plasma-shell acceptance. The runner checks that the test actually ran,
+prints compositor and QML diagnostics and terminates its private session.
 
 The idle graph allocation check measures reads on a dedicated warmed thread,
 so test-runner diagnostic allocations are outside the measured interval. It
@@ -95,7 +119,15 @@ The private PipeWire runner also checks profile startup ordering. To exercise
 ClipGuard with recorded test audio, low cut and a native LSP gate, run
 `OPENXLR_TEST_DSP=1 python3 tools/test-monitor-volume.py` after a native-enabled
 build, with swh-plugins and LSP LV2 plugins installed. The runner isolates
-plugin scans from user-installed CLAP and VST3 bundles.
+plugin scans from user-installed CLAP and VST3 bundles. Channel-insert tests also
+need the gain fixture: build it with `make -C native tests/gain.lv2/gain.so`
+and include `$PWD/native/tests` in `LV2_PATH` when starting the runner. For a
+combined DSP run, include the installed LSP and SWH directories as well, for
+example `LV2_PATH="$PWD/native/tests:/usr/lib/lv2" OPENXLR_TEST_DSP=1 python3 tools/test-monitor-volume.py`
+on a system whose LV2 packages live under `/usr/lib/lv2`. This environment is
+only for the test process; it is not a daemon configuration change. The runner
+allows five minutes for the combined audio suite; individual helper deadlines
+remain unchanged.
 CI installs the DSP test plugins, rebuilds with the native helper and runs
 this check separately with `OPENXLR_TEST_FILTER=FullyQualifiedName~DspAudioIntegrationTests`.
 For a focused rerun on the same private server, set `OPENXLR_TEST_FILTER` to
@@ -114,6 +146,14 @@ windows and mixer widths from 640 to 2400 logical pixels. Set
 `OPENXLR_LAYOUT_ARTIFACTS` to a directory to save rendered previews. Set
 `OPENXLR_LAYOUT_FONT` to an installed font family, such as `DejaVu Sans`, to
 check wrapping with different font metrics.
+
+The window-order test runs separately with `OPENXLR_TEST_ORDER=1`. It uses
+XTEST pointer and keyboard events with a private daemon connection to check
+dragging, cancellation, scrolling, save failures, reopening and skin changes.
+It also checks that a stationary drag leaves target styling unchanged,
+that crossing a tile's midpoint updates the arrow, and that an extra mouse
+button does not prematurely complete a drag.
+It needs `libXtst`, like the tooltip test.
 
 The tooltip test runs in its own process too. It drives a real pointer
 through the X server's XTEST extension, so it needs `libXtst`, and it
@@ -152,6 +192,13 @@ list as described above, then commit all changed lock files before the
 locked restore and tests. Do not disable locked mode to make an update pass.
 
 ## Pull requests
+
+Desktop text belongs in the resource catalogues listed in
+[docs/localization.md](docs/localization.md). Keep resource keys
+stable and preserve numbered format arguments in every language. Do not
+translate protocol ids, user names or text supplied by plugins. The first
+pass and its remaining scope are documented in
+[docs/localization.md](docs/localization.md).
 
 CI and CodeQL run for pull requests and for direct pushes to `main` and
 `development`, so changes integrated directly into development get the same

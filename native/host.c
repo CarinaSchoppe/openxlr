@@ -769,6 +769,14 @@ static void tick(void *data, uint64_t expirations) {
   }
   if (h->backend->main_thread)
     h->backend->main_thread(h);
+  if (h->backend->latency && atomic_load(&h->audio_left) > 0) {
+    uint32_t latency = h->backend->latency(h);
+    if (!h->latency_reported || latency != h->reported_latency) {
+      printf("latency %u %u\n", latency, h->rate);
+      h->reported_latency = latency;
+      h->latency_reported = true;
+    }
+  }
   if (h->editor_open)
     pump_editor(h, true);
 }
@@ -822,6 +830,8 @@ static void *monitor_audio(void *data) {
 // --- main -------------------------------------------------------------------
 
 static const Backend *backend_named(const char *name) {
+  if (!strcmp(name, "soundcheck"))
+    return &sound_check_backend;
   if (!strcmp(name, "lv2"))
     return &lv2_backend;
   if (!strcmp(name, "clap"))

@@ -41,7 +41,9 @@ happen on your system:
   If you set defaults in Options ([section 3.7](#default-devices)), those are held instead.
 - On the Wave XLR Pro the daemon parks the card on its pro-audio
   profile while it runs, so the raw multichannel device is available to
-  the mixer, and restores the previous profile when it stops.
+  the mixer, and restores the previous profile when it stops. A reconnect
+  during profile discovery uses the card's current profiles; a disconnected
+  card is left alone.
 
 The window's header shows the connected interface with a green dot.
 "No device" means the daemon cannot open the interface: replug it once
@@ -105,7 +107,9 @@ lands in Voice Chat. An app you move to another channel is remembered
 
 **Profiles** are named scenes: the interface's hardware settings plus
 the whole submixer (sends, masters, monitor outputs, aux state, insert
-chains). They are saved per interface. Application routing and the
+chains), channel and mix presentation, and the window's skin, appearance
+mode, collapsed sections and compact view. They are saved per interface.
+Application routing and the
 system default devices are not part of a profile, so recalling one
 does not rewire the desktop.
 
@@ -122,10 +126,12 @@ on the original Wave XLR. See [hardware support](hardware-support.md).
 The mixer cards follow the window width, up to a limit of 1300 logical
 pixels, so faders and dropdowns keep a usable length on a maximized
 ultrawide instead of stretching across the screen. The window has no
-minimum width of its own: it squeezes down to about 640 pixels, where
-the widest row, the seven input toggles, still fits. A window shorter
-than its content scrolls vertically. Mix master cards wrap onto further
-rows when needed. Long plugin names are shortened with an ellipsis, with
+minimum width of its own: it squeezes down to about 640 pixels. Header
+actions and input toggles wrap when needed so their labels stay readable.
+Long interface names are shortened with an ellipsis and shown in full in
+their tooltip. A window shorter than its content scrolls vertically. Mix
+master cards wrap onto further rows when needed. Long plugin names are
+shortened with an ellipsis, with
 the full name in the tooltip. Plugin control and chain windows keep
 actions below their headings, and actions wrap when space is limited.
 A tooltip sits against the control it describes rather than against the
@@ -160,6 +166,10 @@ affects only the display; the daemon continues processing audio.
    on: your speakers, a headset, or several at once. On the Wave XLR
    Pro its own outputs (Headphones 1, Headphones 2, Line Out) appear
    here too; ticking one switches the hardware's output routing.
+OpenXLR retries incomplete audio connections, including a stereo feed
+with only one side connected, and preserves the working side of a microphone
+feed while repairing it. Microphone and USB Aux feeds also recover
+   when their device returns. Mono outputs do not require a second channel.
 2. Next to a ticked device, the feed picker says which mix it
    hears. Leave it on Monitor A, or choose Monitor B for an output that
    should hear a different selection: a headset whose game side and
@@ -207,7 +217,20 @@ affects only the display; the daemon continues processing audio.
    OpenXLR slider writes the same device volumes, so Linux sees its changes
    too. Both show the same percentage: 100% is unity, not two thirds of
    another control's scale. The **150%** button unlocks boost above 100%;
-   switching it off returns a boosted output to 100%. A boosted desktop
+   switching it off returns a boosted output to 100%. On KDE Plasma 6,
+   OpenXLR follows **Raise maximum volume** in the desktop's Volume Controls.
+   Changing any OpenXLR monitor **150%** button changes that same desktop
+   preference and all OpenXLR monitor ranges. Enabling it keeps the current
+   percentage: 67% remains 67%, with the thumb moving from 67% of a 100% scale
+   to about 45% of a 150% scale. Disabling it preserves levels up to 100% and
+   lowers boosted OpenXLR monitor levels to 100%; Stream, Chat and channel
+   sends are unaffected. The desktop preference is global, persists through
+   KDE, and is not stored in an OpenXLR profile. Other desktops keep the local
+   per-control boost buttons. Plasma synchronization needs `kreadconfig6` and
+   `kwriteconfig6`; a missing helper or failed preference write is shown below
+   the monitor slider, with local controls still available. A failed save stays
+   visible through routine refreshes until the desktop accepts the requested
+   range or a later save succeeds. A boosted desktop
    value automatically enables the expanded range so opening the window
    cannot turn the volume down. Changing the first selected device
    adopts its current volume. Relinking the same device, including after a
@@ -331,7 +354,7 @@ channel, with its level and lock in the INPUTS card.
 <a name="plugins"></a>
 ### 3.5 Add a plugin to the signal path
 
-1. Under XLR 1, XLR 2 or a mix, press "Inserts". The chain window opens
+1. On any channel strip or mix, press "Inserts". The chain window opens
    with that chain's plugins and an "Add plugin" button. The picker lists
    compatible installed LV2, CLAP and VST3 effects (ones that can run
    mono for an input, stereo for a mix), searchable by name, category or
@@ -406,7 +429,8 @@ plugins are copied into `~/.clap`, `~/.vst3` or `~/.lv2`, so the download
 can go afterwards. Installing over a plugin that is already there builds the new
 copy beside it and swaps the two only once the copy is complete, so a
 download that turns out to be unreadable, or a disk that fills up, costs
-the update and not the plugin you had. An archive has to be extracted
+the update and not the plugin you had. Existing files beside the plugin,
+including backups, are left alone. An archive has to be extracted
 first. Plugins installed by
 other means, or copied into `/usr/lib/clap`, `/usr/lib/vst3` or
 `/usr/lib/lv2` by a package, appear after "Rescan" in Options or a daemon
@@ -416,6 +440,15 @@ until the bundle changes, so a rescan costs nothing for plugins already
 known. Updating OpenXLR reads every one of them again once, because the
 new version may see them differently, which makes the first scan after
 an update as slow as the first ever.
+
+Linux installation refuses named pipes, sockets and device files
+before reading a plugin binary or copying a resource, including a link
+to a special file. A new folder selection containing such a plugin is
+refused before installation. Listings of already registered Windows
+folders skip unreadable or special plugin entries and keep the valid ones.
+Ordinary empty resource files and symbolic links remain supported. Install only bundles
+you trust and do not modify the source while it is being installed; file
+inspection does not sandbox plugin code or concurrent changes.
 
 CLAP and VST3 discovery follows linked folders, but visits each resolved
 directory only once per search root. Links back to a parent or another alias
@@ -943,6 +976,11 @@ instead of saving the device's boot values over them.
 If a profile's device settings apply but its mixer settings fail, the error
 says so and gives the mixer failure.
 
+If the profile folder or its recall marker cannot be read, the window still
+receives device and mixer state and shows a warning. Only unavailable profile
+choices are left empty. Repairing the file or its permissions clears the
+warning on the next state update; the daemon does not need a restart.
+
 Loading a named profile, by clicking it or on connect, restores its saved
 gain even when the gain lock is on. The lock remains on and still blocks
 ordinary gain changes. A profile is a saved snapshot: changing a control
@@ -1081,8 +1119,7 @@ their header, across restarts.
 Options, APPEARANCE picks a skin. OpenXLR ships thirteen, all built into
 the application, so a package brings them with it:
 
-- **Material**, the default, which is what the window has always looked
-  like;
+- **Material**, the default, with System, Light and Dark modes;
 - **Deck**, which dresses the window in the visual language of the
   OpenDeck keys and the Wave interfaces: near-black faceplates, black keys
   whose lettering is backlit green when a control is on and red when
@@ -1096,9 +1133,14 @@ the application, so a package brings them with it:
 
 The choice takes effect at once. Windows that are already open repaint;
 audio, the mixer, the routing and the layout are untouched, and nothing is
-restarted. The choice is saved in `~/.config/openxlr/ui.json` and is not
-part of a profile or of the mixer layout.
+restarted. For Material, **Mode** chooses **System**, **Light** or **Dark**.
+System follows the desktop while the window is open. The other skins keep
+their own colours, so their mode picker is unavailable. Changing the mode
+keeps the mixer layout, control sizes and routing intact.
 
+The skin and mode are saved in `~/.config/openxlr/ui.json`. Profiles saved
+from the window also restore them. Older profiles without a mode preserve
+the current one. Neither choice belongs to the audio mixer layout.
 OpenDeck keys and dials follow the appearance selected in OpenXLR. Their
 colours update while the plugin is running, including a stationary meter;
 key artwork and user titles remain under their existing controls. The window
@@ -1129,7 +1171,9 @@ If a skin makes something unreadable, start the window once with
 OPENXLR_SKIN=default openxlr
 ```
 
-which ignores the saved choice for that run and lets you pick another one.
+which starts in the known dark Material appearance. A successful new choice
+in Options replaces this launch override; a failed save keeps it. Desktop
+changes and profile recalls do not override this recovery choice.
 
 <a name="upgrade"></a>
 ### 3.11 Upgrade
@@ -1161,6 +1205,15 @@ list, turns another PipeWire capture source into a channel
 ([Additional capture inputs](#capture-inputs)). The hardware inputs,
 Monitor A, Monitor B and Aux are listed but fixed.
 
+Under MIXES, enter a name and choose **Monitor mix** to make a separate
+blend for headphones, speakers or another output. Choose it beside that
+output in the MONITOR device picker, then open the channel sends you need.
+Its master follows Linux volume and mute controls and supports the same 150%
+boost as Monitor A/B. It creates no extra virtual microphone. Choose
+**Virtual microphone** instead when a recorder or calling app needs a source.
+Both kinds share the limit of 16 user mixes, including Stream and Chat.
+The existing Monitor A+B choice continues to include only those two mixes.
+
 Reordering updates the open window as soon as the daemon publishes the saved
 layout, including changes made through the API. Channel tiles, mix controls
 and each channel's send rows follow the same order without resetting their
@@ -1174,12 +1227,15 @@ levels or mute state.
   Apps playing into it keep playing after a short gap; nothing else is
   touched.
 - Renaming a mix changes the name in OpenXLR and on the Stream Deck right
-  away. Other applications keep listing the old microphone name until the
+  away. Other applications keep listing the old device name until the
   daemon restarts, because reloading the device would throw them off it.
   The window shows a restart hint; restart when nothing is recording.
 - Deleting a channel moves its apps to the first remaining application
-  channel. Deleting a mix removes its virtual microphone, and anything
-  recording from it loses the device.
+  channel. Deleting a mix also removes its virtual microphone when it has one;
+  anything recording from it loses the device. Outputs that followed only
+  a deleted mix return to Monitor A, while summed feeds keep their other mixes.
+  If its sink was enforced as the system default, enforcement is cleared
+  and the desktop chooses a remaining default device.
 
 Every change is saved before the editor confirms it. Once the daemon has
 finished its final save during shutdown or restart, late layout changes are
@@ -1281,6 +1337,9 @@ again even when the generated Linux wrapper did not change.
 Switching a linked search folder or a linked folder inside a bundle to a
 different plugin build also invalidates its cached description and any
 previous scan failure, even when the files have the same sizes and times.
+Cache inspection rejects directory link cycles and stops after 100,000
+directory entries per bundle, counting linked aliases too. These bundles
+can still be scanned and loaded, but their scan result is not cached.
 
 <a name="stream-deck"></a>
 ## 4. Stream Deck (OpenDeck)
@@ -1563,6 +1622,22 @@ Review plugin names, paths and scanner output before sharing the archive.
 <a name="files"></a>
 ## 6. Files and services
 
+### Window language
+
+Options, APPEARANCE, Language offers System language and fourteen languages,
+with separate simplified and traditional Chinese choices. The choice is
+saved locally and applies after quitting and launching the app again.
+Audio keeps running. Regional system languages
+use their matching catalogue; unsupported languages use English.
+Individual untranslated messages also keep the existing English wording.
+Launch with `OPENXLR_LANGUAGE=en` to temporarily use English without changing
+the saved choice. Names you gave channels, mixes and profiles keep their spelling.
+Plugin editors, some dynamic messages and the other clients are not yet
+translated. See [localization.md](localization.md) for the current coverage.
+Arabic and Urdu text follow their own reading direction. Audio controls and
+saved channel order keep their existing orientation. Fonts on the desktop
+must cover the selected script.
+
 | Path | What it is |
 |---|---|
 | `~/.config/openxlr/mixer.json` | every mixer decision, the layout included (`userChannels`, `userMixes`, see [mixer-layout.md](mixer-layout.md)), written by the daemon |
@@ -1707,6 +1782,15 @@ default and mixer routing intact. Unplugged named outputs report an error;
 their bindings remain saved for reconnection. At most 16 output-selection
 shortcuts and 32 focused-channel shortcuts are retained.
 
+OpenDeck output volume and mute keys retain rapid presses while the previous
+command is being acknowledged, with up to eight waiting presses per key and
+64 outstanding presses across all keys. Their order is preserved across
+keys, including when volume hits 0 or 150%. Overload shows an alert. An error,
+a timeout or a disconnect discards the waiting presses rather than applying
+a delayed burst; changing a key's settings or removing it also cancels its
+waiting actions. Focus-routing and system-output selection keys report busy
+instead of delaying an action whose target may have changed.
+
 For OpenDeck, use the Toggle inspector's **System output controls** and
 **Enforced system output** groups. Volume up and down keys are momentary:
 they acknowledge the press and show no state. The mute key lights red while
@@ -1773,14 +1857,14 @@ Eight sections are reachable with `1` to `8`, Tab and Shift+Tab:
 
 | Section | What is on it |
 |---|---|
-| 1 Mixer | channel sends, mix masters, stereo meters and level history; channel and virtual microphone creation, renaming, removal and ordering |
+| 1 Mixer | channel sends, mix masters, stereo meters and level history; channel and user mix creation, renaming, removal and ordering |
 | 2 Matrix | the whole submixer as one grid: every channel's send into every mix, the mix masters and their meters across the top, a meter beside each channel. With height to spare a channel's meter is stereo: its name and its sends sit on a row of their own, the left bar on the row above and the right bar on the row below, so the name is centred between its two bars and each bar is centred on its letter. Where only two rows a channel fit, the name sits beside the left bar. Either way a blank row follows each channel, so its right bar never touches the next channel's left one. A short terminal keeps one row a channel and one summed bar. An XLR input is mono, so it carries one bar rather than a pair of the same reading |
 | 3 Inputs | hardware controls in grouped cards with gain arcs on a wide terminal, or a scrolling list in a small one; gain, mute, low cut, expander, voice tune and its strength, phantom power, ClipGuard and the compressor for each XLR input; software processing, headphones, direct monitor blend, hardware output routing and USB Aux return |
 | 4 Outputs | selected monitor sinks and their feeds, shared output volume, each sink's volume and mute, and the system default sink and source |
 | 5 Apps | every known application and its channel assignment, including the desktop's own routing |
 | 6 Inserts | the chain on each input and mix, its order, bypass and status; add a plugin from the catalogue, narrowed by typing, of those that fit the chain's width; open a plugin's native editor or edit its generated controls when the editor is blocked or refused |
 | 7 Profiles | load, save over, save as, delete and recall on connect; interface selection and recorded device defaults |
-| 8 Options | the skin picker, connection status, daemon version and fresh state request |
+| 8 Options | Material mode, the skin picker, connection status, daemon version and fresh state request |
 
 The bottom line shows the current section's keys, with help and quit at
 its right end when there is room.
@@ -1798,8 +1882,9 @@ Controls below the visible hardware cards appear as the selection moves.
 | Mixer | Home, End | choose the masters or the last channel |
 | Mixer | Space | mute or unmute the selected master or send |
 | Mixer | `-`, `+`, `[`, `]` | lower or raise the level by five points, or by one point |
+| Mixer | `M` | add a monitor mix |
 | Mixer | `r`, `n`, `N`, `c`, `d` | rename, add an application channel, add a virtual microphone, add a capture input, or delete |
-| Mixer | Ctrl+Left/Right | reorder the selected channel or virtual microphone |
+| Mixer | Ctrl+Left/Right | reorder the selected channel or user mix |
 | Matrix | Up/Down, Left/Right, Home, End | move through the grid; Home is the masters row |
 | Matrix | Space, `-`, `+`, `[`, `]` | mute the cell, or change its level by five points or by one |
 | Lists | Up/Down, PageUp/PageDown | move between controls |
@@ -1816,7 +1901,7 @@ Controls below the visible hardware cards appear as the selection moves.
 | Insert controls | Up/Down, PageUp/PageDown, Left/Right, Space, Enter | select a control, change a number or choice, or toggle a switch |
 | Insert controls | `-`, `+`, `[`, `]`, Home, End | lower or raise a number, take a fine step, or set the minimum or maximum; Ctrl+Left/Right also takes a fine step |
 | Profiles, on a profile | Enter, `s`, `r`, `d` | load, overwrite, recall on connect, or delete |
-| Options | Enter, `R` | use a skin or reload the skin list |
+| Options | Left/Right, Enter, `R` | change Material mode, use a skin or reload the skin list |
 | Text prompts | Enter, Escape | accept or cancel |
 
 Anything that cannot be undone, such as deleting a channel or resetting
@@ -1848,6 +1933,12 @@ picking Gruvbox in one picks it in the other ([skins.md](skins.md)).
 An unreadable saved choice leaves Material in use for this run without
 rewriting the file. Repairing its permissions makes the choice available
 on the next start.
+Material mode uses the same saved System, Light or Dark preference and
+palette. In System it follows the desktop portal's colour-scheme events;
+without the optional `gdbus` helper or an available preference it uses Dark.
+It does not change the terminal emulator's own theme. Other skins retain
+their own colours. A successful Options choice replaces a launch override;
+a failed save leaves the active appearance unchanged.
 `--skin <id>` uses one appearance for this run without saving it, and
 `--list-skins` prints what this machine has. Deck and the Omarchy skins get
 console fader caps, bracketed keys and lamps; flat skins get plain ones.
@@ -1901,3 +1992,340 @@ it. The usual revision needs no note. The rarer one is named in the
 Options connection note, and so is a dock that answers on neither
 address. Such a dock still connects, so save diagnostics from Options
 and open an issue with them.
+
+## Mixer presentation
+
+Use **Edit layout**, **Appearance** to select an icon and an optional `#RRGGBB`
+colour for any channel or mix. Clear the colour to follow the current skin.
+The channel's **Hide** option removes its full-size strip, not its sends,
+meters, application assignments or audio connections. Hidden channels remain
+in Edit layout, application choices and Stream Deck actions.
+
+The up and down buttons move any display item, including hardware channels,
+Monitor A, Monitor B and Aux. Routing priority, the first default application
+channel and stable IDs do not change. To also change routing priority, choose
+**Use displayed order for routing**: the first application channel becomes the
+fallback for unassigned apps, and editable channels and user mixes
+are saved in the displayed order. Icons and colours reach the corresponding
+Stream Deck keys; an explicit icon chosen on a key takes precedence. Mute and
+offline indicators retain their status colours.
+
+**Compact** above the mixer shows one selected channel. Its selector includes
+hidden channels, so they can still be adjusted. If a selected channel is removed
+or unavailable on the active device, the window shows an available channel;
+with no available channels it shows none. Turning Compact off restores the
+full layout. The compact preference and selected channel are local window
+preferences in `ui.json`.
+
+Changing the displayed mix order does not change an output's feed. The window,
+terminal and Omarchy bar keep showing its actual default mix even when another
+monitor mix is displayed first. Stream Deck feed keys also use that default.
+The combined Monitor A+B feed stays one choice, and a Deck key advances past
+it even when the monitor mixes are displayed in a different order.
+
+Options, APPEARANCE, **Mixer controls** selects **Standard** or **Touch**.
+Touch enlarges the main mixer's buttons, dropdowns and slider rows and widens
+channel and mix tiles; it keeps skin colours and larger custom skin sizes.
+The page and channel row use their existing scrolling when space is tight.
+Compact view remains a separate choice for showing one selected channel.
+The sizing choice is saved locally as `touchControls` and captured by profiles.
+Older profiles without it keep the current sizing; an explicit false restores
+Standard. A failed save keeps the previous controls and selection, displays an
+error and allows the same choice to be retried after the file problem is fixed.
+Native plugin editors control their own sizing.
+
+If a compact-mode or selected-channel preference cannot be saved, its control
+returns to the previous choice and the window reports the error. The displayed
+channels and audio routing stay as they were; retry after fixing the save error.
+
+Profiles saved from the window also recall its skin, appearance mode, section order, collapsed sections,
+compact view and selected compact channel. Channel and mix icons, colours,
+hidden channels and display order are saved in the mixer scene. Older profiles
+that have no presentation leave it unchanged; an omitted mode keeps the current
+mode. A missing skin uses the shipped default; a missing compact channel falls back to an available channel without
+forgetting the saved selection. Startup, tray, update and security preferences
+remain local. Unknown fields in window preferences, including the language
+choice from another window version, survive recall. A malformed or unreadable
+window preference file is not replaced by a recall; the window reports the
+failure and keeps its current presentation. A recall is applied once, including after reconnecting to the
+daemon; subsequent manual edits remain until another profile is loaded.
+
+Loading a profile cancels a drag in progress before restoring its order.
+
+### Arranging the window
+
+Turn on **Arrange** above the window's sections to show drag handles. Drag
+Inputs, Headphones, Monitor, Applications or Submixer above or below another
+section. The header and service notices stay at the top. Drag a channel or
+mix handle to the left or right side of another tile in the same row. The
+arrow on the destination handle shows which side will receive it. Sections,
+channels and mixes are separate groups; a channel cannot become a section.
+
+Only handles start a move. Faders, buttons and the expand/collapse header
+keep their normal actions. Focus a handle and use an arrow key to move it
+one visible position, or press Escape to cancel a drag. Holding a dragged
+handle near the window or channel viewport edge scrolls that viewport.
+Releasing outside a matching tile leaves the order unchanged. **Reset
+sections** restores the five sections' original order; channel and mix
+order are unaffected. Arrange mode starts off when the window opens.
+
+Section order is saved in `ui.json`, alongside collapsed sections, and
+in profiles saved from the window. It survives a restart and skin changes. Skins still supply the
+same appearance resources to the existing controls. A save failure leaves
+the previous order in place and displays an error. Missing sections in an
+older saved order are appended; unknown or repeated entries are ignored.
+
+Channels and mixes reuse the layout's saved display order. Their moves wait
+for the daemon's confirmation, preserve hidden channels and keep routing
+priority and audio connections unchanged. Only visible strips are drop
+targets. Compact mode has a single channel, so switch it off or use Edit
+layout to change channel order. While a move is awaiting confirmation,
+another move is not accepted; failed requests display an error.
+
+
+## Exclusive input selection per mix
+
+Open **Edit layout → Exclusive groups**, name a group and select its
+channels, such as a broadcast microphone and a headset. In the submixer,
+opening one member's send closes the other members in that same mix.
+Monitor A can use the broadcast microphone while Stream uses the headset.
+The send levels stay where you set them. You can also mute all members.
+
+A new or edited group with several open members starts silent in those
+mixes; choose the wanted send after saving. Profiles store groups and
+selection. Older profiles preserve current groups, and conflicting recalled
+sends close together. Deleting a group keeps its current mutes.
+
+The INPUTS section's device mute is still global. Use the submixer send
+buttons for group selection. In the terminal mixer, Space on a grouped
+microphone controls its selected mix's send; the Inputs tab still provides
+the device mute. An XLR 1 in a group uses the software monitor path at the
+interface's jacks, which adds the normal PipeWire processing latency.
+
+OpenDeck/Stream Deck's toggle action offers **Exclusive group: name**,
+with a **Next member** choice for each mix. The key shows the active member,
+or None, and repeated presses cycle in member order. Deleted groups become
+unavailable rather than falling back to another group. If PipeWire cannot
+confirm a peer's mute, OpenXLR keeps the new member silent until recovery.
+## Local API switch
+
+In **Options**, **Local API**, **Enable local HTTP API** controls third-party
+HTTP integrations. It starts enabled. Changing it saves the preference and
+restarts the audio service, briefly interrupting audio. If restarting fails,
+restart the daemon manually to apply the saved choice. The window, terminal
+and OpenDeck continue to use their own authenticated connection when the HTTP
+API is disabled. See [HTTP API](http-api.md) for the resource endpoints.
+
+Changing a daemon setting keeps the window responsive during the service restart.
+The API and software mixer switches and the other restart buttons are unavailable
+until the current restart finishes. A failed restart retains the saved choice
+and asks you to restart the service manually.
+
+## Plugin manager
+
+Open **Options**, **Plugins**, **Plugin manager** to see all three native
+plugin formats' search paths and manage Windows plugins in the same window.
+The path list distinguishes added paths from defaults or environment settings
+and marks directories that are missing or inaccessible.
+
+Choose LV2, CLAP or VST3 and **Add search folder** to scan plugins in place.
+No copy or installation is made. **Remove added path** stops searching that
+extra location without deleting its files. Paths from environment variables
+and standard locations cannot be removed here. A path may still be searched
+if a default or environment setting includes it. The manager allows 32 extra
+paths across all formats. Paths must be absolute directories, not the filesystem
+root, and cannot contain colons or control characters.
+
+**Rescan all plugins** refreshes every format and retries failed bundles using
+the existing scanner and cache. Windows **Rescan** also synchronizes yabridge.
+The current insert hosts are not restarted by a rescan. If a removed path was
+a plugin's only location, that plugin cannot be loaded again until the path is
+restored. Search paths are saved privately in `plugin-paths.json`; environment
+variables keep their existing precedence. The LV2 loading rules below apply to additional folders.
+
+If the saved path file is corrupt, normal paths remain usable and the manager
+shows a warning. An added path that can no longer be resolved, such as a symbolic
+link loop, is ignored without hiding healthy added paths. Repair the path or the
+saved file before editing paths so a partial read cannot overwrite your
+configuration. Scanning reports failed bundles as before.
+
+When `LV2_PATH` is unset, lilv keeps its own compiled-in default paths,
+including distribution-specific paths. The manager lists explicit and added
+LV2 paths only; it cannot enumerate lilv's built-in search list. Additional
+folders are discovered for the catalogue, but loading a plugin from one of
+these folders requires including it in the daemon's `LV2_PATH`. If that variable
+is already set, additional folders are appended for discovery and live hosts.
+
+Use a dedicated plugin folder. System trees such as `/usr` and `/proc` are
+refused, symbolic-link aliases are recognized, and overlapping search folders
+cannot be added. Recursive CLAP/VST3 discovery stops after 16,384 entries per
+root and reports the limit; choose a narrower folder if that happens.
+
+If the daemon disconnects while the plugin picker is open, its choices and
+selection clear until the new connection supplies the catalogue.
+
+If the desktop folder picker is unavailable, the plugin manager shows its
+error and keeps the current search paths. Cancel the picker to leave them unchanged.
+
+### LV2 host fallback
+
+Some PipeWire packages lack the LV2 loader. If an LV2 chain cannot start,
+OpenXLR tries its bundled native host when it supports the active effects.
+The saved host switch is unchanged; native controls and editors follow the
+host actually running, including an LV2 fallback beside other native inserts.
+A failure in both hosts reports both causes. Other instances of the same plugin
+retain their own host choices.
+
+### Plugin latency
+
+A plugin's OpenXLR controls show its reported processing latency in milliseconds.
+"Unavailable" means no valid live measurement, not zero delay. Native LV2, CLAP
+and VST3 report their running instance's value. An LV2 plugin in the PipeWire
+filter-chain reports zero only when its metadata declares no latency port.
+
+In Options, Audio, **Compensate plugin latency across mixes** is off by default.
+Loading its saved setting uses the same host selection and graph update as
+changing the option while running.
+Turn it on when parallel mixes need their plugin processing aligned. Faster mix
+outputs are delayed to match the slowest mix's inserts, including feeds to
+virtual microphones and monitoring outputs. This can increase monitoring delay.
+Enabling or disabling it rebuilds the paths and briefly interrupts audio. It
+uses the native host for LV2 latency measurement where supported, without
+changing the plugin's saved editor switch. Alignment waits until every mix's
+report is valid; Options shows when reports are unavailable or a delay fails.
+
+The limit is two seconds. Delays update without restarting plugins when their
+reported latency changes. Bypass removes that insert's latency. A mix gets an
+extra delay stage only while it needs a positive correction. With no reported
+plugin latency, enabling the option adds no delay stages. Stages are hidden
+from device choices and removed when no longer needed. The setting survives
+restart, but profile changes do not toggle it.
+
+This aligns mix-insert algorithmic delay, not the device's round-trip latency,
+the hardware direct-monitor path, PipeWire resampling offsets, or different
+microphones' input chains. An intentional echo is an effect, not processing
+latency, unless the plugin explicitly reports it as latency.
+
+## Sound Check
+
+Open **Inserts** on XLR 1 or XLR 2, then **Sound Check**. Press **Record** and
+speak for up to ten seconds. **Loop sample** repeatedly sends that dry sample
+through the current software processing and effect chain, so you can adjust
+processing without speaking again. At least a tenth of a second is required.
+The interface's hardware gain and processing are already in the sample;
+changing those while looping cannot change the recorded signal.
+
+**Hear live mic** returns to the microphone but keeps the sample. **Record**
+replaces it. **Stop and discard** or closing the window returns to the live
+microphone and releases the sample. Effect edits remain. A loop can include a
+small transition at its boundary; record with a quiet beginning and end.
+
+One microphone session can run at a time. Sound Check needs the bundled native
+host. Audio stays in memory, never in a recording file or profile. The session
+ends on device changes, audio-helper failure, daemon restart or after ten
+minutes. If the UI loses its connection, closing it cannot deliver a stop;
+reconnect and stop the session, or it will end at that limit. The loop follows
+the normal microphone routing, including any live call or recording using it.
+
+Sound Check ignores command replies from an earlier daemon connection. Closing
+its window disables further actions while the stop command is pending, so a
+new recording cannot be queued behind that stop.
+
+A stopped session shows its reason on the affected microphone only.
+**Stop and discard** dismisses the message. Rebuilding the audio graph also
+stops the session and restores live microphone routing.
+
+## Effects on software and capture channels
+
+Every channel strip has an **Inserts** button. It opens the same chain editor
+used by microphone inputs and mixes, with the same controls, bypass and native
+editors. Software channels process all applications assigned to them together;
+external-capture channels process their selected source. Channel effects run
+before the sends, so every mix receives the processed signal. Mix effects still
+run after the channels are summed.
+
+XLR 1 and XLR 2 use mono plugins. Aux In, application channels and external
+capture channels use stereo-compatible plugins. Hiding or muting a channel
+does not remove its chain. Removing a user channel removes its saved chain too.
+
+A channel without effects keeps its normal direct sends and adds no hidden
+bus. Adding the first effect or removing the last one recreates that channel's
+sink under the same name and restores its application and capture feeds.
+These changes can briefly interrupt that channel. Muted sends stay muted while
+the effect path changes or the channel is renamed. If PipeWire rejects restoring
+a send, the replacement stays silent until the stored sends can be restored.
+Editing or bypassing effects within an existing chain keeps its public sink.
+Recalling unchanged processing keeps the running plugin instances, including
+when only an effect's display name changes. Failed effects report an error and
+use a direct audio route when available. OpenXLR retries failed processing within
+its recovery limit, even while direct audio is working. Other channels continue
+independently.
+
+Deleting a channel or mix also closes its effect-chain and control windows.
+Recreating the same layout ID opens a fresh chain instead of reusing stale
+controls from the removed item.
+
+## Copying, presets and A/B comparison
+
+In the insert editor, **Copy** copies one effect into OpenXLR's internal
+clipboard. **Rename** gives that instance a name without restarting it.
+Open **Chains and A/B** for the complete-chain workflow:
+
+- **Copy chain** captures the whole chain. **Paste effects** appends copied
+  instances with fresh ids; **Replace chain** replaces the target's chain.
+- **Store A** and **Store B** capture two independent parameter snapshots.
+  **Hear A** or **Hear B** applies the saved snapshot. Later edits are kept
+  only when you store that slot again. A failed command leaves the comparison
+  indicator unchanged. Editing a parameter or changing the chain clears the
+  listening indicator; the stored slots remain available. Reconnecting to
+  the daemon clears both slots.
+- Enter a name and **Save current chain** to keep a reusable preset. Presets
+  can be loaded on another compatible chain. Names are unique without regard
+  to case; delete an old preset explicitly to reuse its name. Loading replaces
+  the current chain, while deleting a preset leaves live processing unchanged.
+
+Snapshots include effect order, instance names, bypass, host choices and the
+exposed parameter values. Plugin-private binary state, external samples and
+third-party preset files are not included. Missing plugins and incompatible
+channel widths are refused by the daemon. Switching chains can briefly
+interrupt audio.
+
+The clipboard and A/B slots are in memory. Up to 64 named presets are saved in
+`effect-chain-presets.json`, with an 8 MiB file limit and private permissions.
+Corrupt or oversized data is reported and preserved instead of overwritten.
+The controls use the existing application skin and remain scrollable at small
+window sizes.
+
+Invalid preset names, duplicate names and damaged preset data are shown in
+the chain window as errors. They do not close the window or replace the file.
+
+Effect control windows belong to their channel and effect instance. Removing or
+replacing an effect closes its old control window and discards queued parameter
+changes. Controls on different channels stay independent even when a profile
+uses the same effect ID in both. Disconnecting discards queued parameter changes.
+A change received from another client while a comparison is loading also
+clears its listening label; a delayed acknowledgement cannot restore it.
+Loading a chain or an A/B snapshot applies earlier knob changes first, so
+those changes cannot overwrite the newly loaded settings. If loading fails,
+the earlier knob changes remain applied to the current chain.
+
+Copying or saving a chain while adjusting a control captures its current knob
+value, even if the daemon has not echoed that adjustment yet.
+
+## Momentary effect keys
+
+For an OpenDeck/Stream Deck effect or whole-chain key, enable **Keep effect
+active while held** in its settings. Pressing enables the selected effects;
+releasing restores their previous bypass states. An effect that was already
+active stays active. Two keys holding the same effect keep it active until the
+last one is released. Other key actions keep their normal behavior.
+
+Replacing a displayed key, changing its settings or removing it releases its hold. If the Deck plugin
+or connection disappears without a key-up event, the daemon restores the
+previous states after five seconds plus its normal sweep and graph-rewire time.
+It never replays a held key after reconnecting. Manual bypass, chain replacement
+and profile recall take precedence over an old key release. Recalling an older
+profile without effect settings restores the pre-hold bypass state. A partial
+settings update does the same for chains it does not replace. Held states are
+not saved in settings or profiles. Loading and bypassing effects can still
+cause the same short audio gap as the existing insert controls.

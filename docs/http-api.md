@@ -17,9 +17,53 @@ query strings are not accepted. Keep the token out of logs and bug reports.
 | `GET /healthz` | Unauthenticated process liveness only, not hardware readiness |
 | `GET /api/v1` | Version and endpoint discovery |
 | `GET /api/v1/state` | Combined state message |
+| `GET /api/v1/devices` | Connected device, capabilities, detected interfaces and audio nodes |
+| `GET /api/v1/profiles` | Saved names, last recalled profile and connect-time choice |
+| `GET /api/v1/mixer` | Current mixer state |
+| `GET /api/v1/channels`, `/channels/{id}` | All channel states or one exact channel id |
+| `GET /api/v1/mixes`, `/mixes/{id}` | All mix states or one exact mix id |
+| `GET /api/v1/inserts`, `/inserts/{id}` | Chains by channel/mix id or one chain |
+| `GET /api/v1/plugin-setup` | v1 result containing pluginSetup |
+| `GET /api/v1/plugin-diagnostics` | v1 result containing pluginDiagnostics |
+| `GET /api/v1/diagnostics` | v1 result containing diagnostics |
+| `GET /api/v1/editor-rules` | v1 result containing nativeEditorRules |
 | `GET /api/v1/plugins` | v1 result containing a plugins message |
 | `POST /api/v1/commands` | Execute one existing cmd object |
 | `WS /api/v1/events` | Same authenticated protocol as /ws |
+
+**Options**, **Local API**, **Enable local HTTP API** saves `httpApiEnabled` in
+`daemon.json` (default true for existing installations) and restarts the audio
+service. This briefly interrupts audio and disconnects all clients. If the
+restart fails, the window says the choice is saved but still needs a restart.
+If the setting cannot be saved, the switch returns to its previous position.
+The window stays responsive during the restart. API and mixer switches and the
+other restart buttons remain unavailable until that restart finishes.
+Disabling blocks every `/api/v1` resource, command and event connection with
+503 after the restart. `/ws` stays available to the window, terminal and Deck;
+`/healthz` still reports process liveness. This switch controls the public HTTP
+transport, not all authenticated local control of the daemon.
+
+Resource reads use the same snapshot as `/state`; separate requests may observe
+different moments. Channel and mix ids are exact and case-sensitive. An absent
+mixer returns 503; an unknown id returns 404 when the mixer is available. An
+existing empty chain returns `[]`; a chain absent from the snapshot returns 404.
+The new read endpoints never create or rebuild a graph. Plugin and diagnostic
+reads reuse existing commands and return the same v1 result envelope as
+`/plugins`. Mutations remain in `/commands`, with one validation and dispatch path.
+
+Mixer resources also retain the fields supplied by their features: channel and
+mix `appearance`, user-mix `editable`, `exclusiveGroups`, insert labels and
+latency, `compensateMixLatency`, `mixDelayMilliseconds` and `soundCheck`.
+`GET /mixer` and the `mixer` member of `GET /state` describe the same live model.
+Display order does not change routing identity. A custom monitor mix remains
+an output feed and does not become a virtual microphone.
+
+An effect lease exposes its effective bypass state in reads. Profile and
+settings exports keep the pre-press bypass value. Chain presets and A/B slots
+are local window workflow state; recalling one sends the documented
+`setInserts` command. Language, startup and security choices stay local.
+Window-saved profiles may carry presentation as documented in [api.md](api.md),
+while layout definitions and the compensation preference remain mixer settings.
 
 Both WebSocket paths require the existing first-message authentication:
 `{"cmd":"auth","token":"..."}`. They send no state before authentication.
@@ -31,6 +75,12 @@ mix-to-output feed commands, which accept any existing mix or a sum of distinct
 mix ids. For example,
 `{"cmd":"setMonitorFeed","device":"alsa_output.headset","feed":"monitor+chat"}`
 makes an already selected headset hear Monitor A and Chat summed.
+`setLayoutAppearance` and `setDisplayOrder` also use this endpoint. Their
+changes are acknowledged only after the layout settings are saved; rejected
+appearance values or incomplete ID lists return an error without changing audio.
+`saveProfile.presentation` also accepts the optional Material `appearanceMode`
+(`system`, `light` or `dark`). The validation and legacy-preserve behaviour are
+identical to [the profile presentation contract](api.md).
 Both transports share the dispatcher,
 validation and broadcasts. HTTP returns
 `{"apiVersion":"1","ok":true,"messages":[]}` after a successful mutation.
@@ -43,12 +93,17 @@ This reports execution, not a new durability guarantee: saving follows each
 existing command's behavior. Never automatically retry a mutation after losing
 the connection; it may already have executed.
 
+An unreadable profile directory or recall marker is reported in the state's
+`warning`, not as an HTTP failure. Device and mixer state remain available;
+unavailable profile metadata uses the empty/null values documented in
+[the state contract](api.md).
+
 Error status codes: 400 a body that is not valid UTF-8, or a plain request
 on the events route without a WebSocket upgrade; 401 missing/wrong token;
-403 foreign Origin; 408 body-read deadline; 413 body over 64 KiB; 415 wrong
-Content-Type; 429 budget exhausted or another HTTP mutation in flight. Chunked bodies have the same 64 KiB cap and
-five-second deadline. One HTTP command runs at a time, with no waiting queue.
-The HTTP command budget is one bucket shared by every HTTP caller, the size
+403 foreign Origin; 404 unknown resource id; 408 body-read deadline; 413 body over 64 KiB; 415 wrong
+Content-Type; 429 budget exhausted or another HTTP command-backed request in flight; 503 API disabled or mixer unavailable. Chunked bodies have the same 64 KiB cap and
+five-second deadline. One HTTP command or command-backed read runs at a time, with no waiting queue. Snapshot reads can continue during a command.
+The HTTP request budget covers authenticated reads and writes in one bucket shared by every HTTP caller, the size
 of a socket's own (bursts of 300, a sustained 100 per second).
 All authenticated HTTP responses use `Cache-Control: no-store`.
 
@@ -147,3 +202,51 @@ sink that mix.
 that output. `@monitor` follows the selected monitor output. Limits, rejected
 targets and linked-monitor behavior match the [WebSocket contract](api.md).
 These commands require the daemon but do not require a running UI or KDE.
+
+The optional `saveProfile.presentation.touchControls` boolean records main mixer
+control sizing. Omission or null preserves local sizing on recall. The field
+uses the same validation as the socket command documented in [api.md](api.md).
+
+Exclusive channel groups use the same command endpoint and authentication:
+`{"cmd":"cycleExclusiveGroup","group":"microphones","mix":"monitor"}`
+advances one group's selection in Monitor A. `setExclusiveGroup` and
+`deleteExclusiveGroup` persist membership before replying. The state response
+includes `mixer.exclusiveGroups` and per-channel `exclusiveGroup` IDs; the
+existing send mutes represent each mix's selection. See [commands and group
+semantics](api.md#exclusive-channel-groups).
+
+Plugin search-path commands (`addPluginSearchPath` and `removePluginSearchPath`)
+use the same command endpoint, validation and `pluginInstall` replies as the
+WebSocket API. A failed operation returns `ok:false`. `getPluginSetup` includes
+the effective search directories and any saved-path warning.
+
+Plugin latency is included in each insert's `latencyMilliseconds` state field.
+Send `{"cmd":"setMixLatencyCompensation","value":true}` through the command
+endpoint to opt in. Check `mixer.mixLatencyError` and
+`mixer.mixDelayMilliseconds` for the actual alignment, including unavailable
+reports. The option is off by default. See [api.md](api.md#plugin-latency-and-optional-mix-alignment).
+
+### Sound Check
+
+`POST /api/v1/commands` also accepts `soundCheck` with `channel` (`xlr1` or `xlr2`)
+and `action` (`record`, `loop`, `live`, `stop`). It uses the same validation and
+acknowledgement as the WebSocket command. See [Sound Check state](api.md#sound-check-state)
+for limits and the transient `mixer.soundCheck` object. Recordings never leave
+the helper's memory through this API.
+
+The existing insert commands accept every current channel id, including
+software, Aux and external-capture channels, as well as `mix:<id>`. Stereo
+channels require a stereo-compatible plugin; XLR 1 and XLR 2 remain mono.
+Validation and effect status are shared with the WebSocket transport.
+
+`renameInsert` through `POST /api/v1/commands` takes `channel`, `insertId` and
+`name`. It changes an existing instance's label without rebuilding its audio
+path. Effect-chain paste and recall use the existing `setInserts` command and
+its normal validation; the UI's preset library and comparison slots are local
+UI state, not new HTTP resources.
+
+`holdInsert` is also available through `POST /api/v1/commands`. Supply a UUID
+without separators as `holdId` and `action` (`begin`, `renew`, `end`). Begin takes
+`channel` and an optional `insertId`; omit the latter for the whole chain.
+The five-second lease, overlap and persistence rules are described in
+[Momentary effect keys](api.md#momentary-effect-keys). Renewal must not be treated as a new begin.

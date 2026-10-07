@@ -1,3 +1,4 @@
+using OpenXLR.UI.Localization;
 using System;
 using System.IO;
 using System.Net.Http;
@@ -111,7 +112,7 @@ public sealed class UpdatesViewModel : ViewModelBase
     public bool Available { get => _available; private set => Set(ref _available, value); }
     private bool _bannerVisible;
     public bool BannerVisible { get => _bannerVisible; private set => Set(ref _bannerVisible, value); }
-    private string _title = "Updates have not been checked";
+    private string _title = Localizer.Text("UpdatesHaveNotBeenChecked");
     public string Title { get => _title; private set => Set(ref _title, value); }
     private string _details = "No network request is made unless you check manually or opt in below.";
     public string Details { get => _details; private set => Set(ref _details, value); }

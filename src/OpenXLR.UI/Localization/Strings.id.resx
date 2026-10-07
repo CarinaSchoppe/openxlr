@@ -1,0 +1,720 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="ADDINSTALLEDAPPLICATION" xml:space="preserve">
+    <value>TAMBAHKAN APLIKASI TERPASANG</value>
+  </data>
+  <data name="APPEARANCE" xml:space="preserve">
+    <value>TAMPILAN</value>
+  </data>
+  <data name="APPLICATIONS" xml:space="preserve">
+    <value>APLIKASI</value>
+  </data>
+  <data name="ATLOGIN" xml:space="preserve">
+    <value>SAAT MASUK</value>
+  </data>
+  <data name="AUDIO" xml:space="preserve">
+    <value>AUDIO</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>Tentang</value>
+  </data>
+  <data name="AboutOpenXLR" xml:space="preserve">
+    <value>Tentang OpenXLR</value>
+  </data>
+  <data name="Active" xml:space="preserve">
+    <value>aktif</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>Tambah</value>
+  </data>
+  <data name="AddCaptureInput" xml:space="preserve">
+    <value>Tambah input tangkapan</value>
+  </data>
+  <data name="AddChannel" xml:space="preserve">
+    <value>Tambah kanal</value>
+  </data>
+  <data name="AddFolder" xml:space="preserve">
+    <value>Tambah folder</value>
+  </data>
+  <data name="AddPlugin" xml:space="preserve">
+    <value>Tambah plugin</value>
+  </data>
+  <data name="AddPluginInsert" xml:space="preserve">
+    <value>Tambah insert plugin</value>
+  </data>
+  <data name="AddVolumeAndMuteKeys" xml:space="preserve">
+    <value>Tambah tombol volume dan bisu</value>
+  </data>
+  <data name="AllowNativeEditor" xml:space="preserve">
+    <value>Izinkan editor bawaan plugin</value>
+  </data>
+  <data name="ApplicationChannelsMixesVirtualMicrophonesAndInserts" xml:space="preserve">
+    <value>Kanal aplikasi, mix, mikrofon virtual, dan insert.</value>
+  </data>
+  <data name="ApplyAndConfigureKeys" xml:space="preserve">
+    <value>Terapkan dan atur tombol</value>
+  </data>
+  <data name="AudioAndTheAppWillStartWhenYou" xml:space="preserve">
+    <value>Audio dan aplikasi akan dimulai saat Anda masuk.</value>
+  </data>
+  <data name="AudioFlow" xml:space="preserve">
+    <value>Alur audio</value>
+  </data>
+  <data name="AudioWillStartAtLoginWithoutTheApp" xml:space="preserve">
+    <value>Audio dimulai saat masuk tanpa aplikasi atau ikon baki.</value>
+  </data>
+  <data name="BridgeAgainEveryFolderYabridgeKnowsForWindows" xml:space="preserve">
+    <value>Hubungkan ulang folder yang dikenal yabridge untuk plugin Windows yang baru dipasang</value>
+  </data>
+  <data name="BridgeWineSPlugins" xml:space="preserve">
+    <value>Hubungkan plugin Wine</value>
+  </data>
+  <data name="BuyMeACoffee" xml:space="preserve">
+    <value>Traktir saya kopi</value>
+  </data>
+  <data name="Bypass" xml:space="preserve">
+    <value>Lewati</value>
+  </data>
+  <data name="BypassThisPlugin" xml:space="preserve">
+    <value>Lewati plugin ini</value>
+  </data>
+  <data name="Bypassed" xml:space="preserve">
+    <value>dilewati</value>
+  </data>
+  <data name="CHANNELS" xml:space="preserve">
+    <value>KANAL</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Batal</value>
+  </data>
+  <data name="ChangingThisRestartsTheAudioServiceAndBriefly" xml:space="preserve">
+    <value>Perubahan ini memulai ulang layanan audio dan menghentikan audio sebentar.</value>
+  </data>
+  <data name="Channel" xml:space="preserve">
+    <value>kanal</value>
+  </data>
+  <data name="ChannelToMix" xml:space="preserve">
+    <value>Kanal ke mix</value>
+  </data>
+  <data name="CheckAgain" xml:space="preserve">
+    <value>Periksa lagi</value>
+  </data>
+  <data name="CheckGitHubForStableReleasesAtStartupAt" xml:space="preserve">
+    <value>Periksa rilis stabil di GitHub saat mulai
+(paling sering sekali sehari)</value>
+  </data>
+  <data name="CheckNow" xml:space="preserve">
+    <value>Periksa sekarang</value>
+  </data>
+  <data name="ChooseAFolderThenSelectAnIndividualPlugin" xml:space="preserve">
+    <value>Pilih folder, lalu pilih satu plugin di bawah.</value>
+  </data>
+  <data name="ChooseAnApplication" xml:space="preserve">
+    <value>pilih aplikasi</value>
+  </data>
+  <data name="ClearSelection" xml:space="preserve">
+    <value>×  Hapus pilihan</value>
+  </data>
+  <data name="ClickAnyElementToTraceItsSignalPath" xml:space="preserve">
+    <value>Klik elemen untuk menelusuri jalur sinyal</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Tutup</value>
+  </data>
+  <data name="CollectDiagnostics" xml:space="preserve">
+    <value>Kumpulkan diagnostik</value>
+  </data>
+  <data name="Compressor" xml:space="preserve">
+    <value>Kompresor</value>
+  </data>
+  <data name="Connecting" xml:space="preserve">
+    <value>menghubungkan…</value>
+  </data>
+  <data name="ContributorsAndCredits" xml:space="preserve">
+    <value>Kontributor dan kredit</value>
+  </data>
+  <data name="Controls" xml:space="preserve">
+    <value>Kontrol</value>
+  </data>
+  <data name="CurrentSystemDefaultOutput" xml:space="preserve">
+    <value>Output standar sistem saat ini</value>
+  </data>
+  <data name="DaemonNotRunning" xml:space="preserve">
+    <value>Daemon tidak berjalan</value>
+  </data>
+  <data name="DaemonNotRunningSentence" xml:space="preserve">
+    <value>Daemon tidak berjalan.</value>
+  </data>
+  <data name="DeepWineTraceForPluginScans" xml:space="preserve">
+    <value>Pelacakan Wine mendalam untuk pemindaian plugin</value>
+  </data>
+  <data name="DefaultInput" xml:space="preserve">
+    <value>Input standar</value>
+  </data>
+  <data name="DefaultOutput" xml:space="preserve">
+    <value>Output standar</value>
+  </data>
+  <data name="Defaults" xml:space="preserve">
+    <value>Standar</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Hapus</value>
+  </data>
+  <data name="DeleteFile" xml:space="preserve">
+    <value>Hapus berkas</value>
+  </data>
+  <data name="DeleteThisProfile" xml:space="preserve">
+    <value>Hapus profil ini</value>
+  </data>
+  <data name="DesktopKeys" xml:space="preserve">
+    <value>Pintasan desktop</value>
+  </data>
+  <data name="Devices" xml:space="preserve">
+    <value>Perangkat</value>
+  </data>
+  <data name="DirectMonitorBlendLeftOnlyYourMicRight" xml:space="preserve">
+    <value>Campuran monitor langsung: kiri = hanya mikrofon, kanan = hanya audio PC</value>
+  </data>
+  <data name="DisableInOpenXLR" xml:space="preserve">
+    <value>Nonaktifkan di OpenXLR</value>
+  </data>
+  <data name="DiscordCommunity" xml:space="preserve">
+    <value>Komunitas Discord</value>
+  </data>
+  <data name="Dismiss" xml:space="preserve">
+    <value>Tutup pemberitahuan</value>
+  </data>
+  <data name="DonTEnforce" xml:space="preserve">
+    <value>(jangan paksa)</value>
+  </data>
+  <data name="EditLayout" xml:space="preserve">
+    <value>Edit tata letak</value>
+  </data>
+  <data name="EnableDesktopIntegration" xml:space="preserve">
+    <value>Aktifkan integrasi desktop</value>
+  </data>
+  <data name="EnableSoftwareMixer" xml:space="preserve">
+    <value>Aktifkan mixer perangkat lunak</value>
+  </data>
+  <data name="Expander" xml:space="preserve">
+    <value>Ekspander</value>
+  </data>
+  <data name="FindAnInstalledPlugin" xml:space="preserve">
+    <value>Cari plugin terpasang…</value>
+  </data>
+  <data name="FixWindowsEditorInput" xml:space="preserve">
+    <value>Perbaiki input editor Windows</value>
+  </data>
+  <data name="Flow" xml:space="preserve">
+    <value>Alur</value>
+  </data>
+  <data name="FollowMONITOROutputSystemVolumeControls" xml:space="preserve">
+    <value>Ikuti output MONITOR (volume sistem)</value>
+  </data>
+  <data name="FollowSelectedMonitorOutput" xml:space="preserve">
+    <value>Ikuti output monitor yang dipilih</value>
+  </data>
+  <data name="Forget" xml:space="preserve">
+    <value>Lupakan</value>
+  </data>
+  <data name="FrontJack" xml:space="preserve">
+    <value>Soket depan</value>
+  </data>
+  <data name="GainLockTheDaemonRejectsEveryGainChange" xml:space="preserve">
+    <value>Kunci gain: daemon menolak setiap perubahan gain selama terkunci</value>
+  </data>
+  <data name="HEADPHONES" xml:space="preserve">
+    <value>HEADPHONE</value>
+  </data>
+  <data name="HandThePluginsAWindowsInstallerLeftIn" xml:space="preserve">
+    <value>Serahkan plugin yang dipasang penginstal Windows di Wine ke yabridge</value>
+  </data>
+  <data name="INPUTS" xml:space="preserve">
+    <value>INPUT</value>
+  </data>
+  <data name="INTERFACE" xml:space="preserve">
+    <value>ANTARMUKA</value>
+  </data>
+  <data name="InputToChannel" xml:space="preserve">
+    <value>Input ke kanal</value>
+  </data>
+  <data name="InsertCount" xml:space="preserve">
+    <value>Insert ({0})</value>
+  </data>
+  <data name="Inserts" xml:space="preserve">
+    <value>Insert</value>
+  </data>
+  <data name="InstallAClapOrVst3FileOrA" xml:space="preserve">
+    <value>Pasang berkas .clap atau .vst3, atau plugin Windows melalui yabridge</value>
+  </data>
+  <data name="InstallAVst3OrLv2BundleOrEvery" xml:space="preserve">
+    <value>Pasang bundel .vst3 atau .lv2, atau semua plugin dalam folder</value>
+  </data>
+  <data name="InstallFile" xml:space="preserve">
+    <value>Pasang berkas</value>
+  </data>
+  <data name="InstallFolder" xml:space="preserve">
+    <value>Pasang folder</value>
+  </data>
+  <data name="InterfaceConnection" xml:space="preserve">
+    <value>Koneksi antarmuka</value>
+  </data>
+  <data name="KNOWNAPPLICATIONS" xml:space="preserve">
+    <value>APLIKASI YANG DIKENAL</value>
+  </data>
+  <data name="KeepRunningInTray" xml:space="preserve">
+    <value>Tetap berjalan di baki</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Bahasa</value>
+  </data>
+  <data name="LanguageOverrideHint" xml:space="preserve">
+    <value>OPENXLR_LANGUAGE memilih {0} untuk sesi ini. Pilihan tersimpan berlaku saat dimulai ulang tanpa variabel ini.</value>
+  </data>
+  <data name="LanguageRestartHint" xml:space="preserve">
+    <value>Bahasa berlaku saat OpenXLR dimulai berikutnya. Audio tetap berjalan.</value>
+  </data>
+  <data name="LanguageSaveError" xml:space="preserve">
+    <value>Tidak dapat menyimpan bahasa: {0}</value>
+  </data>
+  <data name="LeftLevel" xml:space="preserve">
+    <value>Level kiri</value>
+  </data>
+  <data name="LevelLock" xml:space="preserve">
+    <value>Kunci level</value>
+  </data>
+  <data name="LoadThisProfile" xml:space="preserve">
+    <value>Muat profil ini</value>
+  </data>
+  <data name="Lock" xml:space="preserve">
+    <value>Kunci</value>
+  </data>
+  <data name="LowCut" xml:space="preserve">
+    <value>Potong frekuensi rendah</value>
+  </data>
+  <data name="LowCutFrequency" xml:space="preserve">
+    <value>Potong frekuensi rendah {0}</value>
+  </data>
+  <data name="LowCutOff" xml:space="preserve">
+    <value>Potong frekuensi rendah mati</value>
+  </data>
+  <data name="LowImp" xml:space="preserve">
+    <value>Impedansi rendah</value>
+  </data>
+  <data name="MIXES" xml:space="preserve">
+    <value>MIX</value>
+  </data>
+  <data name="MONITOR" xml:space="preserve">
+    <value>MONITOR</value>
+  </data>
+  <data name="Manage" xml:space="preserve">
+    <value>Kelola</value>
+  </data>
+  <data name="ManageThisPluginSNativeEditorCompatibilityRule" xml:space="preserve">
+    <value>Kelola aturan kompatibilitas editor bawaan plugin ini</value>
+  </data>
+  <data name="Manual" xml:space="preserve">
+    <value>Panduan</value>
+  </data>
+  <data name="MemoryLockSetup" xml:space="preserve">
+    <value>Pengaturan penguncian memori</value>
+  </data>
+  <data name="MicPC" xml:space="preserve">
+    <value>Mikrofon ↔ PC</value>
+  </data>
+  <data name="MixToOutput" xml:space="preserve">
+    <value>Mix ke output</value>
+  </data>
+  <data name="MixerLayout" xml:space="preserve">
+    <value>Tata letak mixer</value>
+  </data>
+  <data name="MoveDown" xml:space="preserve">
+    <value>Turunkan</value>
+  </data>
+  <data name="MovePluginDown" xml:space="preserve">
+    <value>Turunkan plugin</value>
+  </data>
+  <data name="MovePluginUp" xml:space="preserve">
+    <value>Naikkan plugin</value>
+  </data>
+  <data name="MoveUp" xml:space="preserve">
+    <value>Naikkan</value>
+  </data>
+  <data name="Mute" xml:space="preserve">
+    <value>Bisukan</value>
+  </data>
+  <data name="MutedInactive" xml:space="preserve">
+    <value>Dibisukan / tidak aktif</value>
+  </data>
+  <data name="NativeEditorCompatibility" xml:space="preserve">
+    <value>Kompatibilitas editor bawaan</value>
+  </data>
+  <data name="NativeEditors" xml:space="preserve">
+    <value>Editor bawaan plugin</value>
+  </data>
+  <data name="NativeHost" xml:space="preserve">
+    <value>Host native</value>
+  </data>
+  <data name="NeitherAudioNorTheAppWillStartAt" xml:space="preserve">
+    <value>Audio dan aplikasi tidak akan dimulai saat masuk.</value>
+  </data>
+  <data name="NewChannelEGPodcast" xml:space="preserve">
+    <value>Kanal baru, misalnya Podcast</value>
+  </data>
+  <data name="NoDevice" xml:space="preserve">
+    <value>Tidak ada perangkat</value>
+  </data>
+  <data name="NoInsertsYet" xml:space="preserve">
+    <value>Belum ada insert.</value>
+  </data>
+  <data name="NoNativeEditorsAreBlocked" xml:space="preserve">
+    <value>Tidak ada editor bawaan yang diblokir.</value>
+  </data>
+  <data name="NoProfilesSavedYet" xml:space="preserve">
+    <value>belum ada profil tersimpan</value>
+  </data>
+  <data name="NoRegisteredFolders" xml:space="preserve">
+    <value>Tidak ada folder terdaftar.</value>
+  </data>
+  <data name="NotInPath" xml:space="preserve">
+    <value>Tidak ada di PATH</value>
+  </data>
+  <data name="NotRouted" xml:space="preserve">
+    <value>tidak dirutekan</value>
+  </data>
+  <data name="NotRunning" xml:space="preserve">
+    <value>tidak berjalan</value>
+  </data>
+  <data name="OnConnect" xml:space="preserve">
+    <value>Saat terhubung</value>
+  </data>
+  <data name="OnLaunch" xml:space="preserve">
+    <value>Saat mulai</value>
+  </data>
+  <data name="OpenOnGitHub" xml:space="preserve">
+    <value>Buka di GitHub</value>
+  </data>
+  <data name="OpenTheManualSectionOnDesktopKeys" xml:space="preserve">
+    <value>Buka bagian panduan tentang pintasan desktop</value>
+  </data>
+  <data name="OpenTheManualSectionOnInstallingPlugins" xml:space="preserve">
+    <value>Buka bagian panduan tentang pemasangan plugin</value>
+  </data>
+  <data name="OpenTheManualSectionOnPluginEditors" xml:space="preserve">
+    <value>Buka bagian panduan tentang editor plugin</value>
+  </data>
+  <data name="OpenTheManualSectionOnSkins" xml:space="preserve">
+    <value>Buka bagian panduan tentang skin</value>
+  </data>
+  <data name="OpenTheManualSectionOnThePipewirePulse" xml:space="preserve">
+    <value>Buka bagian panduan tentang batas berkas terbuka pipewire-pulse</value>
+  </data>
+  <data name="OpenThisPluginSControls" xml:space="preserve">
+    <value>Buka kontrol plugin ini</value>
+  </data>
+  <data name="OpenThisPluginSOwnEditorOnThe" xml:space="preserve">
+    <value>Buka editor bawaan plugin pada instans audio aktif</value>
+  </data>
+  <data name="OpenXLRApplications" xml:space="preserve">
+    <value>Aplikasi OpenXLR</value>
+  </data>
+  <data name="OpenXLRAudioFlow" xml:space="preserve">
+    <value>OpenXLR · Alur audio</value>
+  </data>
+  <data name="OpenXLRDesktopKeys" xml:space="preserve">
+    <value>Pintasan desktop OpenXLR</value>
+  </data>
+  <data name="OpenXLRMixerLayout" xml:space="preserve">
+    <value>Tata letak mixer OpenXLR</value>
+  </data>
+  <data name="OpenXLROptions" xml:space="preserve">
+    <value>Opsi OpenXLR</value>
+  </data>
+  <data name="OpenXLRUpdates" xml:space="preserve">
+    <value>Pembaruan OpenXLR</value>
+  </data>
+  <data name="Options" xml:space="preserve">
+    <value>Opsi</value>
+  </data>
+  <data name="Overwrite" xml:space="preserve">
+    <value>Timpa</value>
+  </data>
+  <data name="OverwriteProfile" xml:space="preserve">
+    <value>Timpa profil?</value>
+  </data>
+  <data name="PLUGINS" xml:space="preserve">
+    <value>PLUGIN</value>
+  </data>
+  <data name="Phantom" xml:space="preserve">
+    <value>Phantom</value>
+  </data>
+  <data name="Phones1" xml:space="preserve">
+    <value>Headphone 1</value>
+  </data>
+  <data name="Phones2" xml:space="preserve">
+    <value>Headphone 2</value>
+  </data>
+  <data name="Playing" xml:space="preserve">
+    <value>memutar</value>
+  </data>
+  <data name="PluginState" xml:space="preserve">
+    <value>Status plugin</value>
+  </data>
+  <data name="PluginUI" xml:space="preserve">
+    <value>Antarmuka plugin</value>
+  </data>
+  <data name="PluginsAreLookedForInTheHomeAnd" xml:space="preserve">
+    <value>Plugin dicari di direktori plugin pengguna dan sistem.</value>
+  </data>
+  <data name="PluginsProcessingXLR1BeforeItReachesThe" xml:space="preserve">
+    <value>Plugin yang memproses XLR 1 sebelum masuk ke mix</value>
+  </data>
+  <data name="PluginsProcessingXLR2BeforeItReachesThe" xml:space="preserve">
+    <value>Plugin yang memproses XLR 2 sebelum masuk ke mix</value>
+  </data>
+  <data name="Problem" xml:space="preserve">
+    <value>masalah</value>
+  </data>
+  <data name="ProfileName" xml:space="preserve">
+    <value>nama profil</value>
+  </data>
+  <data name="ProfileOverwriteMessage" xml:space="preserve">
+    <value>Profil bernama "{0}" sudah ada untuk perangkat ini.
+Menyimpan akan menggantinya dengan adegan saat ini.</value>
+  </data>
+  <data name="Profiles" xml:space="preserve">
+    <value>Profil</value>
+  </data>
+  <data name="PutEveryControlBackToThePluginS" xml:space="preserve">
+    <value>Kembalikan semua kontrol ke nilai standar plugin</value>
+  </data>
+  <data name="QuitApp" xml:space="preserve">
+    <value>Keluar dari aplikasi</value>
+  </data>
+  <data name="QuitOpenXLR" xml:space="preserve">
+    <value>Keluar dari OpenXLR</value>
+  </data>
+  <data name="ReadThePluginDirectoriesAgainForPluginsInstalled" xml:space="preserve">
+    <value>Baca ulang direktori untuk plugin yang dipasang dengan cara lain</value>
+  </data>
+  <data name="ReadTheSkinFoldersAgainForASkin" xml:space="preserve">
+    <value>Baca ulang folder skin untuk skin baru atau yang diubah</value>
+  </data>
+  <data name="RearJack" xml:space="preserve">
+    <value>Soket belakang</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>Segarkan</value>
+  </data>
+  <data name="ReleaseNotesArePlainTextOpenXLRNeverInstalls" xml:space="preserve">
+    <value>Catatan rilis berupa teks biasa. OpenXLR tidak pernah memasang pembaruan otomatis.</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>Muat ulang</value>
+  </data>
+  <data name="RemoveFromAllChains" xml:space="preserve">
+    <value>Hapus dari semua rantai</value>
+  </data>
+  <data name="RemoveFromList" xml:space="preserve">
+    <value>Hapus dari daftar</value>
+  </data>
+  <data name="RemovePlugin" xml:space="preserve">
+    <value>Hapus plugin</value>
+  </data>
+  <data name="Rename" xml:space="preserve">
+    <value>Ubah nama</value>
+  </data>
+  <data name="Rescan" xml:space="preserve">
+    <value>Pindai ulang</value>
+  </data>
+  <data name="RescanRetriesTheseBundlesAChangedBundleOr" xml:space="preserve">
+    <value>Pemindaian ulang mencoba bundel ini lagi. Bundel atau pemindai yang berubah dicoba otomatis.</value>
+  </data>
+  <data name="ResetDeviceToDefaults" xml:space="preserve">
+    <value>Pulihkan perangkat ke standar</value>
+  </data>
+  <data name="RestartDaemon" xml:space="preserve">
+    <value>Mulai ulang daemon</value>
+  </data>
+  <data name="RestartFailedCheckTheUserServiceLogs" xml:space="preserve">
+    <value>Gagal memulai ulang. Periksa log layanan pengguna.</value>
+  </data>
+  <data name="RestartTheOpenXLRUserServiceAudioWillBe" xml:space="preserve">
+    <value>Mulai ulang layanan pengguna OpenXLR. Audio akan terhenti sebentar.</value>
+  </data>
+  <data name="RestartingDaemon" xml:space="preserve">
+    <value>Memulai ulang daemon...</value>
+  </data>
+  <data name="RightLevel" xml:space="preserve">
+    <value>Level kanan</value>
+  </data>
+  <data name="RunThisPluginInItsOwnProcess" xml:space="preserve">
+    <value>Jalankan plugin ini dalam proses terpisah</value>
+  </data>
+  <data name="Running" xml:space="preserve">
+    <value>berjalan</value>
+  </data>
+  <data name="SUBMIXER" xml:space="preserve">
+    <value>SUBMIXER</value>
+  </data>
+  <data name="SUPPORT" xml:space="preserve">
+    <value>DUKUNGAN</value>
+  </data>
+  <data name="SYSTEMDEFAULTDEVICES" xml:space="preserve">
+    <value>PERANGKAT STANDAR SISTEM</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Simpan</value>
+  </data>
+  <data name="SaveAndRecallCompleteScenesHardwareDSPPlus" xml:space="preserve">
+    <value>Simpan dan panggil adegan lengkap: DSP perangkat keras dan seluruh submix</value>
+  </data>
+  <data name="SearchByNameOrCategory" xml:space="preserve">
+    <value>Cari berdasarkan nama atau kategori</value>
+  </data>
+  <data name="SelectAFolderToSeeItsPlugins" xml:space="preserve">
+    <value>Pilih folder untuk melihat plugin.</value>
+  </data>
+  <data name="SelectAPluginToManageIt" xml:space="preserve">
+    <value>Pilih plugin untuk dikelola.</value>
+  </data>
+  <data name="SelectInterfaceTip" xml:space="preserve">
+    <value>{0}
+Pilih antarmuka yang dikendalikan OpenXLR</value>
+  </data>
+  <data name="ServiceRestartedWaitingForTheDaemonConnection" xml:space="preserve">
+    <value>Layanan dimulai ulang. Menunggu koneksi daemon.</value>
+  </data>
+  <data name="ShowCLAPPlugins" xml:space="preserve">
+    <value>Tampilkan plugin CLAP</value>
+  </data>
+  <data name="ShowLV2Plugins" xml:space="preserve">
+    <value>Tampilkan plugin LV2</value>
+  </data>
+  <data name="ShowMixer" xml:space="preserve">
+    <value>Tampilkan mixer</value>
+  </data>
+  <data name="ShowTheLiveAudioRoutingGraph" xml:space="preserve">
+    <value>Tampilkan grafik perutean audio langsung</value>
+  </data>
+  <data name="ShowVST3Plugins" xml:space="preserve">
+    <value>Tampilkan plugin VST3</value>
+  </data>
+  <data name="Skin" xml:space="preserve">
+    <value>Skin</value>
+  </data>
+  <data name="SkippedBundlesChecking" xml:space="preserve">
+    <value>Bundel dilewati: memeriksa…</value>
+  </data>
+  <data name="SkippedBundlesUnavailable" xml:space="preserve">
+    <value>Bundel dilewati: tidak tersedia</value>
+  </data>
+  <data name="StartAudioInTheBackground" xml:space="preserve">
+    <value>Mulai audio di latar belakang</value>
+  </data>
+  <data name="StartTheOpenXLRApp" xml:space="preserve">
+    <value>Mulai aplikasi OpenXLR</value>
+  </data>
+  <data name="StereoPluginsProcessingThisMixBeforeItReaches" xml:space="preserve">
+    <value>Plugin stereo yang memproses mix ini sebelum masuk ke output</value>
+  </data>
+  <data name="StreamState" xml:space="preserve">
+    <value>Status aliran</value>
+  </data>
+  <data name="SwitchSystemOutput0" xml:space="preserve">
+    <value>Ganti output sistem: {0}</value>
+  </data>
+  <data name="SyncWindowsPlugins" xml:space="preserve">
+    <value>Sinkronkan plugin Windows</value>
+  </data>
+  <data name="SystemLanguage" xml:space="preserve">
+    <value>Bahasa sistem</value>
+  </data>
+  <data name="TheAppWillStartAtLoginStartThe" xml:space="preserve">
+    <value>Aplikasi dimulai saat masuk. Mulai layanan audio secara terpisah untuk menggunakannya.</value>
+  </data>
+  <data name="ToUSBAuxPort" xml:space="preserve">
+    <value>Ke port USB Aux</value>
+  </data>
+  <data name="TrayOnly" xml:space="preserve">
+    <value>Hanya baki</value>
+  </data>
+  <data name="UPDATES" xml:space="preserve">
+    <value>PEMBARUAN</value>
+  </data>
+  <data name="USBAuxIn" xml:space="preserve">
+    <value>Input USB Aux</value>
+  </data>
+  <data name="UpdatesHaveNotBeenChecked" xml:space="preserve">
+    <value>Pembaruan belum diperiksa</value>
+  </data>
+  <data name="UpdatingWineTrace" xml:space="preserve">
+    <value>Memperbarui pelacakan Wine…</value>
+  </data>
+  <data name="UseOpenXLRControls" xml:space="preserve">
+    <value>Gunakan kontrol OpenXLR</value>
+  </data>
+  <data name="UseReleaseDefault" xml:space="preserve">
+    <value>Gunakan standar rilis</value>
+  </data>
+  <data name="VTStrength" xml:space="preserve">
+    <value>Kekuatan VT</value>
+  </data>
+  <data name="ViewChanges" xml:space="preserve">
+    <value>Lihat perubahan</value>
+  </data>
+  <data name="ViewResult" xml:space="preserve">
+    <value>Lihat hasil</value>
+  </data>
+  <data name="VoiceTune" xml:space="preserve">
+    <value>Voice Tune</value>
+  </data>
+  <data name="Volume" xml:space="preserve">
+    <value>Volume</value>
+  </data>
+  <data name="WINDOW" xml:space="preserve">
+    <value>JENDELA</value>
+  </data>
+  <data name="WhenClosing" xml:space="preserve">
+    <value>Saat menutup</value>
+  </data>
+  <data name="WhichMixThisOutputHears" xml:space="preserve">
+    <value>Mix yang didengar output ini.</value>
+  </data>
+  <data name="WindowsPluginsCheckingForYabridge" xml:space="preserve">
+    <value>Plugin Windows: memeriksa yabridge…</value>
+  </data>
+  <data name="WindowsPluginsTheDaemonDidNotAnswer" xml:space="preserve">
+    <value>Plugin Windows: daemon tidak menjawab.</value>
+  </data>
+  <data name="WindowsVST3AndCLAPPlugins" xml:space="preserve">
+    <value>Plugin Windows VST3 dan CLAP</value>
+  </data>
+  <data name="WineTraceCheckingTheDaemon" xml:space="preserve">
+    <value>Pelacakan Wine: memeriksa daemon…</value>
+  </data>
+  <data name="WineTraceUnavailableTheDaemonMustBeConnected" xml:space="preserve">
+    <value>Pelacakan Wine tidak tersedia. Daemon harus terhubung dan mendukung opsi ini.</value>
+  </data>
+  <data name="WineUninstaller" xml:space="preserve">
+    <value>Penghapus program Wine</value>
+  </data>
+  <data name="XLR1Gain" xml:space="preserve">
+    <value>Gain XLR 1</value>
+  </data>
+  <data name="XLR2Gain" xml:space="preserve">
+    <value>Gain XLR 2</value>
+  </data>
+</root>

@@ -41,6 +41,56 @@ public sealed partial class MonitorVolumeIntegrationTests
     }
 
     [MonitorPipeWireFact]
+    public void UserMonitorLifecycleKeepsOnlyOneSinkAndRollsBackFailedSaves()
+    {
+        var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
+        using var mixer = new Mixer(pw);
+        mixer.Build(MonitorConfig());
+        pw.CreateNullSink("test_user_monitor_output", "Output");
+        mixer.SetMonitorOutputs(["test_user_monitor_output"]);
+        Assert.Throws<IOException>(() => mixer.CreateMix("Rejected", _ => "disk full", MixKind.Monitor));
+        Assert.False(mixer.HasMix("rejected"));
+        Assert.True(SpinWait.SpinUntil(() => !pw.OwnSinkLevels().Any(n => n.Name.Contains("rejected", StringComparison.Ordinal)), TimeSpan.FromSeconds(3)));
+        MixerSettings? saved = null;
+        mixer.CreateMix("Headphones", s => { saved = s; return null; }, MixKind.Monitor);
+        Assert.Equal("monitor", saved!.UserMixes!.Single(m => m.Id == "headphones").Kind);
+        var added = mixer.Snapshot().Mixes.Single(m => m.Id == "headphones");
+        Assert.True(added.Editable);
+        Assert.False(mixer.Snapshot().Mixes.Single(m => m.Id == "monitor").Editable);
+        Assert.All(mixer.Snapshot().Channels, c => Assert.Contains("headphones", c.MutedIn));
+        Assert.True(SpinWait.SpinUntil(() => pw.OwnSinkLevels().Any(n => n.Name == "OpenXLR_mix_headphones"), TimeSpan.FromSeconds(3)));
+        Assert.Single(pw.OwnSinkLevels(), n => n.Name.Contains("headphones", StringComparison.Ordinal));
+        Assert.DoesNotContain(pw.ListDevices(), d => d.Kind == AudioNodeKind.Source && d.Name == "OpenXLR_headphones");
+        mixer.SetMixVolume("headphones", 1.5);
+        Assert.Equal(1.5, pw.GetSinkVolume("OpenXLR_mix_headphones"));
+        pw.SetSinkVolume("OpenXLR_mix_headphones", .4);
+        mixer.SyncMonitorVolumes();
+        Assert.Equal(.4, mixer.Snapshot().Mixes.Single(m => m.Id == "headphones").Volume);
+        Assert.Null(mixer.SetMonitorFeed("test_user_monitor_output", "headphones+monitor"));
+        Assert.Throws<IOException>(() => mixer.RenameMix("headphones", "Rejected", _ => "disk full"));
+        Assert.Equal("Headphones", mixer.Snapshot().Mixes.Single(m => m.Id == "headphones").Name);
+        mixer.RenameMix("headphones", "Phones", _ => null);
+        mixer.SetEnforcedDefaults("OpenXLR_mix_headphones", null);
+        Assert.Throws<IOException>(() => mixer.DeleteMix("headphones", _ => "disk full"));
+        Assert.True(mixer.HasMix("headphones"));
+        Assert.Equal("OpenXLR_mix_headphones", mixer.EnforcedDefaults.Sink);
+        Assert.Equal("monitor+headphones", mixer.MonitorFeedOf("test_user_monitor_output"));
+        saved = mixer.ExportSettings();
+        mixer.Build(MixerConfig.FromSettings(saved));
+        mixer.ApplySettings(saved);
+        Assert.Equal("monitor", mixer.Snapshot().Mixes.Single(m => m.Id == "headphones").Kind);
+        Assert.Equal(.4, pw.GetSinkVolume("OpenXLR_mix_headphones"));
+        Assert.DoesNotContain(pw.ListDevices(), d => d.Kind == AudioNodeKind.Source && d.Name == "OpenXLR_headphones");
+        mixer.DeleteMix("headphones", _ => null);
+        Assert.False(mixer.HasMix("headphones"));
+        Assert.Null(mixer.EnforcedDefaults.Sink);
+        Assert.Null(mixer.ExportSettings().EnforcedDefaultSink);
+        Assert.Equal("monitor", mixer.MonitorFeedOf("test_user_monitor_output"));
+        Assert.DoesNotContain(mixer.ExportSettings().UserMixes!, m => m.Id == "headphones");
+    }
+
+    [MonitorPipeWireFact]
     public void AnyMixFeedsSurviveRecallAndDeletionCannotLeaveAStaleRoute()
     {
         var pw = new PipeWireAdapter();
@@ -58,21 +108,21 @@ public sealed partial class MonitorVolumeIntegrationTests
             mixer.ApplyScene(scene);
             Assert.Equal("monitor+chat", mixer.MonitorFeedOf("test_feeds_output"));
 
-            Assert.Throws<IOException>(() => mixer.DeleteVirtualMix("chat", _ => "disk full"));
+            Assert.Throws<IOException>(() => mixer.DeleteMix("chat", _ => "disk full"));
             Assert.True(mixer.HasMix("chat"));
             Assert.Equal("monitor+chat", mixer.MonitorFeedOf("test_feeds_output"));
             AssertIncoming("OpenXLR_mix_monitor", "OpenXLR_mix_chat");
 
             MixerSettings? saved = null;
-            mixer.DeleteVirtualMix("chat", settings => { saved = settings; return null; });
+            mixer.DeleteMix("chat", settings => { saved = settings; return null; });
             Assert.False(mixer.HasMix("chat"));
             Assert.DoesNotContain(saved!.MonitorFeeds.Values, feed => MonitorFeed.Includes(feed, "chat"));
             Assert.Equal("monitor", mixer.MonitorFeedOf("test_feeds_output"));
             AssertIncoming("OpenXLR_mix_monitor");
-            mixer.CreateVirtualMix("Podcast", _ => null);
+            mixer.CreateMix("Podcast", _ => null);
             Assert.Null(mixer.SetMonitorFeed("test_feeds_output", "podcast"));
             AssertIncoming("OpenXLR_mix_podcast");
-            mixer.DeleteVirtualMix("podcast", _ => null);
+            mixer.DeleteMix("podcast", _ => null);
             Assert.False(mixer.ExportSettings().MonitorFeeds.ContainsKey("test_feeds_output"));
             AssertIncoming("OpenXLR_mix_monitor");
 
@@ -448,6 +498,16 @@ public sealed partial class MonitorVolumeIntegrationTests
             Capture(expected, direct);
         }
 
+        mixer.CreateMix("Headphones", _ => null, MixKind.Monitor);
+        Assert.Null(mixer.SetMonitorFeed("test_master_output", "headphones"));
+        Capture(0, false); // the new send starts muted even while an app is playing
+        mixer.SetLevel("test", "headphones", .6);
+        mixer.SetChannelMuted("test", "headphones", false);
+        mixer.SetMixVolume("headphones", 1.5);
+        Capture(.1 * Math.Pow(.6 * 1.5, 3), false);
+        mixer.SetMixMuted("headphones", true);
+        Capture(0, false);
+
         mixer.SetMixVolume("monitor", 1);
         mixer.SetMixMuted("monitor", false);
         // A summed feed links every mix at unity; a second output keeps
@@ -460,60 +520,61 @@ public sealed partial class MonitorVolumeIntegrationTests
         Capture(.1 * Math.Pow(.7, 3), false, "test_feed_other");
         Capture(.1 * (Math.Pow(.8, 3) + Math.Pow(.7, 3)), false);
 
-        static void Capture(double expected, bool direct, string output = "test_master_output")
-        {
-            var result = ProcessRunner.Run("python3", ["-c", """
-                import struct, subprocess, sys, tempfile
-                rate = 48000
-                # Separate combine streams can acquire different latencies. A sine
-                # can cancel itself when Monitor A and B are summed, although both
-                # gains are correct. DC tests the gain independently of that phase.
-                samples = struct.pack('<ff', 0.1, 0.1) * (rate * 2)
-                args = ['--format=f32', '--rate=48000', '--channels=2']
-                # Older pw-cat versions use raw audio on stdin/stdout implicitly.
-                if '--raw' in subprocess.check_output(['pw-cat', '--help'], text=True):
-                    args.append('--raw')
-                capture = tempfile.TemporaryFile()
-                record = subprocess.Popen(['pw-cat', '--record', *args, '--target', sys.argv[3], '--properties={ stream.capture.sink = true }', '-'], stdout=capture, stderr=subprocess.PIPE)
-                play = None
-                try:
-                    play = subprocess.Popen(['pw-cat', '--playback', *args, '--target', sys.argv[2], '-'], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-                    _, playback_errors = play.communicate(samples, timeout=10)
-                    assert play.returncode == 0, playback_errors.decode()
-                    record.terminate()
-                    record.communicate(timeout=5)
-                    capture.seek(0)
-                    audio = capture.read()
-                    values = struct.unpack('<' + 'f' * (len(audio) // 4), audio)
-                    assert len(values) > rate, 'Capture did not run'
-                    expected = float(sys.argv[1])
-                    # The capture starts before playback and is cut when it
-                    # ends, so the settled window is found from the audio
-                    # itself: 100 ms inside the first and last frame carrying
-                    # signal. A resampler on a combine leg rings for a few
-                    # samples at the DC edges, well inside that margin.
-                    frames = [values[i:i + 2] for i in range(0, len(values), 2)]
-                    floor = max(expected / 2, 0.001)
-                    carrying = [0, len(frames) - 1] if expected == 0 else [i for i, frame in enumerate(frames) if max(map(abs, frame)) > floor]
-                    assert carrying, 'No audio reached the output; links=' + subprocess.check_output(['pw-link', '-l'], text=True)
-                    margin = rate // 10
-                    steady = frames[carrying[0] + margin : carrying[-1] + 1 - margin]
-                    assert len(steady) >= rate, f'Only {len(steady)} settled frames'
-                    settled = [value for frame in steady for value in frame]
-                    matching = sum(abs(value - expected) < 0.002 for value in settled) / len(settled)
-                    peak = max(map(abs, values))
-                    assert matching > 0.99 and peak < 1.1 * expected + 0.002, f'Wrong master gain: peak={peak}, expected={expected}, matching={matching}; links=' + subprocess.check_output(['pw-link', '-l'], text=True)
-                    print(f'Expected {expected:.5f}: peak={peak:.5f}, matching={matching:.1%}')
-                finally:
-                    for process in (play, record):
-                        if process is None: continue
-                        if process.poll() is None: process.kill()
-                        process.wait()
-                    capture.close()
-                """, expected.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                direct ? "OpenXLR_mix_monitor" : "OpenXLR_ch_test", output], TimeSpan.FromSeconds(20));
-            Assert.True(result.Ok, result.StdoutText + result.Stderr);
-        }
+    }
+
+    private static void Capture(double expected, bool direct, string output = "test_master_output")
+    {
+        var result = ProcessRunner.Run("python3", ["-c", """
+            import struct, subprocess, sys, tempfile
+            rate = 48000
+            # Separate combine streams can acquire different latencies. A sine
+            # can cancel itself when Monitor A and B are summed, although both
+            # gains are correct. DC tests the gain independently of that phase.
+            samples = struct.pack('<ff', 0.1, 0.1) * (rate * 2)
+            args = ['--format=f32', '--rate=48000', '--channels=2']
+            # Older pw-cat versions use raw audio on stdin/stdout implicitly.
+            if '--raw' in subprocess.check_output(['pw-cat', '--help'], text=True):
+                args.append('--raw')
+            capture = tempfile.TemporaryFile()
+            record = subprocess.Popen(['pw-cat', '--record', *args, '--target', sys.argv[3], '--properties={ stream.capture.sink = true }', '-'], stdout=capture, stderr=subprocess.PIPE)
+            play = None
+            try:
+                play = subprocess.Popen(['pw-cat', '--playback', *args, '--target', sys.argv[2], '-'], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                _, playback_errors = play.communicate(samples, timeout=10)
+                assert play.returncode == 0, playback_errors.decode()
+                record.terminate()
+                record.communicate(timeout=5)
+                capture.seek(0)
+                audio = capture.read()
+                values = struct.unpack('<' + 'f' * (len(audio) // 4), audio)
+                assert len(values) > rate, 'Capture did not run'
+                expected = float(sys.argv[1])
+                # The capture starts before playback and is cut when it
+                # ends, so the settled window is found from the audio
+                # itself: 100 ms inside the first and last frame carrying
+                # signal. A resampler on a combine leg rings for a few
+                # samples at the DC edges, well inside that margin.
+                frames = [values[i:i + 2] for i in range(0, len(values), 2)]
+                floor = max(expected / 2, 0.001)
+                carrying = [0, len(frames) - 1] if expected == 0 else [i for i, frame in enumerate(frames) if max(map(abs, frame)) > floor]
+                assert carrying, 'No audio reached the output; links=' + subprocess.check_output(['pw-link', '-l'], text=True)
+                margin = rate // 10
+                steady = frames[carrying[0] + margin : carrying[-1] + 1 - margin]
+                assert len(steady) >= rate, f'Only {len(steady)} settled frames'
+                settled = [value for frame in steady for value in frame]
+                matching = sum(abs(value - expected) < 0.002 for value in settled) / len(settled)
+                peak = max(map(abs, values))
+                assert matching > 0.99 and peak < 1.1 * expected + 0.002, f'Wrong master gain: peak={peak}, expected={expected}, matching={matching}; links=' + subprocess.check_output(['pw-link', '-l'], text=True)
+                print(f'Expected {expected:.5f}: peak={peak:.5f}, matching={matching:.1%}')
+            finally:
+                for process in (play, record):
+                    if process is None: continue
+                    if process.poll() is None: process.kill()
+                    process.wait()
+                capture.close()
+            """, expected.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            direct ? "OpenXLR_mix_monitor" : "OpenXLR_ch_test", output], TimeSpan.FromSeconds(20));
+        Assert.True(result.Ok, result.StdoutText + result.Stderr);
     }
 
 }

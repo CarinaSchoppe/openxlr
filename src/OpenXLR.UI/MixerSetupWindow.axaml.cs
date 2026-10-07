@@ -1,3 +1,4 @@
+using OpenXLR.UI.Localization;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,7 +11,7 @@ namespace OpenXLR.UI;
 
 /// <summary>
 /// The layout editor: add, rename, reorder and delete application channels
-/// and virtual microphones. Every action waits for the daemon's answer, which
+/// and user mixes. Every action waits for the daemon's answer, which
 /// arrives after the new layout is saved; the lists update from the state
 /// push that precedes it, so nothing here is optimistic.
 /// </summary>
@@ -18,7 +19,17 @@ public partial class MixerSetupWindow : Window
 {
     public MixerSetupWindow() => InitializeComponent();
 
+    private async void OnExclusiveGroups(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is { } vm) await new ExclusiveGroupsWindow(vm).ShowDialog(this);
+    }
+
     private MainViewModel? Vm => DataContext as MainViewModel;
+
+    private async void OnRoutingOrder(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is { } vm) await Run(vm.UseDisplayOrderForRouting());
+    }
 
     private async void OnAddChannel(object? sender, RoutedEventArgs e)
     {
@@ -35,10 +46,10 @@ public partial class MixerSetupWindow : Window
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
         var pair = new ComboBox { Name = "CapturePair", ItemsSource = Enumerable.Range(1, 32).Select(n => $"Pair {n}").ToArray(), SelectedIndex = 0 };
         var add = new Button { Name = "CreateCapture", Content = "Add input", IsDefault = true };
-        var cancel = new Button { Content = "Cancel", IsCancel = true };
+        var cancel = new Button { Content = Localizer.Text("Cancel"), IsCancel = true };
         var dialog = new Window
         {
-            Title = "Add capture input", Width = 480, Height = 340, MinWidth = 360, MinHeight = 320,
+            Title = Localizer.Text("AddCaptureInput"), Width = 480, Height = 340, MinWidth = 360, MinHeight = 320,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Classes = { "dialog" },
             Content = new ScrollViewer { Content = new StackPanel
             {
@@ -65,7 +76,7 @@ public partial class MixerSetupWindow : Window
     {
         string name = MixName.Text?.Trim() ?? "";
         if (name.Length == 0 || Vm is not { } vm) return;
-        if (await Run(vm.CreateMix(name))) MixName.Text = "";
+        if (await Run(vm.CreateMix(name, NewMixKind.SelectedIndex == 1 ? "monitor" : "virtualMic"))) MixName.Text = "";
     }
 
     private void OnChannelNameKey(object? sender, KeyEventArgs e)
@@ -111,7 +122,7 @@ public partial class MixerSetupWindow : Window
     {
         if (Item<MixViewModel>(sender) is not { } mix || Vm is not { } vm) return;
         string? name = await PromptName($"Rename mix '{mix.Name}'", mix.Name,
-            "OpenXLR shows the new name at once. Other applications keep listing the old microphone name until the daemon restarts, so nothing that is recording from it is interrupted.");
+            "OpenXLR shows the new name at once. Other applications keep listing the old device name until the daemon restarts, so clients using it are not interrupted.");
         if (name is not null && name != mix.Name) await Run(vm.RenameMix(mix.Id, name));
     }
 
@@ -128,8 +139,43 @@ public partial class MixerSetupWindow : Window
     {
         if (Item<MixViewModel>(sender) is not { } mix || Vm is not { } vm) return;
         if (await Confirm($"Delete mix '{mix.Name}'?",
-                "Its virtual microphone disappears; anything recording from it loses the device. Its sends and inserts go with it."))
+                mix.IsMonitor
+                    ? "Its sends and inserts are removed. Outputs following only this mix return to Monitor A; summed feeds keep their other mixes. If this mix is the enforced system default, that setting is cleared."
+                    : "Its virtual microphone disappears; anything recording from it loses the device. Its sends and inserts go with it."))
             await Run(vm.DeleteMix(mix.Id));
+    }
+
+    private async void OnAppearance(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is not { } vm) return;
+        var channel = Item<ChannelViewModel>(sender);
+        var mix = Item<MixViewModel>(sender);
+        var appearance = channel?.Appearance ?? mix?.Appearance;
+        if (appearance is null) return;
+        var icon = new ComboBox { ItemsSource = LayoutAppearanceViewModel.Icons, SelectedItem = appearance.Icon };
+        var colour = new TextBox { Text = appearance.Colour ?? "", PlaceholderText = "#RRGGBB, blank uses the skin", MaxLength = 7 };
+        var hidden = new CheckBox { Content = "Hide channel in the full mixer (audio keeps playing)", IsChecked = appearance.Hidden, IsVisible = channel is not null };
+        var save = new Button { Content = "Save", IsDefault = true };
+        var note = new TextBlock { TextWrapping = TextWrapping.Wrap, Classes = { "hint" } };
+        var dialog = new Window
+        {
+            Title = "Mixer appearance", Width = 430, Height = 330, MinWidth = 350, MinHeight = 300,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, Classes = { "dialog" },
+            Content = new ScrollViewer { Content = new StackPanel { Margin = new Avalonia.Thickness(18), Spacing = 12,
+                Children = { new TextBlock { Text = "Icon" }, icon, new TextBlock { Text = "Colour" }, colour, hidden, note, save } } },
+        };
+        save.Click += async (_, _) =>
+        {
+            save.IsEnabled = false;
+            try
+            {
+                string? error = await vm.SetLayoutAppearance(channel?.Id ?? mix!.Id, mix is not null,
+                    icon.SelectedItem as string ?? "", string.IsNullOrWhiteSpace(colour.Text) ? null : colour.Text.Trim(), hidden.IsChecked == true);
+                if (error is null) dialog.Close(); else note.Text = error;
+            }
+            finally { save.IsEnabled = true; }
+        };
+        await dialog.ShowDialog(this);
     }
 
     private static T? Item<T>(object? sender) where T : class => (sender as Control)?.DataContext as T;
@@ -151,8 +197,8 @@ public partial class MixerSetupWindow : Window
     private async Task<string?> PromptName(string title, string current, string hint)
     {
         var input = new TextBox { Text = current, MinWidth = 340, MaxLength = 60 };
-        var ok = new Button { Content = "Rename", IsDefault = true };
-        var cancel = new Button { Content = "Cancel", IsCancel = true };
+        var ok = new Button { Content = Localizer.Text("Rename"), IsDefault = true };
+        var cancel = new Button { Content = Localizer.Text("Cancel"), IsCancel = true };
         string? result = null;
         var dialog = new Window
         {
@@ -195,8 +241,8 @@ public partial class MixerSetupWindow : Window
 
     private async Task<bool> Confirm(string title, string message)
     {
-        var yes = new Button { Content = "Delete", Classes = { "danger" } };
-        var no = new Button { Content = "Cancel", IsCancel = true };
+        var yes = new Button { Content = Localizer.Text("Delete"), Classes = { "danger" } };
+        var no = new Button { Content = Localizer.Text("Cancel"), IsCancel = true };
         var done = new TaskCompletionSource<bool>();
         var dialog = new Window
         {

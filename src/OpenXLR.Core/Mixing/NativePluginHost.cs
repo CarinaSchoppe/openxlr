@@ -35,6 +35,11 @@ internal sealed class NativePluginHost : IDisposable
     private long _lastHeartbeat = Stopwatch.GetTimestamp();
     private long _lastUiHeartbeat = Stopwatch.GetTimestamp();
 
+    private readonly int _sampleRate;
+    private long _latencySamples = -1;
+    public double? LatencyMilliseconds => Interlocked.Read(ref _latencySamples) is >= 0 and var samples
+        ? samples * 1000.0 / _sampleRate : null;
+
     public Process Process { get; }
 
     /// <summary>
@@ -160,6 +165,7 @@ internal sealed class NativePluginHost : IDisposable
         _note = note;
         _node = node;
         _meterSymbols = meterSymbols;
+        _sampleRate = sampleRate;
         Bridged = WineSession.Bridged(bundle);
         if (!File.Exists(executable))
             throw new InvalidOperationException(
@@ -182,6 +188,7 @@ internal sealed class NativePluginHost : IDisposable
         foreach ((string name, string value) in SessionDisplay())
             start.Environment[name] = value;
         new PluginHostEnvironment(ManagedYabridge.Discover()).Apply(start);
+        PluginSearchPaths.ApplyLv2(start);
         Process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the native LV2 host.");
         _outputReader = ReadOutputAsync();
         _errorReader = ReadErrorsAsync();
@@ -195,6 +202,7 @@ internal sealed class NativePluginHost : IDisposable
 
     internal static IReadOnlyList<string> Arguments(InsertDefinition insert, string? bundle) => insert.Kind switch
     {
+        "soundcheck" => ["soundcheck"],
         "clap" => ["clap", bundle ?? throw new InvalidOperationException("A CLAP insert needs the bundle it lives in."), insert.Plugin],
         "vst3" => ["vst3", bundle ?? throw new InvalidOperationException("A VST3 insert needs the bundle it lives in."), insert.Plugin],
         _ => ["lv2", insert.Plugin],
@@ -256,6 +264,8 @@ internal sealed class NativePluginHost : IDisposable
         if (line == "ready") _ready.TrySetResult();
         else if (line == "heartbeat") Interlocked.Exchange(ref _lastHeartbeat, Stopwatch.GetTimestamp());
         else if (line == "ui-heartbeat") Interlocked.Exchange(ref _lastUiHeartbeat, Stopwatch.GetTimestamp());
+        else if (line.StartsWith("latency ", StringComparison.Ordinal))
+            Interlocked.Exchange(ref _latencySamples, ParseLatency(line, _sampleRate));
         else if (line.StartsWith("ui ", StringComparison.Ordinal))
             Volatile.Read(ref _uiReply)?.TrySetResult(line == "ui opened" ? null : line[3..]);
         else
@@ -268,6 +278,15 @@ internal sealed class NativePluginHost : IDisposable
             else if (parts[0] == "meter" && (_meterSymbols is null || _meterSymbols.Contains(parts[1])))
                 StoreValue(_meters, parts[1], value);
         }
+    }
+
+    internal static long ParseLatency(string line, int sampleRate)
+    {
+        string[] parts = line.Split(' ');
+        return parts.Length == 3 && parts[0] == "latency" && sampleRate is >= 8000 and <= 384000
+            && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int rate) && rate == sampleRate
+            && uint.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out uint samples) && samples < uint.MaxValue
+            ? samples : -1;
     }
 
     private static void StoreValue(ConcurrentDictionary<string, double> values, string symbol, double value)

@@ -1,5 +1,4 @@
 using OpenXLR.Core;
-using System.Diagnostics;
 using System.Text.Json;
 
 namespace OpenXLR.Core.Mixing;
@@ -47,15 +46,17 @@ public static class CardProfile
 
     private static (uint Id, string Active, Dictionary<string, int> Profiles)? FindCard(string nameFragment)
     {
-        string dump;
+        byte[] dump;
         try { dump = Run("pw-dump"); }
         catch (Exception) { return null; }
-        using JsonDocument doc = JsonDocument.Parse(dump);
+        using JsonDocument doc = PipeWireSnapshot.Parse(dump);
         foreach (JsonElement o in doc.RootElement.EnumerateArray())
         {
-            if (o.GetProperty("type").GetString() != "PipeWire:Interface:Device") continue;
-            JsonElement info = o.GetProperty("info");
-            string name = info.GetProperty("props").TryGetProperty("device.name", out JsonElement n)
+            if (o.ValueKind != JsonValueKind.Object || !o.TryGetProperty("type", out JsonElement type)
+                || type.GetString() != "PipeWire:Interface:Device") continue;
+            if (!o.TryGetProperty("info", out JsonElement info) || info.ValueKind != JsonValueKind.Object
+                || !info.TryGetProperty("props", out JsonElement props) || props.ValueKind != JsonValueKind.Object) continue;
+            string name = props.TryGetProperty("device.name", out JsonElement n)
                 ? n.GetString() ?? "" : "";
             if (!name.Contains(nameFragment, StringComparison.Ordinal)) continue;
             if (!info.TryGetProperty("params", out JsonElement pars)) continue;
@@ -77,13 +78,13 @@ public static class CardProfile
         return null;
     }
 
-    private static string Run(string cmd, params string[] args)
+    private static byte[] Run(string cmd, params string[] args)
     {
         ProcessResult r = ProcessRunner.Run(cmd, args, TimeSpan.FromSeconds(5), stdoutCap: 16 * 1024 * 1024, stderrCap: 64 * 1024);
         if (r.TimedOut) throw new TimeoutException($"{cmd} timed out after 5 seconds");
         if (r.Truncated) throw new InvalidOperationException($"{cmd}: output over the 16 MiB cap");
         if (r.Incomplete) throw new InvalidOperationException($"{cmd}: output ended before the helper closed it");
         if (r.ExitCode != 0) throw new InvalidOperationException($"{cmd}: {r.Stderr.Trim()}");
-        return r.StdoutText;
+        return r.Stdout;
     }
 }

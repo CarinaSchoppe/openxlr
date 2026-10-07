@@ -127,5 +127,92 @@ public sealed class ScanCacheSafetyTests : IDisposable
         Assert.Null(read);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CyclicDirectoryLinksDoNotCreateACachedDescription(bool twoDirectories)
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        string bundle = Directory.CreateDirectory(Path.Combine(_root, "Effect.vst3")).FullName;
+        File.WriteAllText(Path.Combine(bundle, "module.so"), "fixture");
+        if (twoDirectories)
+        {
+            string other = Directory.CreateDirectory(Path.Combine(_root, "resources")).FullName;
+            Directory.CreateSymbolicLink(Path.Combine(bundle, "resources"), other);
+            Directory.CreateSymbolicLink(Path.Combine(other, "parent"), bundle);
+        }
+        else Directory.CreateSymbolicLink(Path.Combine(bundle, "parent"), ".");
+
+        Assert.Null(ScanCache.Stamp(bundle));
+        var cache = new ScanCache(CacheDirectory, "scanner");
+        cache.Store(bundle, "{}"u8.ToArray());
+        Assert.Null(cache.Lookup(bundle));
+        cache.StoreFailure(bundle, "timeout");
+        Assert.False(cache.KnownFailure(bundle));
+    }
+
+    [Fact]
+    public void MultipleBackLinksDoNotMultiplyTheBundleWalk()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        string bundle = Directory.CreateDirectory(Path.Combine(_root, "Effect.vst3")).FullName;
+        File.WriteAllText(Path.Combine(bundle, "module.so"), "fixture");
+        Directory.CreateSymbolicLink(Path.Combine(bundle, "a"), ".");
+        Directory.CreateSymbolicLink(Path.Combine(bundle, "b"), ".");
+        Assert.Null(ScanCache.Stamp(bundle));
+    }
+
+    [Fact]
+    public void ResourceAliasesRemainDistinctAndShareTheEntryBudget()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        string bundle = Directory.CreateDirectory(Path.Combine(_root, "Effect.vst3")).FullName;
+        string resources = Directory.CreateDirectory(Path.Combine(_root, "resources")).FullName;
+        File.WriteAllText(Path.Combine(resources, "preset.txt"), "fixture");
+        Directory.CreateSymbolicLink(Path.Combine(bundle, "a"), resources);
+        Directory.CreateSymbolicLink(Path.Combine(bundle, "b"), resources);
+
+        Assert.Equal(new[] { Path.Combine(bundle, "a", "preset.txt"), Path.Combine(bundle, "b", "preset.txt") },
+            ScanCache.BundleFiles(bundle, entryBudget: 4).Order(StringComparer.Ordinal));
+        Assert.Throws<IOException>(() => ScanCache.BundleFiles(bundle, entryBudget: 3).ToArray());
+        var cache = new ScanCache(CacheDirectory, "scanner");
+        cache.Store(bundle, "{}"u8.ToArray());
+        Assert.Equal("{}"u8.ToArray(), cache.Lookup(bundle));
+        File.WriteAllText(Path.Combine(resources, "preset.txt"), "updated fixture");
+        Assert.Null(cache.Lookup(bundle));
+    }
+
+    [Fact]
+    public void HiddenResourcesAreIncludedInTheBundleIdentity()
+    {
+        string bundle = Directory.CreateDirectory(Path.Combine(_root, "Effect.vst3")).FullName;
+        string resources = Directory.CreateDirectory(Path.Combine(bundle, ".resources")).FullName;
+        string file = Path.Combine(resources, ".preset");
+        File.WriteAllText(file, "fixture");
+        var cache = new ScanCache(CacheDirectory, "scanner");
+        cache.Store(bundle, "{}"u8.ToArray());
+        Assert.Equal("{}"u8.ToArray(), cache.Lookup(bundle));
+        File.WriteAllText(file, "changed fixture");
+        Assert.Null(cache.Lookup(bundle));
+    }
+
+    [Fact]
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    public void AnUnreadableResourceDirectoryDoesNotProduceAPartialFingerprint()
+    {
+        if (!OperatingSystem.IsLinux() || Environment.IsPrivilegedProcess) return;
+        string bundle = Directory.CreateDirectory(Path.Combine(_root, "Effect.vst3")).FullName;
+        File.WriteAllText(Path.Combine(bundle, "module.so"), "fixture");
+        string resources = Directory.CreateDirectory(Path.Combine(bundle, "resources")).FullName;
+        File.WriteAllText(Path.Combine(resources, "preset"), "fixture");
+        UnixFileMode mode = File.GetUnixFileMode(resources);
+        try
+        {
+            File.SetUnixFileMode(resources, UnixFileMode.None);
+            Assert.Null(ScanCache.Stamp(bundle));
+        }
+        finally { File.SetUnixFileMode(resources, mode); }
+    }
+
     public void Dispose() => Directory.Delete(_root, recursive: true);
 }

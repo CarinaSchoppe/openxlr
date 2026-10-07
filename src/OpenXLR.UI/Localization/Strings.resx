@@ -1,0 +1,900 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="ADDINSTALLEDAPPLICATION" xml:space="preserve">
+    <value>ADD INSTALLED APPLICATION</value>
+  </data>
+  <data name="APPEARANCE" xml:space="preserve">
+    <value>APPEARANCE</value>
+  </data>
+  <data name="APPLICATIONS" xml:space="preserve">
+    <value>APPLICATIONS</value>
+  </data>
+  <data name="ARenamedVirtualMicrophoneKeepsItsOldName" xml:space="preserve">
+    <value>A renamed virtual microphone keeps its old name in other applications until the daemon restarts. Restart when nothing is recording from it.</value>
+  </data>
+  <data name="ATLOGIN" xml:space="preserve">
+    <value>AT LOGIN</value>
+  </data>
+  <data name="AUDIO" xml:space="preserve">
+    <value>AUDIO</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="AboutOpenXLR" xml:space="preserve">
+    <value>About OpenXLR</value>
+  </data>
+  <data name="Active" xml:space="preserve">
+    <value>active</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="AddCaptureInput" xml:space="preserve">
+    <value>Add capture input</value>
+  </data>
+  <data name="AddChannel" xml:space="preserve">
+    <value>Add channel</value>
+  </data>
+  <data name="AddFolder" xml:space="preserve">
+    <value>Add folder</value>
+  </data>
+  <data name="AddPlugin" xml:space="preserve">
+    <value>Add plugin</value>
+  </data>
+  <data name="AddPluginInsert" xml:space="preserve">
+    <value>Add plugin insert</value>
+  </data>
+  <data name="AddRenameReorderAndRemoveApplicationChannelsAnd" xml:space="preserve">
+    <value>Add, rename, reorder and remove application channels and virtual microphones while audio plays</value>
+  </data>
+  <data name="AddVolumeAndMuteKeys" xml:space="preserve">
+    <value>Add volume and mute keys</value>
+  </data>
+  <data name="AllowNativeEditor" xml:space="preserve">
+    <value>Allow native editor</value>
+  </data>
+  <data name="ApplicationChannelsAreThePlaybackDevicesYouRoute" xml:space="preserve">
+    <value>Application channels are the playback devices you route programs into. Virtual microphones are the recording devices OBS, Discord and other apps pick up. Every change is saved before it is confirmed, and audio on the other channels keeps flowing.</value>
+  </data>
+  <data name="ApplicationChannelsMixesVirtualMicrophonesAndInserts" xml:space="preserve">
+    <value>Application channels, mixes, virtual microphones and inserts.</value>
+  </data>
+  <data name="ApplyAndConfigureKeys" xml:space="preserve">
+    <value>Apply and configure keys</value>
+  </data>
+  <data name="AudioAndTheAppWillStartWhenYou" xml:space="preserve">
+    <value>Audio and the app will start when you sign in.</value>
+  </data>
+  <data name="AudioFlow" xml:space="preserve">
+    <value>Audio flow</value>
+  </data>
+  <data name="AudioWillStartAtLoginWithoutTheApp" xml:space="preserve">
+    <value>Audio will start at login without the app or tray icon.</value>
+  </data>
+  <data name="BridgeAgainEveryFolderYabridgeKnowsForWindows" xml:space="preserve">
+    <value>Bridge again every folder yabridge knows, for Windows plugins installed since</value>
+  </data>
+  <data name="BridgeWineSPlugins" xml:space="preserve">
+    <value>Bridge Wine's plugins</value>
+  </data>
+  <data name="BuyMeACoffee" xml:space="preserve">
+    <value>Buy me a coffee</value>
+  </data>
+  <data name="Bypass" xml:space="preserve">
+    <value>Bypass</value>
+  </data>
+  <data name="BypassThisPlugin" xml:space="preserve">
+    <value>Bypass this plugin</value>
+  </data>
+  <data name="Bypassed" xml:space="preserve">
+    <value>bypassed</value>
+  </data>
+  <data name="CHANNELS" xml:space="preserve">
+    <value>CHANNELS</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="ChangesApplyTheNextTimeAnEditorIs" xml:space="preserve">
+    <value>Changes apply the next time an editor is opened. Existing editor windows are not closed.</value>
+  </data>
+  <data name="ChangingThisRestartsTheAudioServiceAndBriefly" xml:space="preserve">
+    <value>Changing this restarts the audio service and briefly interrupts audio.</value>
+  </data>
+  <data name="Channel" xml:space="preserve">
+    <value>channel</value>
+  </data>
+  <data name="ChannelToMix" xml:space="preserve">
+    <value>Channel to mix</value>
+  </data>
+  <data name="CheckAgain" xml:space="preserve">
+    <value>Check again</value>
+  </data>
+  <data name="CheckGitHubForStableReleasesAtStartupAt" xml:space="preserve">
+    <value>Check GitHub for stable releases at startup
+(at most once per day)</value>
+  </data>
+  <data name="CheckNow" xml:space="preserve">
+    <value>Check now</value>
+  </data>
+  <data name="ChooseAFolderThenSelectAnIndividualPlugin" xml:space="preserve">
+    <value>Choose a folder, then select an individual plugin below.</value>
+  </data>
+  <data name="ChooseAnApplication" xml:space="preserve">
+    <value>choose an application</value>
+  </data>
+  <data name="ClearSelection" xml:space="preserve">
+    <value>×  Clear selection</value>
+  </data>
+  <data name="ClickAnyElementToTraceItsSignalPath" xml:space="preserve">
+    <value>Click any element to trace its signal path</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="CollectDiagnostics" xml:space="preserve">
+    <value>Collect diagnostics</value>
+  </data>
+  <data name="CollectDiagnosticsGathersAppAndDeviceStateThe" xml:space="preserve">
+    <value>Collect diagnostics gathers app and device state, the PipeWire graph, daemon logs and configs into one archive in your home folder, ready to attach to a bug report. Nothing is uploaded.</value>
+  </data>
+  <data name="Compressor" xml:space="preserve">
+    <value>Compressor</value>
+  </data>
+  <data name="Connecting" xml:space="preserve">
+    <value>connecting…</value>
+  </data>
+  <data name="ContributorsAndCredits" xml:space="preserve">
+    <value>Contributors and credits</value>
+  </data>
+  <data name="Controls" xml:space="preserve">
+    <value>Controls</value>
+  </data>
+  <data name="CurrentSystemDefaultOutput" xml:space="preserve">
+    <value>Current system default output</value>
+  </data>
+  <data name="DaemonNotRunning" xml:space="preserve">
+    <value>Daemon not running</value>
+  </data>
+  <data name="DaemonNotRunningSentence" xml:space="preserve">
+    <value>Daemon not running.</value>
+  </data>
+  <data name="DeepWineTraceForPluginScans" xml:space="preserve">
+    <value>Deep Wine trace for plugin scans</value>
+  </data>
+  <data name="DefaultInput" xml:space="preserve">
+    <value>Default input</value>
+  </data>
+  <data name="DefaultOutput" xml:space="preserve">
+    <value>Default output</value>
+  </data>
+  <data name="Defaults" xml:space="preserve">
+    <value>Defaults</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="DeleteFile" xml:space="preserve">
+    <value>Delete file</value>
+  </data>
+  <data name="DeleteThisProfile" xml:space="preserve">
+    <value>Delete this profile</value>
+  </data>
+  <data name="DesktopKeys" xml:space="preserve">
+    <value>Desktop keys</value>
+  </data>
+  <data name="Devices" xml:space="preserve">
+    <value>Devices</value>
+  </data>
+  <data name="DirectMonitorBlendLeftOnlyYourMicRight" xml:space="preserve">
+    <value>Direct-monitor blend: left = only your mic, right = only PC audio</value>
+  </data>
+  <data name="DisableInOpenXLR" xml:space="preserve">
+    <value>Disable in OpenXLR</value>
+  </data>
+  <data name="DisablingKeepsTheFilesDeleteFilePermanentlyRemoves" xml:space="preserve">
+    <value>Disabling keeps the files. Delete file permanently removes a standalone plugin. Wine-installed plugins use their uninstaller. Changes refresh the plugin catalogue.</value>
+  </data>
+  <data name="DiscordCommunity" xml:space="preserve">
+    <value>Discord community</value>
+  </data>
+  <data name="Dismiss" xml:space="preserve">
+    <value>Dismiss</value>
+  </data>
+  <data name="DoNotLeaveThisOnTheSwitchIs" xml:space="preserve">
+    <value>Do not leave this on. The switch is not saved across daemon restarts; a trace enabled in the daemon's startup environment still applies. An explicit WINEDEBUG keeps its own channels.</value>
+  </data>
+  <data name="DonTEnforce" xml:space="preserve">
+    <value>(don't enforce)</value>
+  </data>
+  <data name="EditLayout" xml:space="preserve">
+    <value>Edit layout</value>
+  </data>
+  <data name="EnableDesktopIntegration" xml:space="preserve">
+    <value>Enable desktop integration</value>
+  </data>
+  <data name="EnableSoftwareMixer" xml:space="preserve">
+    <value>Enable software mixer</value>
+  </data>
+  <data name="EveryAppOpenXLRHasRoutedPlayingOrSilent" xml:space="preserve">
+    <value>Every app OpenXLR has routed, playing or silent. Assignments apply to the next stream the app opens; ignore hands the app back to the desktop's own routing and keeps it that way; Forget drops the app and its remembered channel.</value>
+  </data>
+  <data name="Expander" xml:space="preserve">
+    <value>Expander</value>
+  </data>
+  <data name="FindAnInstalledPlugin" xml:space="preserve">
+    <value>Find an installed plugin…</value>
+  </data>
+  <data name="FixWindowsEditorInput" xml:space="preserve">
+    <value>Fix Windows editor input</value>
+  </data>
+  <data name="Flow" xml:space="preserve">
+    <value>Flow</value>
+  </data>
+  <data name="FocusedApplicationRoutingUsesKDEPlasmaEnableIt" xml:space="preserve">
+    <value>Focused application routing uses KDE Plasma. Enable it for OpenDeck keys, then select channels below to assign PC shortcuts through the desktop's permission dialog. Keep OpenXLR running, including in the tray.</value>
+  </data>
+  <data name="FollowMONITOROutputSystemVolumeControls" xml:space="preserve">
+    <value>Follow MONITOR output (system volume controls)</value>
+  </data>
+  <data name="FollowSelectedMonitorOutput" xml:space="preserve">
+    <value>Follow selected monitor output</value>
+  </data>
+  <data name="ForReproducingABridgedPluginFailureForA" xml:space="preserve">
+    <value>For reproducing a bridged-plugin failure for a bug report. Scans get much slower and produce large logs. Turn this on, press Rescan in PLUGINS, wait for it to finish, collect diagnostics, then turn this off. Rescan retries failed bundles; successful unchanged bundles stay cached.</value>
+  </data>
+  <data name="Forget" xml:space="preserve">
+    <value>Forget</value>
+  </data>
+  <data name="FrontJack" xml:space="preserve">
+    <value>Front jack</value>
+  </data>
+  <data name="GainLockTheDaemonRejectsEveryGainChange" xml:space="preserve">
+    <value>Gain lock: the daemon rejects every gain change while set</value>
+  </data>
+  <data name="HEADPHONES" xml:space="preserve">
+    <value>HEADPHONES</value>
+  </data>
+  <data name="HandThePluginsAWindowsInstallerLeftIn" xml:space="preserve">
+    <value>Hand the plugins a Windows installer left in Wine to yabridge</value>
+  </data>
+  <data name="HostSideLowCutForThisDeviceIts" xml:space="preserve">
+    <value>Host-side low cut for this device (its DSP lives in software); cycles Off, 80 Hz, 120 Hz</value>
+  </data>
+  <data name="INPUTS" xml:space="preserve">
+    <value>INPUTS</value>
+  </data>
+  <data name="INTERFACE" xml:space="preserve">
+    <value>INTERFACE</value>
+  </data>
+  <data name="InputToChannel" xml:space="preserve">
+    <value>Input to channel</value>
+  </data>
+  <data name="InsertCount" xml:space="preserve">
+    <value>Inserts ({0})</value>
+  </data>
+  <data name="Inserts" xml:space="preserve">
+    <value>Inserts</value>
+  </data>
+  <data name="InstallAClapOrVst3FileOrA" xml:space="preserve">
+    <value>Install a .clap or .vst3 file, or a Windows plugin through yabridge</value>
+  </data>
+  <data name="InstallAVst3OrLv2BundleOrEvery" xml:space="preserve">
+    <value>Install a .vst3 or .lv2 bundle, or every plugin in a folder</value>
+  </data>
+  <data name="InstallFile" xml:space="preserve">
+    <value>Install file</value>
+  </data>
+  <data name="InstallFolder" xml:space="preserve">
+    <value>Install folder</value>
+  </data>
+  <data name="InterfaceConnection" xml:space="preserve">
+    <value>Interface connection</value>
+  </data>
+  <data name="KNOWNAPPLICATIONS" xml:space="preserve">
+    <value>KNOWN APPLICATIONS</value>
+  </data>
+  <data name="KeepRunningInTray" xml:space="preserve">
+    <value>Keep running in tray</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="LanguageOverrideHint" xml:space="preserve">
+    <value>OPENXLR_LANGUAGE selects {0} for this launch. The saved choice takes effect when you restart without this variable.</value>
+  </data>
+  <data name="LanguageRestartHint" xml:space="preserve">
+    <value>Language applies the next time OpenXLR starts. Audio keeps running.</value>
+  </data>
+  <data name="LanguageSaveError" xml:space="preserve">
+    <value>Could not save the language: {0}</value>
+  </data>
+  <data name="LeftLevel" xml:space="preserve">
+    <value>Left level</value>
+  </data>
+  <data name="LevelLock" xml:space="preserve">
+    <value>Level Lock</value>
+  </data>
+  <data name="LoadThisProfile" xml:space="preserve">
+    <value>Load this profile</value>
+  </data>
+  <data name="Lock" xml:space="preserve">
+    <value>Lock</value>
+  </data>
+  <data name="LowCut" xml:space="preserve">
+    <value>Low Cut</value>
+  </data>
+  <data name="LowCutFrequency" xml:space="preserve">
+    <value>Low Cut {0}</value>
+  </data>
+  <data name="LowCutOff" xml:space="preserve">
+    <value>Low Cut Off</value>
+  </data>
+  <data name="LowImp" xml:space="preserve">
+    <value>Low Imp.</value>
+  </data>
+  <data name="MIXES" xml:space="preserve">
+    <value>MIXES</value>
+  </data>
+  <data name="MONITOR" xml:space="preserve">
+    <value>MONITOR</value>
+  </data>
+  <data name="Manage" xml:space="preserve">
+    <value>Manage</value>
+  </data>
+  <data name="ManageThisPluginSNativeEditorCompatibilityRule" xml:space="preserve">
+    <value>Manage this plugin's native editor compatibility rule</value>
+  </data>
+  <data name="Manual" xml:space="preserve">
+    <value>Manual</value>
+  </data>
+  <data name="MemoryLockSetup" xml:space="preserve">
+    <value>Memory-lock setup</value>
+  </data>
+  <data name="MicPC" xml:space="preserve">
+    <value>Mic ↔ PC</value>
+  </data>
+  <data name="MixToOutput" xml:space="preserve">
+    <value>Mix to output</value>
+  </data>
+  <data name="MixerLayout" xml:space="preserve">
+    <value>Mixer layout</value>
+  </data>
+  <data name="MoveDown" xml:space="preserve">
+    <value>Move down</value>
+  </data>
+  <data name="MovePluginDown" xml:space="preserve">
+    <value>Move plugin down</value>
+  </data>
+  <data name="MovePluginUp" xml:space="preserve">
+    <value>Move plugin up</value>
+  </data>
+  <data name="MoveUp" xml:space="preserve">
+    <value>Move up</value>
+  </data>
+  <data name="Mute" xml:space="preserve">
+    <value>Mute</value>
+  </data>
+  <data name="MutedInactive" xml:space="preserve">
+    <value>Muted / inactive</value>
+  </data>
+  <data name="NativeEditorCompatibility" xml:space="preserve">
+    <value>Native editor compatibility</value>
+  </data>
+  <data name="NativeEditors" xml:space="preserve">
+    <value>Native editors</value>
+  </data>
+  <data name="NativeHost" xml:space="preserve">
+    <value>Native host</value>
+  </data>
+  <data name="NeitherAudioNorTheAppWillStartAt" xml:space="preserve">
+    <value>Neither audio nor the app will start at login.</value>
+  </data>
+  <data name="NewChannelEGPodcast" xml:space="preserve">
+    <value>New channel, e.g. Podcast</value>
+  </data>
+  <data name="NoDevice" xml:space="preserve">
+    <value>No device</value>
+  </data>
+  <data name="NoInsertsYet" xml:space="preserve">
+    <value>No inserts yet.</value>
+  </data>
+  <data name="NoNativeEditorsAreBlocked" xml:space="preserve">
+    <value>No native editors are blocked.</value>
+  </data>
+  <data name="NoProfilesSavedYet" xml:space="preserve">
+    <value>no profiles saved yet</value>
+  </data>
+  <data name="NoRegisteredFolders" xml:space="preserve">
+    <value>No registered folders.</value>
+  </data>
+  <data name="NotAffiliatedWithOrEndorsedByElgatoBuilt" xml:space="preserve">
+    <value>Not affiliated with or endorsed by Elgato. Built by protocol analysis on the author's own hardware, with credit to the openwave project for the Wave XLR dialect.</value>
+  </data>
+  <data name="NotInPath" xml:space="preserve">
+    <value>Not in path</value>
+  </data>
+  <data name="NotRouted" xml:space="preserve">
+    <value>not routed</value>
+  </data>
+  <data name="NotRunning" xml:space="preserve">
+    <value>not running</value>
+  </data>
+  <data name="OffByDefaultCheckNowMakesOneExplicit" xml:space="preserve">
+    <value>Off by default. Check now makes one explicit request. Nothing is downloaded or installed.</value>
+  </data>
+  <data name="OffOpenXLRControlsTheHardwareOnlyAndLeaves" xml:space="preserve">
+    <value>Off: OpenXLR controls the hardware only and leaves the sound card in its stock PipeWire layout (the UCM profile where one exists).</value>
+  </data>
+  <data name="OnConnect" xml:space="preserve">
+    <value>On connect</value>
+  </data>
+  <data name="OnLaunch" xml:space="preserve">
+    <value>On launch</value>
+  </data>
+  <data name="OnLaunchAppliesTheNextTimeTheApp" xml:space="preserve">
+    <value>On launch applies the next time the app starts. Quitting the app leaves audio running.</value>
+  </data>
+  <data name="OpenOnGitHub" xml:space="preserve">
+    <value>Open on GitHub</value>
+  </data>
+  <data name="OpenSourceControlSuiteForElgatoXLRInterfaces" xml:space="preserve">
+    <value>Open-source control suite for Elgato XLR interfaces on Linux (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2): hardware control over reverse-engineered protocols, a Wave Link style PipeWire submixer with per-application channels and virtual microphones, multi-output monitoring, a dedicated mix for a second computer on the USB Aux port, and an OpenDeck plugin for Stream Deck control.</value>
+  </data>
+  <data name="OpenTheManualSectionOnDesktopKeys" xml:space="preserve">
+    <value>Open the manual section on desktop keys</value>
+  </data>
+  <data name="OpenTheManualSectionOnInstallingPlugins" xml:space="preserve">
+    <value>Open the manual section on installing plugins</value>
+  </data>
+  <data name="OpenTheManualSectionOnPluginEditors" xml:space="preserve">
+    <value>Open the manual section on plugin editors</value>
+  </data>
+  <data name="OpenTheManualSectionOnSkins" xml:space="preserve">
+    <value>Open the manual section on skins</value>
+  </data>
+  <data name="OpenTheManualSectionOnThePipewirePulse" xml:space="preserve">
+    <value>Open the manual section on the pipewire-pulse open-file limit</value>
+  </data>
+  <data name="OpenThisPluginSControls" xml:space="preserve">
+    <value>Open this plugin's controls</value>
+  </data>
+  <data name="OpenThisPluginSOwnEditorOnThe" xml:space="preserve">
+    <value>Open this plugin's own editor on the live audio instance</value>
+  </data>
+  <data name="OpenXLRApplications" xml:space="preserve">
+    <value>OpenXLR Applications</value>
+  </data>
+  <data name="OpenXLRAudioFlow" xml:space="preserve">
+    <value>OpenXLR · Audio flow</value>
+  </data>
+  <data name="OpenXLRDesktopKeys" xml:space="preserve">
+    <value>OpenXLR Desktop keys</value>
+  </data>
+  <data name="OpenXLRMixerLayout" xml:space="preserve">
+    <value>OpenXLR Mixer layout</value>
+  </data>
+  <data name="OpenXLROptions" xml:space="preserve">
+    <value>OpenXLR Options</value>
+  </data>
+  <data name="OpenXLRUpdates" xml:space="preserve">
+    <value>OpenXLR updates</value>
+  </data>
+  <data name="Options" xml:space="preserve">
+    <value>Options</value>
+  </data>
+  <data name="Overwrite" xml:space="preserve">
+    <value>Overwrite</value>
+  </data>
+  <data name="OverwriteProfile" xml:space="preserve">
+    <value>Overwrite profile?</value>
+  </data>
+  <data name="PLUGINS" xml:space="preserve">
+    <value>PLUGINS</value>
+  </data>
+  <data name="Phantom" xml:space="preserve">
+    <value>Phantom</value>
+  </data>
+  <data name="Phones1" xml:space="preserve">
+    <value>Phones 1</value>
+  </data>
+  <data name="Phones2" xml:space="preserve">
+    <value>Phones 2</value>
+  </data>
+  <data name="PickAPluginYouDownloadedAndOpenXLRPuts" xml:space="preserve">
+    <value>Pick a plugin you downloaded and OpenXLR puts it in place: a .clap or .vst3 file, a .vst3 or .lv2 folder, or a folder holding plugins.</value>
+  </data>
+  <data name="Playing" xml:space="preserve">
+    <value>playing</value>
+  </data>
+  <data name="PluginState" xml:space="preserve">
+    <value>Plugin state</value>
+  </data>
+  <data name="PluginUI" xml:space="preserve">
+    <value>Plugin UI</value>
+  </data>
+  <data name="PluginsAreLookedForInTheHomeAnd" xml:space="preserve">
+    <value>Plugins are looked for in the home and system plugin directories.</value>
+  </data>
+  <data name="PluginsProcessingXLR1BeforeItReachesThe" xml:space="preserve">
+    <value>Plugins processing XLR 1 before it reaches the mixes</value>
+  </data>
+  <data name="PluginsProcessingXLR2BeforeItReachesThe" xml:space="preserve">
+    <value>Plugins processing XLR 2 before it reaches the mixes</value>
+  </data>
+  <data name="PreAssignAChannelToAnAppThat" xml:space="preserve">
+    <value>Pre-assign a channel to an app that has not played audio yet. The identity is guessed from its launcher; if the app reports differently on first play, it simply appears as a new entry.</value>
+  </data>
+  <data name="Problem" xml:space="preserve">
+    <value>problem</value>
+  </data>
+  <data name="ProfileName" xml:space="preserve">
+    <value>profile name</value>
+  </data>
+  <data name="ProfileOverwriteMessage" xml:space="preserve">
+    <value>A profile named "{0}" already exists for this device.
+Saving will replace it with the current scene.</value>
+  </data>
+  <data name="Profiles" xml:space="preserve">
+    <value>Profiles</value>
+  </data>
+  <data name="PutEveryControlBackToThePluginS" xml:space="preserve">
+    <value>Put every control back to the plugin's own defaults</value>
+  </data>
+  <data name="QuitApp" xml:space="preserve">
+    <value>Quit app</value>
+  </data>
+  <data name="QuitOpenXLR" xml:space="preserve">
+    <value>Quit OpenXLR</value>
+  </data>
+  <data name="ReadThePluginDirectoriesAgainForPluginsInstalled" xml:space="preserve">
+    <value>Read the plugin directories again, for plugins installed by other means</value>
+  </data>
+  <data name="ReadTheSkinFoldersAgainForASkin" xml:space="preserve">
+    <value>Read the skin folders again, for a skin added or edited since</value>
+  </data>
+  <data name="RearJack" xml:space="preserve">
+    <value>Rear jack</value>
+  </data>
+  <data name="RecalledWhenTheInterfaceConnectsDaemonStartA" xml:space="preserve">
+    <value>Recalled when the interface connects: daemon start, a replug or power cycle, or switching to it</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="ReleaseDefaultsCanChangeAsCompatibilityImprovesYour" xml:space="preserve">
+    <value>Release defaults can change as compatibility improves. Your overrides take priority until you choose Use release default.</value>
+  </data>
+  <data name="ReleaseNotesArePlainTextOpenXLRNeverInstalls" xml:space="preserve">
+    <value>Release notes are plain text. OpenXLR never installs an update automatically.</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>Reload</value>
+  </data>
+  <data name="RemoveFromAllChains" xml:space="preserve">
+    <value>Remove from all chains</value>
+  </data>
+  <data name="RemoveFromList" xml:space="preserve">
+    <value>Remove from list</value>
+  </data>
+  <data name="RemovePlugin" xml:space="preserve">
+    <value>Remove plugin</value>
+  </data>
+  <data name="Rename" xml:space="preserve">
+    <value>Rename</value>
+  </data>
+  <data name="Rescan" xml:space="preserve">
+    <value>Rescan</value>
+  </data>
+  <data name="RescanRetriesTheseBundlesAChangedBundleOr" xml:space="preserve">
+    <value>Rescan retries these bundles. A changed bundle or scanner is tried on its own.</value>
+  </data>
+  <data name="ResetDeviceToDefaults" xml:space="preserve">
+    <value>Reset device to defaults</value>
+  </data>
+  <data name="RestartDaemon" xml:space="preserve">
+    <value>Restart daemon</value>
+  </data>
+  <data name="RestartFailedCheckTheUserServiceLogs" xml:space="preserve">
+    <value>Restart failed. Check the user service logs.</value>
+  </data>
+  <data name="RestartFailedCheckTheUserServiceLogsA" xml:space="preserve">
+    <value>Restart failed. Check the user service logs; a manually started daemon must be restarted by hand.</value>
+  </data>
+  <data name="RestartTheOpenXLRUserServiceAudioWillBe" xml:space="preserve">
+    <value>Restart the OpenXLR user service. Audio will be interrupted briefly.</value>
+  </data>
+  <data name="RestartingDaemon" xml:space="preserve">
+    <value>Restarting daemon...</value>
+  </data>
+  <data name="RightLevel" xml:space="preserve">
+    <value>Right level</value>
+  </data>
+  <data name="RunThisInsertInItsOwnProcessWhich" xml:space="preserve">
+    <value>Run this insert in its own process, which is what lets its own editor open. Switching rebuilds the chain and interrupts audio for a moment.</value>
+  </data>
+  <data name="RunThisPluginInItsOwnProcess" xml:space="preserve">
+    <value>Run this plugin in its own process</value>
+  </data>
+  <data name="RunThisPluginInItsOwnProcessWhich" xml:space="preserve">
+    <value>Run this plugin in its own process, which is what lets its own editor open. Switching rebuilds the chain and interrupts audio for a moment.</value>
+  </data>
+  <data name="Running" xml:space="preserve">
+    <value>running</value>
+  </data>
+  <data name="SUBMIXER" xml:space="preserve">
+    <value>SUBMIXER</value>
+  </data>
+  <data name="SUPPORT" xml:space="preserve">
+    <value>SUPPORT</value>
+  </data>
+  <data name="SYSTEMDEFAULTDEVICES" xml:space="preserve">
+    <value>SYSTEM DEFAULT DEVICES</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="SaveAndRecallCompleteScenesHardwareDSPPlus" xml:space="preserve">
+    <value>Save and recall complete scenes: hardware DSP plus the whole submix</value>
+  </data>
+  <data name="SearchByNameOrCategory" xml:space="preserve">
+    <value>Search by name or category</value>
+  </data>
+  <data name="SelectAFolderToSeeItsPlugins" xml:space="preserve">
+    <value>Select a folder to see its plugins.</value>
+  </data>
+  <data name="SelectAPluginToManageIt" xml:space="preserve">
+    <value>Select a plugin to manage it.</value>
+  </data>
+  <data name="SelectInterfaceTip" xml:space="preserve">
+    <value>{0}
+Select the interface OpenXLR drives</value>
+  </data>
+  <data name="SendThisMixToTheSecondComputerOn" xml:space="preserve">
+    <value>Send this mix to the second computer on the USB Aux port. Enabling briefly interrupts the interface's audio while its stream restarts.</value>
+  </data>
+  <data name="ServiceRestartedWaitingForTheDaemonConnection" xml:space="preserve">
+    <value>Service restarted. Waiting for the daemon connection.</value>
+  </data>
+  <data name="ShowCLAPPlugins" xml:space="preserve">
+    <value>Show CLAP plugins</value>
+  </data>
+  <data name="ShowLV2Plugins" xml:space="preserve">
+    <value>Show LV2 plugins</value>
+  </data>
+  <data name="ShowMixer" xml:space="preserve">
+    <value>Show mixer</value>
+  </data>
+  <data name="ShowTheLiveAudioRoutingGraph" xml:space="preserve">
+    <value>Show the live audio routing graph</value>
+  </data>
+  <data name="ShowVST3Plugins" xml:space="preserve">
+    <value>Show VST3 plugins</value>
+  </data>
+  <data name="Skin" xml:space="preserve">
+    <value>Skin</value>
+  </data>
+  <data name="SkippedBundlesAfterFailedScan" xml:space="preserve">
+    <value>Skipped after a failed scan: {0}</value>
+  </data>
+  <data name="SkippedBundlesChecking" xml:space="preserve">
+    <value>Skipped bundles: checking…</value>
+  </data>
+  <data name="SkippedBundlesUnavailable" xml:space="preserve">
+    <value>Skipped bundles: unavailable</value>
+  </data>
+  <data name="StartAudioInTheBackground" xml:space="preserve">
+    <value>Start audio in the background</value>
+  </data>
+  <data name="StartTheOpenXLRApp" xml:space="preserve">
+    <value>Start the OpenXLR app</value>
+  </data>
+  <data name="StereoPluginsProcessingThisMixBeforeItReaches" xml:space="preserve">
+    <value>Stereo plugins processing this mix before it reaches its outputs</value>
+  </data>
+  <data name="StreamState" xml:space="preserve">
+    <value>Stream state</value>
+  </data>
+  <data name="SubmixerIsOffTurnItOnInOptions" xml:space="preserve">
+    <value>Submixer is off. Turn it on in Options for per-app channels, mixes, virtual microphones and inserts; OpenXLR is controlling the hardware only.</value>
+  </data>
+  <data name="SwitchSystemOutput0" xml:space="preserve">
+    <value>Switch system output: {0}</value>
+  </data>
+  <data name="SyncWindowsPlugins" xml:space="preserve">
+    <value>Sync Windows plugins</value>
+  </data>
+  <data name="SystemLanguage" xml:space="preserve">
+    <value>System language</value>
+  </data>
+  <data name="ThanksToEveryoneWhoContributedCodeTestedOn" xml:space="preserve">
+    <value>Thanks to everyone who contributed code, tested on their own interfaces or did the earlier protocol work this project builds on.</value>
+  </data>
+  <data name="TheAppWillStartAtLoginStartThe" xml:space="preserve">
+    <value>The app will start at login. Start the audio service separately to use it.</value>
+  </data>
+  <data name="TheDeviceMutesThisInputForAbout13" xml:space="preserve">
+    <value>The device mutes this input for about 13 seconds around every 48V change and unmutes it itself</value>
+  </data>
+  <data name="TheseFoldersAndExclusionsAreSharedWithOther" xml:space="preserve">
+    <value>These folders and exclusions are shared with other applications using system yabridge.</value>
+  </data>
+  <data name="TickTheOutputsYouWantToHearChoose" xml:space="preserve">
+    <value>Tick the outputs you want to hear. Choose a mix beside each output. The Wave XLR Pro's own outputs (Headphones 1/2, USB Aux, Line Out) switch the hardware when ticked and share one feed. The USB Aux port is fed by the dedicated Aux mix in the submixer instead. XLR 1, XLR 2 and Line In feed their channels automatically. System default devices for apps are set in Options.</value>
+  </data>
+  <data name="TipEnforcingOpenXLRChatAsDefaultInputMakes" xml:space="preserve">
+    <value>Tip: enforcing OpenXLR Chat as default input makes voice apps record the Chat mix automatically.</value>
+  </data>
+  <data name="ToUSBAuxPort" xml:space="preserve">
+    <value>To USB Aux port</value>
+  </data>
+  <data name="TrayOnly" xml:space="preserve">
+    <value>Tray only</value>
+  </data>
+  <data name="UPDATES" xml:space="preserve">
+    <value>UPDATES</value>
+  </data>
+  <data name="USBAuxIn" xml:space="preserve">
+    <value>USB Aux in</value>
+  </data>
+  <data name="UpdatesHaveNotBeenChecked" xml:space="preserve">
+    <value>Updates have not been checked</value>
+  </data>
+  <data name="UpdatingWineTrace" xml:space="preserve">
+    <value>Updating Wine trace…</value>
+  </data>
+  <data name="UseOpenXLRControls" xml:space="preserve">
+    <value>Use OpenXLR controls</value>
+  </data>
+  <data name="UseOpenXLRControlsForPluginsWhoseOwnEditor" xml:space="preserve">
+    <value>Use OpenXLR controls for plugins whose own editor freezes or misbehaves. Audio processing is unchanged.</value>
+  </data>
+  <data name="UseReleaseDefault" xml:space="preserve">
+    <value>Use release default</value>
+  </data>
+  <data name="VTStrength" xml:space="preserve">
+    <value>VT strength</value>
+  </data>
+  <data name="ViewChanges" xml:space="preserve">
+    <value>View changes</value>
+  </data>
+  <data name="ViewResult" xml:space="preserve">
+    <value>View result</value>
+  </data>
+  <data name="VoiceTune" xml:space="preserve">
+    <value>Voice Tune</value>
+  </data>
+  <data name="Volume" xml:space="preserve">
+    <value>Volume</value>
+  </data>
+  <data name="VolumeKeysMoveBy5UpTo150" xml:space="preserve">
+    <value>Volume keys move by 5%, up to 150%. System-output keys change the enforced desktop default; mixer feeds keep their own selections.</value>
+  </data>
+  <data name="WINDOW" xml:space="preserve">
+    <value>WINDOW</value>
+  </data>
+  <data name="WhenClosing" xml:space="preserve">
+    <value>When closing</value>
+  </data>
+  <data name="WhenSetOpenXLRHoldsTheseAsTheSystem" xml:space="preserve">
+    <value>When set, OpenXLR holds these as the system defaults and reverts any outside change, like Wave Link does. Applications that follow the system default will use them. Choose Follow MONITOR output to use keyboard volume keys and the desktop volume slider for the selected monitor device.</value>
+  </data>
+  <data name="WhichMixThisOutputHears" xml:space="preserve">
+    <value>Which mix this output hears.</value>
+  </data>
+  <data name="WindowsPluginsCheckingForYabridge" xml:space="preserve">
+    <value>Windows plugins: checking for yabridge…</value>
+  </data>
+  <data name="WindowsPluginsTheDaemonDidNotAnswer" xml:space="preserve">
+    <value>Windows plugins: the daemon did not answer.</value>
+  </data>
+  <data name="WindowsVST3AndCLAPPlugins" xml:space="preserve">
+    <value>Windows VST3 and CLAP plugins</value>
+  </data>
+  <data name="WineTraceCheckingTheDaemon" xml:space="preserve">
+    <value>Wine trace: checking the daemon…</value>
+  </data>
+  <data name="WineTraceUnavailableTheDaemonMustBeConnected" xml:space="preserve">
+    <value>Wine trace unavailable. The daemon must be connected and support this switch.</value>
+  </data>
+  <data name="WineUninstaller" xml:space="preserve">
+    <value>Wine uninstaller</value>
+  </data>
+  <data name="XLR1Gain" xml:space="preserve">
+    <value>XLR 1 gain</value>
+  </data>
+  <data name="XLR2Gain" xml:space="preserve">
+    <value>XLR 2 gain</value>
+  </data>
+  <data name="OpenXLR" xml:space="preserve"><value>OpenXLR</value></data>
+  <data name="ROpenXLROnReddit" xml:space="preserve"><value>r/OpenXLR on Reddit</value></data>
+  <data name="SystemctlUserRestartOpenxlrDaemon" xml:space="preserve"><value>systemctl --user restart openxlr-daemon</value></data>
+  <data name="UseDisplayedOrderForRouting" xml:space="preserve"><value>Use displayed order for routing</value></data>
+  <data name="ExclusiveGroups" xml:space="preserve"><value>Exclusive groups</value></data>
+  <data name="ANewChannelStartsMutedInEveryMixArrowsChangeDisplayOrderOnlyUseTheRout" xml:space="preserve"><value>A new channel starts muted in every mix. Arrows change display order only. Use the routing button to make the first application channel the fallback for unassigned apps.</value></data>
+  <data name="MixerAppearance" xml:space="preserve"><value>Appearance</value></data>
+  <data name="NewMixEGRecordingOrHeadphones" xml:space="preserve"><value>New mix, e.g. Recording or Headphones</value></data>
+  <data name="MixType" xml:space="preserve"><value>Mix type</value></data>
+  <data name="VirtualMicrophone" xml:space="preserve"><value>Virtual microphone</value></data>
+  <data name="MonitorMix" xml:space="preserve"><value>Monitor mix</value></data>
+  <data name="AddMix" xml:space="preserve"><value>Add mix</value></data>
+  <data name="EachMixHasItsOwnMasterSendsAndInsertsAMonitorMixFeedsYourOutputsWithou" xml:space="preserve"><value>Each mix has its own master, sends and inserts. A monitor mix feeds your outputs without publishing a virtual microphone. New sends start muted. All mixes can be reordered in the display; Monitor A, Monitor B and Aux keep their structural routing.</value></data>
+  <data name="LV2" xml:space="preserve"><value>LV2</value></data>
+  <data name="CLAP" xml:space="preserve"><value>CLAP</value></data>
+  <data name="VST3" xml:space="preserve"><value>VST3</value></data>
+  <data name="PluginManager" xml:space="preserve"><value>Plugin manager</value></data>
+  <data name="PluginSearchPaths" xml:space="preserve"><value>Plugin search paths</value></data>
+  <data name="DefaultAndEnvironmentPathsStayActiveAddADirectoryToScanPluginsInPlaceR" xml:space="preserve"><value>Default and environment paths stay active. Add a directory to scan plugins in place. Removing a path keeps its files; an insert needs another search path to find it on its next load.</value></data>
+  <data name="AddSearchFolder" xml:space="preserve"><value>Add search folder</value></data>
+  <data name="RemoveAddedPath" xml:space="preserve"><value>Remove added path</value></data>
+  <data name="RescanAllPlugins" xml:space="preserve"><value>Rescan all plugins</value></data>
+  <data name="RescanRetriesFailedBundlesAndRefreshesEveryFormatItDoesNotRestartRunni" xml:space="preserve"><value>Rescan retries failed bundles and refreshes every format. It does not restart running insert chains.</value></data>
+  <data name="CompensatePluginLatencyAcrossMixes" xml:space="preserve"><value>Compensate plugin latency across mixes</value></data>
+  <data name="DelaysFasterMixesToMatchTheSlowestInsertChainUpToTwoSecondsChangingThi" xml:space="preserve"><value>Delays faster mixes to match the slowest insert chain (up to two seconds). Changing this rebuilds the plugin paths and briefly interrupts audio. Off by default.</value></data>
+  <data name="LOCALAPI" xml:space="preserve"><value>LOCAL API</value></data>
+  <data name="EnableLocalHTTPAPI" xml:space="preserve"><value>Enable local HTTP API</value></data>
+  <data name="AllowsAuthenticatedLocalIntegrationsTheMixerWindowTerminalAndOpenDeckR" xml:space="preserve"><value>Allows authenticated local integrations. The mixer window, terminal and OpenDeck remain available when this is off. Changing this restarts the audio service and briefly interrupts audio.</value></data>
+  <data name="MixerControls" xml:space="preserve"><value>Mixer controls</value></data>
+  <data name="MixerControlSize" xml:space="preserve"><value>Mixer control size</value></data>
+  <data name="TouchEnlargesMixerButtonsAndFadersCompactViewStillSelectsWhichChannelI" xml:space="preserve"><value>Touch enlarges mixer buttons and faders. Compact view still selects which channel is visible. Profiles save both choices.</value></data>
+  <data name="Mode" xml:space="preserve"><value>Mode</value></data>
+  <data name="AppearanceMode" xml:space="preserve"><value>Appearance mode</value></data>
+  <data name="SoundCheck" xml:space="preserve"><value>Sound Check</value></data>
+  <data name="RecordUpToTenSecondsOfYourMicrophoneThenLoopItThroughTheCurrentEffects" xml:space="preserve"><value>Record up to ten seconds of your microphone, then loop it through the current effects. Adjust controls or compare chain presets while listening.</value></data>
+  <data name="TheRecordingStaysInMemoryItIsCapturedBeforeSoftwareEffectsButAfterTheI" xml:space="preserve"><value>The recording stays in memory. It is captured before software effects, but after the interface's gain and hardware processing.</value></data>
+  <data name="Record" xml:space="preserve"><value>Record</value></data>
+  <data name="LoopSample" xml:space="preserve"><value>Loop sample</value></data>
+  <data name="HearLiveMic" xml:space="preserve"><value>Hear live mic</value></data>
+  <data name="StopAndDiscard" xml:space="preserve"><value>Stop and discard</value></data>
+  <data name="StopOrCloseThisWindowToRestoreTheMicrophoneAndDiscardTheSampleTheSessi" xml:space="preserve"><value>Stop or close this window to restore the microphone and discard the sample. The session also ends on device loss, daemon restart or after ten minutes. Your effect edits are kept.</value></data>
+  <data name="Arrange" xml:space="preserve"><value>Arrange</value></data>
+  <data name="ReorderSectionsChannelsAndMixesUsingDragHandlesOrArrowKeys" xml:space="preserve"><value>Reorder sections, channels and mixes using drag handles or arrow keys</value></data>
+  <data name="ResetSections" xml:space="preserve"><value>Reset sections</value></data>
+  <data name="MoveInputs" xml:space="preserve"><value>Move inputs</value></data>
+  <data name="DragToAnotherSectionArrowKeysMoveOnePosition" xml:space="preserve"><value>Drag to another section; arrow keys move one position</value></data>
+  <data name="ClipGuard" xml:space="preserve"><value>ClipGuard</value></data>
+  <data name="MoveHeadphones" xml:space="preserve"><value>Move headphones</value></data>
+  <data name="MoveMonitor" xml:space="preserve"><value>Move monitor</value></data>
+  <data name="AllowOutputVolumeAbove100UpTo150OnPlasmaThisFollowsTheDesktopSettingFo" xml:space="preserve"><value>Allow output volume above 100%, up to 150%. On Plasma this follows the desktop setting for all monitor controls. Turning it off lowers boosted levels to 100%.</value></data>
+  <data name="MoveApplications" xml:space="preserve"><value>Move applications</value></data>
+  <data name="MoveSubmixer" xml:space="preserve"><value>Move submixer</value></data>
+  <data name="Compact" xml:space="preserve"><value>Compact</value></data>
+  <data name="ShowOneSelectedChannelAudioRoutingStaysUnchanged" xml:space="preserve"><value>Show one selected channel. Audio routing stays unchanged.</value></data>
+  <data name="DragToAnotherTileInThisRowArrowKeysMoveOnePosition" xml:space="preserve"><value>Drag to another tile in this row; arrow keys move one position</value></data>
+  <data name="AllowThisMonitorMixAbove100UpTo150OnPlasmaThisFollowsTheDesktopSetting" xml:space="preserve"><value>Allow this monitor mix above 100%, up to 150%. On Plasma this follows the desktop setting for all monitor controls. Turning it off lowers boosted levels to 100%.</value></data>
+  <data name="EffectsBeforeThisChannelReachesTheMixes" xml:space="preserve"><value>Effects before this channel reaches the mixes</value></data>
+  <data name="CopyAndPaste" xml:space="preserve"><value>Copy and paste</value></data>
+  <data name="CopyAnEffectFromItsRowOrCopyThisWholeChainPasteAppendsTheCopiedEffects" xml:space="preserve"><value>Copy an effect from its row, or copy this whole chain. Paste appends the copied effects; Replace chain removes the current chain first. Copies stay in OpenXLR.</value></data>
+  <data name="CopyChain" xml:space="preserve"><value>Copy chain</value></data>
+  <data name="PasteEffects" xml:space="preserve"><value>Paste effects</value></data>
+  <data name="ReplaceChain" xml:space="preserve"><value>Replace chain</value></data>
+  <data name="ABComparison" xml:space="preserve"><value>A/B comparison</value></data>
+  <data name="StoreTheCurrentSettingsAsAOrBThenHearEitherSnapshotStoreAgainToKeepLat" xml:space="preserve"><value>Store the current settings as A or B, then hear either snapshot. Store again to keep later edits. These snapshots last until the daemon reconnects. Switching can briefly interrupt audio.</value></data>
+  <data name="StoreA" xml:space="preserve"><value>Store A</value></data>
+  <data name="HearA" xml:space="preserve"><value>Hear A</value></data>
+  <data name="StoreB" xml:space="preserve"><value>Store B</value></data>
+  <data name="HearB" xml:space="preserve"><value>Hear B</value></data>
+  <data name="ReusableChainPresets" xml:space="preserve"><value>Reusable chain presets</value></data>
+  <data name="NewPresetName" xml:space="preserve"><value>New preset name</value></data>
+  <data name="SaveCurrentChain" xml:space="preserve"><value>Save current chain</value></data>
+  <data name="ChooseAChainPreset" xml:space="preserve"><value>Choose a chain preset</value></data>
+  <data name="LoadPreset" xml:space="preserve"><value>Load preset</value></data>
+  <data name="DeletePreset" xml:space="preserve"><value>Delete preset</value></data>
+  <data name="RefreshPresets" xml:space="preserve"><value>Refresh presets</value></data>
+  <data name="PresetsKeepOrderNamesBypassHostChoicesAndExposedControlsPluginPrivateS" xml:space="preserve"><value>Presets keep order, names, bypass, host choices and exposed controls. Plugin-private state and external samples are not included. Loading replaces the chain; missing or incompatible plugins are refused.</value></data>
+  <data name="ChainsAndAB" xml:space="preserve"><value>Chains and A/B</value></data>
+  <data name="Copy" xml:space="preserve"><value>Copy</value></data>
+</root>

@@ -1,3 +1,4 @@
+using OpenXLR.UI.Localization;
 using System.Net.WebSockets;
 using Avalonia.Controls;
 using Avalonia.Threading;
@@ -75,7 +76,7 @@ internal static class EditorRulesReconnectWindowTests
             first!.Abort();
             await WaitFor(() => list.SelectedItem is NativeEditorRuleRow { Name: "After" } && list.IsEnabled);
             Assert.Equal(2, connections);
-            var refresh = window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Refresh"));
+            var refresh = window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, Localizer.Text("Refresh")));
             refresh.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await WaitFor(() => list.SelectedItem is NativeEditorRuleRow { Name: "Current" } && list.IsEnabled);
             Assert.Equal(4, requests); // A notification during a refresh is not lost.

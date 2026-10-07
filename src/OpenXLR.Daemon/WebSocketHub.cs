@@ -69,19 +69,42 @@ public sealed class WebSocketHub
     // Captured on arrival and advanced on a successful manual recall, under
     // the device lock so a newer connection cannot inherit an obsolete value.
     private long _manualProfileRevision;
+    private ProfilePresentationMessage? _profilePresentation;
 
-    internal StateMessage Snapshot() =>
-        _devices.Snapshot() with
+    internal StateMessage Snapshot()
+    {
+        StateMessage state = _devices.Snapshot();
+        string? deviceId = state.Device?.UsbId;
+        IReadOnlyList<string> profiles = [];
+        string? recall = null;
+        string? profileWarning = null;
+        if (deviceId is not null)
+        {
+            try
+            {
+                profiles = OpenXLR.Core.ProfileStore.List(deviceId);
+                recall = OpenXLR.Core.ProfileStore.RecallOnConnect(deviceId);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // A broken profile directory or recall marker must not take
+                // the device and mixer controls away from connected clients.
+                profileWarning = $"Profiles could not be read: {ex.Message}";
+            }
+        }
+        return state with
         {
             DaemonVersion = OpenXLR.Daemon.DaemonVersion.Current,
-            Warning = string.Join(" ", new[] { _devices.Warning, _mixer.PersistenceWarning }.Where(w => w is not null)) is { Length: > 0 } w ? w : null,
-            ActiveProfile = ActiveDeviceId() is string apId && _activeProfile.TryGetValue(apId, out string? ap) ? ap : null,
+            Warning = string.Join(" ", new[] { _devices.Warning, _mixer.PersistenceWarning, profileWarning }.Where(w => w is not null)) is { Length: > 0 } w ? w : null,
+            ActiveProfile = deviceId is not null && _activeProfile.TryGetValue(deviceId, out string? ap) ? ap : null,
+            ProfilePresentation = Volatile.Read(ref _profilePresentation),
             Mixer = _mixer.Snapshot(),
             Devices = _mixer.Devices(),
-            Profiles = ActiveDeviceId() is string devId ? OpenXLR.Core.ProfileStore.List(devId) : [],
-            RecallOnConnect = ActiveDeviceId() is string rcId ? OpenXLR.Core.ProfileStore.RecallOnConnect(rcId) : null,
+            Profiles = profiles,
+            RecallOnConnect = recall,
             Detected = [.. _devices.Detected().Select(d => new DetectedDevice(d.UsbId, d.Name, d.Active))],
         };
+    }
 
     /// <summary>A correlation id longer than this is refused rather than echoed.</summary>
     internal const int MaxRequestId = 64;
@@ -312,9 +335,24 @@ public sealed class WebSocketHub
             case "syncWindowsPlugins":
                 await ReplyOperationAsync(await Task.Run(() => InstallPlugin(installer => installer.SyncWindows(InsertPluginPaths()))));
                 break;
+            case "addPluginSearchPath":
+            case "removePluginSearchPath":
+                if (!OpenXLR.Core.Mixing.PluginSearchPaths.Valid(cmd.Kind, cmd.Path))
+                { error = "invalid plugin format or search path"; break; }
+                await ReplyOperationAsync(await Task.Run(() => InstallPlugin(_ =>
+                    OpenXLR.Core.Mixing.PluginSearchPaths.Change(cmd.Kind!, cmd.Path!, cmd.Cmd == "addPluginSearchPath"))));
+                break;
             case "rescanPlugins":
                 await ReplyOperationAsync(await Task.Run(() => InstallPlugin(_ => new OpenXLR.Core.Mixing.InstallOutcome(true, "", []))));
                 break;
+            case "holdInsert" when cmd.Action != "begin":
+                // Renewing or releasing existing effects must remain available
+                // while an unrelated plugin installation holds the gate.
+                error = _mixer.Apply(cmd);
+                stateOnError = true;
+                break;
+            case "holdInsert":
+            case "renameInsert":
             case "setInserts":
                 // A folder cannot be removed between checking its users and
                 // creating an insert from it on another client.
@@ -325,12 +363,17 @@ public sealed class WebSocketHub
                 error = cmd.Control is null ? "set: missing 'control'" : _devices.Apply(cmd.Control, cmd.Value);  // broadcasts on success
                 break;
             case "createCaptureChannel":
+            case "setExclusiveGroup":
+            case "deleteExclusiveGroup":
+            case "cycleExclusiveGroup":
             case "createChannel":
             case "renameChannel":
             case "deleteChannel":
             case "createMix":
             case "renameMix":
             case "deleteMix":
+            case "setLayoutAppearance":
+            case "setDisplayOrder":
             case "setLayoutOrder":
             case "setLevel":
             case "setChannelMuted":
@@ -349,6 +392,9 @@ public sealed class WebSocketHub
             case "setMonitorFeed":
             case "setOutputVolume":
             case "setEnforcedDefaults":
+            case "setMixLatencyCompensation":
+
+            case "soundCheck":
             case "setAuxPortEnabled":
             case "setLowCutHz":
             case "setSoftClipGuard":
@@ -425,7 +471,12 @@ public sealed class WebSocketHub
             }) || _stopping.IsCancellationRequested || _devices.CurrentConnection != connection)
             return devErr ?? "the active device changed during profile recall";
         string? mixErr = p.Mixer is null || !_mixer.SubmixerEnabled ? null : _mixer.ApplyScene(p.Mixer);
-        if (devErr is null && mixErr is null) _activeProfile[connection.DeviceId] = name;
+        if (devErr is null && mixErr is null)
+        {
+            _activeProfile[connection.DeviceId] = name;
+            Volatile.Write(ref _profilePresentation, p.Presentation is null ? null :
+                new ProfilePresentationMessage(Guid.NewGuid().ToString("N"), p.Presentation));
+        }
         return devErr ?? (mixErr is not null && p.Device is not null
             ? $"device settings were applied, but mixer settings failed: {mixErr}" : mixErr);
     }
@@ -533,7 +584,7 @@ public sealed class WebSocketHub
             OpenXLR.Core.Mixing.InstallOutcome outcome;
             try { outcome = step(new OpenXLR.Core.Mixing.PluginInstaller()); }
             catch (Exception ex) { outcome = new(false, ex.Message, []); }
-            OpenXLR.Core.Mixing.PluginCatalog.Refresh();
+            if (outcome.RefreshCatalogue) OpenXLR.Core.Mixing.PluginCatalog.Refresh();
             // What this install brought: plugins not listed before, and when
             // the install landed somewhere, only those found there, so
             // plugins that arrived by other means are not credited to it.
@@ -594,8 +645,13 @@ public sealed class WebSocketHub
             switch (cmd.Cmd)
             {
                 case "saveProfile":
+                    cmd.Presentation?.Validate();
+                    // Older clients do not send window choices. Preserve those
+                    // in an existing profile when only its audio is overwritten.
+                    var presentation = cmd.Presentation ?? OpenXLR.Core.ProfileStore.Load(devId, name)?.Presentation;
                     OpenXLR.Core.ProfileStore.Save(devId, name, new OpenXLR.Core.Profile
                     {
+                        Presentation = presentation,
                         Device = _devices.Snapshot().State,
                         Mixer = _mixer.ExportScene(),
                     });

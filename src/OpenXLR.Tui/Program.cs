@@ -54,9 +54,9 @@ internal static class Program
             return 2;
         }
 
-        Theme theme = SkinCatalog.Load(skin ?? UiSettingsFile.ReadSkin());
         await using DaemonLink link = new();
-        App app = new(link, theme);
+        App app = CreateApp(link, skin);
+        DesktopAppearance? appearance = null;
 
         using Terminal terminal = new();
         (int width, int height) = terminal.Size;
@@ -105,6 +105,9 @@ internal static class Program
                 if (now < nextFrame) continue;
                 nextFrame = now.AddMilliseconds(66);
 
+                // One lazy subscription supplies an in-memory value. Drawing
+                // never queries the desktop or rereads a settings file.
+                appearance = await FollowAppearance(app, appearance);
                 app.Draw(screen);
                 terminal.Write(screen.Render());
             }
@@ -113,8 +116,33 @@ internal static class Program
         {
             resized?.Dispose();
             terminal.Stop();
+            if (appearance is not null) await appearance.DisposeAsync();
         }
 
         return 0;
+    }
+
+    internal static App CreateApp(DaemonLink link, string? skin)
+    {
+        // An empty environment/CLI value clears the override, as in the window.
+        if (string.IsNullOrEmpty(skin)) skin = null;
+        Theme theme = SkinCatalog.Load(skin ?? UiSettingsFile.ReadSkin());
+        return new App(link, theme, UiSettingsFile.ReadAppearanceMode(), skinOverride: skin is not null);
+    }
+
+    internal static async ValueTask<DesktopAppearance?> FollowAppearance(App app, DesktopAppearance? appearance)
+    {
+        if (!app.FollowsSystem)
+        {
+            if (appearance is not null) await appearance.DisposeAsync();
+            return null;
+        }
+        if (appearance is null)
+        {
+            appearance = new DesktopAppearance();
+            appearance.Start();
+        }
+        app.UseSystemScheme(appearance.Scheme);
+        return appearance;
     }
 }

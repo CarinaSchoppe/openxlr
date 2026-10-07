@@ -123,10 +123,12 @@ Built from PipeWire nodes, no kernel modules or custom drivers:
   processed mic from B; a blend at other levels is a mix of its own
 - Level meters throughout, dB-scaled, pushed at 15 Hz
 
-Each channel is a combine sink with one internal stream per mix; that
-stream's volume is the send fader. The default layout's 9 by 5 matrix
-is 14 sinks and no loopback processes, and mixes come and go without
-touching the channel nodes. Details in [architecture.md](architecture.md).
+Each channel has a combine sink with one internal stream per mix; that
+stream's volume is the send fader. Only software and external-capture channels
+with inserts use a separate input sink before a hidden combine bus. Empty
+chains keep the original node set.
+Mixes come and go without reloading channel sinks. Details in
+[architecture.md](architecture.md).
 
 On the Wave XLR Pro the headphone jacks are fed by a mix inside the
 device. Whenever a Pro jack is a monitor output the daemon makes sure
@@ -156,8 +158,9 @@ return. A mono source is linked to both sides of the channel. See
 ## Inserts
 
 LV2, CLAP and VST3 effects can form a mono chain on each XLR input and a
-stereo chain on every mix, including virtual microphones you add. The
-picker filters by format, name, category and compatible channel width; a
+stereo chain on Aux In, application/software channels, external-capture channels
+and every mix, including virtual microphones you add. Channel effects process
+audio before the mix sends; mix effects process the summed audio. The picker filters by format, name, category and compatible channel width; a
 VST3 effect that reports stereo buses but accepts a mono layout when asked
 is offered for the inputs, since the helper asks each plugin as it scans.
 Unsupported host requirements are reported instead of loading a plugin
@@ -349,7 +352,9 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   in the other. Console faders, cap keys and lamps follow the skin's
   control choices, and every meter is a solid bar that blends the skin's
   fill, warning and hot colours along its scale. Light skins use their own
-  colours for the selection and cap lettering. `--skin <id>` tries one for a single run.
+  colours for the selection and cap lettering. Material follows the saved
+  System, Light or Dark mode; System subscribes to desktop portal changes
+  when available, with Dark as its fallback. `--skin <id>` tries one for a single run.
   A terminal without true colour gets xterm-256 colours
 - It draws its own cells rather than taking a widget toolkit, so it adds no
   dependency to any package. A frame writes only the cells that changed
@@ -375,6 +380,16 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 
 ## Other
 
+- Desktop language selection: fourteen languages, including simplified and
+  traditional Chinese, Hindi, Arabic, Bengali, Portuguese, Indonesian, Urdu,
+  Russian, Japanese and Nigerian Pidgin alongside English, German, Spanish
+  and French, with the system language by default and English fallback per
+  untranslated message. Fixed window labels, tooltips, placeholders,
+  accessibility names, tray actions and common mixer statuses are translated.
+  The selection is saved locally and applies on
+  the next app launch without restarting audio. See
+  [localization.md](localization.md) for scope and contributor guidance.
+
 - Enforced defaults: the daemon re-asserts the chosen system default
   sink and source on its one-second sweep, undoing WirePlumber's
   auto-switch to newly created nodes. The defaults to restore are read
@@ -392,7 +407,14 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   A `150%` button next to MONITOR and next to each monitor mix opens a boost
   range above unity; a boosted value arriving from the desktop opens it on its
   own, so the window and the OpenDeck dials show the boosted level instead of
-  stopping at 100%.
+  stopping at 100%. On Plasma 6, these buttons and the desktop's Raise maximum
+  volume setting share one range. Config changes are watched without polling;
+  KDE's configuration helpers preserve desktop defaults and notify the applet
+  when OpenXLR changes the preference. While the window is busy, only the newest
+  range update waits for it, so old settings do not accumulate or replay.
+  Percentages stay absolute when the
+  scale changes; disabling boost lowers only levels above 100%. Other desktops
+  keep per-control range selection.
 
 - The control API validates every command before the mixer sees it and
   answers with an error instead of ignoring it. A private token is required
@@ -425,7 +447,7 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   the application: Material, the window's own, Deck, built from the
   OpenDeck plugin's key and dial art, and one for each of the eleven
   Omarchy palettes, two of them light. The picker is in Options, the
-  choice lives in `ui.json` alone, and switching
+  choice lives in `ui.json` and window-saved profiles, and switching
   repaints open windows without touching audio or the layout. A skin is
   data. It carries no markup and no code, reaches no file outside its own
   folder, makes no network request, and its images are bounded and measured
@@ -433,6 +455,11 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   console fader is the framework's slider with OpenXLR's drawing over it,
   and a plugin's own editor window is drawn by the plugin and is not
   skinned. [skins.md](skins.md) is the contract
+- Material has System, Light and Dark modes, shared by the window and
+  terminal. System follows desktop changes without polling. Custom skins
+  keep their own colours; changing the mode does not change the layout or
+  audio. Profiles saved from the window restore the mode, while older
+  profiles without one preserve the current choice.
 - One window per user: a second launch brings the running window to the
   front, out of the tray if it is hidden there, and exits
 - Tray icon, start-minimized option, daemon and window autostart from
@@ -462,3 +489,69 @@ identity comes from KDE Plasma's KWin; on other desktops the routing key
 reports that it cannot identify the application. See
 [Desktop keys](manual.md#desktop-keys) and
 [Output keys](manual.md#output-keys).
+
+OpenDeck output volume and mute keys keep a bounded queue of rapid presses
+and discard waiting actions on errors, disconnects or changed bindings.
+Focus-routing and output-selection keys are not deferred. See the
+[output key controls](manual.md#output-volume-mute-and-system-output-keys).
+
+Mixer presentation supports per-channel and per-mix icons, colours and display
+order, channel hiding without routing changes, and a compact selected-channel
+view. Profiles recall this presentation and, when saved from the window,
+its skin, appearance mode and compact view. Stream Deck keys follow the same
+icons and colours. See
+[mixer presentation](manual.md#mixer-presentation).
+
+The main mixer also offers Standard or Touch control sizing in Options. Touch
+uses larger button targets and strip widths with every skin, independently of
+the single-channel Compact view. Profiles capture the sizing preference; older
+profiles leave it unchanged. Plugin-native editors retain their own sizing.
+
+### Exclusive channel groups
+
+Group input, application or external capture channels and choose one member
+independently in each mix through the existing send mute buttons. Membership
+and selections persist and travel in profiles. The layout editor manages
+groups, and OpenDeck/Stream Deck keys cycle members in a chosen mix. No new
+audio nodes or gain stages are involved. See the [manual](manual.md#exclusive-input-selection-per-mix)
+for silent conflict handling and software monitoring of grouped microphones.
+
+### Arrange the mixer window
+
+An Arrange mode adds drag handles and keyboard ordering to the window's
+sections, channels and mix tiles. Section order is saved locally and can be
+reset independently; channel and mix order use the existing display-order
+command. Skin changes retain the arrangement and audio routing is unchanged.
+
+The local HTTP API exposes device, profile, mixer, channel, mix, insert and
+plugin diagnostic resources. Its Options switch persists across restarts;
+turning it off leaves the window, terminal and Deck usable.
+
+The plugin manager combines effective LV2, CLAP and VST3 search paths, extra
+folders, all-format rescanning and the existing Windows-plugin controls.
+
+Plugin controls display reported algorithmic latency. Optional mix-insert
+alignment delays faster mixes to the slowest valid report, with a two-second
+limit and explicit unavailable status. It defaults to off; see the manual.
+
+### Sound Check
+
+Record up to ten seconds from an XLR microphone and loop the dry sample through
+the current software processing and insert chain. Live mode retains the sample;
+stop discards it and restores the microphone. The session stays in memory and
+ends after ten minutes or a lost audio path. Hardware processing remains upstream.
+
+### Effect chains and comparison
+
+Copy individual effects or complete chains between compatible channels, rename
+instances, save reusable named chain presets and store A/B snapshots for live
+comparison. Snapshots preserve exposed parameters, order, bypass and host choices;
+they do not contain plugin-private binary state or external samples. Replacing
+a chain can briefly interrupt audio. A/B snapshots clear on reconnect.
+
+### Momentary effect keys
+
+Effect and whole-chain keys can activate processing only while held. Overlapping
+holds restore the original bypass states after the last release. Lost releases
+expire after five seconds plus graph reconciliation; manual edits and profile
+recall take precedence. Temporary held states are not saved in profiles.

@@ -1,11 +1,13 @@
+import { randomUUID } from "node:crypto";
 // OpenXLR plugin for OpenDeck (OpenAction / Stream Deck SDK compatible).
 // A thin bridge: one WebSocket to the OpenDeck host, one to the OpenXLR
 // daemon. The daemon owns all state and broadcasts every change, so keys
 // and dials stay in sync with the UI (and with the hardware) for free.
 
+import { MomentaryEffects } from "./momentary-effects.mjs";
 import process from "node:process";
-import { randomUUID } from "node:crypto";
-import { channelName, mixName, mixShortName, layoutChoices, controllableOutputs, outputKey } from "./layout-choices.mjs";
+import { KeyCommands } from "./key-commands.mjs";
+import { channelName, mixName, mixShortName, layoutChoices, controllableOutputs, outputKey, targetAppearance } from "./layout-choices.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import { SkinPalette } from "./skin-palette.mjs";
@@ -56,25 +58,8 @@ let catalog = new Map();  // LV2 plugin URI -> PluginInfo (names and ranges of t
 let reconnectTimer = null;
 let reconnectDelayMs = 500;
 let connectionGeneration = 0;
-const pendingKeys = new Map();
-
-function finishKey(requestId, failed) {
-  const pending = pendingKeys.get(requestId);
-  if (!pending) return;
-  clearTimeout(pending.timer);
-  pendingKeys.delete(requestId);
-  send({event: failed ? "showAlert" : "showOk", context: pending.context});
-}
-
-function keyCommand(context, payload) {
-  if (pendingKeys.size >= 64) { send({event:"showAlert", context}); return; }
-  if ([...pendingKeys.values()].some(p => p.context === context)) return;
-  const requestId = randomUUID();
-  const timer = setTimeout(() => finishKey(requestId, true), 8000);
-  timer.unref();
-  pendingKeys.set(requestId, {context, timer});
-  if (!cmd({...payload, requestId})) finishKey(requestId, true);
-}
+const keyCommands = new KeyCommands(payload => cmd(payload), (context, failed) =>
+  send({event: failed ? "showAlert" : "showOk", context}));
 
 function scheduleDaemonReconnect(generation) {
   if (generation !== connectionGeneration || reconnectTimer) return;
@@ -116,14 +101,16 @@ function connectDaemon() {
       catalog = new Map((m.plugins ?? []).map((p) => [p.plugin, p]));
       refreshAll();
     }
-    else if (m.type === "commandResult") finishKey(m.requestId, !!m.error);
+    else if (m.type === "commandResult") { keyCommands.finish(m.requestId, !!m.error); momentary.reply(m.requestId, m.error); }
     else if (m.type === "error") console.error("OpenXLR daemon:", m.message);
   };
   socket.onclose = (e) => {
     if (daemon !== socket) return;
     if (e && e.code === 1008) console.error("OpenXLR daemon refused the plugin:", e.reason);
-    for (const id of pendingKeys.keys()) finishKey(id, true);
-    daemonUp = false; daemonState = null; refreshAll();
+    momentary.clear();
+    daemonUp = false; daemonState = null;
+    keyCommands.disconnect();
+    refreshAll();
     scheduleDaemonReconnect(generation);
   };
   socket.onerror = () => { /* onclose follows */ };
@@ -144,7 +131,9 @@ const cmd = (o) => {
 const host = new WebSocket(`ws://localhost:${port}`);
 const send = (o) => host.send(JSON.stringify(o));
 host.onopen = () => send({ event: registerEvent, uuid: pluginUUID });
+// A closed host ends this process. The daemon lease restores any held effects.
 host.onclose = () => process.exit(0);
+const momentary = new MomentaryEffects(cmd, randomUUID, context => send({event:"showAlert", context}));
 
 // Visible action instances: context -> {action, settings, controller}
 const instances = new Map();
@@ -295,6 +284,8 @@ host.onmessage = (e) => {
   const inst = instances.get(m.context);
   switch (m.event) {
     case "willAppear":
+      keyCommands.clear(m.context);
+      momentary.end(m.context);
       instances.set(m.context, {
         action: m.action,
         settings: m.payload?.settings ?? {},
@@ -303,16 +294,23 @@ host.onmessage = (e) => {
       refresh(m.context);
       break;
     case "willDisappear":
+      keyCommands.clear(m.context);
+      momentary.end(m.context);
       instances.delete(m.context);
       emptyTitle.delete(m.context);
       lastMeter.delete(m.context);
       marquee.delete(m.context);
       break;
     case "didReceiveSettings":
+      keyCommands.clear(m.context);
+      momentary.end(m.context);
       if (inst) { inst.settings = m.payload?.settings ?? {}; refresh(m.context); }
       break;
     case "keyDown":
       if (inst) onKeyDown(m.context, inst);
+      break;
+    case "keyUp":
+      momentary.end(m.context);
       break;
     case "dialRotate":
       if (inst) onDialRotate(m.context, inst, m.payload?.ticks ?? 0);
@@ -461,6 +459,11 @@ function toggleValue(target, inst) {
     if (!outs || !outs.includes(out)) return null;
     return feedOf(out) !== "monitor";
   }
+  if (target.startsWith("group:")) {
+    const [, id, mix] = target.split(":");
+    const group = mixer()?.exclusiveGroups?.find(g => g.id === id);
+    return group && mixOf(mix) ? group.channels.some(ch => chOf(ch) && !chOf(ch).mutedIn?.includes(mix)) : null;
+  }
   if (target.startsWith("mixmute:")) return mixOf(target.slice(8))?.muted ?? null;
   if (target.startsWith("sendmute:")) {
     const [, ch, mix] = target.split(":");
@@ -472,18 +475,21 @@ function toggleValue(target, inst) {
 
 // An output's feed as the daemon stores it: any mix id, or ids
 // joined with '+' when the output hears them summed.
-const feedOf = (sink) => mixer()?.monitorFeeds?.[sink] ?? "monitor";
+const feedOf = (sink) => mixer()?.monitorFeeds?.[sink] ?? mixer()?.primaryMonitorMix ?? "monitor";
 const FEED_LETTER = { monitor: "A", monitor2: "B" };
 const feedLetters = (feed) => feed.split("+").map((id) => FEED_LETTER[id] ?? mixName(mixer(), id)).join("+");
 const feedLabel = (feed) => feed === "" ? "Silent" : feed.split("+").every(id => Object.hasOwn(FEED_LETTER, id))
   ? `Monitor ${feedLetters(feed)}` : feed.split("+").map(id => mixName(mixer(), id)).join(" + ");
-// Keep A, B, A+B first, then include every other live mix.
+// Cycle monitor mixes, their sum, then every other live mix.
 const nextFeed = (feed) => {
   const mixes = mixer()?.mixes ?? [];
-  const monitors = mixes.filter(m => (m.kind ?? "monitor") === "monitor").map(m => m.id);
+  const monitors = mixes.filter(m => Object.hasOwn(FEED_LETTER, m.id)).map(m => m.id);
   const choices = [...monitors, ...(monitors.length > 1 ? [monitors.join("+")] : []),
-    ...mixes.filter(m => (m.kind ?? "monitor") !== "monitor").map(m => m.id)];
-  return choices.length ? choices[(choices.indexOf(feed) + 1) % choices.length] : "monitor";
+    ...mixes.filter(m => !Object.hasOwn(FEED_LETTER, m.id)).map(m => m.id)];
+  // Summing is commutative; display order may differ from the daemon's order.
+  const key = feed.split("+").sort().join("+");
+  const at = choices.findIndex(choice => choice.split("+").sort().join("+") === key);
+  return choices.length ? choices[(at + 1) % choices.length] : "monitor";
 };
 // The mixes the monitor dial's press mutes: what the first selected
 // monitor output hears.
@@ -551,6 +557,12 @@ function toggleLabel(target, inst) {
     const d = daemonState?.devices?.find((x) => x.name === sink);
     const name = d?.description ?? sink.split(".").pop();
     return `${name}\n${feedLabel(feedOf(sink))}`;
+  }
+  if (target.startsWith("group:")) {
+    const [, id, mix] = target.split(":");
+    const group = mixer()?.exclusiveGroups?.find(g => g.id === id);
+    const active = group?.channels.find(ch => chOf(ch) && !chOf(ch).mutedIn?.includes(mix));
+    return `${group?.name ?? id} · ${mixShortName(mixer(), mix)}\n${active ? channelName(mixer(), active) : "None"}`;
   }
   if (target.startsWith("mixmute:")) return `${mixName(mixer(), target.slice(8))}\nMute`;
   if (target.startsWith("sendmute:")) {
@@ -699,14 +711,23 @@ function onKeyDown(context, inst) {
   const t = inst.settings.target;
   const cur = toggleValue(t, inst);
   if (cur === null) { send({ event: "showAlert", context }); return; }
+  if (inst.settings.momentary === true && (t.startsWith("insert|") || t.startsWith("inschain|"))) {
+    if (t.startsWith("insert|")) {
+      const [, channel, id] = t.split("|");
+      const insert = resolveInsert(channel, id, metaOf(inst, t));
+      if (!insert) { send({event:"showAlert", context}); return; }
+      momentary.begin(context, channel, insert.id);
+    } else momentary.begin(context, t.slice(9));
+    return;
+  }
   const output = outputKey(t);
   if (output) {
     const payload = output.kind === "main" ? {cmd:"setMainOutput",device:output.device}
       : output.kind === "mute" ? {cmd:"toggleOutputMute",device:output.device}
       : {cmd:"adjustOutputVolume",device:output.device,value:output.kind === "up" ? .05 : -.05};
-    keyCommand(context, payload);
+    keyCommands.enqueue(context, payload);
   }
-  else if (t.startsWith("focus:")) keyCommand(context, { cmd: "routeFocusedApp", channel: t.slice(6) });
+  else if (t.startsWith("focus:")) keyCommands.enqueue(context, { cmd: "routeFocusedApp", channel: t.slice(6) });
   else if (t.startsWith("insert|")) {
     const [, ch, id] = t.split("|");
     const ins = resolveInsert(ch, id, metaOf(inst, t));
@@ -727,6 +748,10 @@ function onKeyDown(context, inst) {
   else if (t === "gainLocked") cmd({ cmd: "set", control: "gainLock", value: !cur });
   else if (t.startsWith("monitor:")) cmd({ cmd: "setMonitorOutputs", devices: [t.slice(8)] });
   else if (t.startsWith("feed:")) cmd({ cmd: "setMonitorFeed", device: t.slice(5), mix: nextFeed(feedOf(t.slice(5))) });
+  else if (t.startsWith("group:")) {
+    const [, group, mix] = t.split(":");
+    cmd({cmd: "cycleExclusiveGroup", group, mix});
+  }
   else if (t.startsWith("mixmute:"))
     cmd({ cmd: "setMixMuted", mix: t.slice(8), value: !cur });
   else if (t.startsWith("sendmute:")) {
@@ -897,7 +922,7 @@ function glyphFor(t) {
   if (t === "outHp1" || t === "outHp2" || t === "lowImpedance") return "headphones";
   if (t === "outLineOut") return "jack";
   if (t.startsWith("monitor:") || t.startsWith("feed:") || t.startsWith("mixmute:")) return "speaker";
-  if (t.startsWith("sendmute:")) return "fader";
+  if (t.startsWith("sendmute:") || t.startsWith("group:")) return "fader";
   if (isProfileTarget(t)) return "scene";
   return null;
 }
@@ -940,7 +965,7 @@ function sevenSegText(text, x, y, h, color) {
   return out;
 }
 
-function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null) {
+function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null, appearance = {}) {
   // The skin colours the owned faceplate, cap and glyph. An insert's bypass
   // uses the alert colour, and a mute keeps its visible slash and status lamp.
   const accent = !known ? null : on ? (muteLike ? skinPalette.colours["Ox.Led.Alert"] : skinPalette.colours["Ox.Led.On"]) : offColor;
@@ -950,7 +975,9 @@ function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null) {
   // Button cap (glyph keys) or LED display window (badge keys) or lamp only.
   const capY = lines.length ? 52 : 66;
   let face;
-  if (glyphName) {
+  if (appearance.icon) {
+    face = `<text x="72" y="${capY + 15}" text-anchor="middle" font-family="sans-serif" font-size="48" fill="${known ? (appearance.colour ?? ink) : ink}">${escXml(appearance.icon)}</text>`;
+  } else if (glyphName) {
     const glyph = GLYPHS[glyphName].replaceAll("currentColor", ink);
     face = `
       <circle cx="72" cy="${capY}" r="38" fill="none" stroke="#000" stroke-opacity="0.4" stroke-width="6"/>
@@ -984,7 +1011,7 @@ function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null) {
   const labelSvg = lines.map((line, i) => {
     const size = line.length > 11 ? 19 : line.length > 8 ? 22 : 26;
     const y = lines.length === 1 ? 126 : 106 + i * 24;
-    return `<text x="72" y="${y}" text-anchor="middle" fill="${skinPalette.colours["Ox.Text.Primary"]}" ` +
+    return `<text x="72" y="${y}" text-anchor="middle" fill="${known ? (appearance.colour ?? skinPalette.colours["Ox.Text.Primary"]) : skinPalette.colours["Ox.Text.Primary"]}" ` +
       `stroke="#000" stroke-width="4" paint-order="stroke" stroke-linejoin="round" ` +
       `font-family="Inter, Noto Sans, DejaVu Sans, sans-serif" font-size="${size}" font-weight="700">` +
       escXml(line) + `</text>`;
@@ -1005,15 +1032,16 @@ function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null) {
       </defs>
       <rect x="6" y="6" width="132" height="132" rx="14" fill="${skinPalette.colours["Ox.Card.Background"]}"/>
       <rect x="6" y="6" width="132" height="132" rx="14" fill="url(#side)"/>
-      <rect x="9" y="9" width="126" height="126" rx="12" fill="none" stroke="${skinPalette.colours["Ox.Text.Muted"]}" stroke-width="4"/>
+      <rect x="9" y="9" width="126" height="126" rx="12" fill="none" stroke="${known ? (appearance.colour ?? skinPalette.colours["Ox.Text.Muted"]) : skinPalette.colours["Ox.Text.Muted"]}" stroke-width="4"/>
       ${face}${slash}${lampDot}${labelSvg}
     </svg>`).toString("base64");
 }
 
 // 24x24 icons for the dial layout's corner slot.
 function dialIcon(t) {
+  const appearance = targetAppearance(mixer(), t);
   const inner = (name) => GLYPHS[name]
-    ? `<g transform="scale(0.1667)">${GLYPHS[name].replaceAll("currentColor", skinPalette.colours["Ox.Text.Primary"])}</g>` : "";
+    ? `<g transform="scale(0.1667)">${GLYPHS[name].replaceAll("currentColor", appearance.colour ?? skinPalette.colours["Ox.Text.Primary"])}</g>` : "";
   let name = "knob";
   if (t?.startsWith("send:")) name = "fader";
   else if (t?.startsWith("mixvol:")) name = "speaker";
@@ -1022,7 +1050,7 @@ function dialIcon(t) {
   else if (t === "hp" || t === "hp2") name = "headphones";
   else if (t === "crossfade") name = "xfade";
   return "data:image/svg+xml;base64," + Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">${inner(name)}</svg>`
+    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">${appearance.icon ? `<text x="12" y="19" text-anchor="middle" font-size="21" fill="${appearance.colour ?? skinPalette.colours["Ox.Text.Primary"]}">${escXml(appearance.icon)}</text>` : inner(name)}</svg>`
   ).toString("base64");
 }
 
@@ -1161,7 +1189,7 @@ function refresh(context) {
     const glyphName = hasIcon ? iconChoice : glyphFor(t);
     const offColor = isInsertTarget(t) ? skinPalette.colours["Ox.Led.Alert"] : null;   // bypassed = red, as in the UI
     send({ event: "setImage", context,
-           payload: { image: keySvg(v === true, isMuteLike(t), v !== null && daemonUp, glyphName, badge, label, offColor) } });
+           payload: { image: keySvg(v === true, isMuteLike(t), v !== null && daemonUp, glyphName, badge, label, offColor, { ...targetAppearance(mixer(), t), ...(hasIcon ? {icon:""} : {}) }) } });
   } else if (inst.action === "com.emaspa.openxlr.dial") {
     const d = dialValue(t, inst);
     const isDb = t === "gain" || t === "gain2";

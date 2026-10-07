@@ -1,9 +1,10 @@
+using OpenXLR.UI.Localization;
 using System;
 using System.Threading.Tasks;
 
 namespace OpenXLR.UI;
 
-/// <summary>Shared restart state for the header and upgrade banner buttons.</summary>
+/// <summary>Shared restart state for the header, upgrade banner and daemon settings.</summary>
 public sealed class DaemonRestartViewModel : ViewModelBase
 {
     private readonly Func<Task<bool>> _restart;
@@ -31,21 +32,24 @@ public sealed class DaemonRestartViewModel : ViewModelBase
     /// Run systemctl off the UI thread. Only one restart runs at a time, and a
     /// failed request leaves the buttons usable for another attempt.
     /// </summary>
-    public async Task RestartAsync()
+    public async Task<bool> RestartAsync()
     {
-        if (_busy) return;
+        if (_busy) return false;
         _busy = true;
         Raise(nameof(CanRestart));
-        Status = "Restarting daemon...";
+        Status = Localizer.Text("RestartingDaemon");
         try
         {
-            Status = await _restart()
-                ? "Service restarted. Waiting for the daemon connection."
-                : "Restart failed. Check the user service logs; a manually started daemon must be restarted by hand.";
+            bool restarted = await _restart();
+            Status = restarted
+                ? Localizer.Text("ServiceRestartedWaitingForTheDaemonConnection")
+                : Localizer.Text("RestartFailedCheckTheUserServiceLogsA");
+            return restarted;
         }
         catch (Exception)
         {
-            Status = "Restart failed. Check the user service logs.";
+            Status = Localizer.Text("RestartFailedCheckTheUserServiceLogs");
+            return false;
         }
         finally
         {

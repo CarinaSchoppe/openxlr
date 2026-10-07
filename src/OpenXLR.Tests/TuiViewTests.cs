@@ -99,6 +99,21 @@ public sealed class TuiViewTests
     private static string Text(JsonElement command, string property) =>
         command.GetProperty(property).GetString() ?? string.Empty;
 
+    [Fact]
+    public void MonitorCreationAndEditingUseTheDaemonContract()
+    {
+        (App app, List<string> sent) = Ready();
+        app.Handle(new KeyPress(Key.Char, 'M'));
+        foreach (char c in "Headset") app.Handle(new KeyPress(Key.Char, c));
+        app.Handle(new KeyPress(Key.Enter));
+        Assert.Equal("createMix", Text(Command(sent), "cmd"));
+        Assert.Equal("monitor", Text(Command(sent), "kind"));
+        Assert.Equal("Headset", Text(Command(sent), "name"));
+        Assert.True(JsonSerializer.Deserialize<MixEntry>("""{"Kind":"monitor","Editable":true}""")!.IsEditable);
+        Assert.False(JsonSerializer.Deserialize<MixEntry>("""{"Kind":"monitor","Editable":false}""")!.IsEditable);
+        Assert.True(new MixEntry { Kind = "virtualMic" }.IsEditable);
+    }
+
     // --- the state ---
 
     [Fact]
@@ -606,6 +621,23 @@ public sealed class TuiViewTests
         Assert.Equal("setMonitorFeed", Text(command, "cmd"));
         Assert.Equal("alsa_output.arctis", Text(command, "device"));
         Assert.Equal("stream", Text(command, "mix"));
+    }
+
+    [Fact]
+    public void TheOutputFeedUsesTheDeclaredPrimaryMixAfterDisplayReordering()
+    {
+        (App app, List<string> sent) = Ready(tab: 3);
+        var state = System.Text.Json.Nodes.JsonNode.Parse(StateJson)!;
+        state["mixer"]!["primaryMonitorMix"] = "monitor";
+        state["mixer"]!["monitorFeeds"] = new System.Text.Json.Nodes.JsonObject();
+        state["mixer"]!["mixes"]!.AsArray().Insert(0, System.Text.Json.Nodes.JsonNode.Parse(
+            """{"id":"monitor2","name":"Monitor B","kind":"monitor"}"""));
+        app.Link.Receive(state.ToJsonString());
+        app.Draw(new Screen(140, 36));
+        Assert.Empty(sent);
+        app.Handle(new KeyPress(Key.Down));
+        app.Handle(new KeyPress(Key.Right));
+        Assert.Equal("stream", Text(Command(sent), "mix"));
     }
 
     [Fact]

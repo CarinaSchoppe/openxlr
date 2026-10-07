@@ -547,9 +547,8 @@ class ComponentHandler final : public IComponentHandler,
   tresult PLUGIN_API restartComponent(int32 flags) override {
     if (trace_enabled)
       fprintf(stderr, "trace: restartComponent flags %#x\n", (unsigned)flags);
-    // A latency change needs no reload: the host does no delay compensation,
-    // so the new figure changes nothing it does. Plugins that size their
-    // lookahead on activation report one every time they start.
+    // Latency is read on the main-thread tick. A changed figure does not
+    // require reloading DSP, including plugins reporting it on activation.
     if (flags & (RestartFlags::kReloadComponent | RestartFlags::kIoChanged))
       v_->restart_requested = true;
     if (flags & RestartFlags::kParamValuesChanged)
@@ -1275,6 +1274,11 @@ void vst3_editor_resized(Host *h, unsigned width, unsigned height) {
   v->view->onSize(&rect);
 }
 
+static uint32_t vst3_latency(Host *h) {
+  auto *v = static_cast<Vst3 *>(host_impl(h));
+  return v->processor ? v->processor->getLatencySamples() : UINT32_MAX;
+}
+
 }  // namespace
 
 extern "C" const Backend vst3_backend = {
@@ -1293,6 +1297,7 @@ extern "C" const Backend vst3_backend = {
     vst3_editor_constrain,
     vst3_main_thread,
     vst3_unload,
+    vst3_latency,
     true,
 };
 

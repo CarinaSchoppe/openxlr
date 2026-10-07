@@ -33,6 +33,44 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
       monitorOutputs:["qa-output"], monitorFeeds:{}, inserts:{}
     }};
     daemon.receive(state);
+    state.mixer.channels[0].mutedIn = [];
+    state.mixer.channels[0].appearance = {icon:"♫",colour:"#1234AB",hidden:true};
+    host.receive({event:"willAppear",context:"appearance-key",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"sendmute:system:monitor"}}});
+    daemon.receive(state);
+    const appearanceImage = host.messages.filter(m => m.event === "setImage" && m.context === "appearance-key").at(-1).payload.image;
+    const appearanceSvg = Buffer.from(appearanceImage.split(",")[1], "base64").toString();
+    assert.ok(appearanceSvg.includes("♫"));
+    assert.ok(appearanceSvg.includes("#1234AB"));
+
+    state.mixer.inserts = {xlr1:[{insert:{id:"effect",plugin:"urn:test",label:"Test",bypass:true}}]};
+    daemon.receive(state);
+    for (const target of ["insert|xlr1|effect", "inschain|xlr1"]) {
+      const settings = {target,momentary:true};
+      host.receive({event:"willAppear",context:"held",action:"com.emaspa.openxlr.toggle",payload:{settings}});
+      for (const release of ["keyUp", "willDisappear", "didReceiveSettings", "willAppear"]) {
+        const before = daemon.messages.length;
+        host.receive({event:"keyDown",context:"held"});
+        host.receive({event:"keyDown",context:"held"});
+        assert.equal(daemon.messages.length, before + 1);
+        const begin = daemon.messages.at(-1);
+        assert.equal(begin.cmd, "holdInsert");
+        assert.equal(begin.action, "begin");
+        assert.equal(begin.channel, "xlr1");
+        assert.equal(begin.insertId, target.startsWith("insert|") ? "effect" : undefined);
+        host.receive({event:release,context:"held",action:"com.emaspa.openxlr.toggle",payload:{settings}});
+        assert.equal(daemon.messages.at(-1).action, "end");
+        assert.equal(daemon.messages.at(-1).holdId, begin.holdId);
+        host.receive({event:"keyUp",context:"held"});
+        assert.equal(daemon.messages.length, before + 2);
+        host.receive({event:"willAppear",context:"held",action:"com.emaspa.openxlr.toggle",payload:{settings}});
+      }
+    }
+    host.receive({event:"willAppear",context:"normal",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"insert|xlr1|effect",momentary:false}}});
+    host.receive({event:"keyDown",context:"normal"});
+    assert.equal(daemon.messages.at(-1).cmd, "setInsertBypass");
+    const afterNormal = daemon.messages.length;
+    host.receive({event:"keyUp",context:"normal"});
+    assert.equal(daemon.messages.length, afterNormal);
     host.receive({event:"sendToPlugin",context:"qa",payload:{request:"layout"}});
     assert.ok(host.messages.at(-1).payload.levelGroups.flatMap(g => g.items)
       .some(item => item.target === "send:system:monitor2"));
@@ -46,6 +84,11 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
     host.receive({event:"willAppear",context:"feed-key",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"feed:qa-output"}}});
     host.receive({event:"keyDown",context:"feed-key"});
     assert.deepEqual(daemon.messages.at(-1), {cmd:"setMonitorFeed",device:"qa-output",mix:"monitor2"});
+    state.mixer.primaryMonitorMix = "monitor2";
+    daemon.receive(state);
+    host.receive({event:"keyDown",context:"feed-key"});
+    assert.deepEqual(daemon.messages.at(-1), {cmd:"setMonitorFeed",device:"qa-output",mix:"monitor+monitor2"});
+    delete state.mixer.primaryMonitorMix;
     state.mixer.monitorFeeds["qa-output"] = "monitor2";
     state.mixer.channels[0].name = "Renamed Desktop";
     daemon.receive(state);
@@ -60,6 +103,36 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
       host.receive({event:"keyDown",context:"feed-key"});
       assert.deepEqual(daemon.messages.at(-1), {cmd:"setMonitorFeed",device:"qa-output",mix:next});
     }
+    [state.mixer.mixes[0], state.mixer.mixes[1]] = [state.mixer.mixes[1], state.mixer.mixes[0]];
+    state.mixer.monitorFeeds["qa-output"] = "monitor+monitor2";
+    daemon.receive(state);
+    host.receive({event:"keyDown",context:"feed-key"});
+    assert.deepEqual(daemon.messages.at(-1), {cmd:"setMonitorFeed",device:"qa-output",mix:"stream"});
+    [state.mixer.mixes[0], state.mixer.mixes[1]] = [state.mixer.mixes[1], state.mixer.mixes[0]];
+    state.mixer.mixes.push({id:"headphones",name:"Headphones",kind:"monitor"});
+    for (const [current, next] of [["monitor2", "monitor+monitor2"], ["auxout", "headphones"], ["headphones", "monitor"]]) {
+      state.mixer.monitorFeeds["qa-output"] = current;
+      daemon.receive(state);
+      host.receive({event:"keyDown",context:"feed-key"});
+      assert.deepEqual(daemon.messages.at(-1), {cmd:"setMonitorFeed",device:"qa-output",mix:next});
+    }
+
+    state.mixer.channels.push({id:"mic2",name:"Second mic",mutedIn:["monitor"]});
+    state.mixer.exclusiveGroups = [{id:"mics",name:"Microphones",channels:["system","mic2"]}];
+    daemon.receive(state);
+    host.receive({event:"willAppear",context:"group-key",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"group:mics:monitor"}}});
+    const beforeCycles = daemon.messages.length;
+    for (let i = 0; i < 7; i++) host.receive({event:"keyDown",context:"group-key"});
+    assert.equal(daemon.messages.length - beforeCycles, 7, "rapid presses must not depend on a state acknowledgement");
+    assert.deepEqual(daemon.messages.at(-1), {cmd:"cycleExclusiveGroup",group:"mics",mix:"monitor"});
+    const groupsUpdate = host.messages.filter(m => m.event === "sendToPropertyInspector" && m.context === "qa").at(-1);
+    assert.ok(groupsUpdate.payload.toggleGroups.flatMap(g => g.items).some(item => item.target === "group:mics:monitor"));
+    state.mixer.exclusiveGroups = [];
+    daemon.receive(state);
+    const beforeDeleted = daemon.messages.length;
+    host.receive({event:"keyDown",context:"group-key"});
+    assert.equal(daemon.messages.length, beforeDeleted);
+    assert.ok(host.messages.some(m => m.event === "showAlert" && m.context === "group-key"));
     host.receive({event:"propertyInspectorDidDisappear",context:"qa"});
     const count = host.messages.filter(m => m.event === "sendToPropertyInspector").length;
     state.mixer.channels[0].name = "Another name";
@@ -80,6 +153,26 @@ test("plugin publishes layout updates and keeps monitor feed commands intact", a
       daemon.receive({type:"commandResult",requestId});
       assert.ok(host.messages.some(m => m.event === "showOk" && m.context === "output-key"));
     }
+    host.receive({event:"willAppear",context:"rapid-key",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"outputdown:qa-output"}}});
+    const rapidStart = daemon.messages.length;
+    for (let i = 0; i < 3; i++) host.receive({event:"keyDown",context:"rapid-key"});
+    assert.equal(daemon.messages.length, rapidStart + 1);
+    for (let i = 0; i < 3; i++) {
+      assert.equal(daemon.messages.length, rapidStart + i + 1, "each acknowledged volume step must send the next queued press");
+      const step = daemon.messages.at(-1);
+      assert.deepEqual({...step, requestId:undefined}, {cmd:"adjustOutputVolume",device:"qa-output",value:-.05,requestId:undefined});
+      daemon.receive({type:"commandResult",requestId:step.requestId});
+    }
+    host.receive({event:"keyDown",context:"rapid-key"});
+    host.receive({event:"keyDown",context:"rapid-key"});
+    const oldStep = daemon.messages.at(-1);
+    host.receive({event:"didReceiveSettings",context:"rapid-key",payload:{settings:{target:"outputup:qa-output"}}});
+    const reboundStart = daemon.messages.length;
+    daemon.receive({type:"commandResult",requestId:oldStep.requestId});
+    assert.equal(daemon.messages.length, reboundStart, "a changed target must discard queued actions");
+    host.receive({event:"keyDown",context:"rapid-key"});
+    assert.equal(daemon.messages.at(-1).value, .05);
+    host.receive({event:"willDisappear",context:"rapid-key"});
     host.receive({event:"willAppear",context:"missing-output",action:"com.emaspa.openxlr.toggle",payload:{settings:{target:"outputmute:gone"}}});
     const beforeMissing = daemon.messages.length;
     host.receive({event:"keyDown",context:"missing-output"});

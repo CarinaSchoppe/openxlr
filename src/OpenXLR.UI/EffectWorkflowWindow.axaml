@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:loc="using:OpenXLR.UI.Localization"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:OpenXLR.UI"
+        x:Class="OpenXLR.UI.EffectWorkflowWindow" x:DataType="vm:InsertsViewModel"
+        Title="{Binding Title, StringFormat='{}{0} effect chains'}"
+        Width="560" Height="540" MinWidth="380" MinHeight="280"
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource Ox.Window.Background}">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="16" Spacing="12" IsEnabled="{Binding CanEditEffects}">
+      <TextBlock Text="{loc:Text Key=CopyAndPaste}" Classes="h"/>
+      <TextBlock Text="{loc:Text Key=CopyAnEffectFromItsRowOrCopyThisWholeChainPasteAppendsTheCopiedEffects}"
+                 TextWrapping="Wrap" Foreground="{DynamicResource Ox.Text.Secondary}"/>
+      <WrapPanel>
+        <Button Content="{loc:Text Key=CopyChain}" Click="OnCopy" Margin="0,0,8,8"/>
+        <Button Content="{loc:Text Key=PasteEffects}" Click="OnPaste" Margin="0,0,8,8"/>
+        <Button Content="{loc:Text Key=ReplaceChain}" Click="OnReplace" Margin="0,0,8,8"/>
+      </WrapPanel>
+      <TextBlock Text="{loc:Text Key=ABComparison}" Classes="h"/>
+      <TextBlock Text="{loc:Text Key=StoreTheCurrentSettingsAsAOrBThenHearEitherSnapshotStoreAgainToKeepLat}"
+                 TextWrapping="Wrap" Foreground="{DynamicResource Ox.Text.Secondary}"/>
+      <WrapPanel>
+        <Button Content="{loc:Text Key=StoreA}" Click="OnStoreA" Margin="0,0,8,8"/>
+        <Button Content="{loc:Text Key=HearA}" Click="OnHearA" Margin="0,0,8,8"/>
+        <Button Content="{loc:Text Key=StoreB}" Click="OnStoreB" Margin="0,0,8,8"/>
+        <Button Content="{loc:Text Key=HearB}" Click="OnHearB" Margin="0,0,8,8"/>
+      </WrapPanel>
+      <TextBlock Text="{Binding Comparison}" TextWrapping="Wrap" Foreground="{DynamicResource Ox.Text.Primary}"/>
+      <TextBlock Text="{loc:Text Key=ReusableChainPresets}" Classes="h"/>
+      <TextBox Text="{Binding PresetName, Mode=TwoWay}" PlaceholderText="{loc:Text Key=NewPresetName}" MaxLength="80"/>
+      <Button Content="{loc:Text Key=SaveCurrentChain}" Click="OnSave"/>
+      <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                HorizontalAlignment="Stretch" PlaceholderText="{loc:Text Key=ChooseAChainPreset}"/>
+      <WrapPanel>
+        <Button Content="{loc:Text Key=LoadPreset}" Click="OnLoad" Margin="0,0,8,8"/>
+        <Button Content="{loc:Text Key=DeletePreset}" Click="OnDelete" Margin="0,0,8,8"/>
+        <Button Content="{loc:Text Key=RefreshPresets}" Click="OnRefresh" Margin="0,0,8,8"/>
+      </WrapPanel>
+      <TextBlock Text="{loc:Text Key=PresetsKeepOrderNamesBypassHostChoicesAndExposedControlsPluginPrivateS}"
+                 TextWrapping="Wrap" Foreground="{DynamicResource Ox.Text.Secondary}"/>
+      <TextBlock Text="{Binding WorkflowError}" TextWrapping="Wrap" Foreground="{DynamicResource Ox.Text.Warning}"
+                 IsVisible="{Binding WorkflowError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+    </StackPanel>
+  </ScrollViewer>
+</Window>

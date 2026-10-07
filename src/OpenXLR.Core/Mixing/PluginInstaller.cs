@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace OpenXLR.Core.Mixing;
@@ -38,6 +40,8 @@ public sealed record PluginSetup(
 {
     /// <summary>Wine's version as it reports it, or null when Wine is not installed.</summary>
     public string? WineVersion { get; init; }
+    public IReadOnlyList<PluginSearchDirectory> SearchDirectories { get; init; } = [];
+    public string? SearchPathWarning { get; init; }
     public bool WineTrace { get; init; }
 
     /// <summary>
@@ -62,7 +66,10 @@ public sealed record PluginSetup(
 /// where the plugins landed, so the caller can tell which of the plugins it
 /// finds afterwards came from this install.
 /// </summary>
-public sealed record InstallOutcome(bool Ok, string Message, IReadOnlyList<string> Installed, IReadOnlyList<string>? Destinations = null);
+public sealed record InstallOutcome(bool Ok, string Message, IReadOnlyList<string> Installed, IReadOnlyList<string>? Destinations = null)
+{
+    public bool RefreshCatalogue { get; init; } = true;
+}
 
 /// <summary>
 /// Puts a plugin the user picked where the catalogues look. A Linux bundle
@@ -181,6 +188,7 @@ public sealed class PluginInstaller
 
     private static Binary Header(string path)
     {
+        RequireRegularFile(path);
         try
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 1);
@@ -242,7 +250,14 @@ public sealed class PluginInstaller
         entries.Sort(StringComparer.Ordinal);
         foreach (string entry in entries)
         {
-            PluginItem item = Inspect(entry);
+            PluginItem item;
+            try { item = Inspect(entry); }
+            catch (Exception ex) when (discovery.Cap && ex is IOException or UnauthorizedAccessException)
+            {
+                // A bad entry in an already registered folder must not hide
+                // the remaining plugins or prevent their removal.
+                continue;
+            }
             if (item.Kind is PluginItemKind.Archive or PluginItemKind.Installer) continue;   // not what a folder pick means
             if (item.Kind != PluginItemKind.Unknown)
             {
@@ -376,26 +391,31 @@ public sealed class PluginInstaller
         // and the swap is two renames inside one directory. A failure anywhere
         // puts the old bundle back and leaves nothing half-written behind: an
         // unreadable file or a full disk costs the update, not the plugin.
-        string staged = destination + ".openxlr-new";
-        string retired = destination + ".openxlr-old";
+        // Fixed suffixes can belong to someone else's backup or interrupted
+        // work. Each operation owns only its two unique sibling paths.
+        string temporary = Path.Combine(directory, ".openxlr-" + Guid.NewGuid().ToString("N"));
+        string staged = temporary + ".new";
+        string retired = temporary + ".old";
         try
         {
             Directory.CreateDirectory(directory);
-            Remove(staged);
-            Remove(retired);
             if (linkSource)
             {
                 if (Directory.Exists(source)) Directory.CreateSymbolicLink(staged, Path.GetFullPath(source));
                 else File.CreateSymbolicLink(staged, Path.GetFullPath(source));
             }
             else if (Directory.Exists(source)) CopyTree(source, staged);
-            else File.Copy(source, staged);
+            else CopyFile(source, staged);
             bool replacing = Directory.Exists(destination) || File.Exists(destination) || new FileInfo(destination).LinkTarget is not null;
             if (replacing) Move(destination, retired);
             try { Move(staged, destination); }
             catch { if (replacing) Move(retired, destination); throw; }
             // The new bundle is in place; the old one is only litter now.
-            try { Remove(retired); } catch (Exception) { /* removed on the next install */ }
+            try { Remove(retired); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                notes.Add($"The previous copy remains at {Shorten(retired)}: {ex.Message}");
+            }
             installed.Add(name);
             destinations.Add(destination);
             notes.Add(linkSource
@@ -432,13 +452,58 @@ public sealed class PluginInstaller
             var info = new FileInfo(entry);
             if (info.LinkTarget is not null)
             {
-                // A link inside a bundle points within it; a copied link does the same.
+                // Keep ordinary and dangling resource links. A live file
+                // target must be regular, just like a resource copied below.
+                if (!Directory.Exists(entry) && info.ResolveLinkTarget(returnFinalTarget: true) is { Exists: true } resolved)
+                    RequireRegularFile(resolved.FullName);
                 File.CreateSymbolicLink(target, info.LinkTarget);
             }
             else if (Directory.Exists(entry)) CopyTree(entry, target);
-            else File.Copy(entry, target);
+            else CopyFile(entry, target);
         }
     }
+
+    private static void CopyFile(string source, string destination)
+    {
+        RequireRegularFile(source);
+        File.Copy(source, destination);
+    }
+
+    // File.Exists includes FIFOs and sockets on Linux. Opening one as an
+    // ordinary file may wait forever for another process. This preflight
+    // follows legitimate links, but is not protection against a source being
+    // maliciously replaced between inspection and the later open/copy.
+    internal static void RequireRegularFile(string path)
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        const uint type = 0x00000001; // STATX_TYPE
+        LinuxFileStatus status;
+        try
+        {
+            if (Statx(-100, path, 0, type, out status) != 0) // AT_FDCWD, follow links
+                throw new IOException($"Could not inspect the regular file {path}: {new Win32Exception(Marshal.GetLastPInvokeError()).Message}");
+        }
+        catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException)
+        {
+            throw new IOException($"Could not inspect the regular file {path}: statx is unavailable.", ex);
+        }
+        if ((status.Mask & type) == 0 || (status.Mode & 0xf000) != 0x8000) // S_IFMT, S_IFREG
+            throw new IOException($"{path} is not a regular file.");
+    }
+
+    // Linux UAPI uses the same 256-byte statx layout across architectures.
+    // Only the result mask and file type are read; the rest remains reserved.
+    // https://github.com/torvalds/linux/blob/master/include/uapi/linux/stat.h
+    [StructLayout(LayoutKind.Explicit, Size = 256)]
+    private struct LinuxFileStatus
+    {
+        [FieldOffset(0)] public uint Mask;
+        [FieldOffset(28)] public ushort Mode;
+    }
+
+    [DllImport("libc", EntryPoint = "statx", SetLastError = true)]
+    private static extern int Statx(int directory, [MarshalAs(UnmanagedType.LPUTF8Str)] string path,
+        int flags, uint mask, out LinuxFileStatus status);
 
     private static string Shorten(string path)
     {
@@ -967,8 +1032,11 @@ public sealed class PluginInstaller
             ? []
             : [.. WinePluginFolders().Where(f => !known.Contains(Path.GetFullPath(f).TrimEnd('/')))];
         var memoryLock = PluginMemoryLock.ReadLimits();
+        _ = PluginSearchPaths.Read(out string? searchWarning);
         return new(_hostInstalled, Shorten(_lv2), Shorten(_clap), Shorten(_vst3), _managed?.Version ?? version, _wine is not null, bridged, wine)
         {
+            SearchDirectories = PluginSearchPaths.Snapshot(),
+            SearchPathWarning = searchWarning,
             MemoryLockLimitBytes = memoryLock.Soft,
             MemoryLockHardLimitBytes = memoryLock.Hard,
             MemoryLockNote = PluginMemoryLock.Note(memoryLock.Soft, memoryLock.Hard, _hostInstalled && _yabridgectl is not null && _wine is not null),

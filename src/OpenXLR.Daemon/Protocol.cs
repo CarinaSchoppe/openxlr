@@ -31,6 +31,10 @@ public sealed record Command
     /// <summary>For "set": the control name (see <see cref="ControlNames"/>).</summary>
     [JsonPropertyName("control")] public string? Control { get; init; }
 
+
+    [JsonPropertyName("holdId")] public string? HoldId { get; init; }
+    [JsonPropertyName("action")] public string? Action { get; init; }
+
     /// <summary>The value: number for levels, bool for toggles.</summary>
     [JsonPropertyName("value")] public System.Text.Json.JsonElement Value { get; init; }
 
@@ -39,6 +43,12 @@ public sealed record Command
 
     /// <summary>Mixer commands: which mix.</summary>
     [JsonPropertyName("mix")] public string? Mix { get; init; }
+    [JsonPropertyName("group")] public string? Group { get; init; }
+
+    /// <summary>Optional window choices when saving a profile.</summary>
+    [JsonPropertyName("presentation")] public OpenXLR.Core.WindowPresentation? Presentation { get; init; }
+
+    [JsonPropertyName("appearance")] public LayoutAppearance? Appearance { get; init; }
 
     /// <summary>setLayoutOrder: complete ordered lists of editable stable IDs.</summary>
     [JsonPropertyName("channels")] public List<string>? Channels { get; init; }
@@ -86,6 +96,7 @@ public sealed record Command
     [JsonPropertyName("path")] public string? Path { get; init; }
 
     /// <summary>Native-editor compatibility rules identify a plugin by format and stable id.</summary>
+    /// <summary>Plugin format, or for createMix: virtualMic (default) or monitor.</summary>
     [JsonPropertyName("kind")] public string? Kind { get; init; }
     [JsonPropertyName("plugin")] public string? Plugin { get; init; }
     /// <summary>True blocks the editor, false allows it, null follows the release default.</summary>
@@ -108,6 +119,8 @@ public sealed record NativeEditorRulesChangedMessage
 public sealed record PluginSetupMessage(PluginSetup Setup)
 {
     [JsonPropertyName("type")] public string Type => "pluginSetup";
+    [JsonPropertyName("searchDirectories")] public IReadOnlyList<PluginSearchDirectory> SearchDirectories => Setup.SearchDirectories;
+    [JsonPropertyName("searchPathWarning")] public string? SearchPathWarning => Setup.SearchPathWarning;
     [JsonPropertyName("hostInstalled")] public bool HostInstalled => Setup.HostInstalled;
     [JsonPropertyName("lv2Directory")] public string Lv2Directory => Setup.Lv2Directory;
     [JsonPropertyName("clapDirectory")] public string ClapDirectory => Setup.ClapDirectory;
@@ -203,6 +216,8 @@ public sealed record StateMessage
     /// A bookkeeping value: later manual changes do not clear it, so a
     /// client shows it as "last recalled", not "state matches".
     /// </summary>
+    /// <summary>Last successful recall with window choices, identified once per recall.</summary>
+    [JsonPropertyName("profilePresentation")] public ProfilePresentationMessage? ProfilePresentation { get; init; }
     [JsonPropertyName("activeProfile")] public string? ActiveProfile { get; init; }
     /// <summary>
     /// The profile recalled whenever the active device connects fresh
@@ -298,3 +313,6 @@ public sealed record PluginDiagnosticsMessage(object Discovery)
     [JsonPropertyName("type")] public string Type => "pluginDiagnostics";
     [JsonPropertyName("discovery")] public object Discovery { get; } = Discovery;
 }
+
+/// <summary>Level-triggered presentation recall, so a reconnect cannot lose it.</summary>
+public sealed record ProfilePresentationMessage(string Revision, OpenXLR.Core.WindowPresentation Settings);

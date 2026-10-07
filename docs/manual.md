@@ -418,6 +418,15 @@ known. Updating OpenXLR reads every one of them again once, because the
 new version may see them differently, which makes the first scan after
 an update as slow as the first ever.
 
+Linux installation refuses named pipes, sockets and device files
+before reading a plugin binary or copying a resource, including a link
+to a special file. A new folder selection containing such a plugin is
+refused before installation. Listings of already registered Windows
+folders skip unreadable or special plugin entries and keep the valid ones.
+Ordinary empty resource files and symbolic links remain supported. Install only bundles
+you trust and do not modify the source while it is being installed; file
+inspection does not sandbox plugin code or concurrent changes.
+
 CLAP and VST3 discovery follows linked folders, but visits each resolved
 directory only once per search root. Links back to a parent or another alias
 of the same folder do not repeatedly scan its plugins. An unreadable child

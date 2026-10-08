@@ -147,8 +147,9 @@ English window. Xvfb checks do not establish Plasma or Wayland acceptance.
 
 The same acceptance fixture can seed a private saved language before the
 application initializes. The expected language is checked after initialization,
-and the settings picker must reflect the saved choice rather than a launch
-override. These Linux examples check system selection, a saved override and
+and the settings picker must reflect the active language during a launch
+override without rewriting the saved choice. Without an override it reflects
+the saved choice. These Linux examples check system selection, a saved override and
 the precedence of the temporary launch override:
 
 ```sh
@@ -164,6 +165,12 @@ CI runs these startup cases, saved choices for all shipped catalogues, temporary
 an explicit system override and an empty launch override, plus message-locale
 and base-locale selection when `LC_ALL` is unset. Each case uses a
 separate process, so the application initializes once with those inputs.
+Every case also changes the language through the real settings picker and
+checks the saved choice and the running window. If French is already selected,
+the fixture first selects English: assigning the same ComboBox item is not
+a selection change. A successful change clears the launch override indicator.
+CI prints each language and startup combination before running it so a failure
+identifies its locale, preference and override.
 
 Startup acceptance also covers saved regional and legacy Chinese choices,
 legacy temporary overrides and an unsupported saved value. The picker shows

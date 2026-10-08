@@ -429,9 +429,20 @@ public sealed class WindowLayoutTests
                     Assert.False(Localizer.Overridden);
                     Assert.False(overrideNote.IsVisible);
                 }
+                // Selecting the already selected item does not raise a
+                // ComboBox change. Start from another choice when French
+                // was the launch override, then exercise the actual binding.
+                if (language.SelectedItem is LanguageChoice { Id: "fr" })
+                {
+                    language.SelectedItem = optionsVm.LanguageChoices.Single(c => c.Id == "en");
+                    Assert.Equal("en", UiSettings.Load().Language);
+                    Assert.Equal("en", Localizer.Language);
+                }
                 language.SelectedItem = optionsVm.LanguageChoices.Single(c => c.Id == "fr");
                 Assert.Equal("fr", UiSettings.Load().Language);
                 Assert.Equal("fr", Localizer.Language);
+                Assert.False(Localizer.Overridden);
+                Assert.False(overrideNote.IsVisible);
                 Assert.Equal(Localizer.Text("OpenXLROptions"), options.Title);
                 optionsVm.SelectedLanguage = optionsVm.LanguageChoices[0];
                 activeLanguage = Localizer.Resolve(null, CultureInfo.CurrentUICulture);

@@ -88,12 +88,14 @@ jobs:
       - name: Window layout and script rendering in every shipped language
         run: |
           for language in en de es fr zh-Hans zh-Hant hi ar bn pt id ur ru ja pcm; do
+            printf 'Checking window layout with language %s\n' "$language"
             OPENXLR_LANGUAGE="$language" OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
           done
 
       - name: Window startup follows saved language and system locale
         run: |
           while read -r startup_locale preference launch_override expected; do
+            printf 'Checking startup: locale=%s preference=%s override=%s expected=%s\n' "$startup_locale" "$preference" "$launch_override" "$expected"
             settings=("LANG=$startup_locale" "LC_ALL=$startup_locale" "OPENXLR_TEST_LANGUAGE_PREFERENCE=$preference" "OPENXLR_TEST_EXPECT_LANGUAGE=$expected" "OPENXLR_TEST_LAYOUT=1")
             if [ "$launch_override" = empty ]; then
               settings+=("OPENXLR_LANGUAGE=")

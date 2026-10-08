@@ -97,6 +97,33 @@ public sealed class WaveInterfaceTests : IDisposable
         manager.SuspendSession(); manager.SweepOnce(); Assert.False(b.Connected);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SwitchingThePrimaryReleasesTheOldTransportEvenWhenDisconnectFails(bool disconnectFails)
+    {
+        using var a = new FakeDevice("unitA") { DisconnectFails = disconnectFails };
+        using var b = new FakeDevice("unitB"); using var manager = Manager(() => [a, b]);
+        manager.SweepOnce(); Assert.True(a.Connected);
+        Assert.Null(manager.SetActiveDevice(b.Info.InstanceId));
+        Assert.Equal(1, a.DisposeCount);
+        manager.SweepOnce(); Assert.True(b.Connected);
+        manager.SuspendSession(); Assert.Equal(1, b.DisposeCount);
+    }
+
+    [Fact]
+    public void SwitchingThePrimaryFlushesSettingsThatAreStillWaitingForTheDebounce()
+    {
+        using var a = new FakeDevice("unitA", retainsSettings: false);
+        using var b = new FakeDevice("unitB"); using var manager = Manager(() => [a, b]);
+        manager.SweepOnce(); manager.MarkRestored();
+        Assert.Null(manager.Apply("gain", JsonSerializer.SerializeToElement(44)));
+        Assert.Null(DeviceStateStore.LoadLast("0fd9:007d"));
+        Assert.Null(manager.SetActiveDevice(b.Info.InstanceId));
+        Assert.Equal(44, DeviceStateStore.LoadLast("0fd9:007d")?.GainDb);
+        manager.SweepOnce(); Assert.True(b.Connected); manager.SuspendSession();
+    }
+
     [Fact]
     public async Task AdditionalInterfacesRemainIsolatedDuringControlsProfileRecallAndPrimaryHandoff()
     {
@@ -234,18 +261,20 @@ public sealed class WaveInterfaceTests : IDisposable
         public byte Bus, Address;
         public bool Open(ushort vid, ushort pid, byte bus, byte address) { Bus = bus; Address = address; return true; }
     }
-    private sealed class FakeDevice(string serial, FakeDevice.Hardware? shared = null) : IAudioDevice
+    private sealed class FakeDevice(string serial, FakeDevice.Hardware? shared = null, bool retainsSettings = true) : IAudioDevice
     {
         public DeviceInfo Info { get; private set; } = new("Elgato", "Wave XLR", 0x0fd9, 0x007d) { Location = Location(serial) };
-        public DeviceCapabilities Capabilities { get; } = new() { Gain = true, Mute = true, RetainsSettings = true };
+        public DeviceCapabilities Capabilities { get; } = new() { Gain = true, Mute = true, RetainsSettings = retainsSettings };
         public bool Connected { get; private set; }
         internal sealed class Hardware { public int Gain = 30; }
         private readonly Hardware _hardware = shared ?? new();
-        public FakeDevice Fork() => new(serial, _hardware);
+        public FakeDevice Fork() => new(serial, _hardware, Capabilities.RetainsSettings);
         public int Gain { get => _hardware.Gain; set => _hardware.Gain = value; }
         public void Connect() => Connected = true;
-        public void Disconnect() => Connected = false;
-        public void Dispose() => Disconnect();
+        public bool DisconnectFails;
+        public int DisposeCount;
+        public void Disconnect() { Connected = false; if (DisconnectFails) throw new IOException("disconnect failed"); }
+        public void Dispose() { DisposeCount++; Connected = false; }
         public bool Hanging;
         public void MoveToAddress(byte address) => Info = Info with { Location = Location(serial, address) };
         public DeviceState ReadState() => Hanging ? throw new UsbHungException("hung") : new() { GainDb = Gain };

@@ -83,11 +83,9 @@ public sealed class DeviceManager : BackgroundService
             _preferredInstance = target.InstanceId;
             if (_device is not null && _device.Info.InstanceId != target.InstanceId)
             {
-                try { _device.Disconnect(); } catch { /* releasing anyway */ }
-                _device = null;
-                _last = null;
+                FlushLastState(force: true);
+                Drop();
                 RestoreCardProfile();   // the parked UCM split comes back with the device released
-                RaiseFromLocked();   // show the handoff instead of stale state
             }
         }
         return null;

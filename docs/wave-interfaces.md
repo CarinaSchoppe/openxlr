@@ -19,6 +19,10 @@ The window lists the primary and additional roles separately. Disabling an
 additional role releases its control handle but does not remove existing mixer
 routing. Selecting it as primary releases its additional handle before the
 primary opens it. Each model's existing controls remain capability-gated.
+Changing the primary flushes pending remembered settings before releasing the
+old unit. It uses the normal disconnect and transport disposal path, including
+when disconnect itself fails, so abandoned USB helpers do not accumulate after
+repeated switches. Failed settings writes retain the existing journal warning.
 The API exposes all existing hardware controls per instance; the window exposes
 microphone gain, mute, hardware low cut, ClipGuard and phantom where supported.
 Built-in software low cut and limiting remain on the primary XLR input.

@@ -36,6 +36,57 @@ public sealed class LayoutAppearanceViewModel : ViewModelBase
 
 public sealed partial class MainViewModel
 {
+    public event Action? MiniViewChanged;
+    private bool _miniView;
+    public bool MiniView
+    {
+        get => _miniView;
+        set
+        {
+            if (_miniView == value) return;
+            if (!SavePresentationChoice(s => s with { MiniView = value })) { Reject(ref _miniView, value); return; }
+            Set(ref _miniView, value);
+            MiniViewChanged?.Invoke();
+            Raise(nameof(ShowDetailedSections)); Raise(nameof(ShowApplications));
+            RefreshChannelPresentation();
+        }
+    }
+    public bool ShowDetailedSections => !MiniView;
+    public bool ShowApplications => HasMixer && !MiniView;
+    private bool _compactMixes;
+    public bool CompactMixes
+    {
+        get => _compactMixes;
+        set
+        {
+            if (_compactMixes == value) return;
+            if (!SavePresentationChoice(s => s with { CompactMixes = value })) { Reject(ref _compactMixes, value); return; }
+            Set(ref _compactMixes, value);
+            RefreshChannelPresentation();
+        }
+    }
+    public bool ShowMixSelector => CompactMixes || MiniView;
+    public bool ShowChannelSelector => CompactMixer || MiniView;
+    private string? _compactMixId;
+    private MixViewModel? _selectedCompactMix;
+    public MixViewModel? SelectedCompactMix
+    {
+        get => _selectedCompactMix;
+        set
+        {
+            if (_applying || ReferenceEquals(value, _selectedCompactMix)) return;
+            if (value is not null && !Mixes.Contains(value)) return;
+            if (!SavePresentationChoice(s => s with { CompactMix = value?.Id }))
+            {
+                Dispatcher.UIThread.Post(() => Reject(ref _selectedCompactMix, value, nameof(SelectedCompactMix)));
+                return;
+            }
+            _compactMixId = value?.Id;
+            Set(ref _selectedCompactMix, value);
+            RefreshChannelPresentation();
+        }
+    }
+
     private bool _compactMixer;
     public bool CompactMixer
     {
@@ -76,6 +127,19 @@ public sealed partial class MainViewModel
 
     private void RefreshChannelPresentation()
     {
+        var mix = Mixes.FirstOrDefault(m => m.Id == _compactMixId && m.Visible) ?? Mixes.FirstOrDefault(m => m.Visible);
+        if (!ReferenceEquals(mix, _selectedCompactMix))
+        {
+            _selectedCompactMix = mix;
+            Raise(nameof(SelectedCompactMix));
+        }
+        foreach (var item in Mixes) item.DisplayVisible = item.Visible && (!ShowMixSelector || ReferenceEquals(item, mix));
+        foreach (var channel in Channels)
+        {
+            channel.ShowMiniInserts(MiniView);
+            foreach (var send in channel.Sends) send.DisplayVisible = send.Visible && (!ShowMixSelector || send.MixId == mix?.Id);
+        }
+        Raise(nameof(ShowMixSelector)); Raise(nameof(ShowChannelSelector));
         var selected = Channels.FirstOrDefault(c => c.Id == _compactChannelId && c.Visible) ?? Channels.FirstOrDefault(c => c.Visible && !c.Appearance.Hidden)
             ?? Channels.FirstOrDefault(c => c.Visible);
         // Device changes and removed channels must not persist an automatic fallback over the user's choice.
@@ -85,7 +149,7 @@ public sealed partial class MainViewModel
             Raise(nameof(SelectedCompactChannel));
         }
         foreach (var channel in Channels)
-            channel.DisplayVisible = channel.Visible && (CompactMixer ? ReferenceEquals(channel, selected) : !channel.Appearance.Hidden);
+            channel.DisplayVisible = channel.Visible && (ShowChannelSelector ? ReferenceEquals(channel, selected) : !channel.Appearance.Hidden);
     }
 
     public Task<string?> SetLayoutAppearance(string id, bool mix, string icon, string? colour, bool hidden)

@@ -536,7 +536,7 @@ limit and explicit unavailable status. It defaults to off; see the manual.
 
 ### Sound Check
 
-Record up to ten seconds from an XLR microphone and loop the dry sample through
+Record up to ten seconds from an XLR or external-capture microphone and loop the dry sample through
 the current software processing and insert chain. Live mode retains the sample;
 stop discards it and restores the microphone. The session stays in memory and
 ends after ten minutes or a lost audio path. Hardware processing remains upstream.
@@ -555,3 +555,21 @@ Effect and whole-chain keys can activate processing only while held. Overlapping
 holds restore the original bypass states after the last release. Lost releases
 expire after five seconds plus graph reconciliation; manual edits and profile
 recall take precedence. Temporary held states are not saved in profiles.
+
+The compact presentation also selects one mix, including Monitor A/B and Chat,
+without changing routing. Mini view combines the selected channel, mix master
+and monitor output in a smaller window. Profiles capture both choices; older
+profiles preserve them. The minimum width and wrapping header protect controls
+when the window is resized. Skin and Touch sizing remain active.
+
+Language selection updates translated controls and the tray immediately without
+restarting audio or native editors. Untranslated text keeps its English fallback.
+Options also chooses whether plugin settings gears open a usable native editor
+directly or show generated controls first, with Plugin UI available inside them.
+
+The desktop adds a full mini view and an independent compact mix picker for
+Monitor A, Monitor B, Chat or any other visible mix. Language selection updates
+open windows immediately. Additional Wave interfaces have separate hardware
+control and capture channels, with the existing effect chains and Sound Check.
+Single-effect and whole-chain parameter presets can be exported and imported;
+see [Wave interfaces](wave-interfaces.md) and [effect presets](effect-presets.md).

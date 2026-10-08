@@ -30,6 +30,11 @@ public sealed partial class MainViewModel
                     ?? throw new JsonException("Missing profile presentation.");
                 settings.Validate();
                 current.WithPresentation(settings, revision).SaveChecked();
+                _miniView = settings.MiniView ?? _miniView;
+                _compactMixes = settings.CompactMixes ?? _compactMixes;
+                if (settings.CompactMixes.HasValue) _compactMixId = settings.CompactMix;
+                Raise(nameof(MiniView)); Raise(nameof(CompactMixes));
+                Raise(nameof(ShowDetailedSections)); Raise(nameof(ShowApplications));
                 _compactMixer = settings.CompactMixer;
                 _compactChannelId = settings.CompactChannel;
                 Raise(nameof(CompactMixer));

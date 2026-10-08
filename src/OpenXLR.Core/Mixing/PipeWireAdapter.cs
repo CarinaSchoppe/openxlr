@@ -1137,8 +1137,9 @@ public sealed class PipeWireAdapter
     /// are the standard PipeWire answer for this exact routing.
     /// </summary>
     public PortLink LinkNodes(string fromNode, string fromPortPrefix, string toNode, string toPortPrefix,
-        int toPairOffset = 0, int fromPairOffset = 0)
+        int toPairOffset = 0, int fromPairOffset = 0, int? fromChannel = null)
     {
+        if (fromChannel is < 0 or >= 64) throw new ArgumentOutOfRangeException(nameof(fromChannel));
         // Port names vary by device (FL/FR on most nodes, AUX0/AUX1 on
         // multichannel interfaces like the Wave XLR Pro), so discover the real
         // ports rather than assuming, then pair them in order. A mono source
@@ -1148,7 +1149,8 @@ public sealed class PipeWireAdapter
         // must not yield duplicate pairs, so identical names collapse first.
         List<string> outs = [.. ListPorts(fromNode, fromPortPrefix, output: true).Distinct()];
         List<string> ins = [.. ListPorts(toNode, toPortPrefix, output: false).Distinct()];
-        if (fromPairOffset > 0)
+        if (fromChannel is { } selected) outs = [.. outs.Skip(selected).Take(1)];
+        else if (fromPairOffset > 0)
         {
             // A source without that pair feeds nothing. Falling back to the
             // first pair here used to duplicate a mono capture into every

@@ -280,12 +280,6 @@
   <data name="Language" xml:space="preserve">
     <value>زبان</value>
   </data>
-  <data name="LanguageOverrideHint" xml:space="preserve">
-    <value>OPENXLR_LANGUAGE اس آغاز کے لیے {0} منتخب کرتا ہے۔ اس متغیر کے بغیر دوبارہ شروع کرنے پر محفوظ انتخاب لاگو ہوگا۔</value>
-  </data>
-  <data name="LanguageRestartHint" xml:space="preserve">
-    <value>زبان OpenXLR کے اگلے آغاز پر لاگو ہوگی۔ آڈیو چلتا رہے گا۔</value>
-  </data>
   <data name="LanguageSaveError" xml:space="preserve">
     <value>زبان محفوظ نہیں ہو سکی: {0}</value>
   </data>

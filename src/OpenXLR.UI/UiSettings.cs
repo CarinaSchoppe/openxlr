@@ -19,6 +19,11 @@ public sealed record UiSettings
     public string? AppliedPresentation { get; init; }
     [System.Text.Json.Serialization.JsonConverter(typeof(LocalTouchControlsConverter))]
     public bool TouchControls { get; init; }
+    /// <summary>Settings gears open the native editor when available; false opens generated controls first.</summary>
+    public bool OpenNativeEditorDirectly { get; init; } = true;
+    public bool MiniView { get; init; }
+    public bool CompactMixes { get; init; }
+    public string? CompactMix { get; init; }
     public bool CompactMixer { get; init; }
     public string? CompactChannel { get; init; }
     /// <summary>Window language: null follows the system; a shipped catalogue id overrides it.</summary>
@@ -93,6 +98,7 @@ public sealed record UiSettings
 
     public WindowPresentation ExportPresentation() => new()
     {
+        MiniView = MiniView, CompactMixes = CompactMixes, CompactMix = CompactMix,
         TouchControls = TouchControls, CompactMixer = CompactMixer, CompactChannel = CompactChannel, Skin = Skin,
         AppearanceMode = AppearanceModes.Normalize(AppearanceMode),
         CollapsedSections = (CollapsedSections ?? []).ToArray(), SectionOrder = (SectionOrder ?? []).ToArray(),
@@ -100,6 +106,8 @@ public sealed record UiSettings
 
     internal UiSettings WithPresentation(WindowPresentation value, string revision) => this with
     {
+        MiniView = value.MiniView ?? MiniView, CompactMixes = value.CompactMixes ?? CompactMixes,
+        CompactMix = value.CompactMixes.HasValue ? value.CompactMix : CompactMix,
         TouchControls = value.TouchControls ?? TouchControls,
         CompactMixer = value.CompactMixer, CompactChannel = value.CompactChannel, Skin = value.Skin,
         AppearanceMode = value.AppearanceMode ?? AppearanceModes.Normalize(AppearanceMode),

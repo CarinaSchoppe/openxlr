@@ -7,8 +7,14 @@ namespace OpenXLR.Tests;
 public sealed class SoundCheckIntegrationTests
 {
     [MonitorPipeWireFact]
-    public async Task TheDrySampleLoopsThroughLiveProcessingAndStopRestoresTheMicrophone()
+    public Task TheDrySampleLoopsThroughLiveProcessingAndStopRestoresTheMicrophone() => CheckMicrophone(false);
+
+    [MonitorPipeWireFact]
+    public Task AnAdditionalWaveMicrophoneUsesTheSameLiveSoundCheckWorkflow() => CheckMicrophone(true);
+
+    private static async Task CheckMicrophone(bool external)
     {
+        string channel = external ? "second-wave" : "xlr1";
         var pw = new PipeWireAdapter();
         using var registry = pw.WatchGraph();
         using var mixer = new Mixer(pw);
@@ -19,7 +25,7 @@ public sealed class SoundCheckIntegrationTests
         mixer.Build(new MixerConfig
         {
             Mixes = [new("monitor", "Monitor", MixKind.Monitor)],
-            Channels = [new("xlr1", "Microphone") { InputPair = 0, Levels = new Dictionary<string, double> { ["monitor"] = 1 } },
+            Channels = [new(channel, "Microphone") { InputPair = external ? null : 0, CaptureSource = external ? "Wave_XLR_soundcheck_input" : null, CaptureMonoChannel = external ? 0 : null, Levels = new Dictionary<string, double> { ["monitor"] = 1 } },
                 new("xlr2", "Second microphone") { InputPair = 1 }],
         });
         mixer.SetMonitorOutputs(["soundcheck_output"]);
@@ -33,32 +39,34 @@ public sealed class SoundCheckIntegrationTests
             // slower session managers a newly launched stream first carries
             // silence; recording that startup is valid, but not this fixture.
             AssertSound(.25);
-            mixer.SoundCheck("xlr1", "record");
+            mixer.SoundCheck(channel, "record");
             Assert.True(SpinWait.SpinUntil(() =>
             {
                 mixer.EnsureFilterRoutes(); mixer.EnsureCellLevels();
                 return mixer.Snapshot().SoundCheck.Seconds >= .5;
             }, TimeSpan.FromSeconds(5)), System.Text.Json.JsonSerializer.Serialize(mixer.Snapshot().SoundCheck) + pw.Run("pw-link", "-l") + (first.IsCompleted ? (await first).Stderr : "generator running"));
             Assert.Contains("other microphone", Assert.Throws<InvalidOperationException>(() => mixer.SoundCheck("xlr2", "record")).Message);
-            mixer.SoundCheck("xlr1", "loop");
+            mixer.SoundCheck(channel, "loop");
             Assert.True(SpinWait.SpinUntil(() => mixer.Snapshot().SoundCheck.Mode == "looping", TimeSpan.FromSeconds(3)));
             firstStop.Cancel(); await first;
             second = Play(.75, secondStop.Token);
             AssertSound(.25);
             mixer.SetLowCutHz(120);
-            AssertSound(0); // The sample enters before the current software DSP.
+            AssertSound(external ? .25 : 0); // The sample enters before the current software DSP.
             mixer.SetLowCutHz(0);
             AssertSound(.25);
-            mixer.SoundCheck("xlr1", "live");
+            mixer.SetLevel(channel, "monitor", .5); AssertSound(.25 * Math.Pow(.5, 3));
+            mixer.SetLevel(channel, "monitor", 1);
+            mixer.SoundCheck(channel, "live");
             AssertSound(.75);
-            mixer.SoundCheck("xlr1", "loop");
+            mixer.SoundCheck(channel, "loop");
             AssertSound(.25);
-            mixer.SoundCheck("xlr1", "stop");
+            mixer.SoundCheck(channel, "stop");
             AssertSound(.75);
             Assert.Null(mixer.Snapshot().SoundCheck.Channel);
-            Assert.True(SpinWait.SpinUntil(() => pw.FindNodeId("OpenXLR_soundcheck_xlr1") is null, TimeSpan.FromSeconds(3)));
-            mixer.SoundCheck("xlr1", "record");
-            var node = pw.FindNodeId("OpenXLR_soundcheck_xlr1");
+            Assert.True(SpinWait.SpinUntil(() => pw.FindNodeId("OpenXLR_soundcheck_" + channel) is null, TimeSpan.FromSeconds(3)));
+            mixer.SoundCheck(channel, "record");
+            var node = pw.FindNodeId("OpenXLR_soundcheck_" + channel);
             Assert.NotNull(node);
             pw.Run("pw-cli", "destroy", node.Value.ToString());
             Assert.True(SpinWait.SpinUntil(() =>
@@ -67,20 +75,20 @@ public sealed class SoundCheckIntegrationTests
                 return mixer.Snapshot().SoundCheck.Mode == "idle";
             }, TimeSpan.FromSeconds(5)));
             Assert.NotNull(mixer.Snapshot().SoundCheck.Error);
-            Assert.Equal("xlr1", mixer.Snapshot().SoundCheck.Channel);
+            Assert.Equal(channel, mixer.Snapshot().SoundCheck.Channel);
             AssertSound(.75);
-            mixer.SoundCheck("xlr1", "stop");
+            mixer.SoundCheck(channel, "stop");
             Assert.Null(mixer.Snapshot().SoundCheck.Error);
-            mixer.SoundCheck("xlr1", "record");
+            mixer.SoundCheck(channel, "record");
             typeof(Mixer).GetField("_soundCheckStarted", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
                 .SetValue(mixer, System.Diagnostics.Stopwatch.GetTimestamp() - System.Diagnostics.Stopwatch.Frequency * 601);
             mixer.EnsureFilterRoutes();
             Assert.Equal("idle", mixer.Snapshot().SoundCheck.Mode);
             Assert.Contains("ten minutes", mixer.Snapshot().SoundCheck.Error);
             AssertSound(.75);
-            mixer.SoundCheck("xlr1", "stop");
+            mixer.SoundCheck(channel, "stop");
             Assert.Null(mixer.Snapshot().SoundCheck.Error);
-            mixer.SoundCheck("xlr1", "record");
+            mixer.SoundCheck(channel, "record");
             mixer.Build(mixer.Config);
             Assert.Contains("rebuilt", mixer.Snapshot().SoundCheck.Error);
         }

@@ -34,6 +34,8 @@
       <WrapPanel>
         <Button Content="{loc:Text Key=LoadPreset}" Click="OnLoad" Margin="0,0,8,8"/>
         <Button Content="{loc:Text Key=DeletePreset}" Click="OnDelete" Margin="0,0,8,8"/>
+        <Button Content="{loc:Text Key=ImportPreset}" Click="OnImport" Margin="0,0,8,8"/>
+        <Button Content="{loc:Text Key=ExportPreset}" Click="OnExport" Margin="0,0,8,8"/>
         <Button Content="{loc:Text Key=RefreshPresets}" Click="OnRefresh" Margin="0,0,8,8"/>
       </WrapPanel>
       <TextBlock Text="{loc:Text Key=PresetsKeepOrderNamesBypassHostChoicesAndExposedControlsPluginPrivateS}"

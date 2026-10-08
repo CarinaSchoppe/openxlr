@@ -31,6 +31,8 @@ public abstract class ViewModelBase : INotifyPropertyChanged
         Raise(name);
     }
 
+    internal virtual void RefreshLocalization() => Raise(null);
+
     /// <summary>Set a field and notify; returns false if unchanged.</summary>
     protected bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
     {
@@ -59,6 +61,9 @@ public sealed partial class MainViewModel : ViewModelBase
         _client = client;
         UiSettings settings = UiSettings.Load();
         MinimizeToTray = settings.MinimizeToTray;
+        _miniView = settings.MiniView;
+        _compactMixes = settings.CompactMixes;
+        _compactMixId = settings.CompactMix;
         _compactMixer = settings.CompactMixer;
         _compactChannelId = settings.CompactChannel;
         OutputVolumeRange = new VolumeRangeViewModel(() => OutputVolume = Math.Min(OutputVolume, 1));
@@ -72,6 +77,7 @@ public sealed partial class MainViewModel : ViewModelBase
             if (up) DaemonRestart.ConnectionRestored();
             if (!up)
             {
+                foreach (var wave in WaveInterfaces) wave.ResetConnection();
                 DeviceConnected = false; Status = "daemon not running";
                 Inserts.ResetForNewConnection(); Inserts2.ResetForNewConnection();
                 Inserts.SoundCheck.Apply(null); Inserts2.SoundCheck.Apply(null);
@@ -111,6 +117,8 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private string _status = Localizer.Text("Connecting");
     public string Status { get => _status; private set { if (Set(ref _status, value)) Raise(nameof(StatusLine)); } }
+
+    public string ActiveDeviceTip => Localizer.Format("SelectInterfaceTip", ActiveDeviceName);
 
     public string StatusLine => !DaemonConnected ? Localizer.Text("DaemonNotRunning")
         : DeviceConnected ? DeviceName
@@ -599,7 +607,7 @@ public sealed partial class MainViewModel : ViewModelBase
     public string OutputVolumeText => $"{_outputVolume * 100:0}%";
 
     private bool _hasMixer;
-    public bool HasMixer { get => _hasMixer; private set { if (Set(ref _hasMixer, value)) { Raise(nameof(MixerPlaceholder)); Raise(nameof(CanEditLayout)); } } }
+    public bool HasMixer { get => _hasMixer; private set { if (Set(ref _hasMixer, value)) { Raise(nameof(MixerPlaceholder)); Raise(nameof(CanEditLayout)); Raise(nameof(ShowApplications)); } } }
 
     /// <summary>The layout editor needs a live daemon with a built graph.</summary>
     public bool CanEditLayout => DaemonConnected && HasMixer;
@@ -775,6 +783,7 @@ public sealed partial class MainViewModel : ViewModelBase
             ApplyProfiles(node["profiles"]);
             ApplyRecallOnConnect(node["recallOnConnect"]);
             ApplyDevices(node["devices"], node["mixer"]);
+            ApplyWaveInterfaces(node["waveInterfaces"]);
             ApplyMixer(node["mixer"]);
             ApplyStreams(node["mixer"]);
             ShowSoftLowCut = DeviceConnected && !CapLowCut && HasMixer;
@@ -797,7 +806,7 @@ public sealed partial class MainViewModel : ViewModelBase
     public bool HasMultipleDevices { get => _hasMultipleDevices; set => Set(ref _hasMultipleDevices, value); }
 
     private string _activeDeviceName = "";
-    public string ActiveDeviceName { get => _activeDeviceName; set => Set(ref _activeDeviceName, value); }
+    public string ActiveDeviceName { get => _activeDeviceName; set { if (Set(ref _activeDeviceName, value)) Raise(nameof(ActiveDeviceTip)); } }
 
     /// <summary>
     /// Explicit pick from the device menu. Only a click reaches this, never a
@@ -1145,6 +1154,7 @@ public sealed partial class MainViewModel : ViewModelBase
             // so the window, the terminal mixer and the bar agree.
             foreach (ChannelViewModel c in Channels)
             {
+                c.Inserts.SoundCheck.Apply(mixer["soundCheck"]);
                 c.Inserts.Apply(mixer["inserts"]?[c.Id]);
                 c.Inserts.EnsurePluginsLoaded();
                 c.Visible = c.Present;
@@ -1409,6 +1419,9 @@ public sealed class MixViewModel : ViewModelBase, IHasId
     /// <summary>This mix's stereo plugin insert chain.</summary>
     public InsertsViewModel Inserts { get; }
 
+    private bool _displayVisible = true;
+    public bool DisplayVisible { get => _displayVisible; set => Set(ref _displayVisible, value); }
+
     private bool _visible = true;
     public bool Visible { get => _visible; set => Set(ref _visible, value); }
 
@@ -1510,6 +1523,12 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
     /// <summary>A hardware input (XLR 1, XLR 2, Aux In): structural, not editable.</summary>
     public bool IsHardware { get => _isHardware; set { if (Set(ref _isHardware, value)) { Raise(nameof(IsEditable)); Raise(nameof(IsApplication)); } } }
     public bool HasStripInserts => Id is not ("xlr1" or "xlr2");
+    private bool _miniInserts;
+    public bool ShowStripInserts => HasStripInserts || _miniInserts;
+    internal void ShowMiniInserts(bool mini)
+    {
+        if (Set(ref _miniInserts, mini)) Raise(nameof(ShowStripInserts));
+    }
     public bool IsEditable => !IsHardware;
     private string? _captureSource;
     public string? CaptureSource { get => _captureSource; set { if (Set(ref _captureSource, value)) Raise(nameof(IsApplication)); } }
@@ -1561,8 +1580,10 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
         IsHardware = n["hardware"]?.GetValue<bool>() ?? false;
         Present = n["present"]?.GetValue<bool>() ?? true;
         CaptureSource = n["captureSource"]?.GetValue<string>();
+        Inserts.SetCaptureInput(CaptureSource is not null);
         CaptureConnected = n["captureConnected"]?.GetValue<bool>() ?? false;
-        CaptureLabel = CaptureSource is null ? "" : $"{(CaptureConnected ? "Connected" : "Offline")} · pair {(n["capturePair"]?.GetValue<int>() ?? 0) + 1}";
+        CaptureLabel = CaptureSource is null ? "" : $"{(CaptureConnected ? "Connected" : "Offline")} · "
+            + (n["captureMonoChannel"]?.GetValue<int>() is { } mono ? $"port {mono + 1}" : $"pair {(n["capturePair"]?.GetValue<int>() ?? 0) + 1}");
         var muted = new HashSet<string>();
         if (n["mutedIn"] is JsonArray arr)
             foreach (JsonNode? m in arr) if (m is not null) muted.Add(m.GetValue<string>());
@@ -1596,6 +1617,9 @@ public sealed class SendViewModel : ViewModelBase
     private string _mixName;
     /// <summary>The mix's display name for the row header (the id until the mixes are known).</summary>
     public string MixName { get => _mixName; set => Set(ref _mixName, value); }
+
+    private bool _displayVisible = true;
+    public bool DisplayVisible { get => _displayVisible; set => Set(ref _displayVisible, value); }
 
     private bool _visible = true;
     public bool Visible { get => _visible; set => Set(ref _visible, value); }

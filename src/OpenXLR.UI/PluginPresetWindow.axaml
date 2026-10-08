@@ -1,0 +1,22 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="using:OpenXLR.UI.Localization" xmlns:vm="using:OpenXLR.UI"
+        x:Class="OpenXLR.UI.PluginPresetWindow" x:DataType="vm:PluginPresetViewModel"
+        Title="{loc:Text Key=PluginPresets}" Width="520" Height="420" MinWidth="420" MinHeight="320"
+        Background="{DynamicResource Ox.Window.Background}">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel x:Name="PresetControls" Margin="16" Spacing="8">
+      <TextBlock Classes="body" Text="{Binding Label}" TextWrapping="Wrap"/>
+      <TextBlock Classes="h" Text="{loc:Text Key=NewPresetName}"/>
+      <TextBox Text="{Binding Name, Mode=TwoWay}" MaxLength="80" AutomationProperties.Name="{loc:Text Key=NewPresetName}"/>
+      <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding Selected, Mode=TwoWay}" HorizontalAlignment="Stretch"/>
+      <WrapPanel ItemSpacing="6" LineSpacing="6">
+        <Button Content="{loc:Text Key=SavePreset}" Click="OnSave"/>
+        <Button Content="{loc:Text Key=LoadPreset}" Click="OnLoad"/>
+        <Button Content="{loc:Text Key=ImportPreset}" Click="OnImport"/>
+        <Button Content="{loc:Text Key=ExportPreset}" Click="OnExport"/>
+        <Button Content="{loc:Text Key=DeletePreset}" Click="OnDelete"/>
+      </WrapPanel>
+      <TextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="{DynamicResource Ox.Text.Warning}"/>
+    </StackPanel>
+  </ScrollViewer>
+</Window>

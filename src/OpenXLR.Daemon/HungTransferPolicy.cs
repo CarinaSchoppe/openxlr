@@ -15,11 +15,11 @@ public sealed class HungTransferPolicy
 {
     public const int Limit = 3;
 
-    private readonly Dictionary<ushort, int> _hung = [];
-    private readonly HashSet<ushort> _setAside = [];
+    private readonly Dictionary<string, int> _hung = [];
+    private readonly HashSet<string> _setAside = [];
 
     /// <summary>Record a hung transfer; true when this one crossed the limit.</summary>
-    public bool NoteHung(ushort productId)
+    public bool NoteHung(string productId)
     {
         int n = _hung.GetValueOrDefault(productId) + 1;
         _hung[productId] = n;
@@ -28,16 +28,24 @@ public sealed class HungTransferPolicy
         return true;
     }
 
-    public int HungCount(ushort productId) => _hung.GetValueOrDefault(productId);
+    public int HungCount(string productId) => _hung.GetValueOrDefault(productId);
 
-    public bool IsSetAside(ushort productId) => _setAside.Contains(productId);
+    public bool IsSetAside(string productId) => _setAside.Contains(productId);
 
     /// <summary>The device left the bus and came back: its firmware restarted, so it gets a fresh count.</summary>
-    public void Returned(ushort productId)
+    public void Returned(string productId)
     {
         _hung.Remove(productId);
         _setAside.Remove(productId);
     }
 
-    public IEnumerable<ushort> SetAside => _setAside;
+    public IEnumerable<string> SetAsideInstances => _setAside;
+
+    // Model-only callers retain the original API, while a manager isolates
+    // failures by physical instance so one faulty unit cannot block its peer.
+    public bool NoteHung(ushort productId) => NoteHung(productId.ToString("x4"));
+    public int HungCount(ushort productId) => HungCount(productId.ToString("x4"));
+    public bool IsSetAside(ushort productId) => IsSetAside(productId.ToString("x4"));
+    public void Returned(ushort productId) => Returned(productId.ToString("x4"));
+    public IEnumerable<ushort> SetAside => _setAside.Where(id => id.Length == 4).Select(id => Convert.ToUInt16(id, 16));
 }

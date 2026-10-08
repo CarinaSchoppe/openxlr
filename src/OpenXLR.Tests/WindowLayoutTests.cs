@@ -109,6 +109,7 @@ public sealed class WindowLayoutTests
                 main.DataContext = vm;
                 main.Show();
                 LocalizationRenderingTests.Check();
+                MiniLiveWindowTests.Check();
 
                 // The window must still allow its existing narrow size.
                 Assert.InRange(main.MinWidth, 0, MaximumAllowedMinimumWidth);
@@ -262,10 +263,10 @@ public sealed class WindowLayoutTests
                     Assert.True(title.TranslatePoint(default, controls)!.Value.Y + title.Bounds.Height <=
                                 actions.TranslatePoint(default, controls)!.Value.Y);
                     var buttons = actions.Children.Where(c => c.IsVisible).ToArray();
-                    Assert.Equal(5, buttons.Length);
+                    Assert.Equal(6, buttons.Length);
                     Assert.Single(controls.GetVisualDescendants().OfType<Slider>());
-                    // In one row the five actions need about 454 px, so at 420
-                    // they have to wrap rather than run off the window.
+                    // Plugin presets adds another action to the existing toolbar.
+                    // Narrow windows wrap the actions rather than clipping them.
                     foreach (var button in buttons)
                     {
                         Assert.True(button.Bounds.Width > 20);
@@ -426,9 +427,11 @@ public sealed class WindowLayoutTests
                 }
                 optionsVm.SelectedLanguage = optionsVm.LanguageChoices.Single(c => c.Id == "fr");
                 Assert.Equal("fr", UiSettings.Load().Language);
-                Assert.Equal(activeLanguage, Localizer.Language);
+                Assert.Equal("fr", Localizer.Language);
                 Assert.Equal(Localizer.Text("OpenXLROptions"), options.Title);
                 optionsVm.SelectedLanguage = optionsVm.LanguageChoices[0];
+                activeLanguage = Localizer.Resolve(null, CultureInfo.CurrentUICulture);
+                Assert.Equal(activeLanguage, Localizer.Language);
                 Assert.Null(UiSettings.Load().Language);
                 string preferences = Path.Combine(UiSettings.ConfigDir, "ui.json");
                 string savedPreferences = File.ReadAllText(preferences);
@@ -459,7 +462,7 @@ public sealed class WindowLayoutTests
                 Assert.Same(newerLanguage, optionsVm.SelectedLanguage);
                 Assert.Equal(newerLanguage.Id, UiSettings.Load().Language);
                 Assert.Null(optionsVm.LanguageError);
-                Assert.Equal(activeLanguage, Localizer.Language);
+                Assert.Equal(newerLanguage.Id, Localizer.Language);
                 optionsVm.SelectedLanguage = optionsVm.LanguageChoices[0];
                 var apiToggle = options.FindControl<CheckBox>("HttpApiEnabled");
                 Assert.NotNull(apiToggle);
@@ -721,7 +724,7 @@ public sealed class WindowLayoutTests
             """));
     }
 
-    private static void Layout(Window window, double width, double height)
+    internal static void Layout(Window window, double width, double height)
     {
         // Resize the native surface, then let its size notification run.
         window.PlatformImpl!.GetType().GetMethod("Resize", [typeof(Size), typeof(WindowResizeReason)])!
@@ -763,7 +766,7 @@ public sealed class WindowLayoutTests
             }
     }
 
-    private static void Capture(Window window, string name)
+    internal static void Capture(Window window, string name)
     {
         if (Environment.GetEnvironmentVariable("OPENXLR_LAYOUT_ARTIFACTS") is not { Length: > 0 } directory) return;
         Directory.CreateDirectory(directory);

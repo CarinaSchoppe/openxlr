@@ -1626,8 +1626,9 @@ Review plugin names, paths and scanner output before sharing the archive.
 
 Options, APPEARANCE, Language offers System language and fourteen languages,
 with separate simplified and traditional Chinese choices. The choice is
-saved locally and applies after quitting and launching the app again.
-Audio keeps running. Regional system languages
+saved locally and applied immediately to translated window controls, statuses
+and the tray menu. Audio and native plugin editors keep running. A failed save
+keeps the current language. Regional system languages
 use their matching catalogue; unsupported languages use English.
 Individual untranslated messages also keep the existing English wording.
 Launch with `OPENXLR_LANGUAGE=en` to temporarily use English without changing
@@ -2211,7 +2212,7 @@ latency, unless the plugin explicitly reports it as latency.
 
 ## Sound Check
 
-Open **Inserts** on XLR 1 or XLR 2, then **Sound Check**. Press **Record** and
+Open **Inserts** on an XLR or external-capture microphone channel, then **Sound Check**. Press **Record** and
 speak for up to ten seconds. **Loop sample** repeatedly sends that dry sample
 through the current software processing and effect chain, so you can adjust
 processing without speaking again. At least a tenth of a second is required.
@@ -2332,3 +2333,58 @@ profile without effect settings restores the pre-hold bypass state. A partial
 settings update does the same for chains it does not replace. Held states are
 not saved in settings or profiles. Loading and bypassing effects can still
 cause the same short audio gap as the existing insert controls.
+
+## Compact mixes and mini view
+
+**Compact mixes** above the Submixer keeps one selected mix master and its
+channel send rows visible. Choose Monitor A, Monitor B, Chat, Stream or another
+available mix in the picker. It is independent of the existing Compact channel
+choice. These choices never change sends, mutes, outputs or effect processing.
+A removed or unavailable selection falls back to an available mix without
+forgetting the preferred ID; it is restored if that mix returns.
+
+**Mini view**, above the sections, combines one selected channel and one selected
+mix with the monitor output controls. Hardware and application assignment cards
+stay available in the full view. Mini view makes the current window smaller;
+turning it off restores its previous size and full-view selections. Arrange mode
+is turned off while mini view is active. The full window has a 640-unit minimum
+width and the mini view a 460-unit minimum, increased for wider skin tiles and Touch targets.
+Mini view initially opens Monitor and Submixer without changing the full view's
+saved collapsed sections. Header actions wrap on their own row; monitor devices and volume have separate
+rows so a narrow window cannot hide the fader. Short windows scroll vertically.
+Skins, larger Touch targets and channel/mix colours stay in effect.
+
+The choices are saved locally and in profiles saved from the window. Older
+profiles leave these new choices unchanged. A failed save retains the old view
+and reports the error. Language, startup and the editor-opening preference remain
+local choices, independent of profile presentation.
+
+## Choosing what plugin settings open
+
+Options, Plugins, **Open native plugin editors directly** controls every effect
+settings gear in the main mixer and the chain window. It starts enabled to keep
+the main mixer's previous behaviour. When disabled, the gear opens OpenXLR's
+complete generated controls, including the existing **Plugin UI** button. That
+button still opens the native editor when the running plugin supports it.
+When enabled, a usable native editor opens directly; bypassed, blocked or stopped
+plugins fall back to generated controls. This choice does not change native
+hosting, bypass, plugin parameters or the compatibility rules. It applies on the
+next settings click, survives restart and is not recalled by profiles. Failed
+preference writes are reported and keep the previous choice.
+
+### Multiple Wave inputs and portable presets
+
+Options, AUDIO, Wave interfaces lists every attached supported unit. Enable
+an additional interface, choose its capture source and microphone number,
+and add its own input channel. New sends start muted. See
+[Wave interfaces](wave-interfaces.md) for identity, hotplug and profile behaviour.
+
+The generated controls have a Plugin presets button. The chain's Effects
+window also has Import and Export buttons. Both share the same reusable
+preset store and use the existing copy/paste and A/B workflow. See
+[effect presets](effect-presets.md) for the portable file format and limits.
+
+Sound Check is also available for external capture inputs, including additional
+Wave microphones. It loops a dry mono recording through that input's current
+chain and sends; it does not replay a processed recording. Closing Sound Check,
+removing its channel, losing its source or rebuilding the graph stops the loop.

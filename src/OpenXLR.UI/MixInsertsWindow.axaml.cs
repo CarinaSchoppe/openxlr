@@ -51,9 +51,9 @@ public partial class MixInsertsWindow : Window
         if (choice is not null) Chain.Add(choice);
     }
 
-    private void OnInsertControls(object? sender, RoutedEventArgs e)
+    private async void OnInsertControls(object? sender, RoutedEventArgs e)
     {
-        if ((sender as Control)?.DataContext is InsertViewModel ins) InsertWindows.OpenControls(this, ins);
+        if ((sender as Control)?.DataContext is InsertViewModel ins) await InsertWindows.OpenSettingsAsync(this, ins);
     }
 
     private void OnInsertUp(object? sender, RoutedEventArgs e)

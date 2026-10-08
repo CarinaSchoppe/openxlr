@@ -784,3 +784,5 @@ Malformed or non-object data is refused without replacing it, and Options
 keeps the previous selection. After fixing the file, select the choice again.
 Fields owned by other window features, including the language choice, remain
 intact through skin, sizing or appearance changes and profile recalls.
+
+Mini view uses the same appearance tokens and controls as the full mixer. Compact mix selection hides other masters and send rows without overriding skin values. A wide skin mix tile increases the minimum window width to keep its controls inside the viewport.

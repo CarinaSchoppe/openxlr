@@ -49,6 +49,7 @@
       <TextBlock Text="{Binding LatencyText}" Foreground="{DynamicResource Ox.Text.Secondary}" TextWrapping="Wrap"/>
       <!-- Actions get their own row and wrap instead of competing with the title. -->
       <WrapPanel Name="PluginActions">
+        <Button Content="{loc:Text Key=PluginPresets}" Click="OnPluginPresets" Margin="0,0,6,6"/>
         <Button Content="{loc:Text Key=PluginUI}" Padding="12,4" Margin="0,0,6,6" Click="OnNativeEditor"
                 IsVisible="{Binding NativeEditorSupported}" IsEnabled="{Binding NativeEditorAvailable}"
                 ToolTip.Tip="{loc:Text Key=OpenThisPluginSOwnEditorOnThe}"/>

@@ -137,10 +137,12 @@ at startup.
 
 ## Capture inputs
 
-`createCaptureChannel {name, source, capturePair}` adds a channel from an
+`createCaptureChannel {name, source, capturePair, captureMonoChannel}` adds a channel from an
 external PipeWire capture source. `source` is its exact `node.name`, at most
 256 printable characters. `capturePair` is a zero-based stereo pair from 0 to
-31 and defaults to 0. Mono sources feed both sides. A missing pair stays
+31 and defaults to 0. Optional `captureMonoChannel` selects one zero-based
+port from 0 to 63 instead, requires `capturePair: 0`, and duplicates that mono
+input to both sides. An unavailable port stays silent. Mono sources feed both sides. A missing pair stays
 silent. The source must be present when creating the channel. OpenXLR's own
 devices and sink monitor sources are not capture inputs, to avoid direct
 feedback: a name starting with `OpenXLR` or ending in `.monitor` is refused.
@@ -156,7 +158,8 @@ same id and display name.
 Bindings are stored in `userChannels`, for example
 `{"id":"second-mic","name":"Second microphone","captureSource":"alsa_input.usb-headset","capturePair":0}`.
 An entry without `captureSource` is an application channel, as in older files;
-one that carries a `capturePair` other than 0 without a source is dropped.
+one that carries a `capturePair` other than 0 or a non-null `captureMonoChannel`
+without a source is dropped.
 Invalid capture bindings are discarded, not converted into application channels.
 The binding belongs to the layout, not a profile. Rename, reorder and delete
 use the existing channel commands. Renaming leaves the capture graph running.
@@ -169,10 +172,11 @@ Both sides of the channel must connect before the input reports connected.
 If only one link succeeds, it is removed and the next sweep retries the
 whole connection, including the two links used for a mono source.
 Multiple interfaces can therefore supply audio simultaneously, independently
-of the interface selected for hardware controls. Hardware controls and the
-built-in input DSP still belong to the selected Wave interface. Capture inputs
-can feed mix insert chains; per-input insert hosting remains limited to the
-existing XLR channels.
+of the interface selected for hardware controls. Additional hardware controls are available in [Wave interfaces](wave-interfaces.md).
+The built-in software low cut and ClipGuard remain on the primary XLR path.
+Capture channels use the existing stereo insert hosting and mix latency
+compensation. Sound Check records their selected mono port, or the left port
+of their stereo pair, and duplicates the loop through the live stereo chain.
 
 ## Output feeds
 
@@ -277,3 +281,5 @@ order does not alter effect order or sends. Adding the first or removing the
 last insert recreates only that channel sink with the same name. Empty chains
 use the original combine sink and no hidden bus. Deleting a user channel removes its
 insert definition in the same saved settings change as its routing.
+
+Compact mix and mini-view selection are window presentation, stored in ui.json and profiles, not audio layout. They retain stable mix IDs and never change send levels or routing priority.

@@ -231,7 +231,7 @@ reports. The option is off by default. See [api.md](api.md#plugin-latency-and-op
 
 ### Sound Check
 
-`POST /api/v1/commands` also accepts `soundCheck` with `channel` (`xlr1` or `xlr2`)
+`POST /api/v1/commands` also accepts `soundCheck` with `channel` (`xlr1`, `xlr2` or an external-capture channel)
 and `action` (`record`, `loop`, `live`, `stop`). It uses the same validation and
 acknowledgement as the WebSocket command. See [Sound Check state](api.md#sound-check-state)
 for limits and the transient `mixer.soundCheck` object. Recordings never leave
@@ -253,3 +253,12 @@ without separators as `holdId` and `action` (`begin`, `renew`, `end`). Begin tak
 `channel` and an optional `insertId`; omit the latter for the whole chain.
 The five-second lease, overlap and persistence rules are described in
 [Momentary effect keys](api.md#momentary-effect-keys). Renewal must not be treated as a new begin.
+
+Profile presentation accepts the optional miniView and compactMixes window choices and nullable compactMix ID through saveProfile, using the same validation as WebSocket commands. These affect window visibility only; language and native-editor opening preferences are local.
+
+Additional attached interfaces are included in `waveInterfaces` in the state
+response. `POST /api/v1/commands` accepts `setWaveInterfaceEnabled` and
+`setWaveControl` with the same exact instance IDs and validation as WebSocket
+commands. `createCaptureChannel` additionally accepts a zero-based
+`captureMonoChannel` from 0 to 63 with `capturePair: 0`. These fields and the
+profile `additionalDevices` map are documented in [api.md](api.md).

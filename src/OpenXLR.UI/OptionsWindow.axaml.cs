@@ -42,6 +42,11 @@ public partial class OptionsWindow : Window
         Opened += async (_, _) => await vm.LoadPluginSetupAsync();
     }
 
+    private void OnWaveInterfaces(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is OptionsViewModel vm) new WaveInterfacesWindow(vm.Main).Show(this);
+    }
+
     // Plugins: the same install flow as the picker, plus yabridge's sync and a rescan.
     private async void OnInstallPluginFile(object? sender, RoutedEventArgs e)
         => await InstallPluginsAsync(await PluginInstall.PickFilesAsync(this));

@@ -43,6 +43,8 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     // monitor mix, so the dictionary only holds the exceptions (issue #21).
     private readonly Dictionary<string, string> _monitorFeeds = [];
     private readonly Dictionary<string, PortLink> _inputFeeds = [];
+    private string? _inputWarning;
+    public string? InputWarning { get { lock (_gate) return _inputWarning; } }
     private string? _inputDevice;   // the capture device the feeds come from
     private long _inputChainGeneration;
 
@@ -211,14 +213,18 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             .OrderBy(d => d.Name.Contains(".HiFi__", StringComparison.Ordinal) ? 1 : 0)
             .ToList();
         // Prefer the interface the daemon actively drives (the hint), so a
-        // device switch moves the channel feeds with it; fall back to any
-        // Wave XLR so the mixer still works when no device is connected.
+        // device switch moves the channel feeds with it. An explicit missing
+        // hint stays silent; it must never borrow a different unit's microphone.
+        // Only an unconfigured mixer may discover a Wave XLR by model name.
         string? previousInput = _inputDevice;
-        string? nextInput = (_inputHint is null ? null : sources.FirstOrDefault(
-                d => d.Name.Contains(_inputHint, StringComparison.OrdinalIgnoreCase))?.Name)
-            ?? sources.FirstOrDefault(
-                d => d.Name.Contains("Wave_XLR", StringComparison.OrdinalIgnoreCase))?.Name;
-        if (_soundCheck is not null && _soundCheckDevice != nextInput)
+        var candidates = sources.Where(d => d.Name.Contains(_inputHint ?? "Wave_XLR", StringComparison.OrdinalIgnoreCase)).ToList();
+        var raw = candidates.Where(d => !d.Name.Contains(".HiFi__", StringComparison.Ordinal)).ToList();
+        if (raw.Count > 0) candidates = raw;
+        // A model-only hint cannot disambiguate identical interfaces without
+        // serials. Stay silent instead of adopting whichever graph node is first.
+        _inputWarning = candidates.Count > 1 ? "More than one capture source matches the active interface. Select a uniquely identified interface or add an explicit capture channel." : null;
+        string? nextInput = candidates.Count == 1 ? candidates[0].Name : null;
+        if (_soundCheck is not null && _soundCheckChannel is "xlr1" or "xlr2" && _soundCheckDevice != nextInput)
         {
             StopSoundCheckLocked(restore: false, error: "Sound Check stopped because the input device changed.");
         }
@@ -582,6 +588,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     public bool HasChannel(string id) { lock (_gate) return _config.Channels.Any(c => c.Id == id); }
     public bool HasMix(string id) { lock (_gate) return _config.Mixes.Any(m => m.Id == id); }
     public bool HasApplicationChannel(string id) { lock (_gate) return _config.Channels.Any(c => c.Id == id && c.IsApplication); }
+    public bool HasCaptureChannel(string id) { lock (_gate) return _config.Channels.Any(c => c.Id == id && c.CaptureSource is not null); }
     public bool HasEditableChannel(string id) { lock (_gate) return _config.Channels.Any(c => c.Id == id && c.InputPair is null); }
     public bool HasEditableMix(string id) { lock (_gate) return _config.Mixes.Any(m => m.Id == id && m.IsEditable); }
     public bool IsMonitorFeed(string feed) { lock (_gate) return NormalizeFeedLocked(feed) is not null; }
@@ -1116,7 +1123,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
 
                 ExclusiveGroups = ExclusiveGroupsModel.Copy(_config.ExclusiveGroups),
                 UserChannels = [.. _config.Channels.Where(c => c.InputPair is null)
-                    .Select(c => new UserChannelDefinition(c.Id, c.Name, c.CaptureSource, c.CapturePair))],
+                    .Select(c => new UserChannelDefinition(c.Id, c.Name, c.CaptureSource, c.CapturePair, c.CaptureMonoChannel))],
                 UserMixes = [.. _config.Mixes.Where(m => m.IsEditable)
                     .Select(m => new UserMixDefinition(m.Id, m.Name) { Kind = KindName(m.Kind) })],
                 MixVolumes = new Dictionary<string, double>(_mixVolume),
@@ -2215,7 +2222,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                     _config.Mixes.ToDictionary(m => m.Id, m => _levels.GetValueOrDefault(Cell(c.Id, m.Id), 0.0)),
                     [.. _config.Mixes.Where(m => _muted.Contains(Cell(c.Id, m.Id))).Select(m => m.Id)],
                     c.InputPair is not null, c.CaptureSource, c.CapturePair, _captureFeeds.ContainsKey(c.Id),
-                    ChannelPresentLocked(c), GroupForChannelLocked(c.Id)?.Id) { Appearance = Appearance("channel:" + c.Id) })],
+                    ChannelPresentLocked(c), GroupForChannelLocked(c.Id)?.Id) { CaptureMonoChannel = c.CaptureMonoChannel, Appearance = Appearance("channel:" + c.Id) })],
                 RenamedSinceStart = _renamedSinceBuild,
                 MonitorOutput = _monitorOutputs.FirstOrDefault(),
                 MonitorOutputs = [.. _monitorOutputs],
@@ -2397,6 +2404,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         foreach (var channel in _config.Channels.Where(c => c.InputPair is null)) RemoveChannelChainLocked(channel.Id);
         RemoveMixChainsLocked();
         _inputDevice = null;
+        _inputWarning = null;
         _pw.TearDown();     // unloads modules in reverse order: combines, then mixes
         _combineModules.Clear();
         _channelInputModules.Clear();

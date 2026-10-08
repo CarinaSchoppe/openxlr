@@ -140,7 +140,9 @@ that final acknowledgement (or an `error` without a request id):
 | `setLowCutHz` | `value` | software low cut: 0, 80, or 120 |
 | `setSoftClipGuard` | `value` | software ClipGuard (post-ADC limiter at -3 dB); enabling is rejected if `swh-plugins` is unavailable, without replacing or disconnecting the live microphone route |
 | `setLevel` | `channel`, `mix`, `value` | one send fader |
-| `createCaptureChannel` | `name`, `source`, optional `capturePair` | add an external PipeWire capture input, muted in every mix; exact source name of up to 256 characters, zero-based stereo pair 0 to 31 (default 0). A source named `OpenXLR...` or ending in `.monitor` is refused. See [capture inputs](mixer-layout.md#capture-inputs) |
+| `setWaveInterfaceEnabled` | `device`, `value` | persist whether an additional attached physical interface is driven. `device` is the exact instance ID from `waveInterfaces`, `value` is boolean. At most four additional IDs are remembered; enabling requires the interface to be attached. Does not create a mixer channel |
+| `setWaveControl` | `device`, `control`, `value` | apply an existing hardware `set` control to the exact interface ID. Uses its capabilities, gain lock, phantom settling and USB error policy. A disabled secondary or unavailable device returns an error; a primary handoff never redirects a command to another unit |
+| `createCaptureChannel` | `name`, `source`, optional `capturePair`, `captureMonoChannel` | add an external PipeWire capture input, muted in every mix; exact source name of up to 256 characters, zero-based stereo pair 0 to 31 (default 0). Optional mono port 0 to 63 duplicates one port into stereo and requires pair 0. A source named `OpenXLR...` or ending in `.monitor` is refused. See [capture inputs](mixer-layout.md#capture-inputs) |
 | `createChannel` | `name` | add an application channel, muted in every mix, without touching existing nodes; its generated stable id is in the next state. Undone with an error when its sends have not appeared within 3 s |
 | `renameChannel` | `channel`, `name` | rename an application or capture channel; an application channel's playback device is reloaded under the new name and the streams on it are put back (a short gap on that channel only), a capture channel's label changes without touching its route |
 | `deleteChannel` | `channel` | remove an application or capture channel; apps and remembered assignments on it move to the first remaining application channel. The last application channel cannot be removed |
@@ -173,7 +175,7 @@ that final acknowledgement (or an `error` without a request id):
 | `deleteWindowsPlugin` | `path` | permanently delete one standalone plugin file or bundle and its wrappers, then refresh the catalogue. Refused for unregistered, Wine-installed, symbolic-link or in-use sources; answered with `pluginInstall`. Clients must confirm deletion with the user first |
 | `syncWindowsPlugins` | none | run yabridge's sync over the folders it knows, clean missing-source wrappers belonging to those folders unless inserts still use them, then read the catalogues again; answered with `pluginInstall` |
 | `rescanPlugins` | none | read the plugin directories again, for plugins installed by other means; answered with `pluginInstall` |
-| `soundCheck` | `channel`, `action` | use `xlr1` or `xlr2` and `record`, `loop`, `live` or `stop`. One microphone session at a time; recording replaces the sample and ends after ten seconds, looping needs at least 0.1 seconds. Live keeps the sample, stop discards it. Requires the native helper and a connected microphone. Commands acknowledge with `requestId` using the normal command reply. |
+| `soundCheck` | `channel`, `action` | use `xlr1`, `xlr2` or an external-capture channel and `record`, `loop`, `live` or `stop`. One microphone session at a time; recording replaces the sample and ends after ten seconds, looping needs at least 0.1 seconds. Live keeps the sample, stop discards it. Requires the native helper and a connected microphone. Commands acknowledge with `requestId` using the normal command reply. |
 
 | `renameInsert` | `channel`, `insertId`, `name` | rename an existing instance with 1 to 256 characters and no control characters. Only its label changes; the running plugin, parameters and ports are retained. |
 
@@ -202,7 +204,9 @@ that final acknowledgement (or an `error` without a request id):
 | `getDiagnostics` | none | vendor block dump for bug reports |
 
 `saveProfile` accepts an optional `presentation` object containing
-`touchControls` (optional boolean), `compactMixer` (boolean), `compactChannel` (nullable ID, at most 36 characters),
+`touchControls` (optional boolean), `miniView` and `compactMixes` (optional booleans),
+`compactMix` (nullable ID, at most 36 characters), `compactMixer` (boolean),
+`compactChannel` (nullable ID, at most 36 characters),
 `skin` (nullable ID, at most 64 characters), optional `appearanceMode`
 (`"system"`, `"light"` or `"dark"`), `collapsedSections` and `sectionOrder`
 (distinct lists of at most 16 nonempty IDs, at most 64 characters each).
@@ -652,8 +656,9 @@ hardware direct-monitor path are outside this algorithmic mix alignment.
 nullable `error`. Progress arrives in mixer state updates. The sample exists
 only in helper memory, before software input processing and inserts but after
 hardware gain and processing. No recording or session state is saved in profiles.
-Device changes, helper failure, daemon restart and a ten-minute session limit
-end replay and restore the physical input. `stop` is idempotent; commands for
+Input-source loss, channel deletion, helper failure, daemon restart and a ten-minute session limit
+end replay and restore the physical input where available. Primary-device changes
+end a primary XLR session, but do not stop an independent external-capture session. `stop` is idempotent; commands for
 another microphone are refused while a session is active.
 
 A stopped Sound Check with an error retains its `channel` with `mode:"idle"`
@@ -697,3 +702,26 @@ bypass values rather than copying its temporarily active state blindly.
 The deadline starts after effects finish loading. Expiry is handled by the
 normal daemon sweep, so a lost client restores effects after five seconds plus
 sweep and graph-rewire time. No new polling process is needed.
+
+Window presentation's omitted `miniView` or `compactMixes` leaves that local
+preference unchanged on recall. An explicit `compactMixes` also restores the
+supplied `compactMix` selection, including null to reset it. Language and direct
+native-editor opening remain local preferences and are not profile fields.
+
+### Additional Wave interface state
+
+`waveInterfaces` lists attached physical units and remembered offline units as `{id, name, active, enabled,
+connected, captureHint, capabilities, state, warning}`. IDs have the form
+`vvvv:pppp@hhhhhhhhhhhhhhhh`, using a hash of the unique serial or physical USB
+port. USB bus/address changes do not change a serial-based ID. Without a serial,
+moving to another physical port changes the ID. Clients use the exact ID from
+state, not a model ID, for additional-device commands. The primary picker also
+accepts these IDs; legacy primary `vvvv:pppp` and product-only IDs still work.
+`active` identifies the primary device; `enabled` is the saved additional role.
+An enabled device becoming primary is never driven by two managers.
+
+Profiles optionally carry `additionalDevices`, a map of at most four instance
+IDs to hardware states. Recall applies only to enabled connected secondary
+units with those exact IDs. It does not enable absent devices or change the
+primary selection. Primary profile folders retain their existing model IDs.
+See [multiple interfaces](wave-interfaces.md) for selection and hotplug rules.

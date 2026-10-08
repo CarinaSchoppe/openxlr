@@ -18,35 +18,43 @@ public sealed partial class Mixer
     {
         lock (_gate)
         {
-            if (channel is not ("xlr1" or "xlr2") || !HasChannel(channel))
-                throw new ArgumentException("Sound Check needs an XLR microphone channel.");
+            if (!(channel is "xlr1" or "xlr2" && HasChannel(channel)) && !HasCaptureChannel(channel))
+                throw new ArgumentException("Sound Check needs a microphone input channel.");
             if (action is not ("record" or "loop" or "live" or "stop"))
                 throw new ArgumentException("Unknown Sound Check action.");
             if (_soundCheckChannel is not null && _soundCheckChannel != channel)
                 throw new InvalidOperationException("Stop Sound Check on the other microphone first.");
             if (action == "stop") { StopSoundCheckLocked(restore: true); return; }
-            if (!_built || _inputDevice is null)
+            ChannelDefinition input = _config.Channels.Single(c => c.Id == channel);
+            string? source = input.CaptureSource ?? _inputDevice;
+            if (!_built || source is null)
                 throw new InvalidOperationException("The microphone is not connected.");
             if (action == "record" && _soundCheck is null)
             {
-                ChannelDefinition input = _config.Channels.Single(c => c.Id == channel);
                 FilterHandle filter = _pw.CreateSoundCheck(channel, out int rate);
                 PortLink? feed = null;
                 try
                 {
-                    feed = _pw.RouteInputToChannel(_inputDevice, filter.SinkName, input.InputPair!.Value);
+                    feed = input.CaptureSource is null
+                        ? _pw.RouteInputToChannel(source, filter.SinkName, input.InputPair!.Value)
+                        : _pw.LinkNodes(source, "", filter.SinkName, "playback", fromChannel: input.CaptureMonoChannel ?? input.CapturePair * 2);
                     if (feed.Pairs.Count != 1) throw new InvalidOperationException("The microphone's capture port is unavailable.");
                     _soundCheck = filter;
                     _soundCheckInput = feed;
                     _soundCheckChannel = channel;
-                    _soundCheckDevice = _inputDevice;
+                    _soundCheckDevice = source;
                     _soundCheckRate = rate;
                     _soundCheckStarted = Stopwatch.GetTimestamp();
                     _soundCheckError = _soundCheckErrorChannel = null;
                     // A reused direct feed would bypass the loop. Rewire from
                     // the helper before recording; built-in safety DSP remains downstream.
                     if (_inputFeeds.Remove(channel, out PortLink? previous)) _pw.Unlink(previous);
-                    WireInputFeedsLocked();
+                    if (input.CaptureSource is null) WireInputFeedsLocked();
+                    else
+                    {
+                        RemoveCaptureFeedLocked(channel); EnsureCaptureFeedsLocked();
+                        if (!_captureFeeds.ContainsKey(channel)) throw new InvalidOperationException("The Sound Check playback route is unavailable.");
+                    }
                 }
                 catch (Exception failure)
                 {
@@ -90,7 +98,11 @@ public sealed partial class Mixer
         _soundCheckInput = null;
         _soundCheckChannel = _soundCheckDevice = null;
         if (channel is not null && _inputFeeds.Remove(channel, out PortLink? feed)) _pw.Unlink(feed);
-        if (restore && channel is not null && _built) WireInputFeedsLocked();
+        if (channel is not null) RemoveCaptureFeedLocked(channel);
+        if (restore && channel is not null && _built)
+        {
+            if (HasCaptureChannel(channel)) EnsureCaptureFeedsLocked(); else WireInputFeedsLocked();
+        }
     }
 
     private bool EnsureSoundCheckLocked()

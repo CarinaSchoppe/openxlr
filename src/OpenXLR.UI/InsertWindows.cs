@@ -14,6 +14,23 @@ public static class InsertWindows
     private static readonly Dictionary<InsertViewModel, InsertControlsWindow> Controls = new();
     private static readonly Dictionary<string, MixInsertsWindow> Chains = new();
 
+    internal static bool OpensNativeEditor(InsertViewModel insert, UiSettings settings)
+        => settings.OpenNativeEditorDirectly && insert.NativeEditorAvailable;
+
+    public static System.Threading.Tasks.Task OpenSettingsAsync(Window owner, InsertViewModel insert)
+    {
+        try
+        {
+            if (OpensNativeEditor(insert, UiSettings.LoadRequired())) return insert.Owner.ShowNativeEditorAsync(insert);
+        }
+        catch (System.Exception ex) when (ex is System.IO.IOException or System.UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            // An unreadable preference must not prevent access to controls.
+        }
+        OpenControls(owner, insert);
+        return System.Threading.Tasks.Task.CompletedTask;
+    }
+
     public static void OpenControls(Window owner, InsertViewModel insert)
     {
         if (Controls.TryGetValue(insert, out InsertControlsWindow? open)) { open.Activate(); return; }

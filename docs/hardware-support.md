@@ -377,3 +377,8 @@ diagnostics archive:
 9. Play through the microphone's own sink before anything records from
    it, then record: sound, or the silence that would call for a
    capture-hold rule.
+
+Multiple attached interface control is implemented using exact USB addresses
+and separate managers. Simulated same-model handoff, isolation and reconnect
+checks do not replace a two-interface hardware acceptance. The available
+single XLR Dock cannot verify a second interface's capture mapping or firmware.

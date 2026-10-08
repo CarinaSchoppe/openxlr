@@ -103,6 +103,28 @@
                 "properties": {
                   "cmd": {
                     "type": "string"
+                  },
+                  "device": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Exact PipeWire node name for output commands, or physical Wave instance ID for setWaveControl and setWaveInterfaceEnabled. See docs/api.md."
+                  },
+                  "captureMonoChannel": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0,
+                    "maximum": 63,
+                    "description": "Optional mono capture port; requires capturePair 0 and duplicates into stereo."
+                  },
+                  "capturePair": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 31,
+                    "default": 0
                   }
                 },
                 "additionalProperties": true

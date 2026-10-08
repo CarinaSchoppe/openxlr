@@ -40,6 +40,8 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceManager>());
 // builds the graph on start and tears it down on shutdown.
 builder.Services.AddSingleton<MixerService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MixerService>());
+builder.Services.AddSingleton<WaveInterfaces>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<WaveInterfaces>());
 
 builder.Services.AddSingleton<WebSocketHub>();
 

@@ -11,6 +11,7 @@ public partial class App : Application
     {
         Localization.Localizer.Initialize();
         AvaloniaXamlLoader.Load(this);
+        Localization.Localizer.ApplyResources();
         // The appearance is in the resources before anything can be built, so
         // no window is ever drawn unskinned and repainted a moment later.
         Skinning.SkinService.Initialize();

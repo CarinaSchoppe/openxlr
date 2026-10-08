@@ -307,6 +307,15 @@ public static class SkinService
         Changed?.Invoke();
     }
 
+    /// <summary>The same effective number used by live resources, including touch minimums.</summary>
+    internal static double EffectiveNumber(string name)
+    {
+        var token = SkinTokens.Find(name);
+        if (token is not { Kind: SkinTokenKind.Number, Default: double }) throw new ArgumentException("Not a numeric skin token", nameof(name));
+        object? value = Current.Package.Tokens.GetValueOrDefault(name) is SkinNumber number ? number.Value : token.Default;
+        return (double)SizedValue(name, value)!;
+    }
+
     private static object? SizedValue(string name, object? value)
     {
         double minimum = TouchControls && SkinTokens.TouchMinimums.TryGetValue(name, out double floor) ? floor : 0;

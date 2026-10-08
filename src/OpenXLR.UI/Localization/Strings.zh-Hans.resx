@@ -280,12 +280,6 @@
   <data name="Language" xml:space="preserve">
     <value>语言</value>
   </data>
-  <data name="LanguageOverrideHint" xml:space="preserve">
-    <value>OPENXLR_LANGUAGE 为本次启动选择 {0}。不带此变量重启后，已保存的选择才会生效。</value>
-  </data>
-  <data name="LanguageRestartHint" xml:space="preserve">
-    <value>语言将在 OpenXLR 下次启动时生效。音频继续运行。</value>
-  </data>
   <data name="LanguageSaveError" xml:space="preserve">
     <value>无法保存语言：{0}</value>
   </data>

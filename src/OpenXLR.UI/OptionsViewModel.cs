@@ -14,7 +14,13 @@ public sealed record AppearanceModeChoice(string Id, string Label);
 
 public sealed record ControlSizingChoice(bool Touch, string Label);
 
-public sealed record LanguageChoice(string? Id, string Label);
+public sealed class LanguageChoice(string? id, string label) : ViewModelBase
+{
+    public string? Id { get; } = id;
+    public string Label { get; } = label;
+    public string DisplayLabel => Id is null ? Localizer.Text("SystemLanguage") : Label;
+    internal override void RefreshLocalization() => Raise(nameof(DisplayLabel));
+}
 
 /// <summary>
 /// Backs the Options window. Startup toggles apply immediately to the system
@@ -48,6 +54,7 @@ public sealed class OptionsViewModel : ViewModelBase
         _minimizeToTray = s.MinimizeToTray;
         _startMinimized = s.StartMinimized;
         _checkForUpdates = s.CheckForUpdates;
+        _openNativeEditorDirectly = s.OpenNativeEditorDirectly;
         _startupError = RepairNote(StartupIntegration.LastRepair);
         // No saved choice means the daemon runs whatever its unit asked for,
         // which for every shipped unit is the submixer on.
@@ -70,6 +77,29 @@ public sealed class OptionsViewModel : ViewModelBase
         ReportSkin(Skinning.SkinService.Errors);
     }
 
+    private bool _openNativeEditorDirectly;
+    public bool OpenNativeEditorDirectly
+    {
+        get => _openNativeEditorDirectly;
+        set
+        {
+            if (_openNativeEditorDirectly == value) return;
+            try
+            {
+                (UiSettings.LoadRequired() with { OpenNativeEditorDirectly = value }).SaveChecked();
+                Set(ref _openNativeEditorDirectly, value);
+                NativeEditorPreferenceError = null;
+            }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                NativeEditorPreferenceError = Localizer.Format("WindowPreferenceSaveError", ex.Message);
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => Reject(ref _openNativeEditorDirectly, value, nameof(OpenNativeEditorDirectly)));
+            }
+        }
+    }
+    private string? _nativeEditorPreferenceError;
+    public string? NativeEditorPreferenceError { get => _nativeEditorPreferenceError; private set => Set(ref _nativeEditorPreferenceError, value); }
+
     // --- plugins ---
 
     // Language names stay in their own language, even when the user picked a
@@ -80,6 +110,16 @@ public sealed class OptionsViewModel : ViewModelBase
         new(null, Localizer.Text("SystemLanguage")),
         ..Localizer.Languages,
     ];
+
+    internal override void RefreshLocalization()
+    {
+        string? saved = UiSettings.Load().Language;
+        string? language = saved is null or "" or "system" ? null
+            : Localizer.Resolve(saved, System.Globalization.CultureInfo.CurrentUICulture);
+        _selectedLanguage = LanguageChoices.First(c => c.Id == language);
+        LanguageChoices[0].RefreshLocalization();
+        base.RefreshLocalization();
+    }
 
     private LanguageChoice? _selectedLanguage;
     public LanguageChoice? SelectedLanguage
@@ -93,6 +133,8 @@ public sealed class OptionsViewModel : ViewModelBase
                 SaveLanguage(value.Id);
                 Set(ref _selectedLanguage, value);
                 LanguageError = null;
+                Localizer.Choose(value.Id);
+                RefreshLocalization();
             }
             catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
             {

@@ -31,7 +31,6 @@ public sealed record Command
     /// <summary>For "set": the control name (see <see cref="ControlNames"/>).</summary>
     [JsonPropertyName("control")] public string? Control { get; init; }
 
-
     [JsonPropertyName("holdId")] public string? HoldId { get; init; }
     [JsonPropertyName("action")] public string? Action { get; init; }
 
@@ -78,6 +77,8 @@ public sealed record Command
     [JsonPropertyName("source")] public string? Source { get; init; }
     /// <summary>Zero-based stereo pair for createCaptureChannel, default 0.</summary>
     [JsonPropertyName("capturePair")] public int CapturePair { get; init; }
+    /// <summary>Optional zero-based mono port, duplicated into stereo; requires pair 0.</summary>
+    [JsonPropertyName("captureMonoChannel")] public int? CaptureMonoChannel { get; init; }
 
     /// <summary>"saveProfile" / "loadProfile" / "deleteProfile": the profile name;
     /// "setRecallOnConnect": the profile to recall on connect, empty to clear.</summary>
@@ -198,6 +199,7 @@ public sealed record StateMessage
     [JsonPropertyName("warning")] public string? Warning { get; init; }
     [JsonPropertyName("connected")] public bool Connected { get; init; }
     [JsonPropertyName("device")] public DeviceDescriptor? Device { get; init; }
+    [JsonPropertyName("waveInterfaces")] public IReadOnlyList<WaveInterfaceState>? WaveInterfaces { get; init; }
     [JsonPropertyName("capabilities")] public DeviceCapabilities? Capabilities { get; init; }
     [JsonPropertyName("state")] public DeviceState? State { get; init; }
     /// <summary>Submixer state; null until the mixer graph is built.</summary>

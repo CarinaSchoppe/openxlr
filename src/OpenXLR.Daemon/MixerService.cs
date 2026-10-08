@@ -455,7 +455,7 @@ public sealed class MixerService : IHostedService, IDisposable
                         {
                             case "setExclusiveGroup": _mixer.SetExclusiveGroup(cmd.Group, cmd.Name!, cmd.Channels!, save); break;
                             case "deleteExclusiveGroup": _mixer.DeleteExclusiveGroup(cmd.Group!, save); break;
-                            case "createCaptureChannel": _mixer.CreateCaptureChannel(cmd.Name!, cmd.Source!, cmd.CapturePair, save); break;
+                            case "createCaptureChannel": _mixer.CreateCaptureChannel(cmd.Name!, cmd.Source!, cmd.CapturePair, save, cmd.CaptureMonoChannel); break;
                             case "createChannel": _mixer.CreateApplicationChannel(cmd.Name!, save); break;
                             case "renameChannel": _mixer.RenameApplicationChannel(cmd.Channel!, cmd.Name!, save); break;
                             case "deleteChannel": _mixer.DeleteApplicationChannel(cmd.Channel!, save); break;
@@ -631,6 +631,8 @@ public sealed class MixerService : IHostedService, IDisposable
 
     /// <summary>pipewire-pulse close to its open-file limit, or null.</summary>
     public string? ResourceWarning => Volatile.Read(ref _resourceWarning);
+
+    public string? InputWarning => _mixer.InputWarning;
 
     /// <summary>
     /// Why the mixer settings are not on disk, or null while they are. A

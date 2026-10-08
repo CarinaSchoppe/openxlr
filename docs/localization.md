@@ -2,7 +2,7 @@
 
 The desktop window ships fourteen languages. Chinese has separate simplified
 and traditional catalogues, giving fifteen choices plus System language.
-Options, APPEARANCE, Language selects the next launch's language. System
+Options, APPEARANCE, Language changes the running window's language immediately. System
 language follows the process's UI culture, including regional variants such
 as `de-AT`, `es-MX` and `fr-CA`. Unsupported languages fall back to English.
 On Linux the .NET runtime derives that culture from the locale environment
@@ -10,8 +10,9 @@ inherited at login: `LC_ALL`, then `LC_MESSAGES`, then `LANG`. OpenXLR does
 not change the desktop's language or its numeric locale.
 `OPENXLR_LANGUAGE=en` overrides the saved choice for that launch, so a user
 can recover from an unfamiliar language without editing a file.
-Options reports when this launch override is active and explains that the
-next launch must omit it for a saved language to take effect.
+Options reports when this launch override is active. A successful language
+selection replaces it for this session; the environment override applies again
+on the next launch if it is still set.
 
 The `language` field in `~/.config/openxlr/ui.json` is `null` for the system
 language, or one of the catalogue ids below. It is local window state,
@@ -22,10 +23,9 @@ save is reported and the picker returns
 to its previous choice after the selection binding finishes. The same choice
 can then be retried once the file is writable. A pending rejected selection
 does not undo a later successful selection. Unreadable or malformed preferences are not replaced
-by a language save. Closing and launching the app again applies the
-choice; simply reopening a window or activating the existing tray instance
-does not. Audio and open plugin editors are not rebuilt for a language
-change.
+by a language save. Successful selection updates translated resources in
+existing windows and the tray menu. A failed save leaves the current language
+unchanged. Audio and open plugin editors are not rebuilt for a language change.
 
 An existing preferences file must contain an object. A root `null`, scalar
 or array is refused by a language save rather than overwritten. An explicit
@@ -67,7 +67,7 @@ already shipped in the [Ethnologue 2026 table reproduced here](https://en.wikipe
 Total speakers includes first- and second-language users. Written Arabic
 uses Modern Standard Arabic rather than separate dialect catalogues; both
 Chinese scripts belong to one language choice family. The new catalogues
-translate 240 of the 277 window entries each: controls, menus, statuses,
+translate 232 of the 364 window entries each: controls, menus, statuses,
 profiles and language setup. The remaining longer help text uses the original
 English fallback. Native-speaker wording review remains useful before release.
 
@@ -103,7 +103,7 @@ original English wording to the neutral file. Add translations when available;
 a key absent from a translated catalogue displays that English wording,
 even when the rest of the window is translated. Do not add empty entries or
 placeholder translations. The plugin scan count is one such English-only
-dynamic message in this first pass. Markup uses
+dynamic message in this first pass. Markup reads a live `Ox.Text.*` application resource using
 `Text="{loc:Text Key=Close}"` with
 `xmlns:loc="using:OpenXLR.UI.Localization"`. Code uses
 `Localizer.Text("Close")`. Text with data uses numbered placeholders and
@@ -116,7 +116,9 @@ The localizer selects an explicit resource culture before any window is
 built. It does not set `CurrentCulture` or `CurrentUICulture`. Machine
 numbers and PipeWire helpers keep their existing conventions. Catalogue
 lookup uses `ResourceManager` and caches resolved strings by culture and key,
-including neutral fallback results. There is no disk read or translation
+including neutral fallback results. Selecting a language updates the bounded
+English catalogue's application resources and refreshes bound status text once.
+It adds no timer or work to meter updates. There is no disk read or translation
 allocation in repeated insert status lookups or untranslated text lookups.
 A missing key is a programming error when absent from English too.
 Missing language resources and individual

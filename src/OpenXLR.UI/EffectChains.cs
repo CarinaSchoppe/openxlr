@@ -37,7 +37,7 @@ public sealed record EffectChainData(int Version, int Channels, JsonArray Insert
             if (insert["params"] is not JsonObject parameters || parameters.Count > 256)
                 throw new InvalidDataException("An effect has invalid parameters.");
             foreach (var (symbol, value) in parameters)
-                if (symbol.Length is 0 or > 256 || symbol.Any(char.IsControl)
+                if (symbol.Length is 0 or > 256 || symbol.Any(c => char.IsControl(c) || char.IsWhiteSpace(c))
                     || value is not JsonValue number || !number.TryGetValue<double>(out double n) || !double.IsFinite(n))
                     throw new InvalidDataException("An effect parameter is invalid.");
         }
@@ -62,7 +62,7 @@ public static class EffectChainPresets
     private static readonly object Gate = new();
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
     private static string FilePath => OpenXlrPaths.ConfigFile("effect-chain-presets.json");
-    private const int MaxFileBytes = 8 * 1024 * 1024;
+    private const int MaxFileBytes = EffectPresetFiles.MaximumBytes;
     public static IReadOnlyList<EffectChainPreset> Read()
     {
         lock (Gate)
@@ -105,7 +105,7 @@ public static class EffectChainPresets
     {
         lock (Gate) Write(Read().Where(p => !string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)).ToList());
     }
-    private static bool ValidName(string? name) => name is { Length: > 0 and <= 80 } && !string.IsNullOrWhiteSpace(name) && !name.Any(char.IsControl);
+    internal static bool ValidName(string? name) => name is { Length: > 0 and <= 80 } && !string.IsNullOrWhiteSpace(name) && !name.Any(char.IsControl);
     private static void Write(IReadOnlyList<EffectChainPreset> presets)
     {
         string text = JsonSerializer.Serialize(presets, Json);

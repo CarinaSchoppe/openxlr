@@ -280,12 +280,6 @@
   <data name="Language" xml:space="preserve">
     <value>Language</value>
   </data>
-  <data name="LanguageOverrideHint" xml:space="preserve">
-    <value>OPENXLR_LANGUAGE choose {0} for this start. Choice wey you save go work when you restart without this variable.</value>
-  </data>
-  <data name="LanguageRestartHint" xml:space="preserve">
-    <value>Language go change when OpenXLR start again. Audio go keep running.</value>
-  </data>
   <data name="LanguageSaveError" xml:space="preserve">
     <value>We no fit save language: {0}</value>
   </data>

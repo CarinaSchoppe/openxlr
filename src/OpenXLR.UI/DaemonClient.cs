@@ -331,6 +331,11 @@ public sealed class DaemonClient : IAsyncDisposable
     public Task ResetDeviceAsync()
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "resetDevice" });
 
+    public Task<string?> SetWaveInterfaceEnabledAsync(string device, bool enabled)
+        => EditLayoutAsync(new() { ["cmd"] = "setWaveInterfaceEnabled", ["device"] = device, ["value"] = enabled });
+    public Task<string?> SetWaveControlAsync(string device, string control, object value)
+        => EditLayoutAsync(new() { ["cmd"] = "setWaveControl", ["device"] = device, ["control"] = control, ["value"] = value });
+
     public Task SetControlAsync(string control, object value)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "set", ["control"] = control, ["value"] = value });
 
@@ -350,8 +355,8 @@ public sealed class DaemonClient : IAsyncDisposable
 
     // --- layout editing: each call resolves to null on success or the daemon's error ---
 
-    public Task<string?> CreateCaptureChannelAsync(string name, string source, int pair)
-        => EditLayoutAsync(new() { ["cmd"] = "createCaptureChannel", ["name"] = name, ["source"] = source, ["capturePair"] = pair });
+    public Task<string?> CreateCaptureChannelAsync(string name, string source, int pair, int? monoChannel = null)
+        => EditLayoutAsync(new() { ["cmd"] = "createCaptureChannel", ["name"] = name, ["source"] = source, ["capturePair"] = pair, ["captureMonoChannel"] = monoChannel! });
     public Task<string?> AdjustOutputVolumeAsync(string? device, double delta)
         => EditLayoutAsync(new() { ["cmd"] = "adjustOutputVolume", ["device"] = device!, ["value"] = delta });
     public Task<string?> ToggleOutputMuteAsync(string? device)

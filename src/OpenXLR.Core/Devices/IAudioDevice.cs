@@ -80,6 +80,8 @@ public interface IAudioDevice : IDisposable
 /// <summary>Stable identity of a device model.</summary>
 public sealed record DeviceInfo(string Vendor, string Model, ushort VendorId, ushort ProductId)
 {
+    public UsbLocation? Location { get; init; }
+    public string InstanceId => $"{VendorId:x4}:{ProductId:x4}" + (Location is { } location ? "@" + location.Key : "");
     public string DisplayName => $"{Vendor} {Model}";
 
     /// <summary>
@@ -91,7 +93,8 @@ public sealed record DeviceInfo(string Vendor, string Model, ushort VendorId, us
     /// alsa_input.usb-Elgato_Systems_Elgato_Wave_3_...). The daemon finds the
     /// capture node and the card by this fragment.
     /// </summary>
-    public string NodeNameFragment => Model.Replace(' ', '_').Replace(':', '_');
+    public string NodeNameFragment => Model.Replace(' ', '_').Replace(':', '_')
+        + (Location?.Serial is { Length: > 0 } serial && serial.All(c => char.IsAsciiLetterOrDigit(c) || c == '_') ? "_" + serial : "");
 }
 
 /// <summary>Flags for which controls a device exposes, so the UI/plugin adapt per model.</summary>

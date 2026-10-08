@@ -3,10 +3,10 @@ namespace OpenXLR.Core.Mixing;
 /// <summary>Capture bindings use stable node names, never transient registry ids.</summary>
 public static class CaptureBinding
 {
-    public static bool IsValid(string? source, int pair)
+    public static bool IsValid(string? source, int pair, int? monoChannel = null)
         => source is { Length: > 0 and <= 256 } && !string.IsNullOrWhiteSpace(source)
             && !source.Any(char.IsControl) && !source.StartsWith("OpenXLR", StringComparison.Ordinal)
-            && !source.EndsWith(".monitor", StringComparison.Ordinal) && pair is >= 0 and < 32;
+            && !source.EndsWith(".monitor", StringComparison.Ordinal) && pair is >= 0 and < 32 && (monoChannel is null || pair == 0 && monoChannel is >= 0 and < 64);
 }
 
 public sealed partial class Mixer
@@ -42,7 +42,9 @@ public sealed partial class Mixer
             if (!available.Contains(channel.CaptureSource!)) continue;
             // External sources need not use the hardware driver's capture_
             // prefix. Direction and the exact node name identify their ports.
-            PortLink feed = _pw.LinkNodes(channel.CaptureSource!, "", channel.SinkName, "playback", fromPairOffset: channel.CapturePair);
+            bool checking = _soundCheckChannel == channel.Id && _soundCheck is not null;
+            PortLink feed = _pw.LinkNodes(checking ? _soundCheck!.SourceName : channel.CaptureSource!, "", channel.SinkName, "playback",
+                fromPairOffset: checking ? 0 : channel.CapturePair, fromChannel: checking ? null : channel.CaptureMonoChannel);
             // Capture channels have stereo sinks; mono sources also need a
             // link to each side. Do not retain a partial route as healthy.
             if (feed.Pairs.Count < 2) { _pw.Unlink(feed); continue; }

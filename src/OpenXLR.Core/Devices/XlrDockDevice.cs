@@ -96,7 +96,7 @@ public sealed class XlrDockDevice : IAudioDevice
         _findCard = findCard;
     }
 
-    public DeviceInfo Info { get; } = new("Elgato", "XLR Dock", VendorId, ProductId);
+    public DeviceInfo Info { get; } = UsbTransport.WithLocation(new("Elgato", "XLR Dock", VendorId, ProductId));
 
     /// <summary>
     /// The base set until a connect has looked at the card; after that, a

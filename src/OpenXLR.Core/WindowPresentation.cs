@@ -18,6 +18,9 @@ public sealed record WindowPresentation
 {
     /// <summary>Missing in older profiles means keep the local control sizing.</summary>
     public bool? TouchControls { get; init; }
+    public bool? MiniView { get; init; }
+    public bool? CompactMixes { get; init; }
+    public string? CompactMix { get; init; }
     public bool CompactMixer { get; init; }
     public string? CompactChannel { get; init; }
     public string? Skin { get; init; }
@@ -29,7 +32,7 @@ public sealed record WindowPresentation
     public void Validate()
     {
         if ((AppearanceMode is not null && !AppearanceModes.IsValid(AppearanceMode)) ||
-            !Text(CompactChannel, 36) || !Text(Skin, 64) ||
+            !Text(CompactMix, 36) || !Text(CompactChannel, 36) || !Text(Skin, 64) ||
             !Sections(CollapsedSections) || !Sections(SectionOrder))
             throw new JsonException("Invalid profile presentation: use a supported appearance mode, bounded identifiers and distinct section lists.");
     }

@@ -314,11 +314,9 @@
     <value>Language</value>
   </data>
   <data name="LanguageOverrideHint" xml:space="preserve">
-    <value>OPENXLR_LANGUAGE selects {0} for this launch. The saved choice takes effect when you restart without this variable.</value>
+    <value>OPENXLR_LANGUAGE selected {0} at launch. Choosing a language here replaces it immediately; the override returns next launch if still set.</value>
   </data>
-  <data name="LanguageRestartHint" xml:space="preserve">
-    <value>Language applies the next time OpenXLR starts. Audio keeps running.</value>
-  </data>
+  <data name="LanguageImmediateHint" xml:space="preserve"><value>Language changes apply immediately. Audio and plugin editors keep running.</value></data>
   <data name="LanguageSaveError" xml:space="preserve">
     <value>Could not save the language: {0}</value>
   </data>
@@ -897,4 +895,22 @@ Select the interface OpenXLR drives</value>
   <data name="PresetsKeepOrderNamesBypassHostChoicesAndExposedControlsPluginPrivateS" xml:space="preserve"><value>Presets keep order, names, bypass, host choices and exposed controls. Plugin-private state and external samples are not included. Loading replaces the chain; missing or incompatible plugins are refused.</value></data>
   <data name="ChainsAndAB" xml:space="preserve"><value>Chains and A/B</value></data>
   <data name="Copy" xml:space="preserve"><value>Copy</value></data>
+  <data name="MiniView" xml:space="preserve"><value>Mini view</value></data>
+  <data name="CompactMixes" xml:space="preserve"><value>Compact mixes</value></data>
+  <data name="SelectedMix" xml:space="preserve"><value>Selected mix</value></data>
+  <data name="OpenNativeEditorDirectly" xml:space="preserve"><value>Open native plugin editors directly</value></data>
+  <data name="WindowPreferenceSaveError" xml:space="preserve"><value>Window settings could not be saved: {0}</value></data>
+  <data name="ImportPreset" xml:space="preserve"><value>Import preset</value></data>
+  <data name="ExportPreset" xml:space="preserve"><value>Export preset</value></data>
+  <data name="PluginPresets" xml:space="preserve"><value>Plugin presets</value></data>
+  <data name="SavePreset" xml:space="preserve"><value>Save preset</value></data>
+  <data name="WaveInterfaces" xml:space="preserve"><value>Wave interfaces</value></data>
+  <data name="WaveInterfacesHint" xml:space="preserve"><value>Enable additional attached Wave interfaces, then add each microphone as its own input channel. New channels start muted in every mix. Gain and mute controls target the selected physical unit.</value></data>
+  <data name="EnableAdditionalInterface" xml:space="preserve"><value>Enable additional interface</value></data>
+  <data name="PhantomSettling" xml:space="preserve"><value>48V settling</value></data>
+  <data name="MuteInput2" xml:space="preserve"><value>Mute input 2</value></data>
+  <data name="AddWaveInput" xml:space="preserve"><value>Add microphone channel</value></data>
+  <data name="ChannelName" xml:space="preserve"><value>Channel name</value></data>
+  <data name="CaptureSource" xml:space="preserve"><value>Capture source</value></data>
+  <data name="MicrophoneNumber" xml:space="preserve"><value>Microphone number</value></data>
 </root>

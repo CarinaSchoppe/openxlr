@@ -4,14 +4,18 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Resources;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.LogicalTree;
 using Avalonia.Markup.Xaml;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 
 namespace OpenXLR.UI.Localization;
 
 /// <summary>
 /// Window text only. The selected culture never changes the process culture,
-/// protocol values, saved names or plugin-provided text. It stays fixed for
-/// the window's lifetime so an open editor need not be rebuilt.
+/// protocol values, saved names or plugin-provided text. Resource updates
+/// translate existing windows without rebuilding them or their editors.
 /// </summary>
 public static class Localizer
 {
@@ -65,6 +69,43 @@ public static class Localizer
         _culture = CultureInfo.GetCultureInfo(Resolve(requested, CultureInfo.CurrentUICulture));
     }
 
+    internal static event Action? Changed;
+    internal static string ResourceKey(string key) => "Ox.Text." + key;
+
+    internal static void ApplyResources()
+    {
+        if (Application.Current is not { } application) return;
+        foreach (System.Collections.DictionaryEntry entry in Resources.GetResourceSet(CultureInfo.GetCultureInfo("en"), true, true)!)
+        {
+            string key = (string)entry.Key;
+            application.Resources[ResourceKey(key)] = Text(key);
+        }
+    }
+
+    internal static void Choose(string? language)
+    {
+        if (language is not null && !IsSupported(language))
+            throw new ArgumentException("Unsupported window language", nameof(language));
+        var culture = CultureInfo.GetCultureInfo(Resolve(language, CultureInfo.CurrentUICulture));
+        Overridden = false;
+        _culture = culture;
+        ApplyResources();
+        Changed?.Invoke();
+        // Only live controls are visited, and only on an explicit language
+        // change. No retained window references or audio commands are needed.
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var models = new HashSet<ViewModelBase>();
+            foreach (var window in desktop.Windows)
+            {
+                if (window.DataContext is ViewModelBase root) models.Add(root);
+                foreach (var element in window.GetLogicalDescendants().OfType<StyledElement>())
+                    if (element.DataContext is ViewModelBase model) models.Add(model);
+            }
+            foreach (var model in models) model.RefreshLocalization();
+        }
+    }
+
     public static string Text(string key) => Get(key, _culture);
 
     // ResourceManager falls back per key as well as per catalogue, but does
@@ -78,9 +119,10 @@ public static class Localizer
         string.Format(_culture, Text(key), arguments);
 }
 
-/// <summary>Static markup text, using the language selected before any window is built.</summary>
+/// <summary>Live markup text through application resources, independent of skins.</summary>
 public sealed class TextExtension : MarkupExtension
 {
     public string Key { get; set; } = "";
-    public override object ProvideValue(IServiceProvider serviceProvider) => Localizer.Text(Key);
+    public override object ProvideValue(IServiceProvider serviceProvider) =>
+        new DynamicResourceExtension(Localizer.ResourceKey(Key)).ProvideValue(serviceProvider);
 }

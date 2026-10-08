@@ -20,6 +20,15 @@ public sealed class DeviceManager : BackgroundService
     private IReadOnlyList<DeviceInfo> _detected = [];
     private readonly Func<IReadOnlyList<IAudioDevice>> _detect;
     private ushort? _preferredPid;
+    private string? _preferredInstance;
+    private string? _stateStorageId;
+    private volatile bool _suspended;
+    public event Action<string>? ClaimingDevice;
+    internal void SetSessionStorageId(string id) => _stateStorageId = id;
+    internal void SuspendSession()
+    {
+        lock (_gate) { _suspended = true; FlushLastState(force: true); Drop(); RestoreCardProfile(); }
+    }
     internal ServiceProgress Progress { get; } = new();
 
     // Whether this run builds the submixer (same decision MixerService
@@ -48,9 +57,9 @@ public sealed class DeviceManager : BackgroundService
         lock (_gate)
         {
             return [.. _detected.Select(d => (
-                $"{d.VendorId:x4}:{d.ProductId:x4}",
-                d.DisplayName,
-                _device is { Connected: true } && _device.Info.ProductId == d.ProductId))];
+                d.InstanceId,
+                d.DisplayName + (_detected.Count(x => x.ProductId == d.ProductId) > 1 ? $" ({d.Location?.Port ?? d.InstanceId})" : ""),
+                _device is { Connected: true } && _device.Info.InstanceId == d.InstanceId))];
         }
     }
 
@@ -60,15 +69,19 @@ public sealed class DeviceManager : BackgroundService
     /// </summary>
     public string? SetActiveDevice(string usbId)
     {
-        string pidPart = usbId.Contains(':') ? usbId.Split(':')[1] : usbId;
+        string model = usbId.Split('@')[0];
+        string pidPart = model.Contains(':') ? model.Split(':')[1] : model;
         if (!ushort.TryParse(pidPart, System.Globalization.NumberStyles.HexNumber, null, out ushort pid))
             return $"setActiveDevice: bad device id '{usbId}'";
         lock (_gate)
         {
-            if (!_detected.Any(d => d.ProductId == pid))
+            var target = _detected.FirstOrDefault(d => usbId.Contains('@') ? d.InstanceId == usbId
+                : d.ProductId == pid && (!model.Contains(':') || model.Equals($"{d.VendorId:x4}:{d.ProductId:x4}", StringComparison.OrdinalIgnoreCase)));
+            if (target is null)
                 return $"setActiveDevice: no attached supported device '{usbId}'";
             _preferredPid = pid;
-            if (_device is not null && _device.Info.ProductId != pid)
+            _preferredInstance = target.InstanceId;
+            if (_device is not null && _device.Info.InstanceId != target.InstanceId)
             {
                 try { _device.Disconnect(); } catch { /* releasing anyway */ }
                 _device = null;
@@ -106,13 +119,26 @@ public sealed class DeviceManager : BackgroundService
         catch (Exception) { return []; }
     }
 
+    private static readonly object GainLockWriteGate = new();
     private void SaveGainLocks()
     {
-        try { OpenXlrPaths.WriteAtomic(GainLockPath, JsonSerializer.Serialize(_gainLocked)); }
+        try
+        {
+            lock (GainLockWriteGate)
+            {
+                var saved = LoadGainLocks();
+                if (_device is { } device)
+                {
+                    string id = DevId(device);
+                    if (_gainLocked.Contains(id)) saved.Add(id); else saved.Remove(id);
+                }
+                OpenXlrPaths.WriteAtomic(GainLockPath, JsonSerializer.Serialize(saved));
+            }
+        }
         catch (Exception) { /* best effort */ }
     }
 
-    private static string DevId(IAudioDevice d) => $"{d.Info.VendorId:x4}:{d.Info.ProductId:x4}";
+    private string DevId(IAudioDevice d) => _stateStorageId ?? $"{d.Info.VendorId:x4}:{d.Info.ProductId:x4}";
 
     private bool GainIsLocked => _device is not null && _gainLocked.Contains(DevId(_device));
 
@@ -194,12 +220,13 @@ public sealed class DeviceManager : BackgroundService
     }
 
     private bool _everConnected;
-    private ushort _lastPid;
-    // Every model this run has driven, and which of those have since been
-    // off the bus: a return after that is a power cycle for the model, even
-    // when the daemon fell back to another interface meanwhile.
-    private readonly HashSet<ushort> _driven = [];
-    private readonly HashSet<ushort> _absent = [];
+    private string? _lastInstance;
+    private readonly Dictionary<string, UsbLocation> _drivenLocations = [];
+    private readonly HashSet<string> _drivenInstances = [];
+    private readonly HashSet<string> _absentInstances = [];
+    private bool AddressChanged(DeviceInfo info) => info.Location is { } now
+        && _drivenLocations.TryGetValue(info.InstanceId, out var before)
+        && (before.Bus != now.Bus || before.Address != now.Address);
 
     public StateMessage Snapshot()
     {
@@ -233,6 +260,7 @@ public sealed class DeviceManager : BackgroundService
     /// <summary>One pass of the device loop: connect, poll, park the card profile, persist. Tests drive it directly.</summary>
     internal void SweepOnce()
     {
+        if (_suspended) { Progress.Mark(); return; }
         try
         {
             EnsureConnected();
@@ -302,7 +330,7 @@ public sealed class DeviceManager : BackgroundService
         string device = dev is null ? "no device"
             : $"{dev.Info.DisplayName} {dev.Info.VendorId:x4}:{dev.Info.ProductId:x4}";
         _lastUsbFault = $"{DateTime.UtcNow:O} {device}, kernel {KernelRelease()}: {ex.Message}";
-        bool setAside = dev is not null && _hung.NoteHung(dev.Info.ProductId);
+        bool setAside = dev is not null && _hung.NoteHung(dev.Info.InstanceId);
         if (setAside)
         {
             // A device that hangs on every transfer is not worth a reconnect
@@ -319,7 +347,7 @@ public sealed class DeviceManager : BackgroundService
             _log.LogError("{fault}. The device is dropped and reconnected in {s} s (hung transfer {n} of {limit} before it is set aside). " +
                           "Please collect diagnostics (Options, SUPPORT) and attach the archive to an issue.",
                 _lastUsbFault, (int)HungReconnectDelay.TotalSeconds,
-                dev is null ? 0 : _hung.HungCount(dev.Info.ProductId), HungTransferPolicy.Limit);
+                dev is null ? 0 : _hung.HungCount(dev.Info.InstanceId), HungTransferPolicy.Limit);
         }
         _reconnectNotBefore = Environment.TickCount64 + (long)HungReconnectDelay.TotalMilliseconds;
         Drop();
@@ -335,28 +363,33 @@ public sealed class DeviceManager : BackgroundService
     {
         lock (_gate)
         {
+            if (_suspended) return;
             IReadOnlyList<IAudioDevice> all = _detect();
             _detected = [.. all.Select(d => d.Info)];
-            foreach (ushort driven in _driven)
-                if (!all.Any(d => d.Info.ProductId == driven)) _absent.Add(driven);
+            foreach (string drivenInstance in _drivenInstances)
+                if (!all.Any(d => d.Info.InstanceId == drivenInstance)) _absentInstances.Add(drivenInstance);
             // A device set aside for hanging gets a fresh start once it has
             // been off the bus and back (its firmware restarted with it).
-            foreach (ushort aside in _hung.SetAside.ToList())
+            foreach (string aside in _hung.SetAsideInstances.ToList())
             {
-                if (_absent.Contains(aside) && all.Any(d => d.Info.ProductId == aside))
+                if (all.FirstOrDefault(d => d.Info.InstanceId == aside) is { } returned
+                    && (_absentInstances.Contains(aside) || AddressChanged(returned.Info)))
                 {
                     _hung.Returned(aside);
                     _setAsideWarning = null;
-                    _log.LogInformation("{pid:x4} is back on the bus after being set aside; driving it again", aside);
+                    _log.LogInformation("{instance} is back on the bus after being set aside; driving it again", aside);
                 }
             }
             if (_device is { Connected: true }) return;
             if (Environment.TickCount64 < _reconnectNotBefore) return;
-            List<IAudioDevice> usable = [.. all.Where(d => !_hung.IsSetAside(d.Info.ProductId))];
-            IAudioDevice? dev = _preferredPid is ushort pid
-                ? usable.FirstOrDefault(d => d.Info.ProductId == pid) ?? (usable.Count > 0 ? usable[0] : null)
-                : usable.Count > 0 ? usable[0] : null;
+            List<IAudioDevice> usable = [.. all.Where(d => !_hung.IsSetAside(d.Info.InstanceId))];
+            IAudioDevice? dev = _preferredInstance is { } instance
+                ? usable.FirstOrDefault(d => d.Info.InstanceId == instance)
+                : _preferredPid is ushort pid
+                    ? usable.FirstOrDefault(d => d.Info.ProductId == pid) ?? usable.FirstOrDefault()
+                    : usable.FirstOrDefault();
             if (dev is null) return;                    // nothing usable attached; try again next tick
+            ClaimingDevice?.Invoke(dev.Info.InstanceId);
             try { dev.Connect(); }
             catch (Exception ex)
             {
@@ -378,8 +411,8 @@ public sealed class DeviceManager : BackgroundService
             // poll wpctl for two minutes and then warn about a profile that
             // never exists.
             if (dev.Capabilities.OutputRouting) EnsureCardProfile(dev.Info);
-            bool powerCycled = _absent.Remove(dev.Info.ProductId);
-            bool fresh = !_everConnected || powerCycled || _lastPid != dev.Info.ProductId;
+            bool powerCycled = _absentInstances.Remove(dev.Info.InstanceId) || AddressChanged(dev.Info);
+            bool fresh = !_everConnected || powerCycled || _lastInstance != dev.Info.InstanceId;
             if (fresh && !dev.Capabilities.RetainsSettings)
             {
                 // A device without settings memory: what it answers now is
@@ -402,8 +435,9 @@ public sealed class DeviceManager : BackgroundService
             }
             RaiseFromLocked();                          // push the initial state
             _everConnected = true;
-            _lastPid = dev.Info.ProductId;
-            _driven.Add(dev.Info.ProductId);
+            _lastInstance = dev.Info.InstanceId;
+            if (dev.Info.Location is { } location) _drivenLocations[dev.Info.InstanceId] = location;
+            _drivenInstances.Add(dev.Info.InstanceId);
             if (fresh)
             {
                 _connectionGeneration++;
@@ -745,15 +779,17 @@ public sealed class DeviceManager : BackgroundService
         lock (_gate)
         {
             if (_device is null || !_device.Connected) return "no device connected";
-            DeviceState s = _last ?? Stamp(_device.ReadState());
-            DeviceCapabilities c = _device.Capabilities;
-            bool lockApplies = GainIsLocked && !restoring;
-            bool gainBlocked = lockApplies &&
-                (c.Gain && s.GainDb != p.GainDb ||
-                 c.Gain && c.XlrInputs > 1 && s.Gain2Db != p.Gain2Db);
-            bool gainRestored = GainIsLocked && restoring && c.Gain && s.GainDb != p.GainDb;
             try
             {
+                // A hardware dial can move between poll ticks. Recall compares
+                // against a fresh read, not the previous cached snapshot.
+                DeviceState s = Stamp(_device.ReadState());
+                DeviceCapabilities c = _device.Capabilities;
+                bool lockApplies = GainIsLocked && !restoring;
+                bool gainBlocked = lockApplies &&
+                    (c.Gain && s.GainDb != p.GainDb ||
+                     c.Gain && c.XlrInputs > 1 && s.Gain2Db != p.Gain2Db);
+                bool gainRestored = GainIsLocked && restoring && c.Gain && s.GainDb != p.GainDb;
                 if (c.Gain && !lockApplies && s.GainDb != p.GainDb) _device.SetGainDb(p.GainDb);
                 if (c.Mute && s.Mute != p.Mute) _device.SetMute(p.Mute);
                 if (c.LowCut && s.LowCut != p.LowCut) _device.SetLowCut(p.LowCut);
@@ -778,19 +814,17 @@ public sealed class DeviceManager : BackgroundService
                 if (c.Crossfade && s.Crossfade != p.Crossfade) _device.SetCrossfade(p.Crossfade);
                 if (c.AuxInput && s.AuxLevelDb != p.AuxLevelDb) _device.SetAuxLevelDb(p.AuxLevelDb);
                 if (c.AuxInput && s.AuxLevelLock != p.AuxLevelLock) _device.SetAuxLevelLock(p.AuxLevelLock);
+                _last = Stamp(_device.ReadState());
+                NoteChangedLocked();
+                RaiseFromLocked();
+                // Not an error: the profile loaded and the state was broadcast.
+                // The lock is visible to every client in the state itself.
+                if (gainBlocked) _log.LogInformation("profile loaded; gain left unchanged because the gain lock is active");
+                if (gainRestored) _log.LogInformation("gain restored to {db} dB; the lock keeps it there rather than at the firmware's own", p.GainDb);
+                return null;
             }
-            catch (Exception ex)
-            {
-                return ex.Message;
-            }
-            _last = Stamp(_device.ReadState());
-            NoteChangedLocked();
-            RaiseFromLocked();
-            // Not an error: the profile loaded and the state was broadcast.
-            // The lock is visible to every client in the state itself.
-            if (gainBlocked) _log.LogInformation("profile loaded; gain left unchanged because the gain lock is active");
-            if (gainRestored) _log.LogInformation("gain restored to {db} dB; the lock keeps it there rather than at the firmware's own", p.GainDb);
-            return null;
+            catch (UsbHungException ex) { NoteHung(ex); return ex.Message; }
+            catch (Exception ex) { return ex.Message; }
         }
     }
 

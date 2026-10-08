@@ -314,11 +314,9 @@
     <value>Sprache</value>
   </data>
   <data name="LanguageOverrideHint" xml:space="preserve">
-    <value>OPENXLR_LANGUAGE wählt {0} für diesen Start. Die gespeicherte Auswahl gilt nach einem Neustart ohne diese Variable.</value>
+    <value>OPENXLR_LANGUAGE hat beim Start {0} ausgewählt. Eine neue Sprachauswahl wirkt sofort; die Umgebungsvariable gilt beim nächsten Start erneut.</value>
   </data>
-  <data name="LanguageRestartHint" xml:space="preserve">
-    <value>Die Sprache gilt beim nächsten Start von OpenXLR. Audio läuft weiter.</value>
-  </data>
+  <data name="LanguageImmediateHint" xml:space="preserve"><value>Die Sprache wird sofort angewendet. Audio und Plugin-Editoren laufen weiter.</value></data>
   <data name="LanguageSaveError" xml:space="preserve">
     <value>Sprache konnte nicht gespeichert werden: {0}</value>
   </data>
@@ -816,4 +814,9 @@ Von OpenXLR gesteuertes Interface wählen</value>
   <data name="XLR2Gain" xml:space="preserve">
     <value>XLR 2 Gain</value>
   </data>
+  <data name="MiniView" xml:space="preserve"><value>Mini-Ansicht</value></data>
+  <data name="CompactMixes" xml:space="preserve"><value>Kompakte Mixe</value></data>
+  <data name="SelectedMix" xml:space="preserve"><value>Ausgewählter Mix</value></data>
+  <data name="OpenNativeEditorDirectly" xml:space="preserve"><value>Native Plugin-Oberflächen direkt öffnen</value></data>
+  <data name="WindowPreferenceSaveError" xml:space="preserve"><value>Fenstereinstellungen konnten nicht gespeichert werden: {0}</value></data>
 </root>

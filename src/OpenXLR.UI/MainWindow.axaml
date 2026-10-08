@@ -5,7 +5,7 @@
         xmlns:skin="using:OpenXLR.UI.Skinning"
         x:Class="OpenXLR.UI.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="{loc:Text Key=OpenXLR}" Width="1040" Height="900" MinHeight="480"
+        Title="{loc:Text Key=OpenXLR}" Width="1040" Height="900" MinHeight="480" MinWidth="640"
         Icon="avares://OpenXLR.UI/Assets/icon.png">
 
   <!-- The window's ground, its cards, its labels, its meters and its fader
@@ -25,6 +25,12 @@
     <Style Selector="Button.reorderTarget">
       <Setter Property="Foreground" Value="{DynamicResource Ox.Accent}"/>
       <Setter Property="Background" Value="{DynamicResource Ox.Control.BackgroundPointerOver}"/>
+    </Style>
+    <Style Selector="ItemsControl#MixMasters">
+      <Setter Property="DockPanel.Dock" Value="Bottom"/>
+    </Style>
+    <Style Selector="Window.mini ItemsControl#MixMasters">
+      <Setter Property="DockPanel.Dock" Value="Right"/>
     </Style>
     <Style Selector="TextBlock.layoutAccent">
       <Setter Property="Foreground" Value="{ReflectionBinding Appearance.Accent}"/>
@@ -161,7 +167,7 @@
 
     <!-- header -->
     <Border Classes="card" Margin="0,0,0,8">
-      <Grid Name="WindowHeader" ColumnDefinitions="Auto,8,Auto,*" RowDefinitions="Auto,Auto">
+      <Grid Name="WindowHeader" ColumnDefinitions="Auto,8,Auto,*" RowDefinitions="Auto,Auto,Auto">
         <Button Name="OptionsButton" Grid.RowSpan="2" Content="⚙" FontSize="18" Padding="8,4"
                 VerticalAlignment="Center" Classes="ghost"
                 Click="OnOptions" ToolTip.Tip="{loc:Text Key=Options}"/>
@@ -176,7 +182,7 @@
             <DropDownButton Name="DevicePicker" Grid.Column="1" Content="{Binding ActiveDeviceName}" FontSize="11" Padding="6,1"
                             MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}" VerticalAlignment="Center" HorizontalAlignment="Left" Classes="ghost"
                             IsVisible="{Binding HasMultipleDevices}"
-                            ToolTip.Tip="{Binding ActiveDeviceName, StringFormat={loc:Text Key=SelectInterfaceTip}}">
+                            ToolTip.Tip="{Binding ActiveDeviceTip}">
               <DropDownButton.ContentTemplate>
                 <DataTemplate x:DataType="x:String">
                   <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"/>
@@ -197,7 +203,7 @@
               </DropDownButton.Flyout>
             </DropDownButton>
         </Grid>
-        <WrapPanel Name="HeaderActions" Grid.Column="3" ItemSpacing="8" LineSpacing="4" Margin="8,0,0,0"
+        <WrapPanel Name="HeaderActions" Grid.Row="2" Grid.ColumnSpan="4" ItemSpacing="8" LineSpacing="4" Margin="0,8,0,0"
                    HorizontalAlignment="Right" ItemsAlignment="End" VerticalAlignment="Center">
           <DropDownButton Content="{loc:Text Key=Profiles}" Padding="10,3" FontSize="12" Classes="ghost"
                           ToolTip.Tip="{loc:Text Key=SaveAndRecallCompleteScenesHardwareDSPPlus}">
@@ -276,8 +282,9 @@
       </DockPanel>
     </Border>
 
-    <WrapPanel Margin="0,0,0,8">
-      <ToggleButton Name="ArrangeButton" Content="{loc:Text Key=Arrange}" Click="OnArrange"
+    <WrapPanel Margin="0,0,0,8" ItemSpacing="8" LineSpacing="4">
+      <ToggleButton Name="MiniViewButton" Content="{loc:Text Key=MiniView}" IsChecked="{Binding MiniView, Mode=TwoWay}"/>
+      <ToggleButton Name="ArrangeButton" IsVisible="{Binding !MiniView}" Content="{loc:Text Key=Arrange}" Click="OnArrange"
                     FontSize="{DynamicResource Ox.Label.FontSize}"
                     ToolTip.Tip="{loc:Text Key=ReorderSectionsChannelsAndMixesUsingDragHandlesOrArrowKeys}"/>
       <Button Name="ResetSectionsButton" Content="{loc:Text Key=ResetSections}" Click="OnResetSections"
@@ -286,7 +293,7 @@
     <TextBlock Name="ArrangementNote" Classes="note" TextWrapping="Wrap" IsVisible="False" Margin="0,0,0,8"/>
     <StackPanel Name="SectionCards" Spacing="8">
     <!-- device controls -->
-    <Border Classes="card">
+    <Border Classes="card" IsVisible="{Binding ShowDetailedSections}">
       <Expander Name="InputsTile" Classes="section" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><StackPanel Orientation="Horizontal" Spacing="6">
           <Button Classes="ghost reorderHandle" Content="↕" Tag="InputsTile" AutomationProperties.Name="{loc:Text Key=MoveInputs}"
@@ -470,7 +477,7 @@
     </Border>
 
     <!-- headphone outputs (jack 1 on the front of the unit, jack 2 on the back) -->
-    <Border Classes="card">
+    <Border Classes="card" IsVisible="{Binding ShowDetailedSections}">
       <Expander Name="HeadphonesTile" Classes="section" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header><StackPanel Orientation="Horizontal" Spacing="6">
           <Button Classes="ghost reorderHandle" Content="↕" Tag="HeadphonesTile" AutomationProperties.Name="{loc:Text Key=MoveHeadphones}"
@@ -525,9 +532,9 @@
           </StackPanel>
         </Expander.Header>
       <StackPanel Classes="dev" Spacing="4">
-        <Grid ColumnDefinitions="90,*,20,90,*,64">
+        <Grid ColumnDefinitions="90,*,64" RowDefinitions="Auto,Auto" RowSpacing="6">
           <TextBlock Text="{loc:Text Key=Devices}" Classes="h" VerticalAlignment="Center"/>
-          <DropDownButton Grid.Column="1" HorizontalAlignment="Stretch"
+          <DropDownButton Grid.Column="1" Grid.ColumnSpan="2" HorizontalAlignment="Stretch"
                           HorizontalContentAlignment="Left"
                           Content="{Binding MonitorSummary}">
             <DropDownButton.Flyout>
@@ -555,9 +562,9 @@
             </DropDownButton.Flyout>
           </DropDownButton>
 
-          <TextBlock Grid.Column="3" Text="{loc:Text Key=Volume}" Classes="h" VerticalAlignment="Center"/>
-          <Slider Name="OutputVolumeSlider" Grid.Column="4" Minimum="0" Maximum="{Binding OutputVolumeRange.Maximum}" Value="{Binding OutputVolume, Mode=TwoWay}"/>
-          <TextBlock Grid.Column="5" Text="{Binding OutputVolumeText}" Classes="val"
+          <TextBlock Grid.Row="1" Text="{loc:Text Key=Volume}" Classes="h" VerticalAlignment="Center"/>
+          <Slider Name="OutputVolumeSlider" Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="{Binding OutputVolumeRange.Maximum}" Value="{Binding OutputVolume, Mode=TwoWay}"/>
+          <TextBlock Name="OutputVolumeLabel" Grid.Row="1" Grid.Column="2" Text="{Binding OutputVolumeText}" Classes="val"
                      VerticalAlignment="Center" HorizontalAlignment="Right"/>
         </Grid>
         <TextBlock Text="{Binding VolumeRangeError}" IsVisible="{Binding HasVolumeRangeError}"
@@ -567,7 +574,7 @@
     </Border>
 
     <!-- running applications and the channel each is routed to -->
-    <Border Classes="card" IsVisible="{Binding HasMixer}">
+    <Border Classes="card" IsVisible="{Binding ShowApplications}">
       <Expander Name="ApplicationsTile" Classes="section" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header>
           <StackPanel Orientation="Horizontal" Spacing="10">
@@ -621,12 +628,19 @@
           <ToggleButton Content="{loc:Text Key=Compact}" IsChecked="{Binding CompactMixer, Mode=TwoWay}" Margin="0,0,8,0"
                         ToolTip.Tip="{loc:Text Key=ShowOneSelectedChannelAudioRoutingStaysUnchanged}"/>
           <ComboBox ItemsSource="{Binding Channels}" SelectedItem="{Binding SelectedCompactChannel, Mode=TwoWay}"
-                    IsVisible="{Binding CompactMixer}" MinWidth="150" MaxWidth="300">
+                    IsVisible="{Binding ShowChannelSelector}" MinWidth="150" MaxWidth="300">
             <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:ChannelViewModel"><TextBlock Text="{Binding Name}"/></DataTemplate></ComboBox.ItemTemplate>
           </ComboBox>
         </WrapPanel>
+        <WrapPanel DockPanel.Dock="Top" IsVisible="{Binding HasMixer}" ItemSpacing="8" LineSpacing="4" Margin="0,0,0,8">
+          <ToggleButton Name="CompactMixesButton" Content="{loc:Text Key=CompactMixes}" IsChecked="{Binding CompactMixes, Mode=TwoWay}"/>
+          <ComboBox Name="CompactMixPicker" ItemsSource="{Binding Mixes}" SelectedItem="{Binding SelectedCompactMix, Mode=TwoWay}"
+                    IsVisible="{Binding ShowMixSelector}" MinWidth="150" MaxWidth="300" AutomationProperties.Name="{loc:Text Key=SelectedMix}">
+            <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:MixViewModel"><TextBlock Text="{Binding Name}"/></DataTemplate></ComboBox.ItemTemplate>
+          </ComboBox>
+        </WrapPanel>
         <!-- master row -->
-        <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding Mixes}" IsVisible="{Binding HasMixer}"
+        <ItemsControl Name="MixMasters" ItemsSource="{Binding Mixes}" IsVisible="{Binding HasMixer}"
                       Margin="0,10,0,0">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
@@ -634,7 +648,7 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:MixViewModel">
               <Border Classes="tile" Padding="10" Margin="0,0,8,8" Width="{DynamicResource Ox.Mixer.MixWidth}"
-                      IsVisible="{Binding Visible}">
+                      IsVisible="{Binding DisplayVisible}">
                 <StackPanel Spacing="6">
                     <Button Classes="ghost reorderHandle" Content="↔" Tag="{Binding}" HorizontalAlignment="Left"
                             AutomationProperties.Name="{Binding Name, StringFormat='Move {0}'}"
@@ -703,7 +717,7 @@
                       IsVisible="{Binding HasMixer}">
           <!-- MinHeight keeps every send visible; the ScrollViewer scrolls when
                the window is too short rather than clipping the strips. -->
-          <ItemsControl ItemsSource="{Binding Channels}" MinHeight="290">
+          <ItemsControl ItemsSource="{Binding Channels}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
@@ -716,8 +730,8 @@
                             AutomationProperties.Name="{Binding Name, StringFormat='Move {0}'}"
                             ToolTip.Tip="{loc:Text Key=DragToAnotherTileInThisRowArrowKeysMoveOnePosition}"/>
                     <TextBlock Text="{Binding Appearance.Icon}" Classes.layoutAccent="{Binding Appearance.HasColour}" HorizontalAlignment="Center" IsVisible="{Binding Appearance.Icon, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                    <TextBlock Text="{Binding Name}" Classes.layoutAccent="{Binding Appearance.HasColour}" Classes="strip" HorizontalAlignment="Center"/>
-                    <Button Content="{Binding Inserts.ButtonText}" Click="OnChannelInserts" IsVisible="{Binding HasStripInserts}"
+                    <TextBlock Text="{Binding Name}" Classes.layoutAccent="{Binding Appearance.HasColour}" Classes="strip" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}"/>
+                    <Button Content="{Binding Inserts.ButtonText}" Click="OnChannelInserts" IsVisible="{Binding ShowStripInserts}"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                             ToolTip.Tip="{loc:Text Key=EffectsBeforeThisChannelReachesTheMixes}"/>
                     <!-- stereo level meter (L over R), dB scale -->
@@ -728,7 +742,7 @@
                     <ItemsControl ItemsSource="{Binding Sends}">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:SendViewModel">
-                          <StackPanel Margin="0,0,0,8" Spacing="1" IsVisible="{Binding Visible}">
+                          <StackPanel Margin="0,0,0,8" Spacing="1" IsVisible="{Binding DisplayVisible}">
                             <Grid ColumnDefinitions="*,Auto">
                               <TextBlock Text="{Binding MixName}" Classes="h" FontSize="11"/>
                               <TextBlock Grid.Column="1" Text="{Binding LevelText}" Classes="val" FontSize="11"/>

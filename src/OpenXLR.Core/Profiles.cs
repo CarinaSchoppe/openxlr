@@ -52,6 +52,8 @@ public sealed record Profile
     /// <summary>Window presentation supplied by the UI; absent in older profiles.</summary>
     public WindowPresentation? Presentation { get; init; }
     public DeviceState? Device { get; init; }
+    /// <summary>Optional snapshots of enabled additional physical interfaces; does not enable absent units.</summary>
+    public Dictionary<string, DeviceState>? AdditionalDevices { get; init; }
     public MixerScene? Mixer { get; init; }
 }
 
@@ -145,6 +147,12 @@ public static class ProfileStore
             profile?.Presentation?.Validate();
             if (profile?.Mixer is { } scene) SavedMixerValidation.Validate(scene);
             if (profile?.Device is { } device) DeviceStateStore.Validate(device);
+            if (profile?.AdditionalDevices is { } additional)
+            {
+                if (additional.Count > 4 || additional.Any(pair => !UsbLocation.IsInstanceId(pair.Key) || pair.Value is null))
+                    throw new JsonException("Invalid additional device snapshots.");
+                foreach (var state in additional.Values) DeviceStateStore.Validate(state);
+            }
             return profile;
         }
         catch (FileNotFoundException) { return null; }

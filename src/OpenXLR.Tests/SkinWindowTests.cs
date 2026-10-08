@@ -472,6 +472,8 @@ public sealed class SkinWindowTests
             ("plugin-folders", new PluginFoldersWindow()),
             ("sound-check", new SoundCheckWindow { DataContext = vm.Inserts.SoundCheck }),
 
+            ("plugin-presets", new PluginPresetWindow(vm.Inserts.Items[0])),
+            ("wave-interfaces", new WaveInterfacesWindow(vm)),
             ("effect-workflow", new EffectWorkflowWindow { DataContext = vm.Inserts }),
             ("updates", new UpdatesWindow { DataContext = vm.Updates }),
         ];

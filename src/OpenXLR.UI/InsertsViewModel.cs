@@ -47,7 +47,9 @@ public sealed partial class InsertsViewModel : ViewModelBase
     /// <summary>What the chain belongs to, for window titles ("XLR 1", "Stream mix").</summary>
     private string _title = "";
     public string Title { get => _title; set => Set(ref _title, value); }
-    public bool CanSoundCheck => _channel is "xlr1" or "xlr2";
+    private bool _captureInput;
+    public bool CanSoundCheck => _channel is "xlr1" or "xlr2" || _captureInput;
+    internal void SetCaptureInput(bool capture) { if (_captureInput == capture) return; _captureInput = capture; Raise(nameof(CanSoundCheck)); }
     public SoundCheckViewModel SoundCheck { get; }
 
     public Task ShowNativeEditorAsync(InsertViewModel insert)
@@ -172,6 +174,7 @@ public sealed partial class InsertsViewModel : ViewModelBase
         Note = null;
         foreach (var insert in Items) insert.ForgetPendingParameters();
         ResetEffectWorkflow();
+        SoundCheck.Apply(null);
     }
 
     /// <summary>

@@ -12,6 +12,17 @@ namespace OpenXLR.Daemon;
 /// </summary>
 public static class CommandValidation
 {
+    internal static string? CheckWave(Command cmd)
+    {
+        if (!WaveInterfaces.ValidId(cmd.Device)) return "Need a valid Wave interface ID.";
+        if (cmd.Cmd == "setWaveInterfaceEnabled") return cmd.Value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? null : "setWaveInterfaceEnabled: value must be a boolean";
+        if (cmd.Control is not { Length: > 0 and <= 64 } || cmd.Control.Any(char.IsControl)) return "Need a valid control name.";
+        return cmd.Value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            || (cmd.Value.ValueKind == JsonValueKind.Number && cmd.Value.TryGetDouble(out double value) && double.IsFinite(value))
+            ? null : "setWaveControl: value must be a boolean or finite number";
+    }
+
     public const int MaxText = 256;          // identities, labels, device names, symbols
     public const int MaxUri = 512;
     public const int MaxDevices = 16;
@@ -28,6 +39,8 @@ public static class CommandValidation
     {
         switch (cmd.Cmd)
         {
+            case "setWaveInterfaceEnabled":
+            case "setWaveControl": return CheckWave(cmd);
             case "addPluginSearchPath":
             case "removePluginSearchPath":
                 return PluginSearchPaths.Valid(cmd.Kind, cmd.Path) ? null : "invalid plugin format or search path";
@@ -37,9 +50,9 @@ public static class CommandValidation
                     ? null : "setMixLatencyCompensation: value must be a boolean";
 
             case "soundCheck":
-                return cmd.Channel is "xlr1" or "xlr2" && layout.HasChannel(cmd.Channel)
+                return cmd.Channel is not null && ((cmd.Channel is "xlr1" or "xlr2" && layout.HasChannel(cmd.Channel)) || layout.HasCaptureChannel(cmd.Channel))
                     && cmd.Action is "record" or "loop" or "live" or "stop" ? null
-                    : "soundCheck: need an XLR channel and record, loop, live or stop action";
+                    : "soundCheck: need a microphone input channel and record, loop, live or stop action";
             case "getNativeEditorRules":
                 return null;
             case "setNativeEditorRule":
@@ -65,7 +78,7 @@ public static class CommandValidation
                     ? "need a known mix" : null;
             case "createCaptureChannel":
                 if (BadName(cmd.Name)) return "createCaptureChannel: name must contain 1 to 60 printable characters";
-                return CaptureBinding.IsValid(cmd.Source, cmd.CapturePair) ? null : "createCaptureChannel: need an external source and a pair from 0 to 31";
+                return CaptureBinding.IsValid(cmd.Source, cmd.CapturePair, cmd.CaptureMonoChannel) ? null : "createCaptureChannel: need an external source and a pair from 0 to 31";
             case "createMix":
                 if (cmd.Kind is not (null or "virtualMic" or "monitor"))
                     return "createMix: kind must be virtualMic or monitor";

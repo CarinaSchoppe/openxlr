@@ -65,6 +65,7 @@
     <Border Classes="card">
       <StackPanel Spacing="6">
         <TextBlock Text="{loc:Text Key=AUDIO}" Classes="h"/>
+        <Button Content="{loc:Text Key=WaveInterfaces}" Click="OnWaveInterfaces" HorizontalAlignment="Left"/>
         <CheckBox Content="{loc:Text Key=EnableSoftwareMixer}"
                   IsChecked="{Binding Submixer, Mode=TwoWay}"
                   IsEnabled="{Binding Main.DaemonRestart.CanRestart}"
@@ -150,6 +151,11 @@
     <Border Classes="card">
       <StackPanel Spacing="6">
         <TextBlock Text="{loc:Text Key=PLUGINS}" Classes="h"/>
+        <CheckBox Name="DirectNativeEditor" IsChecked="{Binding OpenNativeEditorDirectly, Mode=TwoWay}">
+          <TextBlock Text="{loc:Text Key=OpenNativeEditorDirectly}" TextWrapping="Wrap"/>
+        </CheckBox>
+        <TextBlock Text="{Binding NativeEditorPreferenceError}" Classes="warn" TextWrapping="Wrap"
+                   IsVisible="{Binding NativeEditorPreferenceError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
         <TextBlock Text="{Binding PluginDirectories}" FontSize="11" Foreground="{DynamicResource Ox.Text.Muted}" TextWrapping="Wrap"/>
         <TextBlock Text="{loc:Text Key=PickAPluginYouDownloadedAndOpenXLRPuts}"
                    FontSize="11" Foreground="{DynamicResource Ox.Text.Muted}" TextWrapping="Wrap"/>
@@ -222,12 +228,12 @@
                     AutomationProperties.Name="{loc:Text Key=Language}">
             <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="vm:LanguageChoice">
-                <TextBlock Text="{Binding Label}"/>
+                <TextBlock Text="{Binding DisplayLabel}"/>
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>
         </Grid>
-        <TextBlock Text="{loc:Text Key=LanguageRestartHint}" Classes="hint" TextWrapping="Wrap"/>
+        <TextBlock Text="{loc:Text Key=LanguageImmediateHint}" Classes="hint" TextWrapping="Wrap"/>
         <TextBlock Name="LanguageOverrideNote" Text="{Binding LanguageOverrideNote}" Classes="hint" TextWrapping="Wrap"
                    IsVisible="{Binding LanguageOverrideNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
         <TextBlock Text="{Binding LanguageError}" Classes="warn" TextWrapping="Wrap"

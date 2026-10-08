@@ -52,6 +52,11 @@ public partial class MainWindow : Window
         Skinning.SkinService.Changed += UpdateControlSizing;
         Closed += (_, _) => Skinning.SkinService.Changed -= UpdateControlSizing;
         SetupTray();
+        Localizer.Changed += RefreshLanguage;
+        Closed += (_, _) => Localizer.Changed -= RefreshLanguage;
+        _vm.MiniViewChanged += ApplyMiniView;
+        Closed += (_, _) => _vm.MiniViewChanged -= ApplyMiniView;
+        ApplyMiniView();
         RestoreSectionState();
         _vm.PresentationRecalled += OnPresentationRecalled;
         SetupReordering();
@@ -138,6 +143,43 @@ public partial class MainWindow : Window
         _hideToTrayPending = false;
         _reallyExit = true;
         Close();
+    }
+
+    private bool _miniApplied;
+    private double _fullWidth, _fullHeight;
+
+    private void ApplyMiniView()
+    {
+        double mixWidth = Skinning.SkinService.EffectiveNumber("Ox.Mixer.MixWidth");
+        double channelWidth = Skinning.SkinService.EffectiveNumber("Ox.Mixer.ChannelWidth");
+        MinWidth = _vm.MiniView ? Math.Max(460, mixWidth + channelWidth + 88) : Math.Max(640, mixWidth + 56);
+        MinHeight = _vm.MiniView ? 360 : 480;
+        Classes.Set("mini", _vm.MiniView);
+        if (_miniApplied == _vm.MiniView) return;
+        _miniApplied = _vm.MiniView;
+        ApplySectionState();
+        if (_miniApplied)
+        {
+            _fullWidth = Width; _fullHeight = Height;
+            Width = Math.Min(Width, 520); Height = Math.Min(Height, 720);
+            CancelReorder();
+            ArrangeButton.IsChecked = false;
+            OnArrange(null, new RoutedEventArgs());
+        }
+        else if (_fullWidth > 0)
+        {
+            Width = _fullWidth; Height = _fullHeight;
+        }
+    }
+
+    private void RefreshLanguage()
+    {
+        _vm.RefreshLocalization();
+        if (_tray?.Menu is { } menu)
+        {
+            if (menu.Items[0] is NativeMenuItem show) show.Header = Localizer.Text("ShowMixer");
+            if (menu.Items[2] is NativeMenuItem quit) quit.Header = Localizer.Text("QuitOpenXLR");
+        }
     }
 
     private void SetupTray()
@@ -249,11 +291,7 @@ public partial class MainWindow : Window
     private async void OnInsertControls(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is not InsertViewModel insert) return;
-        // A plugin running in its own process has an editor of its own, which
-        // is the better one to open. Anything else, including a native host
-        // that is bypassed or not running, opens the generated controls.
-        if (insert.NativeEditorAvailable) await insert.Owner.ShowNativeEditorAsync(insert);
-        else InsertWindows.OpenControls(this, insert);
+        await InsertWindows.OpenSettingsAsync(this, insert);
     }
 
     private void OnChannelInserts(object? sender, RoutedEventArgs e)
@@ -300,12 +338,16 @@ public partial class MainWindow : Window
         ["InputsTile", "HeadphonesTile", "MonitorTile", "ApplicationsTile", "SubmixerTile"];
     private bool _restoringSections;
 
-    private void UpdateControlSizing() => Classes.Set("large-targets",
-        Skinning.SkinService.TouchControls ||
-        Skinning.SkinService.Current.Package.Tokens.GetValueOrDefault("Ox.Mixer.ControlMinSize") is Skinning.SkinNumber { Value: > 0 });
+    private void UpdateControlSizing()
+    {
+        Classes.Set("large-targets", Skinning.SkinService.TouchControls ||
+            Skinning.SkinService.Current.Package.Tokens.GetValueOrDefault("Ox.Mixer.ControlMinSize") is Skinning.SkinNumber { Value: > 0 });
+        ApplyMiniView();
+    }
 
     private void OnPresentationRecalled()
     {
+        ApplyMiniView();
         CancelReorder();
         ApplySectionOrder(UiSettings.Load().SectionOrder);
         ApplySectionState();
@@ -341,13 +383,15 @@ public partial class MainWindow : Window
         try
         {
             foreach (string name in SectionTiles)
-                if (this.FindControl<Expander>(name) is { } tile) tile.IsExpanded = !collapsed.Contains(name);
+                if (this.FindControl<Expander>(name) is { } tile)
+                    tile.IsExpanded = (_vm.MiniView && name is "MonitorTile" or "SubmixerTile") || !collapsed.Contains(name);
         }
         finally { _restoringSections = false; }
     }
 
     private void SaveSectionState(Expander changed, bool wasExpanded)
     {
+        if (_vm.MiniView) return;
         List<string> collapsed = [];
         foreach (string name in SectionTiles)
             if (this.FindControl<Expander>(name) is { IsExpanded: false }) collapsed.Add(name);

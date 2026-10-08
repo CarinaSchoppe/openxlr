@@ -145,7 +145,7 @@ internal static class TouchControlsWindowTests
         {
             model.OutputVolume = level;
             Pump(main);
-            var label = ((Grid)output.Parent!).Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 5);
+            var label = main.FindControl<TextBlock>("OutputVolumeLabel")!;
             Assert.Equal(level == 1 ? "100%" : "150%", label.Text);
             Assert.True(label.DesiredSize.Width <= label.Bounds.Width + .1,
                 $"The monitor percentage must fit: desired {label.DesiredSize.Width}, actual {label.Bounds.Width}.");

@@ -100,6 +100,25 @@ public sealed partial class InsertsViewModel
     {
         if (SelectedPreset is { } preset) await ApplyEffectsAsync(preset.Chain.Copy(freshIds: true));
     }
+    internal void ReportWorkflowError(string? error) => WorkflowError = error;
+
+    internal async Task<bool> ApplySinglePresetAsync(InsertViewModel target, EffectChainData data)
+    {
+        data.Validate();
+        if (!Items.Contains(target) || data.Inserts.Count != 1
+            || data.Inserts[0]?["plugin"]?.GetValue<string>() != target.Plugin
+            || data.Inserts[0]?["kind"]?.GetValue<string>() != target.Kind)
+        {
+            WorkflowError = "Choose a preset for this effect on an active channel.";
+            return false;
+        }
+        var current = CaptureChain();
+        int index = Items.IndexOf(target);
+        current.Inserts[index] = data.Inserts[0]!.DeepClone();
+        current.Inserts[index]!["id"] = target.Id;
+        return await ApplyEffectsAsync(current);
+    }
+
     internal async Task<bool> ApplyEffectsAsync(EffectChainData data)
     {
         if (_workflowBusy) return false;

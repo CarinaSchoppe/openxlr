@@ -289,7 +289,8 @@ public sealed class WindowLayoutTests
                 insert.ApplyFromDaemon(JsonNode.Parse("{\"nativeHost\":true}")!,
                     "The plugin could not start. " + new string('x', 160), false);
                 Layout(controls, 420, controls.MinHeight);
-                Assert.True(controls.GetVisualDescendants().OfType<ScrollViewer>().First().Bounds.Height > 50);
+                Assert.True(controls.GetVisualDescendants().OfType<ScrollViewer>().First().Bounds.Height > 50,
+                    $"Plugin actions must leave a usable scroll area in {Localizer.Language} at minimum height.");
                 Capture(controls, "plugin-error-minimum");
 
                 var chain = new MixInsertsWindow { DataContext = vm.Inserts };

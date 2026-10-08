@@ -2388,3 +2388,7 @@ Sound Check is also available for external capture inputs, including additional
 Wave microphones. It loops a dry mono recording through that input's current
 chain and sends; it does not replay a processed recording. Closing Sound Check,
 removing its channel, losing its source or rebuilding the graph stops the loop.
+
+Generated plugin controls keep the title and Close button reachable at minimum
+height. Their action toolbar scrolls with the parameters, so a language with
+taller or longer captions cannot collapse the parameter viewport.

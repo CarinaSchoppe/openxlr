@@ -1367,7 +1367,9 @@ gain, a headphone volume, the aux level, the crossfade, a mix master, a
 channel's send into one mix or into all mixes, a desktop output's volume
 (the system default or a named output, up to 150%), or one control of an
 insert. The touch strip shows a knob, a level meter, the value and a
-mute overlay; pressing the dial mutes (or, for a gain, mutes the input;
+mute overlay. Its icon and scrolling title occupy separate areas. A dial
+without a usable target shows an OpenXLR title until it is configured.
+Pressing the dial mutes (or, for a gain, mutes the input;
 for the crossfade, recentres). A dial can hold several targets, cycled
 by tap or press as chosen in its settings. A turn leads: the strip
 follows the dial at once and each tick steps from the value shown, while

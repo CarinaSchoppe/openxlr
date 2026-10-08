@@ -1632,7 +1632,9 @@ keeps the current language. Regional system languages
 use their matching catalogue; unsupported languages use English.
 Individual untranslated messages also keep the existing English wording.
 Launch with `OPENXLR_LANGUAGE=en` to temporarily use English without changing
-the saved choice. Names you gave channels, mixes and profiles keep their spelling.
+the saved choice. During this override, the language picker shows the language
+currently in use. Choosing the saved language applies it immediately.
+Names you gave channels, mixes and profiles keep their spelling.
 Plugin editors, some dynamic messages and the other clients are not yet
 translated. See [localization.md](localization.md) for the current coverage.
 Arabic and Urdu text follow their own reading direction. Audio controls and

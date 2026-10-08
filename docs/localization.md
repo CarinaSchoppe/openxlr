@@ -13,6 +13,9 @@ can recover from an unfamiliar language without editing a file.
 Options reports when this launch override is active. A successful language
 selection replaces it for this session; the environment override applies again
 on the next launch if it is still set.
+While an override is active, the picker shows the language currently in use
+without rewriting the saved preference. This lets selecting the saved language
+apply it immediately, even when that was the preference before launch.
 
 The `language` field in `~/.config/openxlr/ui.json` is `null` for the system
 language, or one of the catalogue ids below. It is local window state,

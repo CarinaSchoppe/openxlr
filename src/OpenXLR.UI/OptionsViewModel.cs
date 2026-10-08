@@ -46,8 +46,7 @@ public sealed class OptionsViewModel : ViewModelBase
         _main = main;
 
         UiSettings s = UiSettings.Load();
-        string? language = s.Language is null or "" or "system" ? null
-            : Localizer.Resolve(s.Language, System.Globalization.CultureInfo.CurrentUICulture);
+        string? language = PickerLanguage(s.Language);
         _selectedLanguage = LanguageChoices.First(c => c.Id == language);
         _startDaemonAtLogin = s.StartDaemonAtLogin;
         _openWindowAtLogin = s.OpenWindowAtLogin;
@@ -113,13 +112,17 @@ public sealed class OptionsViewModel : ViewModelBase
 
     internal override void RefreshLocalization()
     {
-        string? saved = UiSettings.Load().Language;
-        string? language = saved is null or "" or "system" ? null
-            : Localizer.Resolve(saved, System.Globalization.CultureInfo.CurrentUICulture);
+        string? language = PickerLanguage(UiSettings.Load().Language);
         _selectedLanguage = LanguageChoices.First(c => c.Id == language);
         LanguageChoices[0].RefreshLocalization();
         base.RefreshLocalization();
     }
+
+    // Display the language in use during a launch override, without saving
+    // it. The user can then select the saved language to apply it immediately.
+    private static string? PickerLanguage(string? saved) => Localizer.Overridden ? Localizer.Language
+        : saved is null or "" or "system" ? null
+        : Localizer.Resolve(saved, System.Globalization.CultureInfo.CurrentUICulture);
 
     private LanguageChoice? _selectedLanguage;
     public LanguageChoice? SelectedLanguage

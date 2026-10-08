@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Text.Json;
@@ -67,17 +66,16 @@ public partial class PluginPresetWindow : Window
         {
             if (Model is not { } model) return;
             model.Refresh(); _subscribed = model.Target;
-            _subscribed.Owner.Items.CollectionChanged += Changed;
+            _subscribed.Detached += OnTargetRemoved;
         };
         Closed += (_, _) =>
         {
             _closed = true; _lifetime.Cancel();
-            if (_subscribed is { } target) target.Owner.Items.CollectionChanged -= Changed;
+            if (_subscribed is { } target) target.Detached -= OnTargetRemoved;
         };
     }
     public PluginPresetWindow(InsertViewModel target) : this() => DataContext = new PluginPresetViewModel(target);
-    private void Changed(object? sender, NotifyCollectionChangedEventArgs e)
-    { if (_subscribed is { } target && !target.Owner.Items.Contains(target)) Close(); }
+    private void OnTargetRemoved() => Close();
     private void OnSave(object? sender, RoutedEventArgs e) => Model?.Save();
     private async void OnLoad(object? sender, RoutedEventArgs e) { if (!_busy && Model is { } model) await model.LoadAsync(); }
     private async void OnDelete(object? sender, RoutedEventArgs e)

@@ -566,10 +566,13 @@ public sealed class InsertViewModel : ViewModelBase
         _editedParameters.Clear();
     }
 
+    internal event Action? Detached;
+
     internal void Detach()
     {
         ForgetPendingParameters();
         InsertWindows.CloseControls(this);
+        Detached?.Invoke();
     }
 
     internal void SendParam(string symbol, double value)

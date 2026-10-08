@@ -48,6 +48,9 @@ promised atomic by OpenXLR. Streaming import/export has a thirty-second timeout
 and closing the window cancels the operation. An outstanding chooser cannot
 import into a removed effect. Native chooser and network-open timeouts are
 owned by the desktop storage provider.
+An individual effect's preset window survives chain reordering or removal of
+another effect. Removing its own effect or replacing that slot with a different
+plugin closes the window and cancels any outstanding import.
 
 Choose a preset name before exporting the live chain, or use Current chain /
 Current effect. Selecting a saved preset exports that snapshot. Importing does

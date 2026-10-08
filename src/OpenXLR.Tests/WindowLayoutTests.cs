@@ -110,6 +110,7 @@ public sealed class WindowLayoutTests
                 main.Show();
                 LocalizationRenderingTests.Check();
                 MiniLiveWindowTests.Check();
+                PluginPresetWindowTests.Check(main);
 
                 // The window must still allow its existing narrow size.
                 Assert.InRange(main.MinWidth, 0, MaximumAllowedMinimumWidth);
@@ -411,8 +412,10 @@ public sealed class WindowLayoutTests
                 string? savedLanguage = UiSettings.Load().Language;
                 string? pickerLanguage = savedLanguage is null or "" or "system" ? null
                     : Localizer.Resolve(savedLanguage, CultureInfo.CurrentUICulture);
+                if (Localizer.Overridden) pickerLanguage = Localizer.Language;
                 Assert.Equal(pickerLanguage, optionsVm.SelectedLanguage!.Id);
                 Assert.Same(optionsVm.SelectedLanguage, language.SelectedItem);
+                Assert.Equal(savedLanguage, UiSettings.Load().Language);
                 string activeLanguage = Localizer.Language;
                 var overrideNote = options.FindControl<TextBlock>("LanguageOverrideNote")!;
                 if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENXLR_LANGUAGE")))
@@ -426,7 +429,7 @@ public sealed class WindowLayoutTests
                     Assert.False(Localizer.Overridden);
                     Assert.False(overrideNote.IsVisible);
                 }
-                optionsVm.SelectedLanguage = optionsVm.LanguageChoices.Single(c => c.Id == "fr");
+                language.SelectedItem = optionsVm.LanguageChoices.Single(c => c.Id == "fr");
                 Assert.Equal("fr", UiSettings.Load().Language);
                 Assert.Equal("fr", Localizer.Language);
                 Assert.Equal(Localizer.Text("OpenXLROptions"), options.Title);

@@ -30,7 +30,10 @@ public sealed class WaveInterfaceTests : IDisposable
         Assert.Equal(a.InstanceId, replugged.InstanceId);
         Assert.NotEqual(a.InstanceId, b.InstanceId);
         Assert.True(UsbLocation.IsInstanceId(a.InstanceId));
-        Assert.EndsWith("_unitA", a.NodeNameFragment);
+        Assert.EndsWith("_unitA-", a.NodeNameFragment);
+        Assert.Contains(a.NodeNameFragment, "alsa_input.usb-Elgato_Wave_XLR_unitA-00.analog-stereo");
+        Assert.DoesNotContain(a.NodeNameFragment, "alsa_input.usb-Elgato_Wave_XLR_unitAB-00.analog-stereo");
+        Assert.DoesNotContain(a.NodeNameFragment, "alsa_input.usb-Elgato_Wave_XLR_unitA_second-00.analog-stereo");
         Assert.NotEqual((Location("", 2) with { Port = "1-2" }).Key, (Location("", 2) with { Port = "1-3" }).Key);
         var policy = new HungTransferPolicy();
         for (int i = 0; i < HungTransferPolicy.Limit; i++) policy.NoteHung(a.InstanceId);

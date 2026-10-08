@@ -217,7 +217,8 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         // hint stays silent; it must never borrow a different unit's microphone.
         // Only an unconfigured mixer may discover a Wave XLR by model name.
         string? previousInput = _inputDevice;
-        var candidates = sources.Where(d => d.Name.Contains(_inputHint ?? "Wave_XLR", StringComparison.OrdinalIgnoreCase)).ToList();
+        var candidates = sources.Where(d => (!_inputHintSet || _inputHint is not null)
+            && d.Name.Contains(_inputHint ?? "Wave_XLR", StringComparison.OrdinalIgnoreCase)).ToList();
         var raw = candidates.Where(d => !d.Name.Contains(".HiFi__", StringComparison.Ordinal)).ToList();
         if (raw.Count > 0) candidates = raw;
         // A model-only hint cannot disambiguate identical interfaces without
@@ -563,6 +564,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     }
 
     private string? _inputHint;
+    private bool _inputHintSet;
     private bool _hardwareOutputRouting;
     private int _lowCutHz;                 // 0 = off; software low cut on the first XLR channel
     // Filter-chains by insert key. Input keys ("xlr1", "xlr2") hold a mono
@@ -1066,13 +1068,15 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     /// <summary>
     /// Name fragment of the interface whose capture should feed the input
     /// channels (the daemon's active device). A change re-wires the feeds.
+    /// An explicitly null hint releases the inputs without discovering a peer.
     /// </summary>
     public void SetInputDeviceHint(string? hint, bool hardwareOutputRouting = false)
     {
         lock (_gate)
         {
-            if (_inputHint == hint && _hardwareOutputRouting == hardwareOutputRouting) return;
+            if (_inputHintSet && _inputHint == hint && _hardwareOutputRouting == hardwareOutputRouting) return;
             bool routingChanged = _hardwareOutputRouting != hardwareOutputRouting;
+            _inputHintSet = true;
             _inputHint = hint;
             _hardwareOutputRouting = hardwareOutputRouting;
             if (_built)

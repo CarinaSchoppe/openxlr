@@ -719,6 +719,9 @@ state, not a model ID, for additional-device commands. The primary picker also
 accepts these IDs; legacy primary `vvvv:pppp` and product-only IDs still work.
 `active` identifies the primary device; `enabled` is the saved additional role.
 An enabled device becoming primary is never driven by two managers.
+`captureHint` is a PipeWire name fragment. When a usable serial exists it
+includes the following ALSA separator to distinguish longer serials with the
+same prefix. Clients must use the fragment verbatim rather than trimming it.
 
 Profiles optionally carry `additionalDevices`, a map of at most four instance
 IDs to hardware states. Recall applies only to enabled connected secondary

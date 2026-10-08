@@ -242,6 +242,7 @@ public sealed class MixerService : IHostedService, IDisposable
             MixerSettings? saved = MixerSettings.Load(MixerSettings.DefaultPath, out string? settingsWarning);
             if (settingsWarning is not null)
                 _log.LogWarning("mixer settings: {warning}{fallback}", settingsWarning, saved is null ? "; starting with defaults" : "");
+            UpdateInputDeviceHint();
             _mixer.Build(MixerConfig.FromSettings(saved), output);
 
             // Restore the user's saved levels, mutes, device picks, and per-app
@@ -292,6 +293,10 @@ public sealed class MixerService : IHostedService, IDisposable
         return Task.CompletedTask;
     }
 
+    private void UpdateInputDeviceHint() => _mixer.SetInputDeviceHint(
+        _devices.ActiveInfo?.NodeNameFragment,
+        _devices.ActiveCapabilities?.OutputRouting ?? false);
+
     internal void SweepOnce()
     {
         if (_stopping.IsCancellationRequested || Interlocked.CompareExchange(ref _sweepRunning, 1, 0) != 0) return;
@@ -303,9 +308,7 @@ public sealed class MixerService : IHostedService, IDisposable
             stop.ThrowIfCancellationRequested();
             // Channel feeds follow the actively driven interface; the
             // node name contains the model as udev spells it.
-            _mixer.SetInputDeviceHint(
-                _devices.ActiveInfo?.NodeNameFragment,
-                _devices.ActiveCapabilities?.OutputRouting ?? false);
+            UpdateInputDeviceHint();
             stop.ThrowIfCancellationRequested();
             // Which input jacks the device actually has, so a client
             // does not offer a strip the hardware cannot feed.

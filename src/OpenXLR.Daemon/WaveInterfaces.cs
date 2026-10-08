@@ -112,7 +112,7 @@ public sealed class WaveInterfaces : BackgroundService
             var attached = Volatile.Read(ref _available);
             var unit = attached.FirstOrDefault(d => d.Info.InstanceId == id);
             if (enabled && unit?.Capabilities.OutputRouting == true
-                && attached.Count(d => d.Info.NodeNameFragment == unit.Info.NodeNameFragment) > 1)
+                && attached.Count(d => string.Equals(d.Info.NodeNameFragment, unit.Info.NodeNameFragment, StringComparison.OrdinalIgnoreCase)) > 1)
                 return "These interfaces have no unique audio-card identity. Choose a primary interface instead.";
             var next = new HashSet<string>(_enabled, StringComparer.Ordinal);
             if (enabled) next.Add(id); else next.Remove(id);

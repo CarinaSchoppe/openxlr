@@ -1430,12 +1430,13 @@ public sealed class PipeWireAdapter
         // Each output is advertised as its own pseudo-sink; the daemon flips
         // the matching hardware selector when one is chosen as the monitor.
         // Headphones jack 1 is on the front of the unit, jack 2 on the back.
-        AudioNode? pro = exposeHardwareMonitorOutputs
-            ? found.FirstOrDefault(n =>
+        var proSinks = exposeHardwareMonitorOutputs
+            ? found.Where(n =>
                 n.Kind == AudioNodeKind.Sink &&
                 (hardwareSinkHint is null ||
-                 n.Name.Contains(hardwareSinkHint, StringComparison.OrdinalIgnoreCase)))
-            : null;
+                 n.Name.Contains(hardwareSinkHint, StringComparison.OrdinalIgnoreCase))).Take(2).ToArray()
+            : [];
+        AudioNode? pro = proSinks.Length == 1 ? proSinks[0] : null;
         if (pro is not null)
         {
             found.Add(new AudioNode($"{pro.Name}#hp1", "Headphones 1 (front)",

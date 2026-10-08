@@ -29,6 +29,13 @@ sources require an explicit selection. Two indistinguishable Pro audio cards
 cannot be automatically switched to pro-audio and enabling the additional
 role is refused. An ambiguous primary capture hint stays silent and reports a
 warning. This avoids controlling or capturing a different microphone.
+Serial-specific hints include the ALSA separator after the serial, so a unit
+whose serial extends another unit's serial cannot take its place. If the daemon
+has no active primary, its hardware strips remain disconnected even when a
+different Wave capture source is present. Automatic model discovery is only
+available to an unconfigured standalone mixer. Card-profile changes and
+physical jack aliases require one matching card or playback node; ambiguous
+matches leave every card's profile and raw playback name untouched.
 
 A new input starts muted in every mix. It is a normal external capture channel
 with stereo inserts, levels, meters, preset copying, A/B and latency

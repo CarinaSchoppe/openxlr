@@ -17,7 +17,7 @@ namespace OpenXLR.Core.Mixing;
 public static class CardProfile
 {
     /// <summary>
-    /// If the card whose device.name contains <paramref name="nameFragment"/>
+    /// If exactly one card's device.name contains <paramref name="nameFragment"/>
     /// is in a UCM profile and offers pro-audio, switch it there. Returns
     /// the card's active profile name (null when the card is not in the
     /// PipeWire graph yet, which at boot can lag the USB device by seconds)
@@ -50,6 +50,8 @@ public static class CardProfile
         try { dump = Run("pw-dump"); }
         catch (Exception) { return null; }
         using JsonDocument doc = PipeWireSnapshot.Parse(dump);
+        (uint Id, string Active, Dictionary<string, int> Profiles)? found = null;
+        bool matched = false;
         foreach (JsonElement o in doc.RootElement.EnumerateArray())
         {
             if (o.ValueKind != JsonValueKind.Object || !o.TryGetProperty("type", out JsonElement type)
@@ -58,7 +60,9 @@ public static class CardProfile
                 || !info.TryGetProperty("props", out JsonElement props) || props.ValueKind != JsonValueKind.Object) continue;
             string name = props.TryGetProperty("device.name", out JsonElement n)
                 ? n.GetString() ?? "" : "";
-            if (!name.Contains(nameFragment, StringComparison.Ordinal)) continue;
+            if (nameFragment.Length == 0 || !name.Contains(nameFragment, StringComparison.OrdinalIgnoreCase)) continue;
+            if (matched) return null; // an ambiguous model must not change either card
+            matched = true;
             if (!info.TryGetProperty("params", out JsonElement pars)) continue;
 
             var profiles = new Dictionary<string, int>();
@@ -73,9 +77,9 @@ public static class CardProfile
                     if (p.TryGetProperty("name", out JsonElement an))
                         active = an.GetString() ?? "";
 
-            return (o.GetProperty("id").GetUInt32(), active, profiles);
+            found = (o.GetProperty("id").GetUInt32(), active, profiles);
         }
-        return null;
+        return found;
     }
 
     private static byte[] Run(string cmd, params string[] args)

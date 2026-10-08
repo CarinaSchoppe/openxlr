@@ -91,10 +91,11 @@ public sealed record DeviceInfo(string Vendor, string Model, ushort VendorId, us
     /// Wave_3 (the source in a Wave:3 owner's dump, LukasParke/wave3-research
     /// pipewire/pactl-source-wave3.txt, is named
     /// alsa_input.usb-Elgato_Systems_Elgato_Wave_3_...). The daemon finds the
-    /// capture node and the card by this fragment.
+    /// capture node and the card by this fragment. A serial includes the
+    /// following ALSA separator so it cannot match a longer serial's prefix.
     /// </summary>
     public string NodeNameFragment => Model.Replace(' ', '_').Replace(':', '_')
-        + (Location?.Serial is { Length: > 0 } serial && serial.All(c => char.IsAsciiLetterOrDigit(c) || c == '_') ? "_" + serial : "");
+        + (Location?.Serial is { Length: > 0 } serial && serial.All(c => char.IsAsciiLetterOrDigit(c) || c == '_') ? "_" + serial + "-" : "");
 }
 
 /// <summary>Flags for which controls a device exposes, so the UI/plugin adapt per model.</summary>

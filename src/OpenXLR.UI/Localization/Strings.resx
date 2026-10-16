@@ -603,6 +603,9 @@
   <data name="Dismiss" xml:space="preserve">
     <value>Dismiss</value>
   </data>
+  <data name="DockMixer" xml:space="preserve">
+    <value>Return mixer to main window</value>
+  </data>
   <data name="DoNotLeaveThisOnTheSwitchIs" xml:space="preserve">
     <value>Do not leave this on. The switch is not saved across daemon restarts; a trace enabled in the daemon's startup environment still applies. An explicit WINEDEBUG keeps its own channels.</value>
   </data>
@@ -1011,6 +1014,9 @@
   <data name="MixerControlSize" xml:space="preserve">
     <value>Mixer control size</value>
   </data>
+  <data name="MixerDetached" xml:space="preserve">
+    <value>The submixer is open in a separate window.</value>
+  </data>
   <data name="MixerLayout" xml:space="preserve">
     <value>Mixer layout</value>
   </data>
@@ -1025,6 +1031,9 @@
   </data>
   <data name="MixerViewMini" xml:space="preserve">
     <value>Mini: one channel into one mix</value>
+  </data>
+  <data name="MixerWindowTitle" xml:space="preserve">
+    <value>OpenXLR mixer</value>
   </data>
   <data name="MIXES" xml:space="preserve">
     <value>MIXES</value>
@@ -1400,6 +1409,12 @@
   </data>
   <data name="PluginUI" xml:space="preserve">
     <value>Plugin UI</value>
+  </data>
+  <data name="PopOutMixer" xml:space="preserve">
+    <value>Pop out</value>
+  </data>
+  <data name="PopOutMixerHint" xml:space="preserve">
+    <value>Move the submixer into its own window for another display.</value>
   </data>
   <data name="PreAssignAChannelToAnAppThat" xml:space="preserve">
     <value>Pre-assign a channel to an app that has not played audio yet. The identity is guessed from its launcher; if the app reports differently on first play, it simply appears as a new entry.</value>

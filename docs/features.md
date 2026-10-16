@@ -190,6 +190,12 @@ microphone takes its place; the sweep links it again when the ports
 return. A mono source is linked to both sides of the channel. See
 [Additional capture inputs](manual.md#capture-inputs).
 
+### Separate mixer window
+
+The submixer can be moved into its own resizable window for a second or small
+display. It keeps the live controls, compact and mini views, skins and touch
+sizing. Closing it returns the panel to the main window.
+
 ### Exclusive channel groups
 
 A group marks several channels of which only one is heard, such as a

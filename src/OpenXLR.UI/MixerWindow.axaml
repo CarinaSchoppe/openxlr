@@ -1,0 +1,15 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="using:OpenXLR.UI.Localization"
+        x:Class="OpenXLR.UI.MixerWindow"
+        Title="{loc:Text Key=MixerWindowTitle}" Width="800" Height="480" MinWidth="320" MinHeight="240"
+        Icon="avares://OpenXLR.UI/Assets/icon.png">
+  <Window.Styles>
+    <StyleInclude Source="avares://OpenXLR.UI/MixerStyles.axaml"/>
+  </Window.Styles>
+  <DockPanel Margin="8">
+    <Button DockPanel.Dock="Top" Content="{loc:Text Key=DockMixer}" Click="OnDockMixer"
+            HorizontalAlignment="Left" Margin="0,0,0,8"/>
+    <ScrollViewer Name="MixerScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
+  </DockPanel>
+</Window>

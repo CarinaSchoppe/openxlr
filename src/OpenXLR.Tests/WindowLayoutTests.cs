@@ -570,6 +570,7 @@ public sealed class WindowLayoutTests
                 SoundCheckWindowTests.CheckPendingClose();
                 AssertLayoutAppearance(main, vm);
                 MixerViewWindowTests.Check();
+                MixerPopOutWindowTests.Check();
                 // The arrange check opens its own window, with a real pointer
                 // on it; nothing else may sit in front.
                 foreach (var window in windows) window.Hide();
@@ -706,7 +707,7 @@ public sealed class WindowLayoutTests
             Assert.InRange(origin.Y + child.Bounds.Height, 0, box.Height + 0.1);
     }
 
-    private static void AssertNoOverlap(IReadOnlyList<Control> controls)
+    internal static void AssertNoOverlap(IReadOnlyList<Control> controls)
     {
         for (int i = 0; i < controls.Count; i++)
             for (int j = i + 1; j < controls.Count; j++)

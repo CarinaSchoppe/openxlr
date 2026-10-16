@@ -103,6 +103,7 @@ public partial class MainWindow : Window
             Skinning.SkinService.Changed -= UpdateControlSizing;
             _reallyExit = true;
             _hideToTrayPending = false;
+            _mixerWindow?.Close();
             _lifetime.Cancel();
             DisposeTray();
             _desktopKeys.Dispose();
@@ -250,12 +251,13 @@ public partial class MainWindow : Window
         // is the better one to open. Anything else, including a native host
         // that is bypassed or not running, opens the generated controls.
         if (insert.NativeEditorAvailable) await insert.Owner.ShowNativeEditorAsync(insert);
-        else InsertWindows.OpenControls(this, insert);
+        else InsertWindows.OpenControls(TopLevel.GetTopLevel((Control)sender!) as Window ?? this, insert);
     }
 
     private void OnMixInserts(object? sender, RoutedEventArgs e)
     {
-        if ((sender as Control)?.DataContext is MixViewModel mix) InsertWindows.OpenChain(this, mix.Inserts, $"mix:{mix.Id}");
+        if ((sender as Control)?.DataContext is MixViewModel mix)
+            InsertWindows.OpenChain(TopLevel.GetTopLevel((Control)sender!) as Window ?? this, mix.Inserts, $"mix:{mix.Id}");
     }
 
     private void OnInsertUp(object? sender, RoutedEventArgs e)

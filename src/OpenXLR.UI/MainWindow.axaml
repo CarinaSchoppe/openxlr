@@ -11,33 +11,9 @@
   <!-- The window's ground, its cards, its labels, its meters and its fader
        caps come from the application's Ox.* appearance tokens (App.axaml and
        Skinning/SkinTokens.cs). What is left here is this window's own layout. -->
+
   <Window.Styles>
-    <!-- Arrange mode: a handle on each section and on each tile whose place
-         can change. Hardware inputs and Monitor A/B and Aux keep their place. -->
-    <Style Selector="Button.reorderHandle">
-      <Setter Property="IsVisible" Value="False"/>
-      <Setter Property="Padding" Value="4,1"/>
-      <Setter Property="MinHeight" Value="{DynamicResource Ox.Mixer.SmallControlMinSize}"/>
-      <Setter Property="MinWidth" Value="{DynamicResource Ox.Mixer.SmallControlMinSize}"/>
-      <Setter Property="FontSize" Value="{DynamicResource Ox.Label.FontSize}"/>
-      <Setter Property="Cursor" Value="SizeAll"/>
-      <Setter Property="VerticalAlignment" Value="Center"/>
-    </Style>
-    <Style Selector="Window.arranging Button.reorderHandle">
-      <Setter Property="IsVisible" Value="True"/>
-    </Style>
-    <Style Selector="Window.arranging Button.reorderHandle.fixedPlace">
-      <Setter Property="IsVisible" Value="False"/>
-    </Style>
-    <Style Selector="Button.reorderTarget">
-      <Setter Property="Foreground" Value="{DynamicResource Ox.Accent}"/>
-      <Setter Property="Background" Value="{DynamicResource Ox.Control.BackgroundPointerOver}"/>
-    </Style>
-    <!-- A colour chosen for one channel or mix in the layout editor is that
-         item's own data, not a skin value; without one the skin's applies. -->
-    <Style Selector="TextBlock.layoutAccent">
-      <Setter Property="Foreground" Value="{ReflectionBinding Appearance.Accent}"/>
-    </Style>
+    <StyleInclude Source="avares://OpenXLR.UI/MixerStyles.axaml"/>
   </Window.Styles>
   <Window.Resources>
     <ControlTheme x:Key="TileExpanderTheme" TargetType="Expander">
@@ -76,88 +52,7 @@
     </ControlTheme>
   </Window.Resources>
 
-  <Window.Styles>
-    <!-- Control sizing. Every size here is a skin token, raised by Touch
-         sizing; in Standard with no skin value the framework's own size
-         stays. These come first, so the class styles below still win. -->
-    <Style Selector="Button, ToggleButton, DropDownButton, ComboBox, ComboBoxItem, CheckBox, TextBox, Slider">
-      <Setter Property="MinHeight" Value="{DynamicResource Ox.Mixer.ControlMinSize}"/>
-      <Setter Property="MinWidth" Value="{DynamicResource Ox.Mixer.ControlMinSize}"/>
-    </Style>
-    <Style Selector="Window.large-targets Button, Window.large-targets ToggleButton, Window.large-targets DropDownButton">
-      <Setter Property="MinHeight" Value="{DynamicResource Ox.Mixer.ControlMinSize}"/>
-      <Setter Property="MinWidth" Value="{DynamicResource Ox.Mixer.ControlMinSize}"/>
-      <Setter Property="VerticalContentAlignment" Value="Center"/>
-    </Style>
-    <Style Selector="Slider">
-      <Setter Property="MinHeight" Value="{DynamicResource Ox.Mixer.SliderMinHeight}"/>
-    </Style>
-    <!-- Fluent's horizontal template reserves two spacer rows around its
-         track. Enlarged targets span those rows instead of being clipped. -->
-    <Style Selector="Window.large-targets Slider /template/ Track#PART_Track">
-      <Setter Property="Grid.Row" Value="0"/>
-      <Setter Property="Grid.RowSpan" Value="3"/>
-    </Style>
-    <Style Selector="Slider /template/ Thumb">
-      <Setter Property="MinHeight" Value="{DynamicResource Ox.Mixer.ControlMinSize}"/>
-      <Setter Property="MinWidth" Value="{DynamicResource Ox.Mixer.ControlMinSize}"/>
-    </Style>
-    <Style Selector="Border.card">
-      <Setter Property="Padding" Value="12,9"/>
-    </Style>
-    <!-- compact device-control rows: shorter sliders and buttons than the
-         theme default so the fixed cards stay small (the submixer keeps its
-         own sizing) -->
-    <Style Selector="StackPanel.dev Slider">
-      <Setter Property="MinHeight" Value="{DynamicResource Ox.Mixer.SmallControlMinSize}"/>
-      <Setter Property="Height" Value="{DynamicResource Ox.Mixer.DeviceSliderHeight}"/>
-      <Setter Property="VerticalAlignment" Value="Center"/>
-    </Style>
-    <Style Selector="StackPanel.dev ToggleButton">
-      <Setter Property="Padding" Value="6,3"/>
-      <Setter Property="FontSize" Value="12"/>
-      <Setter Property="MinHeight" Value="{DynamicResource Ox.Mixer.SmallControlMinSize}"/>
-    </Style>
-    <!-- collapsible tiles: a flat expander whose header looks like the old card title -->
-    <Style Selector="Expander.section">
-      <Setter Property="VerticalAlignment" Value="Top"/>
-      <Setter Property="Background" Value="Transparent"/>
-      <Setter Property="BorderThickness" Value="0"/>
-      <Setter Property="BorderBrush" Value="Transparent"/>
-      <Setter Property="Padding" Value="0"/>
-      <Setter Property="MinHeight" Value="{DynamicResource Ox.Mixer.SmallControlMinSize}"/>
-      <Setter Property="CornerRadius" Value="0"/>
-      <Setter Property="HorizontalAlignment" Value="Stretch"/>
-      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-      <Setter Property="IsExpanded" Value="True"/>
-    </Style>
-    <Style Selector="ToggleButton">
-      <Setter Property="HorizontalAlignment" Value="Stretch"/>
-      <Setter Property="HorizontalContentAlignment" Value="Center"/>
-      <Setter Property="Padding" Value="8,5"/>
-    </Style>
-    <!-- the small controls on an insert row: N (own process), B (bypass) and
-         the cog that opens the plugin's controls. They stay narrow enough for
-         the row but keep at least the skin's insert target size, so they are
-         easy to hit and their letter is readable. -->
-    <Style Selector="ToggleButton.insertmini">
-      <Setter Property="Padding" Value="6,2"/>
-      <Setter Property="MinWidth" Value="{DynamicResource Ox.Mixer.InsertControlMinSize}"/>
-      <Setter Property="MinHeight" Value="{DynamicResource Ox.Mixer.InsertControlMinSize}"/>
-      <Setter Property="FontSize" Value="12"/>
-      <Setter Property="VerticalAlignment" Value="Center"/>
-      <Setter Property="VerticalContentAlignment" Value="Center"/>
-    </Style>
-    <Style Selector="Button.insertmini">
-      <Setter Property="Padding" Value="6,2"/>
-      <Setter Property="MinWidth" Value="{DynamicResource Ox.Mixer.InsertControlMinSize}"/>
-      <Setter Property="MinHeight" Value="{DynamicResource Ox.Mixer.InsertControlMinSize}"/>
-      <Setter Property="FontSize" Value="12"/>
-      <Setter Property="VerticalAlignment" Value="Center"/>
-      <Setter Property="VerticalContentAlignment" Value="Center"/>
-      <Setter Property="HorizontalContentAlignment" Value="Center"/>
-    </Style>
-  </Window.Styles>
+
 
   <!-- The cards follow the window width, so a wide window shows more strips
        and tiles before anything scrolls. Every card sizes to its content; the
@@ -616,11 +511,19 @@
             <Button Classes="ghost reorderHandle" Content="↕" Tag="SubmixerTile" AutomationProperties.Name="{loc:Text Key=MoveSubmixer}"
                     ToolTip.Tip="{loc:Text Key=DragToAnotherSectionArrowKeysMove}"/>
             <TextBlock Text="{loc:Text Key=SUBMIXER}" Classes="h" VerticalAlignment="Center"/>
+            <Button Name="PopOutMixerButton" Content="{loc:Text Key=PopOutMixer}" Click="OnPopOutMixer"
+                    ToolTip.Tip="{loc:Text Key=PopOutMixerHint}"/>
             <Button Content="{loc:Text Key=EditLayout}" Padding="8,1" FontSize="11" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}" VerticalAlignment="Center"
                     IsVisible="{Binding HasMixer}" IsEnabled="{Binding CanEditLayout}" Click="OnEditLayout"
                     ToolTip.Tip="{loc:Text Key=AddRenameReorderAndRemoveApplicationChannelsAnd}"/>
           </StackPanel>
         </Expander.Header>
+      <Grid>
+        <StackPanel Name="DetachedMixerNotice" IsVisible="False" Spacing="8">
+          <TextBlock Text="{loc:Text Key=MixerDetached}" Classes="note" TextWrapping="Wrap"/>
+          <Button Content="{loc:Text Key=DockMixer}" HorizontalAlignment="Left" Click="OnDockMixer"/>
+        </StackPanel>
+      <ContentControl Name="MixerHost" HorizontalContentAlignment="Stretch">
       <DockPanel>
         <TextBlock DockPanel.Dock="Top" Text="{Binding MixerPlaceholder}" TextWrapping="Wrap"
                    Classes="note" IsVisible="{Binding !HasMixer}"/>
@@ -629,12 +532,12 @@
         <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,8" IsVisible="{Binding ShowChannelSelector}">
           <WrapPanel>
             <ComboBox Name="CompactChannelPicker" ItemsSource="{Binding Channels}" Margin="0,0,8,4"
-                      SelectedItem="{Binding SelectedCompactChannel, Mode=TwoWay}" MinWidth="150" MaxWidth="300"
+                      SelectedItem="{Binding SelectedCompactChannel, Mode=TwoWay}" MinWidth="150" MaxWidth="260"
                       AutomationProperties.Name="{loc:Text Key=ChannelShown}" ToolTip.Tip="{loc:Text Key=TheChannelThisViewShowsHiddenChannels}">
               <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:ChannelViewModel"><TextBlock Text="{Binding Name}"/></DataTemplate></ComboBox.ItemTemplate>
             </ComboBox>
             <ComboBox Name="CompactMixPicker" ItemsSource="{Binding Mixes}" Margin="0,0,8,4"
-                      SelectedItem="{Binding SelectedCompactMix, Mode=TwoWay}" MinWidth="150" MaxWidth="300"
+                      SelectedItem="{Binding SelectedCompactMix, Mode=TwoWay}" MinWidth="150" MaxWidth="260"
                       IsVisible="{Binding ShowMixSelector}" AutomationProperties.Name="{loc:Text Key=MixShown}"
                       ToolTip.Tip="{loc:Text Key=TheMixThisViewShowsItsMaster}">
               <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:MixViewModel"><TextBlock Text="{Binding Name}"/></DataTemplate></ComboBox.ItemTemplate>
@@ -721,9 +624,7 @@
         <!-- channel strips: one column per channel, one fader per mix -->
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                       IsVisible="{Binding HasMixer}">
-          <!-- MinHeight keeps every send visible; the ScrollViewer scrolls when
-               the window is too short rather than clipping the strips. -->
-          <ItemsControl ItemsSource="{Binding Channels}" MinHeight="290">
+          <ItemsControl ItemsSource="{Binding Channels}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
@@ -738,7 +639,7 @@
                     <TextBlock Text="{Binding Appearance.Icon}" Classes="strip" Classes.layoutAccent="{Binding Appearance.HasColour}"
                                HorizontalAlignment="Center" IsVisible="{Binding Appearance.HasIcon}"/>
                     <TextBlock Text="{Binding Name}" Classes="strip" Classes.layoutAccent="{Binding Appearance.HasColour}"
-                               HorizontalAlignment="Center"/>
+                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}"/>
                     <!-- stereo level meter (L over R), dB scale -->
                     <StackPanel Spacing="1">
                       <skin:LevelMeter Level="{Binding MeterL}" AutomationProperties.Name="{loc:Text Key=LeftLevel}"/>
@@ -749,7 +650,8 @@
                         <DataTemplate x:DataType="vm:SendViewModel">
                           <StackPanel Margin="0,0,0,8" Spacing="1" IsVisible="{Binding DisplayVisible}">
                             <Grid ColumnDefinitions="*,Auto">
-                              <TextBlock Text="{Binding MixName}" Classes="h" FontSize="11"/>
+                              <TextBlock Text="{Binding MixName}" Classes="h" FontSize="11"
+                                         TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding MixName}" Margin="0,0,4,0"/>
                               <TextBlock Grid.Column="1" Text="{Binding LevelText}" Classes="val" FontSize="11"/>
                             </Grid>
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
@@ -769,6 +671,8 @@
           </ItemsControl>
         </ScrollViewer>
       </DockPanel>
+      </ContentControl>
+      </Grid>
       </Expander>
     </Border>
     </StackPanel>

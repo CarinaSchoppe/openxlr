@@ -601,6 +601,9 @@
   <data name="Dismiss" xml:space="preserve">
     <value>Ausblenden</value>
   </data>
+  <data name="DockMixer" xml:space="preserve">
+    <value>Mixer ins Hauptfenster zurückholen</value>
+  </data>
   <data name="DoNotLeaveThisOnTheSwitchIs" xml:space="preserve">
     <value>Nicht dauerhaft eingeschaltet lassen. Der Schalter wird bei Daemon-Neustarts nicht gespeichert. Eine in der Startumgebung aktivierte Protokollierung gilt weiterhin. Ein explizites WINEDEBUG behält seine eigenen Kanäle.</value>
   </data>
@@ -1009,6 +1012,9 @@
   <data name="MixerControlSize" xml:space="preserve">
     <value>Größe der Mixer-Bedienelemente</value>
   </data>
+  <data name="MixerDetached" xml:space="preserve">
+    <value>Der Submixer ist in einem eigenen Fenster geöffnet.</value>
+  </data>
   <data name="MixerLayout" xml:space="preserve">
     <value>Mixer-Layout</value>
   </data>
@@ -1023,6 +1029,9 @@
   </data>
   <data name="MixerViewMini" xml:space="preserve">
     <value>Mini: ein Kanal in einen Mix</value>
+  </data>
+  <data name="MixerWindowTitle" xml:space="preserve">
+    <value>OpenXLR-Mixer</value>
   </data>
   <data name="MIXES" xml:space="preserve">
     <value>MIXE</value>
@@ -1398,6 +1407,12 @@
   </data>
   <data name="PluginUI" xml:space="preserve">
     <value>Plugin-Oberfläche</value>
+  </data>
+  <data name="PopOutMixer" xml:space="preserve">
+    <value>Abkoppeln</value>
+  </data>
+  <data name="PopOutMixerHint" xml:space="preserve">
+    <value>Öffnet den Submixer in einem eigenen Fenster für einen weiteren Bildschirm.</value>
   </data>
   <data name="PreAssignAChannelToAnAppThat" xml:space="preserve">
     <value>Weise einer noch nicht spielenden App vorab einen Kanal zu. Die Identität wird aus ihrem Starter abgeleitet. Meldet sich die App bei der ersten Wiedergabe anders, erscheint sie als neuer Eintrag.</value>

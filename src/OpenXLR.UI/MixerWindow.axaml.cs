@@ -33,7 +33,10 @@ public partial class MixerWindow : Window
         // The window stays unowned, so hiding the main window leaves this one usable.
         if (origin.Screens.ScreenFromWindow(origin) is { } screen)
         {
-            var size = FlowWindow.FitClientSize(new(Width, Height), screen.WorkingArea.Size, screen.Scaling, new(16, 48));
+            Size frame = origin.FrameSize ?? origin.ClientSize;
+            var decoration = new Size(Math.Max(0, frame.Width - origin.ClientSize.Width),
+                Math.Max(0, frame.Height - origin.ClientSize.Height));
+            var size = FlowWindow.FitClientSize(new(Width, Height), screen.WorkingArea.Size, screen.Scaling, decoration);
             MinWidth = Math.Min(MinWidth, size.Width);
             MinHeight = Math.Min(MinHeight, size.Height);
             Width = size.Width;

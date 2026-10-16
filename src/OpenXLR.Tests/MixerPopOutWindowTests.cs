@@ -34,6 +34,11 @@ internal static class MixerPopOutWindowTests
             Layout(main, 1040, 900);
             var host = main.FindControl<ContentControl>("MixerHost")!;
             var panel = (Control)host.Content!;
+            InsertWindows.OpenChain(main, vm.Mixes[0].Inserts, "mix:monitor");
+            var originalChain = Assert.Single(main.OwnedWindows.OfType<MixInsertsWindow>());
+            var insert = new InsertViewModel(vm.Mixes[0].Inserts, "popout-test", "urn:openxlr:test", "Test effect");
+            InsertWindows.OpenControls(main, insert);
+            var originalControls = Assert.Single(main.OwnedWindows.OfType<InsertControlsWindow>());
             MixerWindow popped = main.PopOutMixer();
             Layout(popped, 800, 480);
             Assert.Same(popped, main.PopOutMixer());
@@ -54,8 +59,20 @@ internal static class MixerPopOutWindowTests
                 b.DataContext == vm.Mixes[0] && Equals(b.Content, vm.Mixes[0].Inserts.ButtonText))
                 .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var chain = Assert.Single(popped.OwnedWindows.OfType<MixInsertsWindow>());
+            Assert.NotSame(originalChain, chain);
+            Assert.False(originalChain.IsVisible);
             Assert.Same(vm.Mixes[0].Inserts, chain.DataContext);
             chain.Close();
+            InsertWindows.OpenControls(popped, insert);
+            var controls = Assert.Single(popped.OwnedWindows.OfType<InsertControlsWindow>());
+            Assert.False(originalControls.IsVisible);
+            Assert.Same(insert, controls.DataContext);
+            controls.Hide();
+            InsertWindows.OpenControls(popped, insert);
+            var restored = Assert.Single(popped.OwnedWindows.OfType<InsertControlsWindow>());
+            Assert.True(restored.IsVisible);
+            Assert.Same(insert, restored.DataContext);
+            restored.Close();
             Capture(popped, "popout-800");
 
             foreach (string id in new[] { SkinPackage.DefaultId, "opendeck" })

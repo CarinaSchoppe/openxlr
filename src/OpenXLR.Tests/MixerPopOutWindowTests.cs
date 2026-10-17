@@ -111,6 +111,7 @@ internal static class MixerPopOutWindowTests
             Assert.False(main.IsVisible);
 
             CheckRecreatedMix();
+            MixerFaderLifecycleWindowTests.Check();
         }
         finally
         {

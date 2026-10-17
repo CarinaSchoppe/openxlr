@@ -1332,6 +1332,10 @@ a mix closes its plugin windows. Recreating the mix opens its new chain rather
 than an older window with the same mix id. Renaming a mix updates its open
 plugin-chain window without reopening it.
 
+Deleting a channel or mix also discards its unsent fader changes. A new
+channel or mix with the same name starts from its own saved values; old
+controls cannot change it.
+
 <a name="skins"></a>
 ### 3.10 Change how the window looks
 

@@ -1327,6 +1327,10 @@ window is opened explicitly each run; it does not change profiles or section
 order. Arrange mode ends when the mixer is detached; arrange tiles in the
 main window after returning it.
 
+Plugin windows opened from the detached mixer belong to that window. Deleting
+a mix closes its plugin windows. Recreating the mix opens its new chain rather
+than an older window with the same mix id.
+
 <a name="skins"></a>
 ### 3.10 Change how the window looks
 

@@ -108,6 +108,8 @@ internal static class MixerPopOutWindowTests
             main.Quit();
             Assert.False(popped.IsVisible);
             Assert.False(main.IsVisible);
+
+            CheckRecreatedMix();
         }
         finally
         {
@@ -121,4 +123,36 @@ internal static class MixerPopOutWindowTests
 
     private static Slider Master(Window window, MainViewModel vm) => window.GetVisualDescendants().OfType<Slider>()
         .Single(s => s.DataContext == vm.Mixes[0]);
+
+    private static void CheckRecreatedMix()
+    {
+        var client = new DaemonClient("ws://127.0.0.1:1/ws");
+        var owner = new Window();
+        try
+        {
+            owner.Show();
+            var vm = new MainViewModel(client);
+            var apply = typeof(MainViewModel).GetMethod("ApplyMixer", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            const string state = """{"mixes":[{"id":"headset","name":"Headset","kind":"monitor"}],"channels":[]}""";
+            apply.Invoke(vm, [JsonNode.Parse(state)]);
+            InsertWindows.OpenChain(owner, vm.Mixes[0].Inserts, "mix:headset");
+            var old = Assert.Single(owner.OwnedWindows.OfType<MixInsertsWindow>());
+            var insert = new InsertViewModel(vm.Mixes[0].Inserts, "old-effect", "urn:openxlr:test", "Old effect");
+            vm.Mixes[0].Inserts.Items.Add(insert);
+            InsertWindows.OpenControls(owner, insert);
+            var oldControls = Assert.Single(owner.OwnedWindows.OfType<InsertControlsWindow>());
+            // Deleting and re-creating a name reuses its id, but not its live chain.
+            apply.Invoke(vm, [JsonNode.Parse("""{"mixes":[],"channels":[]}""")]);
+            Assert.False(old.IsVisible);
+            Assert.False(oldControls.IsVisible);
+            apply.Invoke(vm, [JsonNode.Parse(state)]);
+            InsertWindows.OpenChain(owner, vm.Mixes[0].Inserts, "mix:headset");
+            var current = Assert.Single(owner.OwnedWindows.OfType<MixInsertsWindow>());
+            Assert.Same(vm.Mixes[0].Inserts, current.DataContext);
+            Assert.False(old.IsVisible);
+            InsertWindows.OpenChain(owner, vm.Mixes[0].Inserts, "mix:headset");
+            Assert.Same(current, Assert.Single(owner.OwnedWindows.OfType<MixInsertsWindow>()));
+        }
+        finally { owner.Close(); client.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+    }
 }

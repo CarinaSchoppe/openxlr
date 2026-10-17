@@ -1119,7 +1119,11 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             SyncList(Mixes, mixes, m => m["id"]!.GetValue<string>(),
                 (m, vm) => vm.ApplyFromDaemon(m),
-                CreateMix);
+                CreateMix, removed =>
+                {
+                    removed.Inserts.Apply(null);
+                    InsertWindows.CloseChain(removed.Inserts, $"mix:{removed.Id}");
+                });
             bool auxOn = mixer["auxPortEnabled"]?.GetValue<bool>() ?? true;
             foreach (MixViewModel mv in Mixes.Where(mv => mv.IsAuxPort)) mv.ApplyAuxPort(auxOn);
             // Aux can feed a selected output even without a USB Aux port.
@@ -1163,7 +1167,8 @@ public sealed partial class MainViewModel : ViewModelBase
 
     /// <summary>Follow daemon order while retaining existing objects and their bindings.</summary>
     private static void SyncList<T>(ObservableCollection<T> target, JsonArray source,
-        Func<JsonNode, string> idOf, Action<JsonNode, T> update, Func<JsonNode, T> create)
+        Func<JsonNode, string> idOf, Action<JsonNode, T> update, Func<JsonNode, T> create,
+        Action<T>? removed = null)
         where T : class, IHasId
     {
         var seen = new HashSet<string>();
@@ -1192,7 +1197,11 @@ public sealed partial class MainViewModel : ViewModelBase
             position++;
         }
         for (int i = target.Count - 1; i >= 0; i--)
-            if (!seen.Contains(target[i].Id)) target.RemoveAt(i);
+            if (!seen.Contains(target[i].Id))
+            {
+                removed?.Invoke(target[i]);
+                target.RemoveAt(i);
+            }
     }
 }
 

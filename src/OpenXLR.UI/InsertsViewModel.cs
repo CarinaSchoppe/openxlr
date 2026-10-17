@@ -40,12 +40,13 @@ public sealed partial class InsertsViewModel : ViewModelBase
         _client = client;
         _channel = channel;
         _channels = channels;
-        Title = title ?? channel;
+        _title = title ?? channel;
         SoundCheck = new SoundCheckViewModel(client, channel);
     }
 
+    private string _title;
     /// <summary>What the chain belongs to, for window titles ("XLR 1", "Stream mix").</summary>
-    public string Title { get; }
+    public string Title { get => _title; internal set => Set(ref _title, value); }
 
     /// <summary>Sound Check runs on the two XLR microphone chains only.</summary>
     public bool CanSoundCheck => _channel is "xlr1" or "xlr2";

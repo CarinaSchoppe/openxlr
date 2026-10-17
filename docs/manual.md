@@ -1329,7 +1329,8 @@ main window after returning it.
 
 Plugin windows opened from the detached mixer belong to that window. Deleting
 a mix closes its plugin windows. Recreating the mix opens its new chain rather
-than an older window with the same mix id.
+than an older window with the same mix id. Renaming a mix updates its open
+plugin-chain window without reopening it.
 
 <a name="skins"></a>
 ### 3.10 Change how the window looks

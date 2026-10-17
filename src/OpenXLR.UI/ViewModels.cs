@@ -1412,7 +1412,14 @@ public sealed class MixViewModel : ViewModelBase, IHasId
 
     private string _name;
     /// <summary>Display name; the daemon renames virtual microphones live.</summary>
-    public string Name { get => _name; set => Set(ref _name, value); }
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            if (Set(ref _name, value)) Inserts.Title = Localizer.Format("MixInsertsTitle", value);
+        }
+    }
 
     private bool? _editable;
     /// <summary>The daemon owns editability; older daemons only allow virtual microphones.</summary>

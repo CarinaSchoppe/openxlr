@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using OpenXLR.UI;
+using OpenXLR.UI.Localization;
 using OpenXLR.UI.Skinning;
 using static OpenXLR.Tests.WindowLayoutTests;
 
@@ -137,6 +138,11 @@ internal static class MixerPopOutWindowTests
             apply.Invoke(vm, [JsonNode.Parse(state)]);
             InsertWindows.OpenChain(owner, vm.Mixes[0].Inserts, "mix:headset");
             var old = Assert.Single(owner.OwnedWindows.OfType<MixInsertsWindow>());
+            apply.Invoke(vm, [JsonNode.Parse("""{"mixes":[{"id":"headset","name":"Speakers","kind":"monitor"}],"channels":[]}""")]);
+            Dispatcher.UIThread.RunJobs();
+            string title = Localizer.Format("MixInsertsTitle", "Speakers");
+            Assert.Equal(title, vm.Mixes[0].Inserts.Title);
+            Assert.Equal(Localizer.Format("InsertsTitle", title), old.Title);
             var insert = new InsertViewModel(vm.Mixes[0].Inserts, "old-effect", "urn:openxlr:test", "Old effect");
             vm.Mixes[0].Inserts.Items.Add(insert);
             InsertWindows.OpenControls(owner, insert);

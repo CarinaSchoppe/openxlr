@@ -70,7 +70,7 @@ internal static class StartupReceipt
             {
                 var info = new FileInfo(path);
                 if (info.Length > 1024 * 1024) throw new IOException("Startup file exceeds 1 MiB.");
-                originalBytes = InstallationReceipt.ReadBytes(path, 1024 * 1024);
+                originalBytes = RegularFile.ReadBytes(path, 1024 * 1024);
                 replaced = Convert.ToHexStringLower(SHA256.HashData(originalBytes));
                 replacedMode = OperatingSystem.IsWindows() ? null : (int)File.GetUnixFileMode(path);
                 if (replacedMode > 511) throw new IOException("Special startup file permissions are not supported.");
@@ -191,7 +191,7 @@ internal static class StartupReceipt
                 ? new InstalledFile { Path = path, Kind = "link", LinkTarget = info.LinkTarget }
                 : null;
         if (!info.Exists || info.LinkTarget is not null || Directory.Exists(path)) return null;
-        byte[] bytes = InstallationReceipt.ReadBytes(path, 1024 * 1024);
+        byte[] bytes = RegularFile.ReadBytes(path, 1024 * 1024);
         string text = Encoding.UTF8.GetString(bytes);
         if (!bytes.AsSpan().SequenceEqual(Encoding.UTF8.GetBytes(text)) || !StartupIntegration.IsGeneratedStartupFile(path, text)) return null;
         return new() { Path = path, Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)),
@@ -247,7 +247,7 @@ internal static class StartupReceipt
         string backup = Backup(file.ReplacedSha256!);
         if (InstallationReceipt.HasLinkedParent(backup, Root) || new FileInfo(backup).LinkTarget is not null)
             throw new IOException("The original startup file backup path is a symbolic link.");
-        byte[] bytes = InstallationReceipt.ReadBytes(backup, 1024 * 1024);
+        byte[] bytes = RegularFile.ReadBytes(backup, 1024 * 1024);
         if (Convert.ToHexStringLower(SHA256.HashData(bytes)) != file.ReplacedSha256)
             throw new IOException("The original startup file backup is missing or modified.");
         return bytes;

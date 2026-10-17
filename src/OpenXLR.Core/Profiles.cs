@@ -58,6 +58,8 @@ public sealed record Profile
 /// </summary>
 public static class ProfileStore
 {
+    internal const int MaxProfileBytes = 8 * 1024 * 1024;
+    private const int MaxRecallBytes = 1024;
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
@@ -126,7 +128,9 @@ public static class ProfileStore
     public static void Save(string deviceId, string name, Profile profile)
     {
         MigrateOnce();
-        OpenXlrPaths.WriteAtomicJson(Path.Combine(Dir(deviceId), name + ".json"), profile, Json);
+        byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(profile, Json);
+        if (bytes.Length > MaxProfileBytes) throw new IOException("Profiles are limited to 8 MiB.");
+        OpenXlrPaths.WriteAtomic(Path.Combine(Dir(deviceId), name + ".json"), bytes);
     }
 
     public static Profile? Load(string deviceId, string name)
@@ -135,7 +139,7 @@ public static class ProfileStore
         string path = Path.Combine(Dir(deviceId), name + ".json");
         try
         {
-            Profile? profile = JsonSerializer.Deserialize<Profile>(File.ReadAllText(path), Json);
+            Profile? profile = JsonSerializer.Deserialize<Profile>(RegularFile.ReadText(path, MaxProfileBytes), Json);
             if (profile?.Mixer is { } scene) SavedMixerValidation.Validate(scene);
             if (profile?.Device is { } device) DeviceStateStore.Validate(device);
             if (profile?.AdditionalDevices is { } additional)
@@ -155,8 +159,9 @@ public static class ProfileStore
         MigrateOnce();
         string path = Path.Combine(Dir(deviceId), name + ".json");
         if (!File.Exists(path)) return false;
+        string? recall = RecallOnConnect(deviceId);
         File.Delete(path);
-        if (RecallOnConnect(deviceId) == name) SetRecallOnConnect(deviceId, null);
+        if (recall == name) SetRecallOnConnect(deviceId, null);
         return true;
     }
 
@@ -172,8 +177,10 @@ public static class ProfileStore
     {
         try
         {
-            string name = File.ReadAllText(RecallPath(deviceId)).Trim();
-            return name.Length == 0 ? null : name;
+            string name = RegularFile.ReadText(RecallPath(deviceId), MaxRecallBytes).Trim();
+            if (name.Length == 0) return null;
+            if (SanitizeName(name) != name) throw new IOException("The recall marker contains an invalid profile name.");
+            return name;
         }
         catch (FileNotFoundException) { return null; }
         catch (DirectoryNotFoundException) { return null; }
@@ -182,6 +189,8 @@ public static class ProfileStore
     /// <summary>Set (or with null clear) the profile recalled on connect.</summary>
     public static void SetRecallOnConnect(string deviceId, string? name)
     {
+        if (name is not null && SanitizeName(name) != name)
+            throw new ArgumentException("Invalid profile name.", nameof(name));
         string path = RecallPath(deviceId);
         if (name is null)
         {

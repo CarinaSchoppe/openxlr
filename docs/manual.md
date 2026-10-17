@@ -1987,6 +1987,13 @@ Reading a rejected file never rewrites it. Missing optional fields in older
 files keep their legacy meaning, and an unavailable plugin can still be
 remembered for later use.
 
+Profiles are limited to 8 MiB when saved or loaded. The `recall-on-connect`
+marker is limited to 1 KiB and must name a profile, never a path. Pipes and
+other special files are refused before reading either file. A refused
+automatic recall falls back to the last hardware settings; the journal
+reports the reason, and a marker that cannot be read also appears in the
+window's profile warning. Fix or remove that file to choose a profile again.
+
 The window's preference files, `ui.json` and `daemon.json`, follow the same
 rule. When the window saves one, it keeps the keys it does not know, such as a
 setting written by a newer OpenXLR. A list written as `null` reads as an empty

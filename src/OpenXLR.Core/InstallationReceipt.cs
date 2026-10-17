@@ -42,7 +42,7 @@ internal sealed record InstallationReceipt
     internal static InstallationReceipt Read(string path, string? root = null, bool archived = false)
     {
         if (new FileInfo(path).LinkTarget is not null) throw new IOException("The installation receipt is a symbolic link.");
-        byte[] bytes = ReadBytes(path, MaxBytes);
+        byte[] bytes = RegularFile.ReadBytes(path, MaxBytes);
         try
         {
             using var document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 16 });
@@ -63,22 +63,6 @@ internal sealed record InstallationReceipt
         }
         catch (Exception ex) when (ex is JsonException or ArgumentException)
         { throw new IOException("Invalid installation receipt: " + ex.Message, ex); }
-    }
-
-    internal static byte[] ReadBytes(string path, int maximum)
-    {
-        RegularFile.Require(path);
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-        if (stream.Length > maximum) throw new IOException("File exceeds the inspection limit.");
-        using var bytes = new MemoryStream();
-        var buffer = new byte[8192];
-        int read;
-        while ((read = stream.Read(buffer)) > 0)
-        {
-            if (bytes.Length + read > maximum) throw new IOException("File exceeds the inspection limit.");
-            bytes.Write(buffer, 0, read);
-        }
-        return bytes.ToArray();
     }
 
     private static void CheckNames(JsonElement value)

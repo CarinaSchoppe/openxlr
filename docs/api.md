@@ -214,6 +214,11 @@ that final acknowledgement (or an `error` without a request id):
 | `resetDevice` | none | write the recorded defaults back to a device using connect-time restoration and forget its last settings (an error until the daemon has seen the device connect after a power cycle once); on the Wave XLR Pro, which keeps its own settings, write OpenXLR's baseline instead: gain 30 dB on both inputs, every processing stage and phantom off, headphones and aux level at half, the crossfade fully on PC, routing untouched, refused while the gain lock is on. The capabilities say `builtInDefaults` when a model has a baseline |
 | `getDiagnostics` | none | vendor block dump for bug reports |
 
+Profile files have an 8 MiB save and load limit. The recall marker is at
+most 1 KiB and contains a profile name, not a path. Special files are refused
+before either is read. A failed explicit load returns an error and applies
+nothing; a rejected automatic recall uses the last hardware settings.
+
 A profile saved while additional interfaces are driven carries
 `additionalDevices`, their hardware states by instance id, at most four.
 Recall writes each one to that unit when it is enabled and connected, and

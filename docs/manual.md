@@ -1336,6 +1336,10 @@ Deleting a channel or mix also discards its unsent fader changes. A new
 channel or mix with the same name starts from its own saved values; old
 controls cannot change it.
 
+Removing or replacing an insert also retires its controls. Queued parameter
+changes are discarded, and late bypass, host, removal or rename actions from
+the old controls cannot affect a plugin that now uses the same slot id.
+
 <a name="skins"></a>
 ### 3.10 Change how the window looks
 

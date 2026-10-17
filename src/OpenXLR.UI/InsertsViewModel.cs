@@ -32,6 +32,7 @@ public sealed partial class InsertsViewModel : ViewModelBase
     private bool _applying;
     private bool _pluginsRequested;
     private int _catalogGeneration;
+    internal bool IsDetached { get; private set; }
 
     /// <param name="channel">Insert key: "xlr1", "xlr2", or "mix:&lt;id&gt;".</param>
     /// <param name="channels">1 for the mono mic path, 2 for a stereo mix.</param>
@@ -53,7 +54,7 @@ public sealed partial class InsertsViewModel : ViewModelBase
     public SoundCheckViewModel SoundCheck { get; }
 
     public Task ShowNativeEditorAsync(InsertViewModel insert)
-        => _client.ShowInsertUiAsync(_channel, insert.Id);
+        => insert.IsDetached ? Task.CompletedTask : _client.ShowInsertUiAsync(_channel, insert.Id);
 
     /// <summary>Chain window subtitle: where these plugins sit in the path.</summary>
     public string ChainHint => _channels == 1
@@ -88,7 +89,7 @@ public sealed partial class InsertsViewModel : ViewModelBase
         set { if (Set(ref _selectedPlugin, value)) Raise(nameof(CanAdd)); }
     }
 
-    public bool CanAdd => _selectedPlugin is not null;
+    public bool CanAdd => !IsDetached && _selectedPlugin is not null;
 
     private string? _note;
     /// <summary>Picker status: scanning, count, or why nothing is offered.</summary>
@@ -107,7 +108,7 @@ public sealed partial class InsertsViewModel : ViewModelBase
 
     internal async Task LoadPluginsAsync()
     {
-        if (_pluginsRequested) return;
+        if (IsDetached || _pluginsRequested) return;
         _pluginsRequested = true;
         Note = Localizer.Text("ScanningPlugins");
         int generation = ++_catalogGeneration;
@@ -191,6 +192,19 @@ public sealed partial class InsertsViewModel : ViewModelBase
 
     internal DaemonClient Client => _client;
 
+    /// <summary>Retire a deleted mix's chain, including pending catalogue and workflow replies.</summary>
+    internal void Detach()
+    {
+        if (IsDetached) return;
+        IsDetached = true;
+        _catalogGeneration++;
+        ResetEffectWorkflow();
+        Apply(null);
+        PluginChoices.Clear();
+        SelectedPlugin = null;
+        Raise(nameof(CanAdd));
+    }
+
     /// <summary>Apply the daemon's view of this channel's chain.</summary>
     public void Apply(JsonNode? chain)
     {
@@ -241,6 +255,7 @@ public sealed partial class InsertsViewModel : ViewModelBase
 
     public void Add(PluginChoice plugin)
     {
+        if (IsDetached) return;
         EffectEdited();
         var chain = Snapshot();
         chain.Add(new Dictionary<string, object?>
@@ -257,6 +272,7 @@ public sealed partial class InsertsViewModel : ViewModelBase
 
     public void Remove(InsertViewModel item)
     {
+        if (item.IsDetached) return;
         EffectEdited();
         _ = _client.SetInsertsAsync(_channel, Snapshot(skip: item.Id));
     }
@@ -274,12 +290,12 @@ public sealed partial class InsertsViewModel : ViewModelBase
 
     internal void SendBypass(InsertViewModel item, bool bypass)
     {
-        if (!_applying) { EffectEdited(); _ = _client.SetInsertBypassAsync(_channel, item.Id, bypass); }
+        if (!_applying && !IsDetached) { EffectEdited(); _ = _client.SetInsertBypassAsync(_channel, item.Id, bypass); }
     }
 
     internal void SendParam(InsertViewModel item, string symbol, double value)
     {
-        if (_applying) return;
+        if (_applying || IsDetached) return;
         EffectEdited();
         string key = ParameterKey(item.Id, symbol);
         SliderSync.Touch(key);
@@ -294,7 +310,7 @@ public sealed partial class InsertsViewModel : ViewModelBase
 
     internal void SendHostChoice()
     {
-        if (!_applying) { EffectEdited(); _ = _client.SetInsertsAsync(_channel, Snapshot()); }
+        if (!_applying && !IsDetached) { EffectEdited(); _ = _client.SetInsertsAsync(_channel, Snapshot()); }
     }
 
     /// <summary>The current chain as the daemon wants it, minus an optional id.</summary>
@@ -308,6 +324,7 @@ public sealed partial class InsertsViewModel : ViewModelBase
 public sealed class InsertViewModel : ViewModelBase
 {
     private readonly InsertsViewModel _owner;
+    internal bool IsDetached { get; private set; }
 
     public InsertViewModel(InsertsViewModel owner, string id, string plugin, string label, string kind = "lv2")
     {
@@ -362,7 +379,7 @@ public sealed class InsertViewModel : ViewModelBase
     /// host for a saved choice and for an LV2 insert PipeWire's filter chain
     /// refused.
     /// </summary>
-    public bool NativeEditorAvailable => !NativeUiBlocked && NativeHostInstalled && !Bypass && !HasError && NativeHostRunning;
+    public bool NativeEditorAvailable => !IsDetached && !NativeUiBlocked && NativeHostInstalled && !Bypass && !HasError && NativeHostRunning;
 
     /// <summary>
     /// The switch can be turned on only where the helper is installed. It
@@ -400,6 +417,7 @@ public sealed class InsertViewModel : ViewModelBase
         get => _nativeHost;
         set
         {
+            if (IsDetached) return;
             if (Set(ref _nativeHost, value))
             {
                 RaiseNativeFlags();
@@ -416,7 +434,7 @@ public sealed class InsertViewModel : ViewModelBase
     public bool Bypass
     {
         get => _bypass;
-        set { if (Set(ref _bypass, value)) { Raise(nameof(StateText)); Raise(nameof(IsActive)); RaiseNativeFlags(); _owner.SendBypass(this, value); } }
+        set { if (!IsDetached && Set(ref _bypass, value)) { Raise(nameof(StateText)); Raise(nameof(IsActive)); RaiseNativeFlags(); _owner.SendBypass(this, value); } }
     }
 
     private string? _error;
@@ -456,6 +474,7 @@ public sealed class InsertViewModel : ViewModelBase
     private bool _paramsRequested;
     public void EnsureParams()
     {
+        if (IsDetached) return;
         if (!_paramsRequested)
         {
             _paramsRequested = true;
@@ -596,13 +615,17 @@ public sealed class InsertViewModel : ViewModelBase
 
     internal void Detach()
     {
+        if (IsDetached) return;
+        IsDetached = true;
         ForgetPendingParameters();
         InsertWindows.CloseControls(this);
+        RaiseNativeFlags();
         Detached?.Invoke();
     }
 
     internal void SendParam(string symbol, double value)
     {
+        if (IsDetached) return;
         _editedParameters.Add(symbol);
         _params[symbol] = value;
         _owner.SendParam(this, symbol, value);

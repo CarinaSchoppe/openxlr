@@ -1122,7 +1122,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 CreateMix, removed =>
                 {
                     removed.Detach();
-                    removed.Inserts.Apply(null);
+                    removed.Inserts.Detach();
                     InsertWindows.CloseChain(removed.Inserts, $"mix:{removed.Id}");
                 });
             bool auxOn = mixer["auxPortEnabled"]?.GetValue<bool>() ?? true;

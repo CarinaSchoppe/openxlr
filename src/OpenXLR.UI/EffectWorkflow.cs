@@ -22,7 +22,7 @@ public sealed partial class InsertsViewModel
     private bool _workflowBusy;
     private string? _workflowError;
     private string _presetName = "", _comparison = "";
-    public bool CanEditEffects => !_workflowBusy;
+    public bool CanEditEffects => !IsDetached && !_workflowBusy;
     public string? WorkflowError { get => _workflowError; private set => Set(ref _workflowError, value); }
     public string PresetName { get => _presetName; set => Set(ref _presetName, value); }
     public string Comparison { get => _comparison; private set => Set(ref _comparison, value); }
@@ -140,7 +140,7 @@ public sealed partial class InsertsViewModel
 
     internal async Task<bool> ApplyEffectsAsync(EffectChainData data)
     {
-        if (_workflowBusy) return false;
+        if (!CanEditEffects) return false;
         try { data.Validate(); }
         catch (Exception ex) when (EffectPresetFiles.IsFailure(ex)) { WorkflowError = ex.Message; return false; }
         // The daemon validates each plugin against the target width. Mono and
@@ -166,7 +166,7 @@ public sealed partial class InsertsViewModel
     }
     public async Task RenameEffectAsync(InsertViewModel insert, string name)
     {
-        if (_workflowBusy) return;
+        if (!CanEditEffects || insert.IsDetached) return;
         int epoch = _connectionEpoch;
         string? error = await _client.RenameInsertAsync(_channel, insert.Id, name.Trim());
         if (epoch == _connectionEpoch) WorkflowError = error;

@@ -30,7 +30,8 @@ internal static class MixerFaderLifecycleWindowTests
             {
                 JsonNode command = await SocketTestServer.Receive(socket, stop);
                 string cmd = command["cmd"]!.GetValue<string>();
-                if (cmd is "setLevel" or "setMixVolume" or "setChannelMuted" or "setMixMuted")
+                if (cmd is "setLevel" or "setMixVolume" or "setChannelMuted" or "setMixMuted"
+                    or "setInsertParam" or "setInsertBypass" or "setInserts" or "showInsertUi" or "renameInsert")
                     changes.Enqueue($"{cmd}:{command["channel"]}:{command["mix"]}");
                 if (command["requestId"] is { } requestId)
                     await SocketTestServer.Send(socket, new { type = "commandResult", requestId = requestId.GetValue<string>() }, stop);
@@ -95,5 +96,60 @@ internal static class MixerFaderLifecycleWindowTests
                 SliderSync.Forget("lvl:music:headset");
             }
         }
+
+        foreach (bool replace in new[] { false, true })
+        {
+            var chain = new InsertsViewModel(client, "mix:headset", 2);
+            JsonArray Insert(string plugin) => new(new JsonObject
+            {
+                ["insert"] = new JsonObject { ["id"] = "same-slot", ["kind"] = "lv2", ["plugin"] = plugin,
+                    ["params"] = new JsonObject { ["gain"] = .5 } },
+            });
+            chain.Apply(Insert("urn:old"));
+            var old = Assert.Single(chain.Items);
+            old.SendParam("gain", .2);
+            if (!replace) chain.Apply(null);
+            chain.Apply(Insert("urn:new"));
+            var current = Assert.Single(chain.Items);
+            changes.Clear();
+            try
+            {
+                old.SendParam("gain", .9);
+                old.Bypass = true;
+                old.NativeHost = true;
+                chain.Remove(old);
+                await chain.ShowNativeEditorAsync(old);
+                await chain.RenameEffectAsync(old, "Old editor");
+                SliderSync.FlushPending();
+                Assert.Null(await client.SetLayoutOrderAsync([], []));
+                Assert.Empty(changes);
+                Assert.False(SliderSync.RecentlyTouched(chain.ParameterKey(old.Id, "gain")));
+                Assert.Equal(.5, chain.CaptureChain().Inserts[0]!["params"]!["gain"]!.GetValue<double>());
+
+                current.SendParam("gain", .4);
+                SliderSync.FlushPending();
+                Assert.Null(await client.SetLayoutOrderAsync([], []));
+                Assert.Single(changes);
+            }
+            finally { current.ForgetPendingParameters(); }
+        }
+
+        apply.Invoke(model, [State(true, true)]);
+        var retiredChain = model.Mixes.Single(m => m.Id == "headset").Inserts;
+        apply.Invoke(model, [State(true, false)]);
+        apply.Invoke(model, [State(true, true)]);
+        var activeChain = model.Mixes.Single(m => m.Id == "headset").Inserts;
+        var plugin = new PluginChoice("urn:test", "Test", "", new JsonArray());
+        retiredChain.SelectedPlugin = plugin;
+        Assert.False(retiredChain.CanAdd);
+        Assert.False(retiredChain.CanEditEffects);
+        changes.Clear();
+        retiredChain.Add(plugin);
+        Assert.False(await retiredChain.ApplyEffectsAsync(new EffectChainData(1, 2, new JsonArray())));
+        Assert.Null(await client.SetLayoutOrderAsync([], []));
+        Assert.Empty(changes);
+        activeChain.Add(plugin);
+        Assert.Null(await client.SetLayoutOrderAsync([], []));
+        Assert.Single(changes);
     }
 }

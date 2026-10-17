@@ -218,6 +218,8 @@ Profile files have an 8 MiB save and load limit. The recall marker is at
 most 1 KiB and contains a profile name, not a path. Special files are refused
 before either is read. A failed explicit load returns an error and applies
 nothing; a rejected automatic recall uses the last hardware settings.
+If a marker read failure refuses a deletion, the profile and its active
+selection are kept.
 
 A profile saved while additional interfaces are driven carries
 `additionalDevices`, their hardware states by instance id, at most four.

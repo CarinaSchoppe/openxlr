@@ -665,9 +665,9 @@ public sealed class WebSocketHub
                 case "loadProfile":
                     return ApplyNamedProfile(devId, name);
                 case "deleteProfile":
-                    if (_activeProfile.TryGetValue(devId, out string? current) && current == name)
-                        _activeProfile.TryRemove(devId, out _);
-                    return OpenXLR.Core.ProfileStore.Delete(devId, name) ? null : $"no profile named '{name}'";
+                    if (!OpenXLR.Core.ProfileStore.Delete(devId, name)) return $"no profile named '{name}'";
+                    _activeProfile.TryRemove(new KeyValuePair<string, string>(devId, name));
+                    return null;
                 default:
                     return $"unknown profile command '{cmd.Cmd}'";
             }

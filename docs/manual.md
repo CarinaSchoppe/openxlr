@@ -1273,6 +1273,11 @@ Under WINDOW:
   including when the window was minimized. "Quit OpenXLR" in the tray
   menu always exits. Neither choice stops the background audio service.
 
+Launching OpenXLR again shows its existing window. A launch requested while
+the first process is still initializing is kept until the window is ready,
+including when the first process was set to start in the tray. Several such
+requests show one window, rather than starting additional copies.
+
 A Linux desktop gives an application no way to find out whether a system
 tray is there, so OpenXLR cannot fall back to quitting when there is none.
 On a desktop with no tray, choose "Show mixer" on launch and "Quit app"

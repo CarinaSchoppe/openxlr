@@ -18,9 +18,38 @@ internal sealed class SingleInstance : IDisposable
     private const string Show = "show";
     private readonly Socket _listener;
     private readonly string _path;
+    private readonly object _showGate = new();
+    private Action? _showRequested;
+    private bool _showPending;
+    private int _disposed;
 
     /// <summary>Runs on a background thread when another launch asks for the window.</summary>
-    public Action? ShowRequested { get; set; }
+    public Action? ShowRequested
+    {
+        get { lock (_showGate) return _showRequested; }
+        set
+        {
+            bool show;
+            lock (_showGate)
+            {
+                _showRequested = value;
+                show = _showPending && value is not null;
+                if (show) _showPending = false;
+            }
+            if (show) value!();
+        }
+    }
+
+    private void RequestShow()
+    {
+        Action? show;
+        lock (_showGate)
+        {
+            show = _showRequested;
+            if (show is null) _showPending = true;
+        }
+        show?.Invoke();
+    }
 
     private SingleInstance(Socket listener, string path) { _listener = listener; _path = path; }
 
@@ -92,9 +121,20 @@ internal sealed class SingleInstance : IDisposable
             {
                 try
                 {
-                    peer.ReceiveTimeout = 2000;
-                    int n = peer.Receive(buf);
-                    if (Encoding.ASCII.GetString(buf, 0, n).Trim() == Show) ShowRequested?.Invoke();
+                    long deadline = Environment.TickCount64 + 2000;
+                    int n = 0;
+                    while (n < buf.Length)
+                    {
+                        long remaining = deadline - Environment.TickCount64;
+                        if (remaining <= 0) break;
+                        peer.ReceiveTimeout = (int)remaining;
+                        int read = peer.Receive(buf.AsSpan(n));
+                        if (read == 0) break;
+                        n += read;
+                        int end = Array.IndexOf(buf, (byte)'\n', 0, n);
+                        if (end >= 0) { n = end; break; }
+                    }
+                    if (Encoding.ASCII.GetString(buf, 0, n).Trim() == Show) RequestShow();
                 }
                 catch (Exception) { /* a peer that says nothing is ignored */ }
             }
@@ -103,6 +143,7 @@ internal sealed class SingleInstance : IDisposable
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         try { _listener.Dispose(); } catch (Exception) { }
         if (_path.Length > 0) { try { File.Delete(_path); } catch (Exception) { } }
     }

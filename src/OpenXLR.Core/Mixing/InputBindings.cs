@@ -492,6 +492,42 @@ public sealed partial class Mixer
         }
     }
 
+    // The Pro's raw 18-channel layout has four stereo inputs before its
+    // five returned mixes. Aux In owns USB Aux (pair 2) and Line In (pair 3).
+    // Older six-port profiles keep their existing USB Aux route.
+    private bool HasLineInputPairLocked(ChannelDefinition channel, string source)
+        => channel.NeedsAuxInput && channel.InputPair == 2
+            && _pw.ListDevices().Where(d => d.Kind == AudioNodeKind.Source && d.Name == source).ToArray()
+                is [{ Channels: 18, Positions: { Count: 18 } positions }]
+            && positions[4] == "AUX4" && positions[5] == "AUX5"
+            && positions[6] == "AUX6" && positions[7] == "AUX7";
+
+    private LinkHealth InputFeedHealthLocked(ChannelDefinition channel, PortLink feed)
+    {
+        // A source can publish its remaining ports after the USB Aux feed
+        // was linked. A healthy first pair must not hide the new Line In pair.
+        if (channel.NeedsAuxInput && _stripSources.GetValueOrDefault(channel.Id) is { } source
+            && feed.Pairs.Count != (HasLineInputPairLocked(channel, source) ? 4 : 2))
+            return LinkHealth.Broken;
+        return _pw.EnsureLinks(feed);
+    }
+
+    private PortLink RouteAuxInputsLocked(string source, string target)
+    {
+        // Use names, not offsets in a possibly incomplete port listing.
+        // A missing raw port must not shift a returned mix into Aux In.
+        var pairs = new List<(string From, string To)>();
+        bool complete = true;
+        for (int channel = 4; channel <= 7; channel++)
+        {
+            PortLink side = _pw.LinkNodes(source, "capture_AUX" + channel, target,
+                channel % 2 == 0 ? "playback_FL" : "playback_FR");
+            pairs.AddRange(side.Pairs);
+            complete &= side.Complete && side.Pairs.Count == 1;
+        }
+        return new PortLink(pairs) { Complete = complete };
+    }
+
     private PortLink RouteInputLocked(string source, string target, ChannelDefinition channel, bool processed = false)
     {
         if (UnconfirmedMicrophonePauseLocked(channel)) return new PortLink([]);
@@ -502,6 +538,8 @@ public sealed partial class Mixer
                 fromChannel: processed ? null : channel.CaptureMonoChannel)
             : binding is not null && !processed
             ? _pw.LinkNodes(source, "", target, "playback", fromChannel: binding.Port)
+            : !processed && HasLineInputPairLocked(channel, source)
+            ? RouteAuxInputsLocked(source, target)
             : _pw.RouteInputToChannel(source, target, processed ? 0 : channel.InputPair!.Value);
         if ((binding is not null || channel.CaptureSource is not null)
             && (!route.Complete || route.Pairs.Count < (target == channel.SinkName ? 2 : channel.ChainWidth ?? 1)))

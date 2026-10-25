@@ -20,8 +20,8 @@ public sealed partial record MixerConfig
 
     /// <summary>
     /// The layout carried over from the user's Wave Link setup: three mixes
-    /// (monitor / stream / chat), one channel per hardware input of the Wave
-    /// XLR Pro (XLR 1, XLR 2, Line In, each wired to its capture channel pair),
+    /// (monitor / stream / chat), the Wave XLR Pro's input channels
+    /// (XLR 1, XLR 2 and Aux In for the USB Aux and Line In capture pairs),
     /// and the application channel set. The hardware inputs are muted in the
     /// monitor mix by default, exactly like Wave Link mutes the mic locally:
     /// self-monitoring belongs to the device's zero-latency crossfade, not the
@@ -45,10 +45,8 @@ public sealed partial record MixerConfig
         [
             new ChannelDefinition("xlr1", "XLR 1") { Levels = Level(1.0, 1.0, 1.0, 1.0), MutedIn = new HashSet<string> { "monitor", "monitor2" }, InputPair = 0 },
             new ChannelDefinition("xlr2", "XLR 2") { Levels = Level(1.0, 1.0, 1.0, 1.0), MutedIn = new HashSet<string> { "monitor", "monitor2" }, InputPair = 1, NeedsXlrInputs = 2 },
-            // The third hardware input stage is shared: the USB Aux port and the
-            // Line In jack both arrive on capture pair 2 (verified live with a
-            // MacBook on USB Aux; every other capture channel stayed at digital
-            // zero). One channel therefore serves both.
+            // Aux In combines USB Aux (capture pair 2) and, where exposed,
+            // Line In (pair 3). They share this channel's software faders.
             // Aux In must NEVER feed the Aux mix: that would loop the second
             // computer's audio straight back to it.
             new ChannelDefinition("aux", "Aux In") { Levels = Level(1.0, 1.0, 1.0, 0.0), MutedIn = new HashSet<string> { "monitor", "monitor2", "auxout" }, InputPair = 2, NeedsAuxInput = true },
@@ -113,8 +111,8 @@ public sealed record ChannelDefinition(string Id, string Name)
     /// <summary>
     /// Capture channel pair of the hardware interface feeding this channel
     /// (0 = first stereo pair), or null for a user channel. On the Wave
-    /// XLR Pro's 6-channel source: pair 0 = XLR 1, pair 1 = XLR 2, pair 2 =
-    /// Line In.
+    /// XLR Pro: pair 0 = XLR 1, pair 1 = XLR 2, pair 2 = USB Aux. The
+    /// auxiliary channel also takes Line In from pair 3 when present.
     /// </summary>
     public int? InputPair { get; init; }
 
@@ -125,7 +123,7 @@ public sealed record ChannelDefinition(string Id, string Name)
     /// </summary>
     public int? NeedsXlrInputs { get; init; }
 
-    /// <summary>Whether this channel needs the device's auxiliary input stage, which is the Pro's Line In.</summary>
+    /// <summary>Whether this channel needs the device's auxiliary inputs, USB Aux and Line In on the Pro.</summary>
     public bool NeedsAuxInput { get; init; }
 
     /// <summary>Explicit capture node name for a user input, independent of the active Wave interface.</summary>

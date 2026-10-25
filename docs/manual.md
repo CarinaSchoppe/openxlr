@@ -860,7 +860,16 @@ has stopped does not reconnect its outputs.
 
 The USB Aux *input* (what the second computer sends back) is the Aux In
 channel, with its level and **Level Lock** on the USB Aux in row of the
-INPUTS card.
+INPUTS card. On the Pro's 18-channel raw capture layout, Aux In also takes
+the analog Line In jack's fourth capture pair. The two inputs share
+Aux In's channel volume and send faders; the USB Aux level and lock apply
+to USB Aux only. A six-channel capture profile exposes USB Aux without
+that fourth pair. On a Pro, use the raw multichannel or Pro Audio profile
+to expose all the inputs. Aux In starts muted in the monitor mixes; unmute
+its send to the mix your headphones follow. It stays muted to the Aux
+output by default to avoid sending a second computer its own audio.
+The Line In mapping still needs a listening check on a Pro; see
+[hardware support](hardware-support.md#wave-xlr-pro-0fd900b4).
 
 <a name="plugins"></a>
 ### 3.5 Add a plugin to the signal path

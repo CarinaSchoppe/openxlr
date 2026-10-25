@@ -226,7 +226,8 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
 
     /// <summary>
     /// Wire each input from its own source: the driven interface's
-    /// capture pair (XLR 1 = pair 0, XLR 2 = pair 1, Aux In = pair 2), or one
+    /// capture pairs (XLR 1 = pair 0, XLR 2 = pair 1, Aux In = pairs 2 and
+    /// 3 where present), or one
     /// port of the exact source the strip is bound to. The interface is found
     /// by name; a strip whose source is absent is silent and the others keep
     /// playing. Capture inputs use their binding and chain width, and enter
@@ -502,7 +503,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 // that survived is kept connected (see UnlinkDiscardedInputFeed).
                 if (sameInput && sameHead && !_chains.ContainsKey(ch.Id)
                     && _inputFeeds.TryGetValue(ch.Id, out PortLink? directFeed)
-                    && _pw.EnsureLinks(directFeed) != LinkHealth.Broken)
+                    && InputFeedHealthLocked(ch, directFeed) != LinkHealth.Broken)
                 {
                     nextFeeds[ch.Id] = directFeed;
                     continue;
@@ -1471,7 +1472,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             // change renames every node under it) is wired again. With an
             // EQ stage at the head, the source feeds the stage.
             foreach (ChannelDefinition ch in strips)
-                if (_inputFeeds.TryGetValue(ch.Id, out PortLink? feed) && _pw.EnsureLinks(feed) == LinkHealth.Broken
+                if (_inputFeeds.TryGetValue(ch.Id, out PortLink? feed) && InputFeedHealthLocked(ch, feed) == LinkHealth.Broken
                     || _eqInputs.TryGetValue(ch.Id, out PortLink? into) && _pw.EnsureLinks(into) == LinkHealth.Broken) due.Add(ch.Id);
             // A bound strip is wired again when its exact source appears, when
             // a second source acquires the name while the old links remain

@@ -491,9 +491,16 @@ profile written before the hardware inputs took a volume has no entry for
 `xlr1`, `xlr2` or `aux`, so they are recalled at 100%.
 
 On XLR 1, XLR 2 and Aux In the volume comes after the interface's gain or
-the Aux In level and after the input's plugin chain; `set` and the gain
-lock are unchanged. It belongs to the strip, not to its source: an input
-binding change keeps it, and a strip bound to another source, which has no
+the USB Aux level and after the input's plugin chain; `set` and the gain
+lock are unchanged. On the Wave XLR Pro's 18-channel raw layout, Aux In sums pairs 2
+(USB Aux) and 3 (Line In, when present). The five returned hardware mixes
+on pairs 4 to 8 are excluded. Its unit binding still names pair 2; the
+optional fourth raw pair follows the same channel and send volumes. The
+USB Aux hardware level controls only USB Aux, not Line In. A profile with
+only six capture ports keeps the pair-2 feed.
+
+It belongs to the strip, not to its source: an input binding change keeps
+it, and a strip bound to another source, which has no
 gain of its own, keeps its volume as its level control. The Wave XLR Pro's
 direct microphone path (`hpMixMicDirect`, see
 [the interface while a strip is bound](#the-interface-while-a-strip-is-bound))

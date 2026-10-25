@@ -579,3 +579,30 @@ reduce and the headphones stay level.
   not settled.
 - Byte 14 of each section, and what section 0's 21 dB lower level comes
   from.
+
+## 13. The fourth raw input pair (archive of 2026-10-25)
+
+A report of a Switch on analog Line In, firmware 1.0.14, carried an
+18-channel capture source (AUX0 to AUX17). The source and Aux In were
+unmuted at unity. Aux In had active links from AUX4/AUX5 only; AUX6/AUX7
+had no links. Its send to the headphone mix was open. No insert was loaded.
+
+USB Aux on AUX4/AUX5 was verified earlier with a second computer. The
+five mix returns occupy AUX8 to AUX17 (section 12), leaving AUX6/AUX7 as
+the fourth raw input pair, corresponding to Line In in the four-input
+layout. The old comment that Line In shared AUX4/AUX5 was an inference
+from a USB Aux test, not a Line In measurement.
+
+Aux In now takes both raw auxiliary pairs on this 18-channel layout, keeping its
+existing saved sends and volumes. Its USB Aux hardware level is still
+USB Aux only. Returned mixes are not fed back into this channel. A
+six-port source retains only its pair-2 route; a stereo source never
+falls back to its microphone. AUX4 to AUX7 are linked by name, so a port
+that has not appeared yet cannot shift a hardware mix return into this
+channel. Port arrivals, missing links and profile
+changes are exercised on private PipeWire with separate stereo signals.
+
+This archive has no recorded audio, so the Line In identity of AUX6/AUX7
+still needs a measurement on a Pro, with USB Aux silent and a known
+stereo signal on the analog jack. Do not mark it hardware-verified until
+that check passes.

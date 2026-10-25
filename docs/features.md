@@ -206,7 +206,10 @@ Built from PipeWire nodes, no kernel modules or custom drivers:
   for other PipeWire capture sources (below). XLR 2 and Aux In are shown
   only where the device has them, which is the Wave XLR Pro, or while XLR
   2 is bound to another source; every client
-  reads that from the state rather than deciding for itself
+  reads that from the state rather than deciding for itself. Aux In combines
+  USB Aux and the analog Line In on the Pro's 18-channel raw source,
+  with shared channel and send levels; the Line In mapping awaits hardware
+  listening ([hardware support](hardware-support.md#wave-xlr-pro-0fd900b4))
 - Mixes: Monitor A (what you hear), Monitor B (a second selection for
   outputs that should hear something else), the virtual microphones
   (Stream and Chat by default, published as capture devices selectable

@@ -97,6 +97,8 @@ public static class Diagnostics
             await WritePluginDataAsync(client, work, TimeSpan.FromSeconds(15), login);
 
             // Audio stack.
+            await Capture("pipewire-version.txt", "pipewire", "--version");
+            await Capture("wireplumber-version.txt", "wireplumber", "--version");
             await Capture("pw-dump.json", "pw-dump");
             await Capture("pactl-info.txt", "pactl", "info");
             await Capture("wpctl-status.txt", "wpctl", "status");

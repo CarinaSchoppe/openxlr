@@ -475,6 +475,15 @@ public sealed class DiagnosticsTests
         try
         {
             ExecutableScript.Write(Path.Combine(bin, "uname"), $"echo 'Linux {machine} 6.18.0 #1 SMP x86_64 GNU/Linux'\n");
+            ExecutableScript.Write(Path.Combine(bin, "pipewire"), """
+                [ "$#" = 1 ] && [ "$1" = --version ] || exit 91
+                printf '%s\n' 'pipewire' 'Compiled with libpipewire 1.6.8' 'Linked with libpipewire 1.6.9'
+                """);
+            ExecutableScript.Write(Path.Combine(bin, "wireplumber"), $$"""
+                [ "$#" = 1 ] && [ "$1" = --version ] || exit 91
+                printf '%s\n' 'wireplumber' 'Compiled with libwireplumber 0.5.17' 'Linked with libwireplumber 0.5.18'
+                {{(commandWarning ? $"echo 'version warning for {login}@{machine}' >&2\nexit 7" : "")}}
+                """);
             ExecutableScript.Write(Path.Combine(bin, "lsusb"), "echo 'Bus 001 Device 002: ID 0fd9:0070 Elgato Systems GmbH Wave:3'\n");
             ExecutableScript.Write(Path.Combine(bin, "pactl"), $$"""
                 if [ "$1" = info ]; then
@@ -610,6 +619,14 @@ public sealed class DiagnosticsTests
             // Only the names went; everything around them is still there to read.
             Assert.Contains("User Name: <redacted>", entries["pactl-info.txt"]);
             Assert.Contains("Server Name: PulseAudio (on PipeWire 1.6.9)", entries["pactl-info.txt"]);
+            Assert.Contains("Compiled with libpipewire 1.6.8\nLinked with libpipewire 1.6.9", entries["pipewire-version.txt"]);
+            Assert.Contains("Compiled with libwireplumber 0.5.17\nLinked with libwireplumber 0.5.18", entries["wireplumber-version.txt"]);
+            Assert.DoesNotContain("status 91", entries["pipewire-version.txt"] + entries["wireplumber-version.txt"]);
+            if (commandWarning)
+            {
+                Assert.Contains("version warning for <redacted>@<redacted>", entries["wireplumber-version.txt"]);
+                Assert.Contains("wireplumber exited with status 7", entries["wireplumber-version.txt"]);
+            }
             Assert.Contains("WirePlumber                         [1.6.9, <redacted>@<redacted>, pid:1585]", entries["wpctl-status.txt"]);
             Assert.Contains("loaded /mnt/<redacted>/lv2/eq.lv2 for <redacted>@<redacted>", entries["journal.txt"]);
             Assert.Contains("pipewire[2220]: xrun for <redacted>@<redacted>", entries["audio-journal.txt"]);

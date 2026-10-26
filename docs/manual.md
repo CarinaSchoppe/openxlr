@@ -3140,6 +3140,12 @@ For audio glitches, collect while the problem is present and before restarting
 the daemon, if possible. Collection reads the current state without changing
 audio, recording samples or starting plugins. The extra reports are:
 
+- `pipewire-version.txt` and `wireplumber-version.txt`: the output of each
+  tool's `--version`, including compiled and linked library versions, or a
+  command failure note if unavailable. These describe tools in the collecting
+  UI's environment. Under Flatpak they do not identify the host services;
+  use the graph and `pactl-info.txt` for the connected audio server. The
+  kernel and distribution are recorded in `meta.txt`.
 - `pw-top.txt`: three batches of node statistics, including rate, quantum and
   error counters.
 - `sink-inputs.json` and `source-outputs.json`: current playback and recording

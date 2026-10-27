@@ -274,6 +274,14 @@ internal static class MicSetupWindowTests
         Assert.Same(model.Chain!.Items.Single(), controls.DataContext);
         controls.Close();
         await Until(() => !controls.IsVisible);
+
+        // Remove takes the plugin out of the chain, as the chain window's does.
+        Button remove = window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "MicSetupRemoveInsert");
+        Assert.Equal(Localizer.Format("MicSetupRemoveName", "Guest compressor with a long label"),
+            Avalonia.Automation.AutomationProperties.GetName(remove));
+        remove.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Until(() => !model.Chain!.HasItems);
+        Assert.True(window.FindControl<TextBlock>("MicSetupNoEffects")!.IsEffectivelyVisible);
     }
 
     private static void Click(Window window, string key)

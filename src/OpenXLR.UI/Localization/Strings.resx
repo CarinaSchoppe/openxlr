@@ -3315,6 +3315,9 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   <data name="MicSetupEditorName" xml:space="preserve">
     <value>Open the editor of {0}</value>
   </data>
+  <data name="MicSetupRemoveName" xml:space="preserve">
+    <value>Remove {0}</value>
+  </data>
   <data name="MicSetupEffectsHint" xml:space="preserve">
     <value>Bypass a plugin to hear the chain without it. The chain window moves, renames and removes plugins.</value>
   </data>

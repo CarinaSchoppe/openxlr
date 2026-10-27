@@ -3332,6 +3332,9 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
   <data name="MicSetupEditorName" xml:space="preserve">
     <value>Ablihi ang editor sa {0}</value>
   </data>
+  <data name="MicSetupRemoveName" xml:space="preserve">
+    <value>Tangtanga ang {0}</value>
+  </data>
   <data name="MicSetupEffectsHint" xml:space="preserve">
     <value>I-bypass ang plugin aron madungog ang chain nga wala kini. Sa chain window ibalhin, ilisan og ngalan ug tangtangon ang mga plugin.</value>
   </data>

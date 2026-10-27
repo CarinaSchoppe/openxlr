@@ -3333,6 +3333,9 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   <data name="MicSetupEditorName" xml:space="preserve">
     <value>Apri l'editor di {0}</value>
   </data>
+  <data name="MicSetupRemoveName" xml:space="preserve">
+    <value>Rimuovi {0}</value>
+  </data>
   <data name="MicSetupEffectsHint" xml:space="preserve">
     <value>Metti in bypass un plugin per sentire la catena senza di esso. La finestra della catena sposta, rinomina e rimuove i plugin.</value>
   </data>

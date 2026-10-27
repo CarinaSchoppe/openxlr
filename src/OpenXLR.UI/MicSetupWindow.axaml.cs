@@ -267,6 +267,11 @@ public partial class MicSetupWindow : Window
     /// As the chain's cog does: a plugin running in its own process opens its
     /// own editor, anything else the generated controls.
     /// </summary>
+    private void OnInsertRemove(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is InsertViewModel insert) insert.Owner.Remove(insert);
+    }
+
     private async void OnInsertEditor(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is not InsertViewModel insert) return;

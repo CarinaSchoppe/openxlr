@@ -417,7 +417,7 @@ function toggleValue(target, inst) {
     if (eq.field === "type") return false;
     if (eq.field !== "enabled") return null;
     const value = dialNow(target, eq.value);
-    return !eq.band && !value && eq.eq.available === false ? null : value;
+    return !eq.band && !value && !eq.available ? null : value;
   }
   const channel = channelUnitTarget(target);
   if (channel) return channel.control === "gain" ? null : channelUnitControl(daemonState, channel.channel, channel.control)?.value ?? null;

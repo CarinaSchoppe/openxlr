@@ -2974,4 +2974,64 @@ Selecciona la interfaz que controla OpenXLR</value>
   <data name="EqRemoveBandName" xml:space="preserve"><value>Eliminar la banda {0} del EQ</value></data>
   <data name="EqDeviceBandLimit" xml:space="preserve"><value>{0} admite hasta {1} bandas de EQ. Este EQ se procesa por software hasta que el número de bandas vuelva a ser compatible con el dispositivo.</value></data>
   <data name="EqRemoveBand" xml:space="preserve"><value>Eliminar</value></data>
+  <data name="NoiseRemoval" xml:space="preserve">
+    <value>Eliminación de ruido</value>
+  </data>
+  <data name="NoiseRemovalSwitch" xml:space="preserve">
+    <value>Activa</value>
+  </data>
+  <data name="NoiseRemovalSwitchTip" xml:space="preserve">
+    <value>Activa o desactiva la eliminación de ruido. Desactivada, el motor y la intensidad conservan sus valores para la próxima vez.</value>
+  </data>
+  <data name="NoiseRemovalSwitchName" xml:space="preserve">
+    <value>Eliminación de ruido en {0}</value>
+  </data>
+  <data name="NoiseRemovalHint" xml:space="preserve">
+    <value>Actúa primero, antes del EQ y los plugins, así que todo lo que sigue oye la voz ya limpia. Activarla, desactivarla o cambiar de motor baja el micrófono unos 10 ms.</value>
+  </data>
+  <data name="NoiseRemovalEngine" xml:space="preserve">
+    <value>Motor</value>
+  </data>
+  <data name="NoiseRemovalRnNoise" xml:space="preserve">
+    <value>RNNoise</value>
+  </data>
+  <data name="NoiseRemovalRnNoiseTip" xml:space="preserve">
+    <value>Ligero para el procesador y mejor con ruido constante como siseo, zumbido y ventiladores. Añade 30 ms de retardo.</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNet" xml:space="preserve">
+    <value>DeepFilterNet</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNetTip" xml:space="preserve">
+    <value>Más limpio con teclados, ruido cambiante y algo de eco de la sala. Usa más procesador y añade unos 55 a 70 ms de retardo.</value>
+  </data>
+  <data name="NoiseRemovalStrength" xml:space="preserve">
+    <value>Intensidad</value>
+  </data>
+  <data name="NoiseRemovalStrengthName" xml:space="preserve">
+    <value>Intensidad de la eliminación de ruido</value>
+  </data>
+  <data name="NoiseRemovalStrengthTip" xml:space="preserve">
+    <value>Lo máximo que se baja el ruido. Redúcela si tu voz suena fina o acuosa.</value>
+  </data>
+  <data name="NoiseRemovalStrengthValue" xml:space="preserve">
+    <value>{0} dB</value>
+  </data>
+  <data name="NoiseRemovalUnlimited" xml:space="preserve">
+    <value>Sin límite</value>
+  </data>
+  <data name="NoiseRemovalStarting" xml:space="preserve">
+    <value>Iniciando.</value>
+  </data>
+  <data name="NoiseRemovalLoading" xml:space="preserve">
+    <value>DeepFilterNet está cargando su modelo. Lo que sonaba antes sigue sonando hasta que esté listo.</value>
+  </data>
+  <data name="NoiseRemovalRunning" xml:space="preserve">
+    <value>{0} está activo y añade {1} ms de retardo.</value>
+  </data>
+  <data name="NoiseRemovalNoDeepFilterNet" xml:space="preserve">
+    <value>Esta instalación se compiló sin DeepFilterNet, así que solo se ofrece RNNoise.</value>
+  </data>
+  <data name="MicSetupNoNoise" xml:space="preserve">
+    <value>El daemon no informa de eliminación de ruido para este micrófono.</value>
+  </data>
 </root>

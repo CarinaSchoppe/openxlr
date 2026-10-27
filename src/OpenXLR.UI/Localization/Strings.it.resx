@@ -3336,4 +3336,64 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   <data name="MicSetupEffectsHint" xml:space="preserve">
     <value>Metti in bypass un plugin per sentire la catena senza di esso. La finestra della catena sposta, rinomina e rimuove i plugin.</value>
   </data>
+  <data name="NoiseRemoval" xml:space="preserve">
+    <value>Riduzione del rumore</value>
+  </data>
+  <data name="NoiseRemovalSwitch" xml:space="preserve">
+    <value>Attiva</value>
+  </data>
+  <data name="NoiseRemovalSwitchTip" xml:space="preserve">
+    <value>Attiva o disattiva la riduzione del rumore. Da spenta, motore e intensità mantengono i loro valori per la prossima volta.</value>
+  </data>
+  <data name="NoiseRemovalSwitchName" xml:space="preserve">
+    <value>Riduzione del rumore su {0}</value>
+  </data>
+  <data name="NoiseRemovalHint" xml:space="preserve">
+    <value>Agisce per prima, prima dell'EQ e dei plugin, così tutto ciò che segue sente la voce già pulita. Accenderla, spegnerla o cambiare motore abbassa il microfono per circa 10 ms.</value>
+  </data>
+  <data name="NoiseRemovalEngine" xml:space="preserve">
+    <value>Motore</value>
+  </data>
+  <data name="NoiseRemovalRnNoise" xml:space="preserve">
+    <value>RNNoise</value>
+  </data>
+  <data name="NoiseRemovalRnNoiseTip" xml:space="preserve">
+    <value>Leggero per il processore e migliore sul rumore costante come fruscio, ronzio e ventole. Aggiunge 30 ms di ritardo.</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNet" xml:space="preserve">
+    <value>DeepFilterNet</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNetTip" xml:space="preserve">
+    <value>Più pulito su tastiere, rumori che cambiano e un po' di eco della stanza. Usa più processore e aggiunge circa da 55 a 70 ms di ritardo.</value>
+  </data>
+  <data name="NoiseRemovalStrength" xml:space="preserve">
+    <value>Intensità</value>
+  </data>
+  <data name="NoiseRemovalStrengthName" xml:space="preserve">
+    <value>Intensità della riduzione del rumore</value>
+  </data>
+  <data name="NoiseRemovalStrengthTip" xml:space="preserve">
+    <value>Quanto al massimo viene abbassato il rumore. Abbassala se la voce suona sottile o acquosa.</value>
+  </data>
+  <data name="NoiseRemovalStrengthValue" xml:space="preserve">
+    <value>{0} dB</value>
+  </data>
+  <data name="NoiseRemovalUnlimited" xml:space="preserve">
+    <value>Nessun limite</value>
+  </data>
+  <data name="NoiseRemovalStarting" xml:space="preserve">
+    <value>Avvio in corso.</value>
+  </data>
+  <data name="NoiseRemovalLoading" xml:space="preserve">
+    <value>DeepFilterNet sta caricando il suo modello. Ciò che suonava prima continua a suonare finché non è pronto.</value>
+  </data>
+  <data name="NoiseRemovalRunning" xml:space="preserve">
+    <value>{0} è attivo e aggiunge {1} ms di ritardo.</value>
+  </data>
+  <data name="NoiseRemovalNoDeepFilterNet" xml:space="preserve">
+    <value>Questa installazione è stata compilata senza DeepFilterNet, quindi è disponibile solo RNNoise.</value>
+  </data>
+  <data name="MicSetupNoNoise" xml:space="preserve">
+    <value>Il daemon non segnala alcuna riduzione del rumore per questo microfono.</value>
+  </data>
 </root>

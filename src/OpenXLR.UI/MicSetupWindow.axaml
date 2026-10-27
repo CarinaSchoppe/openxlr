@@ -240,6 +240,47 @@
             </StackPanel>
           </Border>
 
+          <!-- noise removal: first in the microphone's stage, ahead of the EQ, heard live -->
+          <Border Classes="tile" Padding="12">
+            <StackPanel Spacing="8">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBlock Text="{loc:Text Key=NoiseRemoval}" Classes="h" VerticalAlignment="Center"/>
+                <ToggleButton Grid.Column="1" Name="MicSetupNoiseSwitch" Content="{loc:Text Key=NoiseRemovalSwitch}"
+                              IsVisible="{Binding HasNoise}" IsEnabled="{Binding Noise.Available, FallbackValue=False}"
+                              IsChecked="{Binding Noise.Enabled, Mode=TwoWay, FallbackValue=False}"
+                              AutomationProperties.Name="{Binding Noise.SwitchName, FallbackValue=''}" ToolTip.Tip="{loc:Text Key=NoiseRemovalSwitchTip}"/>
+              </Grid>
+              <StackPanel Spacing="8" IsVisible="{Binding HasNoise}">
+                <TextBlock Text="{loc:Text Key=NoiseRemovalHint}" Classes="hint" TextWrapping="Wrap"/>
+                <WrapPanel Name="MicSetupNoiseEngines" ItemSpacing="6" LineSpacing="4" IsEnabled="{Binding Noise.Available, FallbackValue=False}">
+                  <TextBlock Text="{loc:Text Key=NoiseRemovalEngine}" Classes="body" VerticalAlignment="Center"/>
+                  <ToggleButton Name="MicSetupRnNoise" Content="{loc:Text Key=NoiseRemovalRnNoise}"
+                                IsChecked="{Binding Noise.IsRnNoise, Mode=OneWay, FallbackValue=False}" Click="OnRnNoise"
+                                ToolTip.Tip="{loc:Text Key=NoiseRemovalRnNoiseTip}" AutomationProperties.HelpText="{loc:Text Key=NoiseRemovalRnNoiseTip}"/>
+                  <ToggleButton Name="MicSetupDeepFilterNet" Content="{loc:Text Key=NoiseRemovalDeepFilterNet}"
+                                IsChecked="{Binding Noise.IsDeepFilterNet, Mode=OneWay, FallbackValue=False}" Click="OnDeepFilterNet"
+                                IsEnabled="{Binding Noise.HasDeepFilterNet, FallbackValue=False}"
+                                ToolTip.Tip="{loc:Text Key=NoiseRemovalDeepFilterNetTip}" AutomationProperties.HelpText="{loc:Text Key=NoiseRemovalDeepFilterNetTip}"/>
+                </WrapPanel>
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" IsEnabled="{Binding Noise.Available, FallbackValue=False}">
+                  <TextBlock Text="{loc:Text Key=NoiseRemovalStrength}" Classes="body" VerticalAlignment="Center"/>
+                  <Slider Grid.Column="1" Name="MicSetupNoiseStrength" vm:FaderInput.Step="1"
+                          Minimum="{Binding Noise.MinStrength, FallbackValue=0}" Maximum="{Binding Noise.MaxStrength, FallbackValue=100}"
+                          Value="{Binding Noise.Strength, Mode=TwoWay, FallbackValue=100}"
+                          AutomationProperties.Name="{loc:Text Key=NoiseRemovalStrengthName}" ToolTip.Tip="{loc:Text Key=NoiseRemovalStrengthTip}"/>
+                  <TextBlock Grid.Column="2" Text="{Binding Noise.StrengthText, FallbackValue=''}" Classes="val" VerticalAlignment="Center"/>
+                </Grid>
+                <TextBlock Name="MicSetupNoiseStatus" Text="{Binding Noise.Status, FallbackValue=''}" Classes="hint" TextWrapping="Wrap"
+                           IsVisible="{Binding Noise.ShowsReport, FallbackValue=False}"/>
+                <TextBlock Name="MicSetupNoiseError" Text="{Binding Noise.Status, FallbackValue=''}" Classes="warn" TextWrapping="Wrap"
+                           IsVisible="{Binding Noise.HasError, FallbackValue=False}"/>
+                <TextBlock Name="MicSetupNoDeepFilterNet" Text="{loc:Text Key=NoiseRemovalNoDeepFilterNet}" Classes="hint" TextWrapping="Wrap"
+                           IsVisible="{Binding Noise.LacksDeepFilterNet, FallbackValue=False}"/>
+              </StackPanel>
+              <TextBlock Name="MicSetupNoNoise" Text="{loc:Text Key=MicSetupNoNoise}" Classes="hint" TextWrapping="Wrap" IsVisible="{Binding NoNoise}"/>
+            </StackPanel>
+          </Border>
+
           <!-- the microphone EQ: the editor's own graph on the channel's own model -->
           <Border Classes="tile" Padding="12">
             <StackPanel Spacing="8">

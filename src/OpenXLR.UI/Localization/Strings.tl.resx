@@ -3335,4 +3335,64 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
   <data name="MicSetupEffectsHint" xml:space="preserve">
     <value>I-bypass ang plugin upang marinig ang chain nang wala ito. Sa chain window inililipat, pinapalitan ng pangalan at inaalis ang mga plugin.</value>
   </data>
+  <data name="NoiseRemoval" xml:space="preserve">
+    <value>Pag-alis ng ingay</value>
+  </data>
+  <data name="NoiseRemovalSwitch" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="NoiseRemovalSwitchTip" xml:space="preserve">
+    <value>I-on o i-off ang pag-alis ng ingay. Kapag off, mananatili ang engine at lakas para sa susunod.</value>
+  </data>
+  <data name="NoiseRemovalSwitchName" xml:space="preserve">
+    <value>Pag-alis ng ingay sa {0}</value>
+  </data>
+  <data name="NoiseRemovalHint" xml:space="preserve">
+    <value>Nauuna ito, bago ang EQ at mga plugin, kaya malinis na boses ang naririnig ng lahat ng kasunod. Ang pag-on, pag-off o pagpalit ng engine ay humihina sa mikropono nang mga 10 ms.</value>
+  </data>
+  <data name="NoiseRemovalEngine" xml:space="preserve">
+    <value>Engine</value>
+  </data>
+  <data name="NoiseRemovalRnNoise" xml:space="preserve">
+    <value>RNNoise</value>
+  </data>
+  <data name="NoiseRemovalRnNoiseTip" xml:space="preserve">
+    <value>Magaan sa processor at pinakamahusay sa tuloy-tuloy na ingay gaya ng sitsit, ugong at bentilador. Nagdadagdag ng 30 ms na delay.</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNet" xml:space="preserve">
+    <value>DeepFilterNet</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNetTip" xml:space="preserve">
+    <value>Mas malinis sa keyboard, pabagu-bagong ingay at kaunting alingawngaw ng kuwarto. Mas malakas gumamit ng processor at nagdadagdag ng mga 55 hanggang 70 ms na delay.</value>
+  </data>
+  <data name="NoiseRemovalStrength" xml:space="preserve">
+    <value>Lakas</value>
+  </data>
+  <data name="NoiseRemovalStrengthName" xml:space="preserve">
+    <value>Lakas ng pag-alis ng ingay</value>
+  </data>
+  <data name="NoiseRemovalStrengthTip" xml:space="preserve">
+    <value>Ang pinakamalaking ibababa sa ingay. Babaan ito kung manipis o matubig ang tunog ng boses mo.</value>
+  </data>
+  <data name="NoiseRemovalStrengthValue" xml:space="preserve">
+    <value>{0} dB</value>
+  </data>
+  <data name="NoiseRemovalUnlimited" xml:space="preserve">
+    <value>Walang limitasyon</value>
+  </data>
+  <data name="NoiseRemovalStarting" xml:space="preserve">
+    <value>Nagsisimula.</value>
+  </data>
+  <data name="NoiseRemovalLoading" xml:space="preserve">
+    <value>Nilo-load ng DeepFilterNet ang model nito. Patuloy na tumutugtog ang dati hanggang handa na ito.</value>
+  </data>
+  <data name="NoiseRemovalRunning" xml:space="preserve">
+    <value>Tumatakbo ang {0} at nagdadagdag ng {1} ms na delay.</value>
+  </data>
+  <data name="NoiseRemovalNoDeepFilterNet" xml:space="preserve">
+    <value>Ginawa ang installation na ito nang walang DeepFilterNet, kaya RNNoise lang ang maaaring piliin.</value>
+  </data>
+  <data name="MicSetupNoNoise" xml:space="preserve">
+    <value>Walang iniuulat na pag-alis ng ingay ang daemon para sa mikroponong ito.</value>
+  </data>
 </root>

@@ -3322,4 +3322,64 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   <data name="EqRemoveBandName" xml:space="preserve"><value>Remove EQ band {0}</value></data>
   <data name="EqDeviceBandLimit" xml:space="preserve"><value>{0} supports up to {1} EQ bands. This EQ runs in software until its band count fits the unit again.</value></data>
   <data name="EqRemoveBand" xml:space="preserve"><value>Remove</value></data>
+  <data name="NoiseRemoval" xml:space="preserve">
+    <value>Noise removal</value>
+  </data>
+  <data name="NoiseRemovalSwitch" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="NoiseRemovalSwitchTip" xml:space="preserve">
+    <value>Switch noise removal on or off. Off, the engine and the strength keep their values for next time.</value>
+  </data>
+  <data name="NoiseRemovalSwitchName" xml:space="preserve">
+    <value>Noise removal on {0}</value>
+  </data>
+  <data name="NoiseRemovalHint" xml:space="preserve">
+    <value>Runs first, before the EQ and the plugins, so everything after it hears the cleaned voice. Switching it on or off, or changing the engine, dips the microphone for about 10 ms.</value>
+  </data>
+  <data name="NoiseRemovalEngine" xml:space="preserve">
+    <value>Engine</value>
+  </data>
+  <data name="NoiseRemovalRnNoise" xml:space="preserve">
+    <value>RNNoise</value>
+  </data>
+  <data name="NoiseRemovalRnNoiseTip" xml:space="preserve">
+    <value>Light on the processor and best on steady noise such as hiss, hum and fans. Adds 30 ms of delay.</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNet" xml:space="preserve">
+    <value>DeepFilterNet</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNetTip" xml:space="preserve">
+    <value>Cleaner on keyboards, changing noise and some room echo. Uses more of the processor and adds about 55 to 70 ms of delay.</value>
+  </data>
+  <data name="NoiseRemovalStrength" xml:space="preserve">
+    <value>Strength</value>
+  </data>
+  <data name="NoiseRemovalStrengthName" xml:space="preserve">
+    <value>Noise removal strength</value>
+  </data>
+  <data name="NoiseRemovalStrengthTip" xml:space="preserve">
+    <value>The most the noise is turned down. Lower it if your voice sounds thin or watery.</value>
+  </data>
+  <data name="NoiseRemovalStrengthValue" xml:space="preserve">
+    <value>{0} dB</value>
+  </data>
+  <data name="NoiseRemovalUnlimited" xml:space="preserve">
+    <value>No limit</value>
+  </data>
+  <data name="NoiseRemovalStarting" xml:space="preserve">
+    <value>Starting.</value>
+  </data>
+  <data name="NoiseRemovalLoading" xml:space="preserve">
+    <value>DeepFilterNet is loading its model. What played before keeps playing until it is ready.</value>
+  </data>
+  <data name="NoiseRemovalRunning" xml:space="preserve">
+    <value>{0} runs and adds {1} ms of delay.</value>
+  </data>
+  <data name="NoiseRemovalNoDeepFilterNet" xml:space="preserve">
+    <value>This installation was built without DeepFilterNet, so only RNNoise is offered.</value>
+  </data>
+  <data name="MicSetupNoNoise" xml:space="preserve">
+    <value>The daemon reports no noise removal for this microphone.</value>
+  </data>
 </root>

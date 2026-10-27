@@ -2998,4 +2998,64 @@ Von OpenXLR gesteuertes Interface wählen</value>
   <data name="EqRemoveBandName" xml:space="preserve"><value>EQ-Band {0} entfernen</value></data>
   <data name="EqDeviceBandLimit" xml:space="preserve"><value>{0} unterstützt bis zu {1} EQ-Bänder. Dieser EQ läuft in Software, bis die Bandzahl wieder auf das Gerät passt.</value></data>
   <data name="EqRemoveBand" xml:space="preserve"><value>Entfernen</value></data>
+  <data name="NoiseRemoval" xml:space="preserve">
+    <value>Rauschentfernung</value>
+  </data>
+  <data name="NoiseRemovalSwitch" xml:space="preserve">
+    <value>An</value>
+  </data>
+  <data name="NoiseRemovalSwitchTip" xml:space="preserve">
+    <value>Schaltet die Rauschentfernung an oder aus. Ausgeschaltet behalten Engine und Stärke ihre Werte für das nächste Mal.</value>
+  </data>
+  <data name="NoiseRemovalSwitchName" xml:space="preserve">
+    <value>Rauschentfernung für {0}</value>
+  </data>
+  <data name="NoiseRemovalHint" xml:space="preserve">
+    <value>Läuft zuerst, vor dem EQ und den Plugins, sodass alles danach die bereinigte Stimme hört. An- und Ausschalten oder ein Wechsel der Engine senkt das Mikrofon für etwa 10 ms ab.</value>
+  </data>
+  <data name="NoiseRemovalEngine" xml:space="preserve">
+    <value>Engine</value>
+  </data>
+  <data name="NoiseRemovalRnNoise" xml:space="preserve">
+    <value>RNNoise</value>
+  </data>
+  <data name="NoiseRemovalRnNoiseTip" xml:space="preserve">
+    <value>Schont den Prozessor und wirkt am besten bei gleichmäßigem Rauschen wie Zischen, Brummen und Lüftern. Fügt 30 ms Verzögerung hinzu.</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNet" xml:space="preserve">
+    <value>DeepFilterNet</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNetTip" xml:space="preserve">
+    <value>Sauberer bei Tastaturen, wechselnden Geräuschen und etwas Raumhall. Braucht mehr Prozessorleistung und fügt etwa 55 bis 70 ms Verzögerung hinzu.</value>
+  </data>
+  <data name="NoiseRemovalStrength" xml:space="preserve">
+    <value>Stärke</value>
+  </data>
+  <data name="NoiseRemovalStrengthName" xml:space="preserve">
+    <value>Stärke der Rauschentfernung</value>
+  </data>
+  <data name="NoiseRemovalStrengthTip" xml:space="preserve">
+    <value>Wie weit das Rauschen höchstens abgesenkt wird. Verringere sie, wenn deine Stimme dünn oder wässrig klingt.</value>
+  </data>
+  <data name="NoiseRemovalStrengthValue" xml:space="preserve">
+    <value>{0} dB</value>
+  </data>
+  <data name="NoiseRemovalUnlimited" xml:space="preserve">
+    <value>Ohne Grenze</value>
+  </data>
+  <data name="NoiseRemovalStarting" xml:space="preserve">
+    <value>Wird gestartet.</value>
+  </data>
+  <data name="NoiseRemovalLoading" xml:space="preserve">
+    <value>DeepFilterNet lädt sein Modell. Bis es bereit ist, läuft weiter, was vorher lief.</value>
+  </data>
+  <data name="NoiseRemovalRunning" xml:space="preserve">
+    <value>{0} läuft und fügt {1} ms Verzögerung hinzu.</value>
+  </data>
+  <data name="NoiseRemovalNoDeepFilterNet" xml:space="preserve">
+    <value>Diese Installation wurde ohne DeepFilterNet gebaut, daher steht nur RNNoise zur Wahl.</value>
+  </data>
+  <data name="MicSetupNoNoise" xml:space="preserve">
+    <value>Der Daemon meldet für dieses Mikrofon keine Rauschentfernung.</value>
+  </data>
 </root>

@@ -331,8 +331,8 @@ public sealed partial class MainViewModel
             channel.BindingLabel = BindingLabelOf(channel);
         }
         // Mic setup shows the controls of the input its channel carries: the
-        // gain on Level, phantom power on Position, low cut, ClipGuard and the
-        // EQ on Shape, and the unit's kind for the Position tips.
+        // gain on Level, phantom power on Position, low cut, ClipGuard, noise
+        // removal and the EQ on Shape, and the unit's kind for the Position tips.
         foreach (MicSetupViewModel setup in MicSetups())
         {
             ChannelViewModel? carrier = Channels.FirstOrDefault(c => c.Id == setup.Channel);
@@ -341,6 +341,7 @@ public sealed partial class MainViewModel
             setup.ExtraUnit = carrier?.ExtraUnitInput;
             setup.ProDirect = CapOutputRouting && carrier?.ShownUnitInput == 1;
             setup.Eq = carrier?.Eq;
+            setup.Noise = carrier?.Noise;
             setup.Software = setup.Channel == "xlr1" && carrier is not null ? this : null;
             if (setup.Unit is { } unit)
                 setup.Place(UnitXlrJacks ? MicSetupUnitKind.XlrJack : MicSetupUnitKind.Capsule, DeviceName, unit.Input);

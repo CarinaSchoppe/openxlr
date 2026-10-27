@@ -837,7 +837,12 @@ public sealed partial class SkinWindowTests
     /// </summary>
     private static MicSetupViewModel ShapingSetup(MainViewModel vm, DaemonClient client, MicEqViewModel eq)
     {
-        var check = new MicSetupViewModel(client, "xlr1", vm.Inserts) { Unit = vm.UnitInput1, Software = vm, Eq = eq };
+        var noise = new MicNoiseViewModel(client, "xlr1", "XLR 1");
+        noise.Apply(System.Text.Json.Nodes.JsonNode.Parse("""
+            {"enabled":true,"engine":"rnnoise","strength":30,"engines":["rnnoise","deepfilternet"],
+             "active":"rnnoise","latencyMs":30,"available":true,"error":null}
+            """));
+        var check = new MicSetupViewModel(client, "xlr1", vm.Inserts) { Unit = vm.UnitInput1, Software = vm, Eq = eq, Noise = noise };
         check.Place(MicSetupUnitKind.XlrJack, "Elgato Wave XLR Pro", 1);
         check.Step = MicSetupStep.Shape;
         return check;

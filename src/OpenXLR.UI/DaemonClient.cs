@@ -16,7 +16,7 @@ namespace OpenXLR.UI;
 /// <see cref="StateReceived"/> for every pushed state. State is handed over as a
 /// JsonNode so the UI can bind to it without duplicating the daemon's records.
 /// </summary>
-public sealed class DaemonClient : IAsyncDisposable, IEqCommands, IDuckingCommands
+public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands, IDuckingCommands
 {
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -488,6 +488,16 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, IDuckingComman
     /// <summary>Where a microphone's EQ runs: <c>device</c> on the unit's own processor, or <c>software</c>.</summary>
     public Task SetEqProcessingAsync(string channel, string value)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setEqProcessing", ["channel"] = channel, ["value"] = value });
+
+    /// <summary>Part of a microphone's noise removal: the fields given change, the others keep their values.</summary>
+    public Task SetNoiseRemovalAsync(string channel, bool? enabled = null, string? engine = null, double? strength = null)
+    {
+        var payload = new Dictionary<string, object> { ["cmd"] = "setNoiseRemoval", ["channel"] = channel };
+        if (enabled is bool on) payload["enabled"] = on;
+        if (engine is not null) payload["engine"] = engine;
+        if (strength is double db) payload["strength"] = db;
+        return SendAsync(payload);
+    }
 
     /// <summary>The fields of one band (1 to 4) that the change carries; the others keep their values.</summary>
     public Task SetEqBandAsync(string channel, int band, EqBandChange change)

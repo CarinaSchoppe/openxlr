@@ -196,6 +196,60 @@ public sealed class MicSetupReliabilityTests : IDisposable
     }
 
     [Fact]
+    public async Task ARetiredSetupCannotSendCommandsToAReplacementWithTheSameId()
+    {
+        var commands = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        await using var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            while (!stop.IsCancellationRequested)
+            {
+                JsonNode command = await SocketTestServer.Receive(socket, stop);
+                commands.Enqueue(command["cmd"]!.GetValue<string>());
+                if (command["requestId"] is { } id)
+                    await SocketTestServer.Send(socket, new { type = "commandResult", requestId = id.GetValue<string>(), error = (string?)null }, stop);
+            }
+        });
+        await using var client = new DaemonClient(server.Url);
+        var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.ConnectionChanged += up => { if (up) connected.TrySetResult(); };
+        client.Start();
+        await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var old = new MicSetupViewModel(client, "guest");
+        old.Detach();
+        await old.RunAsync("record");
+        await old.SetRawAsync(true);
+        await old.SetHearMyselfAsync(true);
+        await old.StopOnCloseAsync();
+        await old.KeepMeterAsync();
+        var replacement = new MicSetupViewModel(client, "guest");
+        await replacement.RunAsync("record");
+        // The acknowledgement is a barrier behind the meter's unacknowledged
+        // write. A live replacement still uses the same connection normally.
+        await client.SetPreserveBrowserOutputsAsync(false);
+        Assert.Equal(["soundCheck", "setPreserveBrowserOutputs"], commands.ToArray());
+    }
+
+    [Fact]
+    public async Task ARetiredSetupCannotResumeFromLateStateOrStartANewMeasurement()
+    {
+        await using var client = new DaemonClient("ws://127.0.0.1:1/ws");
+        var old = new MicSetupViewModel(client, "guest") { Step = MicSetupStep.Level };
+        old.Detach();
+        old.Reset(); // Disconnect reset must not revive a deleted input.
+        old.Apply(JsonNode.Parse("""{"channel":"guest","mode":"live","seconds":1,"take":1}"""));
+        old.StartGainMeasure();
+        old.ApplyInputLevel(new JsonArray(.5, .7, 1));
+        Assert.False(old.Active || old.Measuring || old.CanRecord || old.CanLoop || old.CanLive || old.CanStop || old.CanSwitch || old.CanSuggestGain);
+        Assert.Equal(0, old.InputLevel);
+        var replacement = new MicSetupViewModel(client, "guest");
+        Assert.False(await old.HandOverAsync(replacement));
+        Assert.False(await replacement.HandOverAsync(old));
+        replacement.Reset();
+        replacement.StartGainMeasure();
+        Assert.True(replacement.Measuring);
+    }
+
+    [Fact]
     public async Task ALateWaveformCannotReplaceANewerTakeOrOneAlreadyRequested()
     {
         await using var client = new DaemonClient("ws://127.0.0.1:1/ws");

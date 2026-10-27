@@ -1051,7 +1051,8 @@ you can retry. A daemon reconnection during the switch also leaves the
 current microphone selected. If the chosen input is removed or replaced
 while the switch waits, the window stays on the current microphone too.
 Removing the microphone shown closes its Mic setup window, even when the
-main window opened it.
+main window opened it. Late actions from that window cannot affect an input
+created in its place.
 
 A gain measurement ends as soon as you close the window. Reopening Mic
 setup can start a fresh measurement without the old window cancelling it.

@@ -111,7 +111,7 @@ public sealed class MicSetupInputs : ViewModelBase
 public sealed class MicSetupViewModel : ViewModelBase
 {
     private readonly DaemonClient _client;
-    private bool _busy, _active;
+    private bool _busy, _active, _detached;
     private int _connectionEpoch;
     private int _requestRevision;
     private string _mode = "idle";
@@ -160,6 +160,7 @@ public sealed class MicSetupViewModel : ViewModelBase
     /// </summary>
     public async Task<bool> HandOverAsync(MicSetupViewModel next)
     {
+        if (_detached || next._detached) return false;
         if (ReferenceEquals(next, this)) return true;
         CancelGainMeasure();
         int epoch = _connectionEpoch;
@@ -199,11 +200,11 @@ public sealed class MicSetupViewModel : ViewModelBase
     // --- the session ---
 
     public bool Active => _active;
-    public bool CanRecord => !_busy && _mode != "recording";
-    public bool CanLoop => !_busy && _active && _seconds >= 0.1;
-    public bool CanLive => !_busy;
-    public bool CanStop => !_busy && (_active || Error is not null);
-    public bool CanSwitch => !_busy;
+    public bool CanRecord => !_detached && !_busy && _mode != "recording";
+    public bool CanLoop => !_detached && !_busy && _active && _seconds >= 0.1;
+    public bool CanLive => !_detached && !_busy;
+    public bool CanStop => !_detached && !_busy && (_active || Error is not null);
+    public bool CanSwitch => !_detached && !_busy;
     public string Status => _mode switch
     {
         "recording" => Localizer.Format("SoundCheckRecording", _seconds),
@@ -475,7 +476,7 @@ public sealed class MicSetupViewModel : ViewModelBase
 
     /// <summary>Suggest gain is listening to the microphone.</summary>
     public bool Measuring => _measure is not null;
-    public bool CanSuggestGain => _measure is null;
+    public bool CanSuggestGain => !_detached && _measure is null;
 
     /// <summary>The last measurement's suggestion, until it is accepted, discarded or measured again.</summary>
     public GainSuggestion? Suggestion => _suggestion;
@@ -528,7 +529,7 @@ public sealed class MicSetupViewModel : ViewModelBase
     /// </summary>
     public void StartGainMeasure()
     {
-        if (_measure is not null) return;
+        if (_detached || _measure is not null) return;
         _measure = [];
         _measureStarted = Time.GetTimestamp();
         _measuredGain = CurrentGain;
@@ -700,6 +701,7 @@ public sealed class MicSetupViewModel : ViewModelBase
     /// <summary>The daemon's <c>mixer.soundCheck</c>; null or another channel's session reads as idle.</summary>
     public void Apply(JsonNode? state)
     {
+        if (_detached) return;
         bool own = state?["channel"]?.GetValue<string>() == Channel;
         _mode = own ? state?["mode"]?.GetValue<string>() ?? "idle" : "idle";
         _active = own && _mode != "idle";
@@ -737,6 +739,7 @@ public sealed class MicSetupViewModel : ViewModelBase
     /// <summary>The meters' <c>in:</c> entry for this channel: rms, peak and the clip flag.</summary>
     public void ApplyInputLevel(JsonArray level)
     {
+        if (_detached) return;
         double Read(int i) => level.Count > i && Number(level[i]) is double d ? Math.Clamp(d, 0, 1) : 0;
         InputLevel = Read(0);
         InputPeak = Read(1);
@@ -785,12 +788,16 @@ public sealed class MicSetupViewModel : ViewModelBase
     /// <summary>The input left the mixer; release subscriptions to controls it no longer carries.</summary>
     internal void Detach()
     {
+        if (_detached) return;
         Reset();
+        _detached = true;
         Unit = null;
         ExtraUnit = null;
         Eq = null;
         Software = null;
         Inputs = null;
+        RaiseButtons();
+        RaiseSuggestion();
     }
 
     private void RaiseButtons()
@@ -801,7 +808,7 @@ public sealed class MicSetupViewModel : ViewModelBase
     /// <summary>One request owns the controls and error. Stop may queue behind it and take ownership.</summary>
     private async Task<string?> SendAsync(Func<Task<string?>> request, bool supersede = false)
     {
-        if (_busy && !supersede) return null;
+        if (_detached || _busy && !supersede) return null;
         int epoch = _connectionEpoch;
         int revision = ++_requestRevision;
         _busy = true; RaiseButtons();
@@ -826,7 +833,7 @@ public sealed class MicSetupViewModel : ViewModelBase
     public Task SetHearMyselfAsync(bool on) => SendAsync(() => _client.SetSoundCheckHearMyselfAsync(Channel, on));
 
     /// <summary>Keep the meter before the chain running while the window shows it.</summary>
-    public Task KeepMeterAsync() => _client.WatchInputMeterAsync(Channel);
+    public Task KeepMeterAsync() => _detached ? Task.CompletedTask : _client.WatchInputMeterAsync(Channel);
 
 
     /// <summary>

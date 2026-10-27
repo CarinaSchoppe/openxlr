@@ -89,4 +89,78 @@ public sealed class VariableEqEditorTests
         Assert.False(model.CanAddBand);
         Assert.False(model.CanRemoveBand);
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MatchingSwitchEchoDoesNotAdmitAnOlderSwitchReport(bool enabled)
+    {
+        var clock = new Clock();
+        using var model = new MicEqViewModel(new Commands(), "xlr1", "Mic", TimeSpan.Zero, clock);
+        model.Apply(Node(Eq.Default with { Enabled = enabled }), Limits);
+        model.Enabled = !enabled; model.Enabled = enabled;
+        model.Apply(Node(Eq.Default with { Enabled = enabled }), Limits);
+        model.Apply(Node(Eq.Default with { Enabled = !enabled }), Limits);
+        Assert.Equal(enabled, model.Enabled);
+        clock.Ticks += TimeSpan.FromSeconds(2).Ticks;
+        model.Apply(Node(Eq.Default with { Enabled = !enabled }), Limits);
+        Assert.Equal(!enabled, model.Enabled);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    [InlineData(16)]
+    public void MatchingBandEchoDoesNotAdmitAnOlderValue(int count)
+    {
+        var clock = new Clock();
+        using var model = new MicEqViewModel(new Commands(), "xlr1", "Mic", TimeSpan.Zero, clock);
+        Eq before = new() { Bands = [.. Enumerable.Range(0, count).Select(_ => new EqBand())] };
+        model.Apply(Node(before), Limits);
+        model.Bands[^1].Gain = 1; model.Bands[^1].Gain = 0;
+        model.Apply(Node(before), Limits);
+        Eq old = before.WithBand(count, before.Bands[^1] with { Gain = 1 });
+        model.Apply(Node(old), Limits);
+        Assert.Equal(0, model.Bands[^1].Gain);
+        clock.Ticks += TimeSpan.FromSeconds(2).Ticks;
+        model.Apply(Node(old), Limits);
+        Assert.Equal(1, model.Bands[^1].Gain);
+    }
+
+    [Fact]
+    public void MatchingProcessingEchoDoesNotAdmitAnOlderChoice()
+    {
+        var clock = new Clock();
+        using var model = new MicEqViewModel(new Commands(), "xlr1", "Mic", TimeSpan.Zero, clock);
+        JsonNode Report(string processing)
+        {
+            JsonNode report = Node(Eq.Default);
+            report["processing"] = processing;
+            report["device"] = new JsonObject { ["name"] = "Unit", ["ready"] = true };
+            return report;
+        }
+        model.Apply(Report("device"), Limits);
+        model.ChooseProcessing("software"); model.ChooseProcessing("device");
+        model.Apply(Report("device"), Limits);
+        model.Apply(Report("software"), Limits);
+        Assert.Equal("device", model.Processing);
+        clock.Ticks += TimeSpan.FromSeconds(2).Ticks;
+        model.Apply(Report("software"), Limits);
+        Assert.Equal("software", model.Processing);
+    }
+
+    [Fact]
+    public void MatchingBypassEchoDoesNotEndComparisonOnAnOlderReport()
+    {
+        var clock = new Clock();
+        using var model = new MicEqViewModel(new Commands(), "xlr1", "Mic", TimeSpan.Zero, clock);
+        model.Apply(Node(Eq.Default with { Enabled = true }), Limits);
+        model.Comparing = true;
+        model.Apply(Node(Eq.Default), Limits);
+        model.Apply(Node(Eq.Default with { Enabled = true }), Limits);
+        Assert.True(model.Comparing && model.Enabled);
+        clock.Ticks += TimeSpan.FromSeconds(2).Ticks;
+        model.Apply(Node(Eq.Default with { Enabled = true }), Limits);
+        Assert.False(model.Comparing);
+    }
 }

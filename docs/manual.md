@@ -1251,6 +1251,9 @@ again and the unit is available. The editor explains the software fallback.
 Only the EQ stage is replaced when its software band count changes; the
 inserts keep running. An older daemon offers no Add or Remove controls.
 
+Rapid changes keep the latest value you chose while earlier reports arrive.
+After the short settling interval the editor follows external changes again.
+
 Open it with **EQ**. In INPUTS it sits on the microphone's input line,
 right after the chip that says what feeds it, and stands as tall as the
 chip. In an input rack it comes before **Inserts**, and in the Broadcast and

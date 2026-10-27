@@ -188,7 +188,7 @@ public sealed class EqEditorModelTests
         Assert.True(eq.IsLit);
         Assert.Empty(sent.Sent);
 
-        // An edit, then a report from before it: the edit stays until its echo comes.
+        // An edit, then a report from before it: the edit stays through the settling interval.
         string Report(double gain) => """
             {"enabled":true,"type":"lowCut","frequency":36,"gain":0,"q":0.7046930689671475},
             {"enabled":true,"type":"peak","frequency":310,"gain":GAIN,"q":1.4125375446227544},
@@ -201,7 +201,8 @@ public sealed class EqEditorModelTests
         Assert.Equal(3, band.Gain);
         eq.Apply(State(true, Report(3)), null);
         Assert.Equal(3, band.Gain);
-        // After the echo, the daemon's word is the editor's, whoever changed it.
+        // A matching echo need not be the last outstanding report. External changes win after settling.
+        time.Advance(MicEqViewModel.EchoWait);
         eq.Apply(State(true, Report(-2)), null);
         Assert.Equal(-2, band.Gain);
         // During a drag the hand wins; once it ends, a report after its last edit is shown.
@@ -212,6 +213,7 @@ public sealed class EqEditorModelTests
         Assert.Equal(4, band.Gain);
         band.EndDrag();
         eq.Apply(State(true, Report(4)), null);
+        time.Advance(MicEqViewModel.EchoWait);
         eq.Apply(State(true, Report(5)), null);
         Assert.Equal(5, band.Gain);
         Assert.Equal(2, band.Number);

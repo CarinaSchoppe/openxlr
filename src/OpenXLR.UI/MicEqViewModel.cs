@@ -30,13 +30,13 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     /// <summary>How often one band's live changes go to the daemon while it is dragged.</summary>
     public static readonly TimeSpan SendInterval = TimeSpan.FromMilliseconds(20);
 
-    /// <summary>How long an edit waits for the daemon to report it back before a different report wins.</summary>
+    /// <summary>How long a recent edit wins over state reports that may still precede it.</summary>
     internal static readonly TimeSpan EchoWait = TimeSpan.FromSeconds(1);
 
     private readonly IEqCommands _commands;
     private readonly EqBandSender _sender;
     private readonly TimeProvider _time;
-    private bool _enabled, _reportedEnabled, _comparing, _available = true;
+    private bool _enabled, _comparing, _available = true;
     private bool? _awaitingEnabled;
     private long _awaitingEnabledSince;
     private string? _backend, _error;
@@ -327,8 +327,8 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     /// <summary>
     /// Take a channel's <c>eq</c> from a state push, and the mixer's
     /// <c>eqLimits</c>. A band being dragged keeps what the user is doing, and
-    /// a report that differs from an edit not yet reported back is taken as
-    /// older than the edit, for a second at most.
+    /// a recent edit holds over state reports for a second at most, including
+    /// an older report arriving after a matching echo.
     /// </summary>
     public void Apply(JsonNode eq, JsonNode? limits)
     {
@@ -346,8 +346,9 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
         string? processing = eq["processing"]?.GetValue<string>();
         _processingReported = processing is "device" or "software";
         processing = _processingReported ? processing! : "device";
-        // A report that differs from the side just chosen is older than the choice, for a second at most.
-        if (!(_awaitingProcessing is { } chosen && chosen != processing && Waiting(_awaitingProcessingSince)))
+        // Even a matching echo can precede an older one. Keep the choice for the whole hold window.
+        if (_awaitingProcessing is { } chosen && Waiting(_awaitingProcessingSince)) _processing = chosen;
+        else
         {
             _awaitingProcessing = null;
             _processing = processing;
@@ -360,20 +361,16 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
         _deviceReason = device?["reason"]?.GetValue<string>();
         _deviceNote = device?["note"]?.GetValue<string>();
         _minimumFirmware = device?["minimumFirmware"]?.GetValue<string>();
-        _reportedEnabled = enabled;
-        if (_awaitingEnabled is bool expected && expected != enabled && Waiting(_awaitingEnabledSince))
+        if (_awaitingEnabled is bool expected && Waiting(_awaitingEnabledSince)) enabled = expected;
+        else _awaitingEnabled = null;
+        if (_comparing)
         {
-            // An older report than the switch the user just moved.
+            // Switched on from elsewhere while compared: the comparison is over.
+            if (enabled) { _comparing = false; _enabled = true; }
         }
         else
         {
-            _awaitingEnabled = null;
-            if (_comparing)
-            {
-                // Switched on from elsewhere while compared: the comparison is over.
-                if (enabled) { _comparing = false; _enabled = true; }
-            }
-            else _enabled = enabled;
+            _enabled = enabled;
         }
         if (eq["bands"] is JsonArray bands && bands.Count is >= MicEq.MinimumBands and <= MicEq.MaximumBands)
         {
@@ -731,7 +728,7 @@ public sealed class EqBandViewModel : ViewModelBase
     {
         _reported = band;
         if (_dragging) return;
-        if (_awaiting is { } awaiting && awaiting != band && Owner.Waiting(_awaitingSince)) return;
+        if (_awaiting is not null && Owner.Waiting(_awaitingSince)) return;
         _awaiting = null;
         Show(band);
     }

@@ -6,7 +6,8 @@
 //! which the caller stops using that instance and frees it.
 //!
 //! The engine is libDF from DeepFilterNet 0.5.6 (MIT or Apache-2.0), kept
-//! under libdf/ with its licences.
+//! under libdf/ with its licences, with one later upstream change: a lone
+//! quiet hop is processed rather than zeroed (libdf/src/tract.rs).
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::ptr;
@@ -24,6 +25,18 @@ static MODEL: &[u8] = include_bytes!("../model/DeepFilterNet3_onnx.tar.gz");
 /// the input all but untouched.
 const LEAST_LIMIT_DB: f32 = 0.01;
 
+/// The local SNR thresholds, in dB, that decide each hop's processing: below
+/// the first the hop is taken for noise and zeroed, above the second it is
+/// left alone, above the third it gets the ERB gains without deep filtering.
+/// These are DeepFilterNet's own C API values after 0.5.6, not the library
+/// defaults (-10, 30, 20). With the defaults a voice the model rates between
+/// 20 and 30 dB gets the gains alone, which cut into words; the model rates a
+/// clean voice lower the longer it runs, so after a minute or two of speech
+/// much of it landed there.
+const MIN_DB_THRESH: f32 = -15.;
+const MAX_DB_ERB_THRESH: f32 = 35.;
+const MAX_DB_DF_THRESH: f32 = 35.;
+
 /// One mono DeepFilterNet instance.
 pub struct OpenxlrDf {
     model: DfTract,
@@ -37,7 +50,9 @@ pub extern "C" fn openxlr_df_create(atten_lim_db: f32) -> *mut OpenxlrDf {
     let made = catch_unwind(|| {
         let params = DfParams::from_bytes(MODEL).ok()?;
         let limit = atten_lim_db.max(LEAST_LIMIT_DB);
-        let runtime = RuntimeParams::default_with_ch(1).with_atten_lim(limit);
+        let runtime = RuntimeParams::default_with_ch(1)
+            .with_atten_lim(limit)
+            .with_thresholds(MIN_DB_THRESH, MAX_DB_ERB_THRESH, MAX_DB_DF_THRESH);
         let model = DfTract::new(params, &runtime).ok()?;
         Some(Box::into_raw(Box::new(OpenxlrDf { model })))
     });

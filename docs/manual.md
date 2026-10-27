@@ -1053,6 +1053,9 @@ while the switch waits, the window stays on the current microphone too.
 Removing the microphone shown closes its Mic setup window, even when the
 main window opened it.
 
+A gain measurement ends as soon as you close the window. Reopening Mic
+setup can start a fresh measurement without the old window cancelling it.
+
 The window takes the height its step needs, up to the screen's height, so
 nothing is cut off or needs scrolling until the screen is too short. If
 you resize it, it keeps your size and only grows when a step needs more

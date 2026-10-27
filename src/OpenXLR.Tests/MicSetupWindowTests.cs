@@ -422,7 +422,8 @@ internal static class MicSetupWindowTests
 
     private static async Task VerifyCloseAndMove()
     {
-        await Verify();
+        await Verify(reopen: true);
+        await Verify(reopen: false);
         await VerifyRefusedMove();
     }
 
@@ -466,7 +467,7 @@ internal static class MicSetupWindowTests
         finally { window.Close(); }
     }
 
-    private static async Task Verify()
+    private static async Task Verify(bool reopen)
     {
         var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -487,21 +488,38 @@ internal static class MicSetupWindowTests
         client.ConnectionChanged += up => { if (up) connected.TrySetResult(); };
         client.Start();
         await connected.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        var window = new MicSetupWindow { DataContext = new MicSetupViewModel(client, "xlr1") };
+        var setup = new MicSetupViewModel(client, "xlr1") { Step = MicSetupStep.Level };
+        var owner = new Window();
+        owner.Show();
+        MicSetupWindow window = MicSetupWindow.Open(owner, setup);
+        MicSetupWindow? replacement = null;
         var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         window.Closed += (_, _) => closed.TrySetResult();
         try
         {
-            window.Show();
+            Click(window, "MicSetupSuggestGain");
+            Assert.True(setup.Measuring);
             window.Close();
             await received.Task.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.True(window.IsVisible);
             Assert.False(window.IsEnabled);
             Assert.All(window.GetVisualDescendants().OfType<Button>(), button => Assert.False(button.IsEffectivelyEnabled));
+            bool cancelledAtClose = !setup.Measuring;
+            // Isolate a new measurement from the old one, even on the broken implementation.
+            setup.CancelGainMeasure();
+            if (reopen)
+            {
+                replacement = MicSetupWindow.Open(owner, setup);
+                Assert.NotSame(window, replacement);
+                Click(replacement, "MicSetupSuggestGain");
+                Assert.True(setup.Measuring);
+            }
             release.TrySetResult();
             await closed.Task.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.False(window.IsVisible);
+            Assert.Equal(reopen, setup.Measuring);
+            Assert.True(cancelledAtClose, "Closing should end this window's measurement before waiting for stop.");
         }
-        finally { release.TrySetResult(); window.Close(); }
+        finally { release.TrySetResult(); window.Close(); replacement?.Close(); owner.Close(); }
     }
 }

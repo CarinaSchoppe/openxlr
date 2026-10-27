@@ -45,7 +45,9 @@ public partial class MicSetupWindow : Window
         {
             _meter.Stop();
             _measure.Stop();
-            Setup?.CancelGainMeasure();
+            // A normal close already ended its measurement before waiting.
+            // Another window may now be measuring the same input.
+            if (!_closing) Setup?.CancelGainMeasure();
             Watch(null);
             if (_open == this) _open = null;
         };
@@ -62,6 +64,8 @@ public partial class MicSetupWindow : Window
             _closing = true;
             if (_open == this) _open = null;
             _meter.Stop();
+            _measure.Stop();
+            vm.CancelGainMeasure();
             IsEnabled = false; // Do not queue a new recording behind the pending stop.
             await vm.StopOnCloseAsync();
             _closed = true;

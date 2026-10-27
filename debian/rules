@@ -17,6 +17,17 @@ ifneq (,$(wildcard $(VENDOR)))
 RESTORE_SOURCE = --source $(VENDOR)
 endif
 
+# Every package carries DeepFilterNet: the native build fails instead of
+# leaving it out. It runs the distribution's cargo and rustc, not a rustup
+# proxy that may be earlier on the PATH and would look for its toolchains
+# under the HOME above. make-source.sh vendors the crates under
+# native/deepfilter/vendor and puts the model in place for the offline
+# builders; a build with a network (the release workflow) fetches both.
+export DEEPFILTER = 1
+export CARGO ?= /usr/bin/cargo
+export RUSTC ?= /usr/bin/rustc
+export CARGO_HOME = $(HOME)/.cargo
+
 OUT = $(CURDIR)/debian/out
 PKG = $(CURDIR)/debian/openxlr
 
@@ -106,7 +117,7 @@ override_dh_auto_install:
 	find $(PKG)/usr/share/openxlr -type d -exec chmod 755 {} +
 
 override_dh_auto_clean:
-	rm -rf $(OUT) $(HOME) src/*/bin src/*/obj
+	rm -rf $(OUT) $(HOME) src/*/bin src/*/obj native/deepfilter/target
 
 override_dh_auto_test:
 

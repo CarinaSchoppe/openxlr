@@ -4,12 +4,14 @@ The manifest targets x86_64, matching the committed .NET runtime graph. It
 uses the Freedesktop 25.08 runtime and .NET 10 SDK extension, and requires
 Flatpak 1.15.11 or newer for the USB-only device grant. CI checks the
 manifest and its files with `python3 packaging/flatpak/test-package.py`,
-the NuGet source list with `python3 packaging/flatpak/nuget-sources.py
---check` and the metainfo with `appstreamcli validate --no-net`.
+the NuGet and Rust crate source lists with `python3 packaging/flatpak/nuget-sources.py
+--check` and `python3 packaging/flatpak/cargo-sources.py --check`, and the
+metainfo with `appstreamcli validate --no-net`.
 
 ```sh
-flatpak install --user flathub org.freedesktop.Sdk//25.08 org.freedesktop.Platform//25.08 org.freedesktop.Sdk.Extension.dotnet10//25.08 org.flatpak.Builder
+flatpak install --user flathub org.freedesktop.Sdk//25.08 org.freedesktop.Platform//25.08 org.freedesktop.Sdk.Extension.dotnet10//25.08 org.freedesktop.Sdk.Extension.rust-stable//25.08 org.flatpak.Builder
 python3 packaging/flatpak/nuget-sources.py --check
+python3 packaging/flatpak/cargo-sources.py --check
 flatpak run org.flatpak.Builder --user --force-clean --disable-rofiles-fuse --state-dir="$HOME/.cache/openxlr-flatpak/state" --repo="$HOME/.cache/openxlr-flatpak/repo" "$HOME/.cache/openxlr-flatpak/build" packaging/flatpak/io.github.emaspa.openxlr.json
 flatpak --user remote-add --no-gpg-verify --if-not-exists openxlr-local "$HOME/.cache/openxlr-flatpak/repo"
 flatpak install --user openxlr-local io.github.emaspa.openxlr

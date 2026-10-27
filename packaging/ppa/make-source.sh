@@ -4,7 +4,11 @@
 # Launchpad builds with no network, so the NuGet packages the publish
 # needs are restored here and shipped inside the source tarball under
 # vendor/nuget; debian/rules points the restore at that feed whenever
-# the directory exists. The sources come from <git-ref>, the debian/
+# the directory exists. DeepFilterNet's model and Rust crates go in the
+# same way: the model is fetched and checked against the SHA-256 in
+# native/Makefile, the crates are vendored under native/deepfilter/vendor,
+# where native/Makefile builds from them offline, and their Windows
+# import libraries are pruned. The sources come from <git-ref>, the debian/
 # directory from HEAD, and one source package is produced per series,
 # versioned <upstream>~<series>1 (the source format is native).
 #
@@ -18,8 +22,9 @@
 # same upstream version needs a higher series suffix: PPA_SUFFIX=2 makes
 # the packages X.Y.Z~noble2.
 #
-# Needs git, dotnet-sdk-10.0, devscripts, debhelper and the maintainer's
-# GPG key (DEBSIGN_KEYID overrides the key picked from the changelog).
+# Needs git, dotnet-sdk-10.0, cargo, curl, make, python3, devscripts,
+# debhelper and the maintainer's GPG key (DEBSIGN_KEYID overrides the key
+# picked from the changelog).
 set -eu
 
 ref=${1:?usage: $0 <git-ref> <series>...}
@@ -86,6 +91,17 @@ for dir in "$work"/packages/*/*/; do
     mkdir -p "$dest"
     cp "$dir"*.nupkg "$dir"*.nuspec "$dir"*.sha512 "$dest"
 done
+
+# DeepFilterNet, for a ref that has it. native/Makefile fetches the model
+# and checks its SHA-256 (the stamp it leaves is not shipped, so the
+# builder checks again), and builds offline from deepfilter/vendor.
+df=$tree/native/deepfilter
+if [ -f "$df/Cargo.lock" ]; then
+    make -s -C "$tree/native" deepfilter/model/verified
+    rm -f "$df/model/verified"
+    (cd "$df" && cargo vendor --locked vendor >/dev/null)
+    python3 "$repo/packaging/ppa/prune-cargo-vendor.py" "$df/vendor"
+fi
 
 mkdir -p "$out"
 for series in "$@"; do

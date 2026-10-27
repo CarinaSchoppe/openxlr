@@ -20,10 +20,50 @@
 , gdk-pixbuf
 , librsvg
 , python3
+, rustPlatform
+, fetchurl
 , sourceCommit ? null
 , dirtySource ? false
 }:
 
+let
+  # DeepFilterNet's model, the file native/Makefile fetches, with the same
+  # SHA-256 (DF_MODEL_SHA256 there).
+  deepfilterVersion = "0.5.6";
+  deepfilterModel = fetchurl {
+    url = "https://raw.githubusercontent.com/Rikorose/DeepFilterNet/v${deepfilterVersion}/models/DeepFilterNet3_onnx.tar.gz";
+    hash = "sha256-yU2R9wkRAByUbg+rtKqa3DcEX0WgO1YAjLDIJEy2NhY=";
+  };
+
+  # DeepFilterNet's Rust static library, built as a derivation of its own
+  # from Cargo.lock; native/Makefile links it through DEEPFILTER_LIB
+  # instead of running cargo.
+  deepfilter = rustPlatform.buildRustPackage {
+    pname = "openxlr-deepfilter";
+    version = deepfilterVersion;
+    # Only the crate's sources: a checkout's target/ or vendor/ stays out.
+    src = lib.fileset.toSource {
+      root = ../../native/deepfilter;
+      fileset = lib.fileset.unions [
+        ../../native/deepfilter/Cargo.toml
+        ../../native/deepfilter/Cargo.lock
+        ../../native/deepfilter/src
+        ../../native/deepfilter/libdf
+      ];
+    };
+    cargoLock.lockFile = ../../native/deepfilter/Cargo.lock;
+    postPatch = ''
+      install -Dm644 ${deepfilterModel} model/DeepFilterNet3_onnx.tar.gz
+    '';
+    # The checks run against the linked helper (make test-denoise).
+    doCheck = false;
+    meta = {
+      description = "DeepFilterNet noise removal for OpenXLR's native helper";
+      license = with lib.licenses; [ mit asl20 ];
+      platforms = lib.platforms.linux;
+    };
+  };
+in
 buildDotnetModule {
   pname = "openxlr";
   version = "0.2.6";
@@ -53,6 +93,12 @@ buildDotnetModule {
     ++ lib.optional (sourceCommit != null) "-p:SourceRevisionId=${sourceCommit}";
   nativeBuildInputs = [ gcc pkg-config python3 ];
   buildInputs = [ pipewire lilv lv2 libx11 ];
+  # make reads both from the environment: DeepFilterNet is built in, from
+  # the library above.
+  env = {
+    DEEPFILTER = "1";
+    DEEPFILTER_LIB = "${deepfilter}/lib/libopenxlr_deepfilter.a";
+  };
 
   dotnet-sdk = dotnetCorePackages.sdk_10_0;
   dotnet-runtime = dotnetCorePackages.aspnetcore_10_0;
@@ -123,10 +169,14 @@ buildDotnetModule {
     cp -r plugin/com.emaspa.openxlr.sdPlugin $out/share/openxlr/
   '';
 
+  passthru = { inherit deepfilter deepfilterModel; };
+
   meta = {
     description = "Linux Wave Link replacement for Elgato XLR interfaces and Wave microphones";
     homepage = "https://github.com/emaspa/openxlr";
-    license = lib.licenses.gpl3Only;
+    # The native helper also carries RNNoise (BSD-3-Clause), libDF, the
+    # DeepFilterNet model and the Rust crates (MIT, Apache-2.0 or either).
+    license = with lib.licenses; [ gpl3Only bsd3 mit asl20 ];
     platforms = lib.platforms.linux;
     mainProgram = "openxlr";
   };

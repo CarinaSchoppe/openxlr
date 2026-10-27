@@ -21,7 +21,8 @@ jobs:
         run: |
           dnf install -y --setopt=install_weak_deps=False \
             rpm-build rpmlint git-core dotnet-sdk-10.0 systemd-rpm-macros \
-            gcc gcc-c++ make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel
+            gcc gcc-c++ make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel \
+            cargo rust
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -41,7 +42,10 @@ jobs:
           mkdir -p rpmbuild/SOURCES dist
           git archive --format=tar.gz --prefix="openxlr-$VER/" \
             -o "rpmbuild/SOURCES/openxlr-$VER.tar.gz" HEAD
-          rpmbuild --define "_topdir $PWD/rpmbuild" -bb packaging/rpm/openxlr.spec
+          # Source1, DeepFilterNet's model, is fetched from its URL; the
+          # native build checks its SHA-256.
+          rpmbuild --define "_topdir $PWD/rpmbuild" --undefine=_disable_source_fetch \
+            -bb packaging/rpm/openxlr.spec
           mv rpmbuild/RPMS/x86_64/openxlr-*.rpm dist/
 
       # packaging/rpm/rpmlint.toml lists the findings that were reviewed and
@@ -56,6 +60,10 @@ jobs:
           test -x /usr/bin/openxlr && test -x /usr/bin/openxlr-daemon
           test -x /usr/lib/openxlr/daemon/OpenXLR.Daemon
           test -x /usr/lib/openxlr/daemon/openxlr-lv2-host
+          /usr/lib/openxlr/daemon/openxlr-lv2-host engines | tee engines.json
+          grep -q '"deepfilternet"' engines.json
+          test -f /usr/share/licenses/openxlr/rnnoise/COPYING
+          test -f /usr/share/licenses/openxlr/deepfilter/LICENSE-MIT
           test -f /usr/lib/udev/rules.d/70-openxlr.rules
           test -f /usr/share/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf
           test -f /usr/share/wireplumber/wireplumber.conf.d/52-openxlr-mk1-capture-hold.conf

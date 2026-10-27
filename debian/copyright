@@ -6,6 +6,58 @@ Source: https://github.com/emaspa/openxlr
 Files: *
 Copyright: 2026 Emanuele Sparvoli
 License: GPL-3
+
+Files: native/clap/*
+Copyright: 2021 Alexandre BIQUE
+License: Expat
+
+Files: native/vst3/*
+Copyright: 2026 Steinberg Media Technologies GmbH
+License: Expat
+
+Files: native/rnnoise/*
+Copyright: 2007-2017, 2024 Jean-Marc Valin
+ 2023 Amazon
+ 2011-2019 Mozilla
+ 2005-2017 Xiph.Org Foundation
+ 2003-2004 Mark Borgerding
+ 2018 Gregor Richards
+ 2014 Cisco Systems, INC
+ 2007-2008 CSIRO
+ 2013 Parrot
+ 2008-2011 Octasic Inc.
+ 2018 David Rowe
+License: BSD-3-clause
+Comment: RNNoise 0.2, with its trained model in src/rnnoise_data.c. Some
+ files carry the two-clause form of the same licence.
+
+Files: native/deepfilter/libdf/*
+Copyright: 2021 Hendrik Schröter
+License: Expat or Apache-2.0
+Comment: libDF from DeepFilterNet 0.5.6.
+
+Files: native/deepfilter/model/*
+Copyright: 2021 Hendrik Schröter
+License: Expat or Apache-2.0
+Comment: DeepFilterNet3_onnx.tar.gz, the DeepFilterNet 3 model from the
+ DeepFilterNet repository at tag v0.5.6, put here by
+ packaging/ppa/make-source.sh. native/Makefile checks its SHA-256.
+
+Files: native/deepfilter/vendor/*
+Copyright: The authors of each crate, as its Cargo.toml names them
+License: Expat and Apache-2.0
+Comment: Rust crates that DeepFilterNet's library is built from, vendored
+ by packaging/ppa/make-source.sh because the builders have no network.
+ Each crate is under the licence its own Cargo.toml and licence files
+ state. Most offer a choice of MIT or Apache-2.0, a few are MIT only and
+ prost is Apache-2.0 only; tiny-keccak (CC0-1.0) and unicode-ident (which
+ adds Unicode-DFS-2016) run only at build time. The Windows import
+ libraries of the winapi and windows_* crates are removed, and those crates
+ are never built for Linux. To list every crate with its licence, run in
+ native/deepfilter:
+ cargo metadata --format-version 1 --filter-platform x86_64-unknown-linux-gnu
+
+License: GPL-3
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, version 3 of the License.
@@ -17,3 +69,66 @@ License: GPL-3
  .
  On Debian systems, the complete text of the GNU General Public
  License version 3 can be found in "/usr/share/common-licenses/GPL-3".
+
+License: Expat
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+
+License: Apache-2.0
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+ .
+ http://www.apache.org/licenses/LICENSE-2.0
+ .
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ .
+ On Debian systems, the complete text of the Apache License, Version 2.0
+ can be found in "/usr/share/common-licenses/Apache-2.0".
+
+License: BSD-3-clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions
+ are met:
+ .
+ - Redistributions of source code must retain the above copyright
+ notice, this list of conditions and the following disclaimer.
+ .
+ - Redistributions in binary form must reproduce the above copyright
+ notice, this list of conditions and the following disclaimer in the
+ documentation and/or other materials provided with the distribution.
+ .
+ - Neither the name of the Xiph.Org Foundation nor the names of its
+ contributors may be used to endorse or promote products derived from
+ this software without specific prior written permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION
+ OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

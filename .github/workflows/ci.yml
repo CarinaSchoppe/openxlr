@@ -94,6 +94,12 @@ jobs:
           python3 tools/eq-reference.py --check
           python3 tools/omarchy-skins.py --check
           python3 packaging/flatpak/nuget-sources.py --check
+          python3 packaging/flatpak/cargo-sources.py --check
+
+      - name: DeepFilterNet built into every package
+        run: |
+          python3 packaging/check-deepfilter.py
+          python3 packaging/ppa/test-prune-cargo-vendor.py
 
       - name: Validate Stream Deck/OpenDeck plugin
         run: |
@@ -192,13 +198,20 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # DEEPFILTER=1 makes a missing cargo fail the build instead of leaving
+      # DeepFilterNet out, as every package does. The runner's rustup cargo
+      # builds it; the release workflows use the distributions' own.
       - name: Optional native LV2 host compiles
+        env:
+          DEEPFILTER: "1"
         run: |
           tools/ci-install-packages.sh pipewire pipewire-pulse wireplumber pulseaudio-utils swh-plugins lsp-plugins-lv2 g++ libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev libxtst6 xvfb xauth
+          cargo --version
           make -C native
           make -C native test-sound-check
           make -C native test-eq
           make -C native test-duck
+          make -C native test-denoise
           dotnet restore src/OpenXLR.slnx --locked-mode
           dotnet build src/OpenXLR.slnx -c Release --no-restore -warnaserror -p:EnableNativeLv2Host=true
           test -x native/openxlr-lv2-host
@@ -234,6 +247,8 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Build with the native host
+        env:
+          DEEPFILTER: "1"
         run: |
           tools/ci-install-packages.sh pipewire pipewire-pulse wireplumber pulseaudio-utils swh-plugins lsp-plugins-lv2 g++ libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev
           dotnet restore src/OpenXLR.slnx --locked-mode

@@ -1483,6 +1483,8 @@
   <data name="ShowHiddenHint" xml:space="preserve">
     <value>Zeigt die unter Layout bearbeiten ausgeblendeten Kanäle und Mixe blass an ihrem Platz. Sie funktionieren wie gewohnt; am Layout ändert sich nichts.</value>
   </data>
+  <data name="RouteAppsByDefault" xml:space="preserve"><value>Anwendungen ohne Zuweisung automatisch routen</value></data>
+  <data name="RouteAppsByDefaultHint" xml:space="preserve"><value>Deaktiviere diese Option, damit Apps beim Desktop bleiben, bis du einen Kanal zuweist. Gespeicherte Zuweisungen gelten weiterhin. Ist ein OpenXLR-Kanal die Systemstandardausgabe, können Apps darüber weiterhin hörbar sein.</value></data>
   <data name="PreAssignAChannelToAnAppThat" xml:space="preserve">
     <value>Weise einer noch nicht spielenden App vorab einen Kanal zu. Die Identität wird aus ihrem Starter abgeleitet. Meldet sich die App bei der ersten Wiedergabe anders, erscheint sie als neuer Eintrag.</value>
   </data>
@@ -2991,6 +2993,4 @@ Von OpenXLR gesteuertes Interface wählen</value>
   <data name="MicSetupMicrophoneTip" xml:space="preserve">
     <value>Wähle das Mikrofon, das du einrichten willst. Eine laufende Aufnahme oder Mithören am angezeigten Mikrofon endet zuerst.</value>
   </data>
-  <data name="RouteAppsByDefault" xml:space="preserve"><value>Anwendungen ohne Zuweisung automatisch routen</value></data>
-  <data name="RouteAppsByDefaultHint" xml:space="preserve"><value>Deaktiviere diese Option, damit Apps beim Desktop bleiben, bis du einen Kanal zuweist. Gespeicherte Zuweisungen gelten weiterhin. Ist ein OpenXLR-Kanal die Systemstandardausgabe, können Apps darüber weiterhin hörbar sein.</value></data>
 </root>

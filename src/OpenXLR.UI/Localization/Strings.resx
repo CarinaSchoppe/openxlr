@@ -1476,6 +1476,8 @@
   <data name="ShowHiddenHint" xml:space="preserve">
     <value>Draw the channels and mixes hidden in Edit layout in their places, faded. They work as usual; nothing in the layout changes.</value>
   </data>
+  <data name="RouteAppsByDefault" xml:space="preserve"><value>Automatically route unassigned applications</value></data>
+  <data name="RouteAppsByDefaultHint" xml:space="preserve"><value>Turn off to leave apps on the desktop until you assign a channel. Saved assignments still apply. Apps using an OpenXLR system default can still play through that channel.</value></data>
   <data name="PreAssignAChannelToAnAppThat" xml:space="preserve">
     <value>Pre-assign a channel to an app that has not played audio yet. The identity is guessed from its launcher; if the app reports differently on first play, it simply appears as a new entry.</value>
   </data>
@@ -3316,6 +3318,4 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   <data name="MicSetupEffectsHint" xml:space="preserve">
     <value>Bypass a plugin to hear the chain without it. The chain window moves, renames and removes plugins.</value>
   </data>
-  <data name="RouteAppsByDefault" xml:space="preserve"><value>Automatically route unassigned applications</value></data>
-  <data name="RouteAppsByDefaultHint" xml:space="preserve"><value>Turn off to leave apps on the desktop until you assign a channel. Saved assignments still apply. Apps using an OpenXLR system default can still play through that channel.</value></data>
 </root>

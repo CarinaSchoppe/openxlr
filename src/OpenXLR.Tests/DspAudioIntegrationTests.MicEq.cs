@@ -18,6 +18,26 @@ public sealed partial class DspAudioIntegrationTests
     private const double ToneAmplitude = 0.05;
 
     [DspPipeWireFact]
+    public Task VariableBandsKeepInsertChainsAndTheSixteenthBandProcessesAudio() => OnTheUnitWithTone(false, (mixer, pw, runs) =>
+    {
+        mixer.SetInserts("xlr1", [Fixture("one", 100)]);
+        ChainGraph chain = SettledChain("xlr1");
+        MicEq flat = new() { Enabled = true, Bands = Enumerable.Range(0, 16).Select(_ => new EqBand()).ToArray() };
+        mixer.SetEq("xlr1", flat);
+        ChainGraph eq = SettledChain("xlr1", "OpenXLR_eq_");
+        double baseline = Level("xlr1");
+        mixer.SetEqBand("xlr1", 16, new(Enabled: true, Frequency: 1000, Gain: 6, Q: 1));
+        Assert.Equal(6, Level("xlr1") - baseline, 1);
+        Assert.Equal(eq, SettledChain("xlr1", "OpenXLR_eq_"));
+        mixer.SetEq("xlr1", flat with { Bands = flat.Bands.Take(3).ToArray() });
+        ChainGraph smaller = SettledChain("xlr1", "OpenXLR_eq_");
+        Assert.NotEqual(eq.Nodes, smaller.Nodes);
+        Assert.Equal(baseline, Level("xlr1"), 1);
+        Assert.Equal(chain.Nodes, SettledChain("xlr1").Nodes);
+        Assert.Equal(3, mixer.EqFor("xlr1").Bands.Count);
+    });
+
+    [DspPipeWireFact]
     public Task TheEqSplicesInAtTheHeadAndEveryValueMovesLive() => OnTheUnitWithTone(compensate: false, (mixer, pw, runs) =>
     {
         Assert.True(Volatile.Read(ref runs.Count) > 0, "The helper counter sees the build's helpers.");

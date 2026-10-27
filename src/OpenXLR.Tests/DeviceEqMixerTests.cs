@@ -110,6 +110,37 @@ public sealed class DeviceEqMixerTests
     private static MicEqState Eq(Mixer mixer, string channel = "xlr1") => mixer.Snapshot().Channels.Single(c => c.Id == channel).Eq!;
 
     [Fact]
+    public void BandCountKeepsHardwareWhenItFitsAndReturnsAfterSoftwareFallback()
+    {
+        var port = new Port();
+        using Mixer mixer = Dock1(port);
+        MicEq original = mixer.EqFor("xlr1");
+        MicEq small = original with { Bands = original.Bands.Take(2).ToArray() };
+        mixer.SetEq("xlr1", small); port.Sweep();
+        Assert.True(mixer.EqRunsOnDevice("xlr1"));
+        DeviceEq held = port.Held[(Dock, 1)];
+        Assert.Equal(4, held.Bands!.Count);
+        Assert.All(held.Bands.Skip(2), b => Assert.False(b.Enabled));
+        Assert.Equal(2, mixer.EqFor("xlr1").Bands.Count);
+        MicEq large = original;
+        while (large.Bands.Count < 16) large = large.WithAddedBand();
+        mixer.SetEq("xlr1", large);
+        Assert.False(mixer.EqRunsOnDevice("xlr1"));
+        NeverDoubled(mixer, port);
+        port.Sweep(); mixer.SyncDeviceEq();
+        Assert.True(mixer.EqWantsSoftwareStage("xlr1"));
+        Assert.Equal("device", mixer.EqProcessingFor("xlr1"));
+        Assert.False(mixer.CanRunEqOnDevice("xlr1", 16));
+        Assert.True(mixer.CanRunEqOnDevice("xlr1", 2));
+        var command = JsonSerializer.Deserialize<Command>(JsonSerializer.Serialize(new { cmd = "setEq", channel = "xlr1", eq = small },
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Null(CommandValidation.Check(command, mixer, _ => null, nativeHostInstalled: false));
+        mixer.SetEq("xlr1", small); port.Sweep();
+        Assert.True(mixer.EqRunsOnDevice("xlr1"));
+        NeverDoubled(mixer, port);
+    }
+
+    [Fact]
     public void AUnitThatRunsTheEqTakesItAndStartsNoStage()
     {
         var port = new Port();

@@ -84,7 +84,13 @@ public static class DeviceEqMapping
     private static int StepOf(double q) => (int)Math.Round((MicEq.QLog10(q) + 1) / MicEq.QLog10Step, MidpointRounding.AwayFromZero);
 
     /// <summary>A microphone's EQ as its unit holds it.</summary>
-    public static DeviceEq ToDevice(MicEq eq) => new(eq.Enabled, [.. eq.Bands.Select(ToDevice)]);
+    public static DeviceEq ToDevice(MicEq eq)
+    {
+        if (MicEq.Check(eq) is not null || eq.Bands.Count > WaveFxEq.Bands)
+            throw new ArgumentException("The device EQ supports one to four bands.", nameof(eq));
+        return new(eq.Enabled, [.. eq.Bands.Select(ToDevice),
+            .. Enumerable.Repeat(ToDevice(new EqBand()), WaveFxEq.Bands - eq.Bands.Count)]);
+    }
 
     /// <summary>One band as its unit holds it.</summary>
     public static DeviceEqBand ToDevice(EqBand band)

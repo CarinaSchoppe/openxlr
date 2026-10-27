@@ -2440,10 +2440,10 @@ Selecciona la interfaz que controla OpenXLR</value>
     <value>EQ</value>
   </data>
   <data name="EqButtonTip" xml:space="preserve">
-    <value>El ecualizador de cuatro bandas del micrófono, al principio de la entrada, antes del corte de graves, ClipGuard y los plugins. Se ilumina mientras está activo y se pone rojo si no puede funcionar. Abre el editor.</value>
+    <value>El ecualizador del micrófono, al principio de la entrada, antes del corte de graves, ClipGuard y los plugins. Se ilumina mientras está activo y se pone rojo si no puede funcionar. Abre el editor.</value>
   </data>
   <data name="EqButtonTipCapture" xml:space="preserve">
-    <value>El ecualizador de cuatro bandas del micrófono, en este ordenador al principio de la entrada, antes de los plugins. Se ilumina mientras está activo y se pone rojo si no puede funcionar. Abre el editor.</value>
+    <value>El ecualizador del micrófono, en este ordenador al principio de la entrada, antes de los plugins. Se ilumina mientras está activo y se pone rojo si no puede funcionar. Abre el editor.</value>
   </data>
   <data name="EqButtonNameOn" xml:space="preserve">
     <value>EQ de {0}, activo</value>
@@ -2473,7 +2473,7 @@ Selecciona la interfaz que controla OpenXLR</value>
     <value>Copiar</value>
   </data>
   <data name="EqCopyTip" xml:space="preserve">
-    <value>Copia este EQ, su interruptor y sus cuatro bandas, para pegarlo en otro micrófono.</value>
+    <value>Copia este EQ, su interruptor y todas sus bandas, para pegarlo en otro micrófono.</value>
   </data>
   <data name="EqPaste" xml:space="preserve">
     <value>Pegar</value>
@@ -2557,7 +2557,7 @@ Selecciona la interfaz que controla OpenXLR</value>
     <value>Funciona en software, como se eligió; {0} puede ejecutarlo en su propio procesador.</value>
   </data>
   <data name="EqButtonTipDevice" xml:space="preserve">
-    <value>El ecualizador de cuatro bandas del micrófono, en el procesador propio de {0}, antes del USB. Se ilumina mientras está activo. Abre el editor.</value>
+    <value>El ecualizador del micrófono, en el procesador propio de {0}, antes del USB. Se ilumina mientras está activo. Abre el editor.</value>
   </data>
   <data name="EqStatusStarting" xml:space="preserve">
     <value>Activo, iniciándose.</value>
@@ -2967,4 +2967,8 @@ Selecciona la interfaz que controla OpenXLR</value>
   <data name="BrowserTabsGuideHint" xml:space="preserve">
     <value>Abrir la guía sobre el enrutamiento de pestañas del navegador</value>
   </data>
+  <data name="EqAddBand" xml:space="preserve"><value>Añadir banda</value></data>
+  <data name="EqRemoveBandName" xml:space="preserve"><value>Eliminar la banda {0} del EQ</value></data>
+  <data name="EqDeviceBandLimit" xml:space="preserve"><value>{0} admite hasta {1} bandas de EQ. Este EQ se procesa por software hasta que el número de bandas vuelva a ser compatible con el dispositivo.</value></data>
+  <data name="EqRemoveBand" xml:space="preserve"><value>Eliminar</value></data>
 </root>

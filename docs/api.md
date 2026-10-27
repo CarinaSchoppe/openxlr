@@ -303,9 +303,9 @@ that final acknowledgement (or an `error` without a request id):
 | `setSoundCheckHearMyself` | `channel`, `value` | `true` opens the channel's send into every monitor mix that plays on a selected monitor output, whatever its mute, for the rest of the session; `false` lets the sends' own mutes decide again. Starts a session on the live microphone when none runs. The channel and the host rules are those of `soundCheck`. Never saved; the session's end turns it off |
 | `watchInputMeter` | `channel` | run the [meter before the chain](#meter-before-the-chain) of a channel whose `microphone` is true for the next 15 seconds, starting it when none runs. Send it again to keep the meter running. Refused at once when the native plugin host is not installed. Nothing in the channel's route changes, and nothing is saved |
 | `getSoundCheckTake` | none | answered with `soundCheckTake`: the waveform of the take the running session holds |
-| `setEq` | `channel`, `eq` | replace a microphone's whole EQ: `eq` is `{enabled, bands}` with exactly four bands, each `{enabled, type, frequency, gain, q}` with every field. `channel` is `xlr1`, `xlr2` or a capture input whose `microphone` is true; any other channel is refused. See [microphone EQ](#microphone-eq) |
+| `setEq` | `channel`, `eq` | replace a microphone's whole EQ: `eq` is `{enabled, bands}` with 1 to 16 bands, each `{enabled, type, frequency, gain, q}` with every field. `channel` is `xlr1`, `xlr2` or a capture input whose `microphone` is true; any other channel is refused. See [microphone EQ](#microphone-eq) |
 | `setEqEnabled` | `channel`, `value` | the EQ's own switch, a boolean. Off bypasses inside the running stage, so on and off compare at once |
-| `setEqBand` | `channel`, `band`, at least one of `enabled`, `type`, `frequency`, `gain`, `q` | change part of one band, 1 to 4; an absent field keeps its value. Values outside the ranges are refused, not clamped, and what is taken is snapped onto the EQ's steps. Switching the EQ on, here or through `setEq`, is refused at once when the native plugin host is not installed and no unit runs the channel's EQ |
+| `setEqBand` | `channel`, `band`, at least one of `enabled`, `type`, `frequency`, `gain`, `q` | change part of one existing band, numbered from 1 to 16; an absent field keeps its value. Values outside the ranges are refused, not clamped, and what is taken is snapped onto the EQ's steps. Switching the EQ on, here or through `setEq`, is refused at once when the native plugin host is not installed and no unit runs the channel's EQ |
 | `setEqProcessing` | `channel`, `value` | where a microphone's EQ runs when the unit it carries can run it: `device` (the default) on the unit's own DSP, or `software` on this computer. Any other value is refused. Saved in `mixer.json` under `eqProcessing`, never in a profile. Moving between the two switches the leaving one off first. Refused on a capture input, whose EQ always runs on this computer. See [where the EQ runs](#where-the-eq-runs) |
 | `adjustOutputVolume` | optional `device`, `value` | change a PipeWire output by desktop percentage points (`0.05` is 5%). Finite steps from -0.5 to 0.5, final volume clamped to 0 through 1.5. Omit `device` for the current desktop default |
 | `setOutputDeviceVolume` | optional `device`, `value` | set a PipeWire output's desktop volume; `value` finite, 0 to 1.5 on the desktop scale (1.0 is 100%), rejected outside that range. A monitor mix sink is set through its mix master; a selected monitor output follows the linked monitor-volume behaviour. Omit `device` for the current desktop default; device names are accepted and rejected as for `adjustOutputVolume` |
@@ -1498,8 +1498,8 @@ one meter, shared by every client. A rebuilt graph ends every meter.
 
 ### Microphone EQ
 
-XLR 1, XLR 2 and every capture input on one mono port each have a four-band
-EQ with the controls, ranges, steps and curves of Wave Link's. A capture
+XLR 1, XLR 2 and every capture input on one mono port each have an EQ with
+1 to 16 bands, with the controls, ranges, steps and curves of Wave Link's. A capture
 input's always runs in software (see
 [EQ on capture inputs](#eq-on-capture-inputs)); the rest of this section
 describes XLR 1 and XLR 2. On the Wave XLR MK.2 and the XLR Dock MK.2 from
@@ -1515,7 +1515,7 @@ switched on.
 
 A channel's `eq` in the mixer state is
 `{enabled, bands, backend, available, error, processing, device}`. `bands`
-holds four `{enabled, type, frequency, gain, q}`:
+holds 1 to 16 `{enabled, type, frequency, gain, q}` objects:
 
 - `type`: `lowCut` (high pass), `lowShelf`, `peak` (a bell, which Wave Link
   calls Band Pass), `notch`, `highShelf` or `highCut` (low pass).
@@ -1537,8 +1537,23 @@ start. `available` is always true on the unit, which needs no helper; in
 software it is false when the native plugin host is not installed, or after
 the stage failed three times in five minutes, and `error` then says why;
 switching the EQ off and on again tries once more. The mixer state's `eqLimits` gives the same ranges
-for clients to draw from: `{bands, types, frequency {min, max, step}, gain
+for clients to draw from: `{bands, minBands, maxBands, types, frequency {min, max, step}, gain
 {min, max, step}, q {min, max, log10Step}}`.
+
+`bands` remains 4 as the default for older clients; `minBands` and `maxBands`
+are 1 and 16. Each channel's `eq.bands` is its current table. A client that
+receives no minimum or maximum keeps the older fixed band count. `setEq`
+replaces the table, so use it to add or remove a band; following bands are
+renumbered after removal. A partial write past the current table is refused.
+Profiles and `mixer.json` keep the entire table and its count. The original
+four defaults and profiles remain unchanged.
+
+Up to four bands can run on supported hardware: unused hardware slots are
+disabled. More than four run wholly in software, leaving the preferred
+`processing` choice unchanged; shrinking back restores hardware when it is
+available. An enabled extended EQ is refused without the native helper.
+Changing the software table's length replaces only the EQ stage. A value
+change keeps it and the plugin chain behind it running.
 
 The daemon snaps every value it takes, whichever client sent it, so the
 files, every client and the curve hold the same numbers. A band's curve is

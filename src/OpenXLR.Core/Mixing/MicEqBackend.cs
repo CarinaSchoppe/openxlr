@@ -15,7 +15,7 @@ internal interface IMicEqBackend
     string Kind { get; }
     /// <summary>The whole EQ, at start and on setEq or a recall.</summary>
     void Apply(MicEq eq);
-    /// <summary>One band (1 to 4), live.</summary>
+    /// <summary>One existing band, live.</summary>
     void ApplyBand(int band, EqBand value);
     void SetEnabled(bool on);
     /// <summary>The input stops using this backend.</summary>
@@ -39,6 +39,7 @@ internal sealed class SoftwareEqBackend(PipeWireAdapter pw, FilterHandle stage, 
     /// <summary>The node, whose playback port takes the microphone and whose capture port carries it on.</summary>
     public string Node => Stage.SinkName;
     public bool IsAlive => Stage.IsAlive;
+    public int BandCount => _applied.Bands.Count;
 
     /// <summary>The helper's controls for an EQ, by the symbols native/eq.c declares.</summary>
     public static Dictionary<string, double> Controls(MicEq eq)

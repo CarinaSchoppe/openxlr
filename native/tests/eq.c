@@ -377,6 +377,41 @@ static void check_controls(void) {
   puts("controls: the 21 symbols the daemon writes, clamped to their ranges");
 }
 
+static void check_variable_bands(void) {
+  assert(backend_named("eq-bands") == &eq_bands_backend);
+  const char *invalid[] = {"", "0", "17", "-1", "+4", "4.5", " 4", "99999999999999999999999"};
+  for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+    Host *h = calloc(1, sizeof(*h));
+    assert(h); h->rate = RATE; h->channels = 1;
+    char *args[] = {(char *)invalid[i], NULL};
+    assert(!eq_load_bands(h, args));
+    eq_unload(h); free(h);
+  }
+  for (int count = 1; count <= EQ_MAX_BANDS; count++) {
+    Host *h = calloc(1, sizeof(*h));
+    assert(h); h->rate = RATE; h->channels = 1;
+    char number[8]; snprintf(number, sizeof(number), "%d", count);
+    char *args[] = {number, NULL};
+    assert(eq_load_bands(h, args));
+    assert(((Eq *)h->impl)->band_count == (unsigned)count);
+    assert(h->control_count == (unsigned)(1 + 5 * count));
+    for (int band = 1; band <= count; band++) set_band(h, band, (Setting)OFF);
+    set_band(h, count, (Setting){1, PEAK, 1000, 6, 1});
+    set(h, "enabled", 1);
+    assert(eq_activate(h));
+    enum { FRAMES = RATE / 2 };
+    static float input[FRAMES], output[FRAMES];
+    tone(input, FRAMES, 1000); run(h, input, output, FRAMES, BLOCK);
+    double dry = 0, wet = 0;
+    for (int n = FRAMES / 2; n < FRAMES; n++) {
+      assert(isfinite(output[n])); dry += input[n] * input[n]; wet += output[n] * output[n];
+    }
+    assert(fabs(10 * log10(wet / dry) - 6) < 0.02);
+    release(h);
+  }
+  puts("variable bands: every count from 1 to 16 processes its last band, with bounded controls");
+}
+
 static void measure_cost(void) {
   Setting bands[EQ_BANDS] = {{1, LOW_CUT, 36, 0, 0.7}, {1, PEAK, 310, 3, 0.7},
                              {1, PEAK, 2172, -3, 0.7}, {1, HIGH_CUT, 15049, 0, 0.7}};
@@ -402,6 +437,7 @@ int main(int argc, char **argv) {
   setvbuf(stdout, NULL, _IOLBF, 0);
   const char *reference = argc > 1 ? argv[1] : "tests/eq-reference.txt";
   check_controls();
+  check_variable_bands();
   check_reference(reference);
   check_steps();
   check_fades();

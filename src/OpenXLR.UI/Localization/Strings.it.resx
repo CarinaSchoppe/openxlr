@@ -2482,10 +2482,10 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
     <value>EQ</value>
   </data>
   <data name="EqButtonTip" xml:space="preserve">
-    <value>L'EQ a quattro bande del microfono, all'inizio dell'ingresso prima del taglio basse, di ClipGuard e dei plugin. Acceso quando è attivo, rosso quando non può funzionare. Apre l'editor.</value>
+    <value>L'EQ del microfono, all'inizio dell'ingresso prima del taglio basse, di ClipGuard e dei plugin. Acceso quando è attivo, rosso quando non può funzionare. Apre l'editor.</value>
   </data>
   <data name="EqButtonTipCapture" xml:space="preserve">
-    <value>L'EQ a quattro bande del microfono, su questo computer all'inizio dell'ingresso prima dei plugin. Acceso quando è attivo, rosso quando non può funzionare. Apre l'editor.</value>
+    <value>L'EQ del microfono, su questo computer all'inizio dell'ingresso prima dei plugin. Acceso quando è attivo, rosso quando non può funzionare. Apre l'editor.</value>
   </data>
   <data name="EqButtonNameOn" xml:space="preserve">
     <value>EQ di {0}, acceso</value>
@@ -2515,7 +2515,7 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
     <value>Copia</value>
   </data>
   <data name="EqCopyTip" xml:space="preserve">
-    <value>Copia questo EQ, il suo interruttore e le sue quattro bande, per incollarlo su un altro microfono.</value>
+    <value>Copia questo EQ, il suo interruttore e tutte le sue bande, per incollarlo su un altro microfono.</value>
   </data>
   <data name="EqPaste" xml:space="preserve">
     <value>Incolla</value>
@@ -2599,7 +2599,7 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
     <value>Funziona via software come scelto; {0} può eseguirlo sul proprio processore.</value>
   </data>
   <data name="EqButtonTipDevice" xml:space="preserve">
-    <value>L'EQ a quattro bande del microfono, in funzione sul processore interno di {0} prima dell'USB. Acceso quando è attivo. Apre l'editor.</value>
+    <value>L'EQ del microfono, in funzione sul processore interno di {0} prima dell'USB. Acceso quando è attivo. Apre l'editor.</value>
   </data>
   <data name="EqStatusStarting" xml:space="preserve">
     <value>Acceso, in avvio.</value>

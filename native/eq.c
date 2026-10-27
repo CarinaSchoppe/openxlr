@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The microphone EQ: four biquads in cascade at the head of a microphone's
+// The microphone EQ: one to sixteen biquads in cascade at the head of a microphone's
 // route. The coefficients are the ones in Robert Bristow-Johnson's Audio EQ
 // Cookbook (https://www.w3.org/TR/audio-eq-cookbook/), the same formulas the
 // daemon's EqResponse draws the curve from and tools/eq-reference.py checks
@@ -19,12 +19,13 @@
 // the command pipe; only the audio thread reads them, at the start of a
 // block, and only the audio thread touches the filters.
 #include "host.h"
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-enum { EQ_BANDS = 4, EQ_TYPES = 6, EQ_HISTORY = 8192 };
+enum { EQ_BANDS = 4, EQ_MAX_BANDS = 16, EQ_TYPES = 6, EQ_HISTORY = 8192 };
 enum { LOW_CUT, LOW_SHELF, PEAK, NOTCH, HIGH_SHELF, HIGH_CUT };
 static const double EQ_PI = 3.14159265358979323846;
 
@@ -56,10 +57,11 @@ typedef struct {
 
 typedef struct {
   Control *enabled;
-  EqBand bands[EQ_BANDS];
+  unsigned band_count;
   double mix, mix_target;  // the EQ's on switch
   uint32_t fade;           // 5 ms in samples
   double step;             // how far a switch moves per sample
+  EqBand bands[];
 } Eq;
 
 // Coefficients of one band, normalised so a0 is 1. The cookbook's shelf
@@ -142,11 +144,12 @@ static void eq_build(EqBand *b, uint32_t rate, EqFilter *f) {
 
 static bool eq_on(const Control *c) { return atomic_load(&c->desired) >= 0.5f; }
 
-static bool eq_load(Host *h, char **arguments) {
-  if (h->channels != 1) return false;
-  Eq *e = calloc(1, sizeof(*e));
+static bool eq_load_count(Host *h, unsigned bands) {
+  if (h->channels != 1 || bands < 1 || bands > EQ_MAX_BANDS) return false;
+  Eq *e = calloc(1, sizeof(*e) + bands * sizeof(EqBand));
   if (!e) return false;
   h->impl = e;
+  e->band_count = bands;
   e->fade = (uint32_t)lrint(h->rate * 0.005);
   if (e->fade == 0) e->fade = 1;
   e->step = 1.0 / e->fade;
@@ -155,17 +158,19 @@ static bool eq_load(Host *h, char **arguments) {
   // Wave Link's defaults; the daemon passes every value at start anyway.
   static const struct { int type; float frequency; bool on; } defaults[EQ_BANDS] = {
       {LOW_CUT, 36, true}, {PEAK, 310, true}, {PEAK, 2172, true}, {HIGH_CUT, 15049, false}};
-  for (int i = 0; i < EQ_BANDS; i++) {
+  for (unsigned i = 0; i < e->band_count; i++) {
     EqBand *b = &e->bands[i];
     char symbol[32];
 #define EQ_CONTROL(field, name, minimum, maximum, initial)                  \
-  snprintf(symbol, sizeof(symbol), "band%d_%s", i + 1, name);              \
-  b->field = host_add_control(h, strdup(symbol), minimum, maximum, initial, \
-                              false, NULL);                                 \
-  if (!b->field) return false;
-    EQ_CONTROL(enabled, "enabled", 0, 1, defaults[i].on)
-    EQ_CONTROL(type, "type", 0, EQ_TYPES - 1, defaults[i].type)
-    EQ_CONTROL(frequency, "frequency", 20, 20000, defaults[i].frequency)
+  snprintf(symbol, sizeof(symbol), "band%d_%s", (int)i + 1, name);              \
+  char *copy_##field = strdup(symbol);                                    \
+  if (!copy_##field) return false;                                        \
+  b->field = host_add_control(h, copy_##field, minimum, maximum, initial,   \
+                              false, NULL);                               \
+  if (!b->field) { free(copy_##field); return false; }
+    EQ_CONTROL(enabled, "enabled", 0, 1, i < EQ_BANDS && defaults[i].on)
+    EQ_CONTROL(type, "type", 0, EQ_TYPES - 1, i < EQ_BANDS ? defaults[i].type : PEAK)
+    EQ_CONTROL(frequency, "frequency", 20, 20000, i < EQ_BANDS ? defaults[i].frequency : 1000)
     EQ_CONTROL(gain, "gain", -12, 12, 0)
     EQ_CONTROL(qlog10, "qlog10", -1, 1, -0.152f)
 #undef EQ_CONTROL
@@ -173,12 +178,25 @@ static bool eq_load(Host *h, char **arguments) {
   return true;
 }
 
+// Keep the original four-band invocation compatible with older daemons.
+static bool eq_load(Host *h, char **arguments) { return eq_load_count(h, EQ_BANDS); }
+
+static bool eq_load_bands(Host *h, char **arguments) {
+  if (!arguments || !arguments[0] || !arguments[0][0]) return false;
+  for (const char *p = arguments[0]; *p; p++)
+    if (*p < '0' || *p > '9') return false;
+  errno = 0;
+  char *end;
+  unsigned long bands = strtoul(arguments[0], &end, 10);
+  return !errno && !*end && bands >= 1 && bands <= EQ_MAX_BANDS && eq_load_count(h, (unsigned)bands);
+}
+
 // The values given on the command line are in place now: build from them
 // without any fade, as if the EQ had always been set this way.
 static bool eq_activate(Host *h) {
   Eq *e = h->impl;
   e->mix = e->mix_target = eq_on(e->enabled);
-  for (int i = 0; i < EQ_BANDS; i++) {
+  for (unsigned i = 0; i < e->band_count; i++) {
     EqBand *b = &e->bands[i];
     eq_build(b, h->rate, &b->live);
     b->live.s1 = b->live.s2 = 0;
@@ -203,7 +221,7 @@ static void eq_unload(Host *h) {
 // Take what the daemon asked for since the last block.
 static void eq_follow(Eq *e, uint32_t rate) {
   e->mix_target = eq_on(e->enabled);
-  for (int i = 0; i < EQ_BANDS; i++) {
+  for (unsigned i = 0; i < e->band_count; i++) {
     EqBand *b = &e->bands[i];
     b->mix_target = eq_on(b->enabled);
     int type = eq_type_of(atomic_load(&b->type->desired));
@@ -237,7 +255,7 @@ static void eq_process(Host *h, uint32_t frames, float *const *in, float *const 
   eq_follow(e, h->rate);
   for (uint32_t n = 0; n < frames; n++) {
     double x = in[0][n], u = x;
-    for (int i = 0; i < EQ_BANDS; i++) {
+    for (unsigned i = 0; i < e->band_count; i++) {
       EqBand *b = &e->bands[i];
       b->history[b->history_at] = u;
       b->history_at = (b->history_at + 1) % EQ_HISTORY;
@@ -259,6 +277,15 @@ static void eq_process(Host *h, uint32_t frames, float *const *in, float *const 
 const Backend eq_backend = {
   .name = "EQ", .argument_count = 0,
   .load = eq_load, .activate = eq_activate,
+  .deactivate = eq_deactivate, .process = eq_process,
+  .unload = eq_unload,
+};
+
+// The same DSP with a selected band count. Only changing the count replaces
+// this stage; every ordinary band edit still uses its live controls.
+const Backend eq_bands_backend = {
+  .name = "EQ", .argument_count = 1,
+  .load = eq_load_bands, .activate = eq_activate,
   .deactivate = eq_deactivate, .process = eq_process,
   .unload = eq_unload,
 };

@@ -2430,10 +2430,10 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
     <value>EQ</value>
   </data>
   <data name="EqButtonTip" xml:space="preserve">
-    <value>Four-band EQ sa mikropono, sa sinugdanan sa input sa dili pa ang low cut, ClipGuard ug mga plugin. Mosiga kon naka-on, pula kon dili makadagan. Ablihan ang editor.</value>
+    <value>EQ sa mikropono, sa sinugdanan sa input sa dili pa ang low cut, ClipGuard ug mga plugin. Mosiga kon naka-on, pula kon dili makadagan. Ablihan ang editor.</value>
   </data>
   <data name="EqButtonTipCapture" xml:space="preserve">
-    <value>Four-band EQ sa mikropono, niining computer sa sinugdanan sa input sa dili pa ang mga plugin. Mosiga kon naka-on, pula kon dili makadagan. Ablihan ang editor.</value>
+    <value>EQ sa mikropono, niining computer sa sinugdanan sa input sa dili pa ang mga plugin. Mosiga kon naka-on, pula kon dili makadagan. Ablihan ang editor.</value>
   </data>
   <data name="EqButtonNameOn" xml:space="preserve">
     <value>EQ sa {0}, on</value>
@@ -2463,7 +2463,7 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
     <value>Kopyaha</value>
   </data>
   <data name="EqCopyTip" xml:space="preserve">
-    <value>Kopyaha kining EQ, ang switch ug upat ka band niini, aron i-paste sa laing mikropono.</value>
+    <value>Kopyaha kining EQ, ang switch ug mga band niini, aron i-paste sa laing mikropono.</value>
   </data>
   <data name="EqPaste" xml:space="preserve">
     <value>I-paste</value>
@@ -2547,7 +2547,7 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
     <value>Nagdagan sa software sumala sa imong gipili; makapadagan niini ang {0} sa kaugalingong processor.</value>
   </data>
   <data name="EqButtonTipDevice" xml:space="preserve">
-    <value>Four-band EQ sa mikropono, nagdagan sa kaugalingong processor sa {0} sa dili pa ang USB. Mosiga kon naka-on. Ablihan ang editor.</value>
+    <value>EQ sa mikropono, nagdagan sa kaugalingong processor sa {0} sa dili pa ang USB. Mosiga kon naka-on. Ablihan ang editor.</value>
   </data>
   <data name="EqStatusStarting" xml:space="preserve">
     <value>Naka-on, nagsugod.</value>

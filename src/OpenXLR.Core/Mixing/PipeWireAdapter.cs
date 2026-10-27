@@ -1070,8 +1070,9 @@ public sealed class PipeWireAdapter
     /// <paramref name="controls"/>, so it plays the right curve from its
     /// first block. Refused at once when the helper is not installed.
     /// </summary>
-    internal FilterHandle CreateMicEq(string id, IReadOnlyDictionary<string, double> controls)
+    internal FilterHandle CreateMicEq(string id, IReadOnlyDictionary<string, double> controls, int bands = MicEq.BandCount)
     {
+        if (bands is < MicEq.MinimumBands or > MicEq.MaximumBands) throw new ArgumentOutOfRangeException(nameof(bands));
         string executable = EqHost ?? NativePluginHost.Executable;
         if (!File.Exists(executable)) throw new InvalidOperationException(Mixer.EqNeedsHost);
         int rate = ParseGraphSampleRate(Run("pw-metadata", "-n", "settings"));
@@ -1079,7 +1080,7 @@ public sealed class PipeWireAdapter
         NativePluginHost host;
         try
         {
-            host = new NativePluginHost(new() { Id = id, Kind = "eq", Plugin = "eq", Params = new(controls) },
+            host = new NativePluginHost(new() { Id = id, Kind = "eq", Plugin = bands.ToString(CultureInfo.InvariantCulture), Params = new(controls) },
                 node, 1, rate, executable, [], meterSymbols: new HashSet<string>(StringComparer.Ordinal));
         }
         catch (InvalidOperationException ex)

@@ -960,6 +960,7 @@ static void *monitor_audio(void *data) {
 // the weak references read as unknown backends instead of failing the link.
 extern const Backend sound_check_backend __attribute__((weak));
 extern const Backend eq_backend __attribute__((weak));
+extern const Backend eq_bands_backend __attribute__((weak));
 extern const Backend duck_backend __attribute__((weak));
 extern const Backend level_backend __attribute__((weak));
 
@@ -968,6 +969,8 @@ static const Backend *backend_named(const char *name) {
     return &sound_check_backend;
   if (!strcmp(name, "eq"))
     return &eq_backend;
+  if (!strcmp(name, "eq-bands"))
+    return &eq_bands_backend;
   if (!strcmp(name, "duck"))
     return &duck_backend;
   if (!strcmp(name, "level"))
@@ -1004,6 +1007,7 @@ int main(int argc, char **argv) {
           "[SYMBOL=VALUE ...]\n"
           "       openxlr-lv2-host soundcheck NODE 1 RATE\n"
           "       openxlr-lv2-host eq NODE 1 RATE [SYMBOL=VALUE ...]\n"
+          "       openxlr-lv2-host eq-bands COUNT NODE 1 RATE [SYMBOL=VALUE ...]\n"
           "       openxlr-lv2-host duck NODE 2 RATE [SYMBOL=VALUE ...]\n"
           "       openxlr-lv2-host level NODE 1 RATE\n"
           "       openxlr-lv2-host scan-clap FILE\n"

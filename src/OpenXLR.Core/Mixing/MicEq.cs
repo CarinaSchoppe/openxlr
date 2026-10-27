@@ -33,7 +33,7 @@ public sealed record EqBand
 }
 
 /// <summary>
-/// A microphone's four-band EQ: an on switch and four bands with Wave Link's
+/// A microphone's EQ: an on switch and one to sixteen bands with Wave Link's
 /// types, ranges, steps and defaults. The daemon snaps every value it takes
 /// to those steps, so the files, every client and a later hardware backend
 /// hold the same numbers. Off by default, so an upgrade changes nobody's
@@ -48,6 +48,7 @@ public sealed record MicEq
     public static readonly IReadOnlyList<string> Types = [LowCut, LowShelf, Peak, Notch, HighShelf, HighCut];
 
     public const int BandCount = 4;
+    public const int MinimumBands = 1, MaximumBands = 16;
     public const double MinFrequency = 20, MaxFrequency = 20000, FrequencyStep = 1;
     public const double MinGain = -12, MaxGain = 12, GainStep = 0.25;
     public const double MinQ = 0.1, MaxQ = 10, QLog10Step = 0.016;
@@ -75,12 +76,30 @@ public sealed record MicEq
 
     public override int GetHashCode() => HashCode.Combine(Enabled, Bands?.Count ?? 0);
 
-    /// <summary>The same EQ with band <paramref name="band"/> (1 to 4) replaced.</summary>
+    /// <summary>The same EQ with band <paramref name="band"/> replaced.</summary>
     public MicEq WithBand(int band, EqBand value)
     {
+        if (band < 1 || band > Bands.Count) throw new ArgumentOutOfRangeException(nameof(band));
         var bands = Bands.ToArray();
         bands[band - 1] = value;
         return this with { Bands = bands };
+    }
+
+    /// <summary>Add a neutral bell in the largest frequency gap, keeping existing bands unchanged.</summary>
+    public MicEq WithAddedBand()
+    {
+        if (Bands.Count >= MaximumBands) throw new InvalidOperationException($"The EQ has at most {MaximumBands} bands.");
+        double[] frequencies = [.. Bands.Select(b => b.Frequency).Append(MinFrequency).Append(MaxFrequency).Order()];
+        var gap = frequencies.Zip(frequencies.Skip(1), (a, b) => (Low: a, High: b)).MaxBy(g => g.High / g.Low);
+        return this with { Bands = [.. Bands, new EqBand { Enabled = true, Frequency = SnapFrequency(Math.Sqrt(gap.Low * gap.High)) }] };
+    }
+
+    /// <summary>Remove one numbered band; following bands take the preceding number.</summary>
+    public MicEq WithoutBand(int band)
+    {
+        if (band < 1 || band > Bands.Count) throw new ArgumentOutOfRangeException(nameof(band));
+        if (Bands.Count <= MinimumBands) throw new InvalidOperationException("The EQ needs at least one band.");
+        return this with { Bands = [.. Bands.Where((_, index) => index != band - 1)] };
     }
 
     /// <summary>The native backend's number for a type, or -1 for an unknown one.</summary>
@@ -138,15 +157,15 @@ public sealed record MicEq
     public static string? Check(MicEq? eq)
     {
         if (eq?.Bands is null) return "need 'enabled' and 'bands'";
-        if (eq.Bands.Count != BandCount) return $"need exactly {BandCount} bands";
-        for (int i = 0; i < BandCount; i++)
+        if (eq.Bands.Count is < MinimumBands or > MaximumBands) return $"need {MinimumBands} to {MaximumBands} bands";
+        for (int i = 0; i < eq.Bands.Count; i++)
             if (Check(eq.Bands[i]) is string error) return $"band {i + 1}: {error}";
         return null;
     }
 
     /// <summary>
     /// Read an EQ from a command's <c>eq</c> object, which must hold
-    /// <c>enabled</c> and four <c>bands</c>, each with every field. Fields a
+    /// <c>enabled</c> and one to sixteen <c>bands</c>, each with every field. Fields a
     /// client copied from the state beside them (<c>backend</c>,
     /// <c>available</c>, <c>error</c>) are ignored. Null with
     /// <paramref name="error"/> set when it cannot be taken.
@@ -161,9 +180,9 @@ public sealed record MicEq
             error = "need 'eq' with 'enabled' and 'bands'";
             return null;
         }
-        if (bands.GetArrayLength() != BandCount)
+        if (bands.GetArrayLength() is < MinimumBands or > MaximumBands)
         {
-            error = $"need exactly {BandCount} bands";
+            error = $"need {MinimumBands} to {MaximumBands} bands";
             return null;
         }
         var read = new List<EqBand>();
@@ -225,12 +244,14 @@ public sealed record EqLimits
     public sealed record EqQRange(double Min, double Max, double Log10Step);
 
     public int Bands { get; init; } = MicEq.BandCount;
+    public int MinBands { get; init; } = MicEq.BandCount;
+    public int MaxBands { get; init; } = MicEq.BandCount;
     public IReadOnlyList<string> Types { get; init; } = MicEq.Types;
     public EqRange Frequency { get; init; } = new(MicEq.MinFrequency, MicEq.MaxFrequency, MicEq.FrequencyStep);
     public EqRange Gain { get; init; } = new(MicEq.MinGain, MicEq.MaxGain, MicEq.GainStep);
     public EqQRange Q { get; init; } = new(MicEq.MinQ, MicEq.MaxQ, MicEq.QLog10Step);
 
-    public static EqLimits Instance { get; } = new();
+    public static EqLimits Instance { get; } = new() { MinBands = MicEq.MinimumBands, MaxBands = MicEq.MaximumBands };
 }
 
 /// <summary>

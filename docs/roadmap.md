@@ -98,7 +98,7 @@ them for a while before more is built on top.
 
 ### The mixer and its clients
 
-- [ ] The microphone EQ in every client: a band editor in the terminal
+- [x] The microphone EQ in every client: a band editor in the terminal
   mixer, followed by EQ keys and dials in the OpenDeck plugin. The
   graphical UI already has the full editor.
 - [ ] Mic setup, a guided microphone test in the UI in place of the Sound

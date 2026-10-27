@@ -27,6 +27,13 @@ public partial class EqWindow : Window
 
     private void OnProcessInSoftware(object? sender, RoutedEventArgs e) => (DataContext as MicEqViewModel)?.ChooseProcessing("software");
 
+    private void OnAddBand(object? sender, RoutedEventArgs e) => (DataContext as MicEqViewModel)?.AddBand();
+
+    private void OnRemoveBand(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: EqBandViewModel band }) band.Owner.RemoveBand(band);
+    }
+
     private void OnCopy(object? sender, RoutedEventArgs e) => (DataContext as MicEqViewModel)?.Copy();
 
     private void OnPaste(object? sender, RoutedEventArgs e) => (DataContext as MicEqViewModel)?.Paste();

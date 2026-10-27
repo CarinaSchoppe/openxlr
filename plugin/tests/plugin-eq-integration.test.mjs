@@ -135,6 +135,13 @@ test("EQ keys and dial stacks preserve turns without replaying stale sessions or
     assert.deepEqual(writes().at(-1), {cmd: "setEqBand", channel: "xlr1", band: 2, frequency: 2000});
 
     reset(); appear("gain", "eqgain:xlr1:2", true); rotate("gain", 1); rotate("gain", 1);
+    const changed = writes().length;
+    state.mixer.eqLimits.minBands = 1; state.mixer.eqLimits.maxBands = 16;
+    state.mixer.channels[0].eq.bands.splice(0, 1);
+    daemon.receive(state); t.mock.timers.tick(81);
+    assert.equal(writes().length, changed, "a shape change cancels turns even when the old number still exists");
+
+    reset(); appear("gain", "eqgain:xlr1:2", true); rotate("gain", 1); rotate("gain", 1);
     const removed = writes().length;
     state.mixer.channels = []; daemon.receive(state); t.mock.timers.tick(81); key("eq");
     assert.equal(writes().length, removed);

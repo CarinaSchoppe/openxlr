@@ -749,7 +749,7 @@ tokens, so a skin that tints the graph tints them too.
 | `Ox.Eq.ZoneA` | colour | #00000000 |  | the first, third and fifth regions, over the ground |
 | `Ox.Eq.ZoneB` | colour | #0affffff |  | the second, fourth and sixth regions, over the ground |
 | `Ox.Eq.ZoneLabel` | colour | #6b7285 |  | the regions' names along the top |
-| `Ox.Eq.Curve` | colour | #e6e9f0 |  | the sum of the four bands while the EQ is on, and in Mic setup the waveform's edges, its playhead and the target band's outline |
+| `Ox.Eq.Curve` | colour | #e6e9f0 |  | the sum of the active bands while the EQ is on, and in Mic setup the waveform's edges, its playhead and the target band's outline |
 | `Ox.Eq.CurveFill` | colour | #335ba8f5 |  | the fill between that sum and 0 dB, and in Mic setup the waveform's bars and the target band |
 | `Ox.Eq.Band1` | colour | #5ba8f5 |  | band 1: its handle, its own curve and its number in the rows |
 | `Ox.Eq.Band2` | colour | #3ecf7a |  | band 2, likewise |
@@ -762,6 +762,10 @@ tokens, so a skin that tints the graph tints them too.
 | `Ox.Eq.HandleSize` | number | 18 | 12 to 48 | the diameter of a band's handle; the pointer takes it within 20 units of its centre, or the compact control minimum under Touch sizing |
 | `Ox.Eq.LabelFontSize` | number | 10 | 8 to 24 | the size of the axis labels, the region names and the readout, and of the hardware badge's text in the EQ editor and the Ducking window |
 | `Ox.Eq.CornerRadius` | radius | 6 | 0 to 48 | the graph's corners, Mic setup's waveform's, and the hardware badge's in the EQ editor and the Ducking window |
+
+The microphone EQ reuses `Ox.Eq.Band1` through `Ox.Eq.Band4` cyclically for
+bands 5 through 16. Every handle and row keeps its own number. No additional
+palette entries are required by an existing skin.
 
 ### Mixer control sizing
 

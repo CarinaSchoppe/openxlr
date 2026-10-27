@@ -111,10 +111,10 @@ public sealed record Command
     /// <summary>"setInsertParam": the control port symbol.</summary>
     [JsonPropertyName("symbol")] public string? Symbol { get; init; }
 
-    /// <summary>"setEq": the whole EQ, <c>{enabled, bands: [four of {enabled, type, frequency, gain, q}]}</c>.</summary>
+    /// <summary>"setEq": the whole EQ, <c>{enabled, bands: [{enabled, type, frequency, gain, q}, ...]}</c>, with 1 to 16 bands.</summary>
     [JsonPropertyName("eq")] public System.Text.Json.JsonElement Eq { get; init; }
 
-    /// <summary>"setEqBand": which band, 1 to 4.</summary>
+    /// <summary>"setEqBand": which existing band, 1 to 16.</summary>
     [JsonPropertyName("band")] public int? Band { get; init; }
 
     /// <summary>"setEqBand": the fields of the band that change; an absent one is kept.</summary>

@@ -236,8 +236,7 @@ public sealed class TuiEqBandTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(3)]
-    [InlineData(5)]
+    [InlineData(17)]
     public void AnIncompleteBandTableDoesNotOfferAnEditor(int count)
     {
         var (app, _) = Ready(State(root => Input(root)["eq"]!["bands"] = new JsonArray(
@@ -307,6 +306,31 @@ public sealed class TuiEqBandTests
         app.Link.Receive(State(root => Input(root)["eq"]!["enabled"] = true)); // The first press's late echo.
         editor.Handle(new KeyPress(Key.Char, ' '), app);
         Assert.True(sent[^1]["value"]!.GetValue<bool>()); // The third press must still turn it on.
+    }
+
+    [Fact]
+    public void SixteenBandsScrollAndOnlyTheSelectedLastBandChanges()
+    {
+        var (app, sent) = Ready(State(root => Input(root)["eq"]!["bands"] = new JsonArray(
+            Enumerable.Range(0, 16).Select(_ => JsonSerializer.SerializeToNode(MicEq.Default.Bands[1], Web)).ToArray())));
+        Open(app); Select(app, "Band 16 gain");
+        Assert.Contains(Frame(app, 80, 24), line => line.Contains("Band 16 gain", StringComparison.Ordinal));
+        app.Handle(new KeyPress(Key.Right));
+        Assert.Equal(16, sent[^1]["band"]!.GetValue<int>());
+        Assert.Equal(.25, sent[^1]["gain"]!.GetValue<double>());
+        app.Link.Receive(State());
+        Assert.Contains(Frame(app), line => line.Contains("Band 4", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AChangedBandTableCancelsAnOpenPromptEvenWhenItsCountReturns()
+    {
+        var (app, sent) = Ready(); Open(app); Select(app, "Band 2 gain");
+        app.Handle(new KeyPress(Key.Enter)); app.Handle(new KeyPress(Key.Char, '2'));
+        app.Link.Receive(State(root => Input(root)["eq"]!["bands"]!.AsArray().RemoveAt(0)));
+        app.Link.Receive(State());
+        app.Handle(new KeyPress(Key.Enter));
+        Assert.Empty(sent);
     }
 
     private sealed class Clock : TimeProvider

@@ -126,3 +126,19 @@ test("dial labels separate bypass from values, and report names without treating
   assert.equal(eqDial(type, 4).text, "Hi shelf");
   assert.match(eqLabel(type, 4), /High shelf/);
 });
+
+
+test("variable band choices follow each microphone and never expose a removed band", () => {
+  const mixer = eqMixer();
+  mixer.eqLimits.minBands = 1; mixer.eqLimits.maxBands = 16;
+  const first = mixer.channels[0].eq.bands[0];
+  for (const count of [1, 3, 4, 16]) {
+    mixer.channels[0].eq.bands = Array.from({length: count}, () => ({...first}));
+    const choices = eqChoices(mixer);
+    assert.equal(choices.levelGroups[0].items.length, count * 4);
+    assert.ok(eqTarget(mixer, `eqgain:xlr1:${count}`));
+    assert.equal(eqTarget(mixer, `eqgain:xlr1:${count + 1}`), null);
+  }
+  mixer.channels[0].eq.bands.push({...first});
+  assert.equal(eqTarget(mixer, "eq:xlr1"), null);
+});

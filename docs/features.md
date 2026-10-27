@@ -133,7 +133,7 @@ physical gain dial.
   LADSPA package. If that plugin is unavailable, enabling ClipGuard is
   rejected, the control stays disabled, and the existing microphone
   route remains live.
-- Microphone EQ: four bands on XLR 1, XLR 2 and mono capture inputs with Wave Link's band
+- Microphone EQ: one to sixteen bands on XLR 1, XLR 2 and mono capture inputs with Wave Link's band
   types (high pass, low shelf, bell, notch, high shelf, low pass), ranges
   and steps (20 Hz to 20 kHz in hertz, -12 to +12 dB in quarter decibels,
   Q 0.1 to 10 on Wave Link's log grid) and defaults, off until switched

@@ -3,17 +3,18 @@ using System.Text.Json;
 
 namespace OpenXLR.Tui;
 
-/// <summary>A microphone's four bands, using the daemon's model and partial band commands.</summary>
+/// <summary>A microphone's bands, using the daemon's model and partial band commands.</summary>
 internal sealed class EqEditor(string channel, long session, TimeProvider? time = null)
 {
     private static readonly JsonSerializerOptions WriteOptions = new(JsonSerializerDefaults.Web);
     private readonly RowList _rows = new();
     private readonly TimeProvider _time = time ?? TimeProvider.System;
     // Only fields this editor changed are held briefly over older reports.
-    // There are at most 21 entries; every edit is already sent, not queued.
+    // There are at most 81 entries; every edit is already sent, not queued.
     private readonly Dictionary<(int Band, string Field), (object Value, long Since)> _edits = [];
     private long _session = session;
     private long _channelRevision;
+    private int _bandCount;
 
     internal string Keys => "Esc back  Up/Down control  -/+ value  [/] fine  Enter exact value  Home/End limits";
 
@@ -43,6 +44,7 @@ internal sealed class EqEditor(string channel, long session, TimeProvider? time 
         if (!app.Link.Connected) return null;
         ChannelEntry? input = app.Link.State?.Mixer.Channels.FirstOrDefault(c => c.Id == channel);
         if (Settings(input) is not { } reported) return null;
+        if (_bandCount != reported.Bands.Count) { _edits.Clear(); _bandCount = reported.Bands.Count; }
         MicEq current = reported;
         foreach (var (key, edit) in _edits.ToArray())
         {
@@ -76,7 +78,7 @@ internal sealed class EqEditor(string channel, long session, TimeProvider? time 
     {
         List<Row> rows = [new HeadingRow($"{input.Name} / microphone EQ"), new TextRow("Status", input.Eq!.Status),
             new ToggleRow("EQ enabled", eq.Enabled, value => Set(app, 0, "enabled", value))];
-        for (int index = 0; index < MicEq.BandCount; index++)
+        for (int index = 0; index < eq.Bands.Count; index++)
         {
             int number = index + 1;
             EqBand band = eq.Bands[index];
@@ -118,9 +120,10 @@ internal sealed class EqEditor(string channel, long session, TimeProvider? time 
     {
         long revision = app.Link.SessionRevision;
         long channelRevision = app.Link.ChannelRevision(channel);
+        int bands = Read(app)?.Eq.Bands.Count ?? 0;
         app.Ask($"Band {band} {field}: {value:0.####} now, {minimum} to {maximum} (decimal point)", "", text =>
         {
-            if (app.Link.SessionRevision != revision || app.Link.ChannelRevision(channel) != channelRevision || Read(app) is null)
+            if (app.Link.SessionRevision != revision || app.Link.ChannelRevision(channel) != channelRevision || Read(app) is not { } current || current.Eq.Bands.Count != bands)
             { app.Say("The microphone changed or disconnected. Enter the value again."); return; }
             if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double number)
                 || !double.IsFinite(number) || number < minimum || number > maximum)
@@ -132,7 +135,7 @@ internal sealed class EqEditor(string channel, long session, TimeProvider? time 
 
     private void Set(App app, int band, string field, object value)
     {
-        if (Read(app) is null) return;
+        if (Read(app) is not { } current || band > current.Eq.Bands.Count) return;
         _edits[(band, field)] = (value, _time.GetTimestamp());
         app.Link.Send(band == 0 ? "setEqEnabled" : "setEqBand", body =>
         {

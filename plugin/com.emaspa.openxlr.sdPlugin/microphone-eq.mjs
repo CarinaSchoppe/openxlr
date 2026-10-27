@@ -29,8 +29,10 @@ export function eqTarget(mixer, target) {
   const channel = channels(mixer).find(c => c?.id === id && c.present !== false
     && (c.microphone === true || c.microphone !== false && (id === "xlr1" || id === "xlr2")));
   const eq = channel?.eq, limits = mixer?.eqLimits;
+  const min = limits?.minBands ?? limits?.bands, max = limits?.maxBands ?? limits?.bands;
   if (!eq || typeof eq.enabled !== "boolean" || !limits || !Number.isInteger(limits.bands)
-      || limits.bands < 1 || limits.bands > 16 || !Array.isArray(eq.bands) || eq.bands.length !== limits.bands
+      || limits.bands < 1 || limits.bands > 16 || !Number.isInteger(min) || !Number.isInteger(max)
+      || min < 1 || max > 16 || min > max || !Array.isArray(eq.bands) || eq.bands.length < min || eq.bands.length > max
       || !Array.isArray(limits.types) || !limits.types.length || limits.types.length > 16
       || limits.types.some(t => typeof t !== "string" || t.length > 64 || !/^[a-zA-Z]+$/.test(t))
       || new Set(limits.types).size !== limits.types.length
@@ -41,7 +43,7 @@ export function eqTarget(mixer, target) {
           && band[field] >= limits[field].min && band[field] <= limits[field].max)) return null;
   }
   const band = kind === "eq" ? 0 : Number(number);
-  if (band > limits.bands) return null;
+  if (band > eq.bands.length) return null;
   const field = FIELDS[kind], state = band ? eq.bands[band - 1] : eq;
   const value = field === "type" ? limits.types.indexOf(state.type) : state[field];
   return {kind, channel, eq, limits, band, field, value,
@@ -57,7 +59,7 @@ export function eqChoices(mixer) {
     const name = nameOf(channel);
     const toggles = [{target: `eq:${channel.id}`, label: `${name} EQ on/off`}];
     const levels = [];
-    for (let band = 1; band <= entry.limits.bands; band++) {
+    for (let band = 1; band <= entry.eq.bands.length; band++) {
       toggles.push({target: `eqband:${channel.id}:${band}`, label: `${name} EQ band ${band} on/off`},
         {target: `eqtype:${channel.id}:${band}`, label: `${name} EQ band ${band} next type`});
       for (const [prefix, label] of [["eqfreq", "frequency"], ["eqgain", "gain"], ["eqq", "Q"], ["eqtype", "type"]])

@@ -51,6 +51,7 @@ public sealed class EqEditorWindowTests
         private readonly object _gate = new();
         public readonly Dictionary<string, DaemonEq> Eqs = new() { ["xlr1"] = DaemonEq.Default, ["xlr2"] = DaemonEq.Default };
         public bool WithEq = true;
+        public bool VariableBands;
         /// <summary>XLR 1's unit: null for none, <c>unit</c> when its DSP can run the EQ, <c>old</c> when it cannot.</summary>
         public string? Device;
         /// <summary>XLR 2's unit: null for none, <c>pro</c> for the Wave XLR Pro's second input on 1.0.14, <c>proOld</c> on 1.0.13.</summary>
@@ -97,6 +98,11 @@ public sealed class EqEditorWindowTests
                         channel["eq"]!.AsObject().Remove("device");
                     }
                 }
+                if (VariableBands && WithEq)
+                {
+                    state["mixer"]!["eqLimits"]!["minBands"] = 1;
+                    state["mixer"]!["eqLimits"]!["maxBands"] = 16;
+                }
                 state["type"] = "state";
                 state["daemonVersion"] = AppVersion.Current;
                 return state;
@@ -110,7 +116,7 @@ public sealed class EqEditorWindowTests
             {
                 ["enabled"] = b.Enabled, ["type"] = b.Type, ["frequency"] = b.Frequency, ["gain"] = b.Gain, ["q"] = b.Q,
             })]),
-            ["backend"] = device is "unit" or "pro" && processing == "device" ? "device" : eq.Enabled ? "software" : null,
+            ["backend"] = device is "unit" or "pro" && processing == "device" && eq.Bands.Count <= 4 ? "device" : eq.Enabled ? "software" : null,
             ["available"] = true,
             ["error"] = null,
             ["processing"] = processing,
@@ -329,15 +335,23 @@ public sealed class EqEditorWindowTests
             await Hardware(window, editor, daemon, eq1);
             await ProHardware(window, second, daemon, eq2);
             await LongSource(window, daemon, main);
+            await VariableBandEditor(editor, daemon, eq1);
             Assert.DoesNotContain(daemon.Commands, c => !EqCommands.Contains(c.Command["cmd"]!.GetValue<string>()));
 
             // A state without the EQ, from an older daemon: no button anywhere, and the editors go.
+            eq1.Enabled = true;
+            await Until(() => daemon.Eqs["xlr1"].Enabled);
+            eq1.Comparing = true;
+            await Until(() => !daemon.Eqs["xlr1"].Enabled);
+            daemon.Commands.Clear();
             daemon.WithEq = false;
             daemon.Pushes.Release();
             await Until(() => main.Channels.All(c => !c.HasEq));
             Pump(50);
             Assert.False(editor.IsVisible);
             Assert.False(second.IsVisible);
+            // Retiring the EQ must not restore comparison into a replacement with this id.
+            Assert.Empty(daemon.Commands);
             foreach (string name in new[] { "Xlr1Eq", "Xlr2Eq" })
                 Assert.False(window.FindControl<Button>(name)!.IsEffectivelyVisible);
             Assert.False(window.FindControl<WrapPanel>("SoftwareControls")!.IsEffectivelyVisible);
@@ -635,7 +649,7 @@ public sealed class EqEditorWindowTests
     {
         WrapPanel choice = editor.FindControl<WrapPanel>("EqProcessing")!;
         TextBlock note = editor.FindControl<TextBlock>("EqDeviceNote")!, status = editor.FindControl<TextBlock>("EqStatus")!;
-        StackPanel bands = editor.FindControl<StackPanel>("EqBands")!;
+        ScrollViewer bands = editor.FindControl<ScrollViewer>("EqBandScroll")!;
         foreach (bool touch in new[] { false, true })
         {
             SkinService.ApplyControlSizing(touch);
@@ -694,6 +708,86 @@ public sealed class EqEditorWindowTests
     }
 
     /// <summary>The editor fits at every width: its actions, the graph, the handles and every band's fields.</summary>
+    private static async Task VariableBandEditor(EqWindow editor, EqDaemon daemon, MicEqViewModel eq)
+    {
+        daemon.Legacy = false; daemon.VariableBands = true;
+        daemon.Device = "unit"; daemon.Processing["xlr1"] = "device";
+        daemon.Pushes.Release();
+        await Until(() => eq.VariableBands);
+        while (eq.CanAddBand) Click(editor.FindControl<Button>("EqAddBand")!);
+        await Until(() => daemon.State()["mixer"]!["channels"]![0]!["eq"]!["bands"]!.AsArray().Count == 16 && !eq.OnDevice);
+        SkinService.ApplyControlSizing(true);
+        Layout(editor, 640, 600);
+        Assert.Equal(16, editor.Graph.Handles.Count);
+        Assert.False(editor.FindControl<Button>("EqAddBand")!.IsEnabled);
+        Assert.True(editor.FindControl<ScrollViewer>("EqBandScroll")!.Extent.Height > editor.FindControl<ScrollViewer>("EqBandScroll")!.Viewport.Height);
+        Grid row = editor.GetVisualDescendants().OfType<Grid>().Single(g => g.Name == "EqBandRow" && g.DataContext == eq.Bands[15]);
+        row.BringIntoView(); Pump(40);
+        AssertInside(row, editor);
+        AssertNoOverlap(row.Children.ToArray());
+        row.Children.OfType<NumericUpDown>().Single(n => n.Name == "EqBandGain").Value = 6;
+        await Until(() => daemon.State()["mixer"]!["channels"]![0]!["eq"]!["bands"]![15]!["gain"]!.GetValue<double>() == 6);
+        Capture(editor, "eq-variable-sixteen-touch-640");
+        CheckVariableLanguages(eq);
+        Button remove = editor.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "EqRemoveBand" && b.DataContext == eq.Bands[1]);
+        Click(remove);
+        Assert.Equal(15, eq.Bands.Count);
+        await Until(() => daemon.Commands.LastOrDefault().Command?["eq"]?["bands"] is JsonArray bands && bands.Count == 15);
+        int sent = daemon.Commands.Count;
+        Click(remove);
+        Assert.Equal(sent, daemon.Commands.Count);
+        eq.Reset();
+        await Until(() => eq.Bands.Count == 4 && eq.OnDevice);
+        Assert.Equal(4, editor.Graph.Handles.Count);
+        daemon.VariableBands = false;
+        SkinService.ApplyControlSizing(false);
+    }
+
+    private static void CheckVariableLanguages(MicEqViewModel eq)
+    {
+        string? language = UiSettings.Load().Language;
+        try
+        {
+            foreach (string choice in new[] { "en", "de", "es" })
+            {
+                Assert.Null((UiSettings.Load() with { Language = choice }).Save());
+                Localizer.Initialize();
+                var window = new EqWindow { DataContext = eq };
+                try
+                {
+                    window.Show();
+                    foreach (double height in new[] { 480d, 600 })
+                    {
+                        Layout(window, 640, height);
+                        foreach (int band in new[] { 0, 15 })
+                        {
+                            Grid row = window.GetVisualDescendants().OfType<Grid>().Single(g => g.Name == "EqBandRow" && g.DataContext == eq.Bands[band]);
+                            row.BringIntoView(); Pump(40);
+                            AssertInside(row, window);
+                            AssertNoOverlap(row.Children.Where(c => c.IsVisible).ToArray());
+                            foreach (NumericUpDown number in row.Children.OfType<NumericUpDown>())
+                            {
+                                TextBox box = number.GetVisualDescendants().OfType<TextBox>().Single();
+                                var widest = new TextBlock { Text = "+12.00", FontSize = box.FontSize, FontFamily = box.FontFamily };
+                                widest.Measure(Size.Infinity);
+                                Assert.True(box.Bounds.Width - box.Padding.Left - box.Padding.Right >= widest.DesiredSize.Width,
+                                    $"{number.Name} clips its value in {choice} at 640x{height}");
+                            }
+                        }
+                        AssertInside(window.FindControl<StackPanel>("EqFooter")!, window);
+                        Capture(window, $"eq-variable-{choice}-640-{height}");
+                    }
+                }
+                finally { window.Close(); }
+            }
+        }
+        finally
+        {
+            Assert.Null((UiSettings.Load() with { Language = language }).Save());
+            Localizer.Initialize();
+        }
+    }
+
     private static void CheckEditor(EqWindow editor, MicEqViewModel eq)
     {
         foreach (bool touch in new[] { false, true })

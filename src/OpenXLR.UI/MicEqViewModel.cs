@@ -19,7 +19,7 @@ public interface IEqCommands
 }
 
 /// <summary>
-/// A microphone's EQ as the window edits it: the switch, the four bands, the
+/// A microphone's EQ as the window edits it: the switch, the bands, the
 /// backend that runs it and why it cannot. Every value it shows is one the
 /// daemon reported, or one the user just set, snapped with the daemon's own
 /// rules (<see cref="MicEq"/>), so the two agree; a report that comes back
@@ -30,13 +30,13 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     /// <summary>How often one band's live changes go to the daemon while it is dragged.</summary>
     public static readonly TimeSpan SendInterval = TimeSpan.FromMilliseconds(20);
 
-    /// <summary>How long an edit waits for the daemon to report it back before a different report wins.</summary>
+    /// <summary>How long a recent edit wins over state reports that may still precede it.</summary>
     internal static readonly TimeSpan EchoWait = TimeSpan.FromSeconds(1);
 
     private readonly IEqCommands _commands;
     private readonly EqBandSender _sender;
     private readonly TimeProvider _time;
-    private bool _enabled, _reportedEnabled, _comparing, _available = true;
+    private bool _enabled, _comparing, _disposed, _available = true;
     private bool? _awaitingEnabled;
     private long _awaitingEnabledSince;
     private string? _backend, _error;
@@ -50,6 +50,8 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     private long _awaitingProcessingSince;
     private string _channelName;
     private EqBandViewModel? _selected;
+    private MicEq? _awaitingShape;
+    private long _awaitingShapeSince;
 
     /// <param name="time">The clock for the send interval and the echo wait; a test passes one it moves by hand.</param>
     public MicEqViewModel(IEqCommands commands, string channel, string channelName, TimeSpan? sendInterval = null, TimeProvider? time = null)
@@ -87,10 +89,14 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     /// <summary>The editor's title.</summary>
     public string Title => Localizer.Format("EqWindowTitle", _channelName);
 
-    public IReadOnlyList<EqBandViewModel> Bands { get; }
+    public IReadOnlyList<EqBandViewModel> Bands { get; private set; }
+
+    public bool CanAddBand => !_disposed && Bands.Count < Limits.MaxBands;
+    public bool CanRemoveBand => !_disposed && Bands.Count > Limits.MinBands;
+    public bool VariableBands => Limits.MaxBands > Limits.MinBands;
 
     /// <summary>The ranges and steps the daemon reports, or the model's own from a daemon that sends none.</summary>
-    public EqLimits Limits { get; private set; } = EqLimits.Instance;
+    public EqLimits Limits { get; private set; } = new();
 
     /// <summary>The band the graph and the keyboard work on.</summary>
     public EqBandViewModel? SelectedBand
@@ -98,6 +104,7 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
         get => _selected;
         set
         {
+            if (value is not null && !Bands.Contains(value)) return;
             if (!Set(ref _selected, value)) return;
             foreach (EqBandViewModel band in Bands) band.RaiseSelected();
         }
@@ -112,6 +119,7 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
         get => _enabled;
         set
         {
+            if (_disposed) return;
             if (_enabled == value && !_comparing) return;
             SetComparing(false, send: false);
             _enabled = value;
@@ -138,6 +146,7 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
 
     private void SetComparing(bool value, bool send)
     {
+        if (_disposed) return;
         if (_comparing == value) { Raise(nameof(Comparing)); return; }
         _comparing = value;
         if (send)
@@ -192,6 +201,7 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     /// </summary>
     public void ChooseProcessing(string value)
     {
+        if (_disposed) return;
         if (value is not ("device" or "software") || value == _processing || !HasProcessingChoice)
         {
             Raise(nameof(ProcessOnDevice));
@@ -220,6 +230,7 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
         {
             if (!_hasDevice || OnDevice) return null;
             string name = _deviceName ?? Localizer.Text("EqTheInterface");
+            if (Bands.Count > MicEq.BandCount) return Localizer.Format("EqDeviceBandLimit", name, MicEq.BandCount);
             if (_deviceReady) return _processing == "software" ? Localizer.Format("EqDeviceBySoftware", name) : null;
             return _deviceReason switch
             {
@@ -302,6 +313,10 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
         Raise(nameof(EditorNote));
         Raise(nameof(HasEditorNote));
         Raise(nameof(ButtonTip));
+        Raise(nameof(CanAddBand));
+        Raise(nameof(CanRemoveBand));
+        Raise(nameof(VariableBands));
+        Raise(nameof(CanPaste));
         Changed?.Invoke();
     }
 
@@ -315,12 +330,14 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     /// <summary>
     /// Take a channel's <c>eq</c> from a state push, and the mixer's
     /// <c>eqLimits</c>. A band being dragged keeps what the user is doing, and
-    /// a report that differs from an edit not yet reported back is taken as
-    /// older than the edit, for a second at most.
+    /// a recent edit holds over state reports for a second at most, including
+    /// an older report arriving after a matching echo.
     /// </summary>
     public void Apply(JsonNode eq, JsonNode? limits)
     {
-        if (ReadLimits(limits) is { } read && read != Limits)
+        if (_disposed) return;
+        EqLimits read = ReadLimits(limits) ?? new EqLimits();
+        if (read != Limits)
         {
             Limits = read;
             foreach (EqBandViewModel band in Bands) band.RaiseLimits();
@@ -333,8 +350,9 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
         string? processing = eq["processing"]?.GetValue<string>();
         _processingReported = processing is "device" or "software";
         processing = _processingReported ? processing! : "device";
-        // A report that differs from the side just chosen is older than the choice, for a second at most.
-        if (!(_awaitingProcessing is { } chosen && chosen != processing && Waiting(_awaitingProcessingSince)))
+        // Even a matching echo can precede an older one. Keep the choice for the whole hold window.
+        if (_awaitingProcessing is { } chosen && Waiting(_awaitingProcessingSince)) _processing = chosen;
+        else
         {
             _awaitingProcessing = null;
             _processing = processing;
@@ -347,24 +365,28 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
         _deviceReason = device?["reason"]?.GetValue<string>();
         _deviceNote = device?["note"]?.GetValue<string>();
         _minimumFirmware = device?["minimumFirmware"]?.GetValue<string>();
-        _reportedEnabled = enabled;
-        if (_awaitingEnabled is bool expected && expected != enabled && Waiting(_awaitingEnabledSince))
+        if (_awaitingEnabled is bool expected && Waiting(_awaitingEnabledSince)) enabled = expected;
+        else _awaitingEnabled = null;
+        if (_comparing)
         {
-            // An older report than the switch the user just moved.
+            // Switched on from elsewhere while compared: the comparison is over.
+            if (enabled) { _comparing = false; _enabled = true; }
         }
         else
         {
-            _awaitingEnabled = null;
-            if (_comparing)
-            {
-                // Switched on from elsewhere while compared: the comparison is over.
-                if (enabled) { _comparing = false; _enabled = true; }
-            }
-            else _enabled = enabled;
+            _enabled = enabled;
         }
-        if (eq["bands"] is JsonArray bands)
-            for (int i = 0; i < Bands.Count && i < bands.Count; i++)
-                if (ReadBand(bands[i]) is { } band) Bands[i].ApplyReported(band);
+        if (eq["bands"] is JsonArray bands && bands.Count is >= MicEq.MinimumBands and <= MicEq.MaximumBands)
+        {
+            EqBand?[] values = [.. bands.Select(ReadBand)];
+            bool waiting = _awaitingShape is { } expectedShape && bands.Count != expectedShape.Bands.Count && Waiting(_awaitingShapeSince);
+            if (!waiting && values.All(b => MicEq.Check(b) is null))
+            {
+                if (!Waiting(_awaitingShapeSince)) _awaitingShape = null;
+                ResizeBands([.. values.Select(b => b!)]);
+                for (int i = 0; i < Bands.Count; i++) Bands[i].ApplyReported(values[i]!);
+            }
+        }
         RaiseState();
     }
 
@@ -397,6 +419,8 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
             JsonNode? q = node["q"];
             return defaults with
             {
+                MinBands = node["minBands"]?.GetValue<int>() is int min && min >= MicEq.MinimumBands && min <= MicEq.MaximumBands ? min : MicEq.BandCount,
+                MaxBands = node["maxBands"]?.GetValue<int>() is int max && max >= MicEq.BandCount && max <= MicEq.MaximumBands ? max : MicEq.BandCount,
                 Frequency = Range(node["frequency"], defaults.Frequency),
                 Gain = Range(node["gain"], defaults.Gain),
                 Q = q is null ? defaults.Q : new(q["min"]?.GetValue<double>() ?? defaults.Q.Min,
@@ -406,14 +430,17 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
         catch (Exception ex) when (ex is InvalidOperationException or FormatException) { return null; }
     }
 
-    /// <summary>The EQ as shown: the switch as the user set it and the four bands.</summary>
+    /// <summary>The EQ as shown: the switch as the user set it and its bands.</summary>
     public MicEq Current => new() { Enabled = _enabled, Bands = [.. Bands.Select(b => b.Band)] };
 
     /// <summary>Put an EQ on this microphone: one <c>setEq</c>, in place of any band change still waiting.</summary>
     public void Replace(MicEq eq)
     {
+        if (_disposed || MicEq.Check(eq) is not null) return;
         eq = MicEq.Snap(eq);
         _sender.Clear();
+        if (eq.Bands.Count != Bands.Count) { _awaitingShape = eq; _awaitingShapeSince = _time.GetTimestamp(); }
+        ResizeBands(eq.Bands);
         SetComparing(false, send: false);
         _enabled = eq.Enabled;
         Expect(eq.Enabled);
@@ -422,29 +449,54 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
         RaiseState();
     }
 
+    private void ResizeBands(IReadOnlyList<EqBand> values)
+    {
+        if (values.Count == Bands.Count) return;
+        _sender.Clear();
+        int selected = _selected?.Number ?? 1;
+        Bands = [.. values.Select((band, index) => new EqBandViewModel(this, index + 1, band))];
+        SelectedBand = Bands[Math.Min(selected, Bands.Count) - 1];
+        Raise(nameof(Bands));
+    }
+
+    public void AddBand() { if (CanAddBand) Replace(Current.WithAddedBand()); }
+
+    public void RemoveBand(EqBandViewModel band)
+    {
+        if (CanRemoveBand && Bands.Contains(band)) Replace(Current.WithoutBand(band.Number));
+    }
+
     /// <summary>Wave Link's four bands again, the switch left as it is.</summary>
     public void Reset() => Replace(MicEq.Default with { Enabled = _enabled });
 
-    public void Copy() => EqClipboard.Value = Current;
+    public void Copy() { if (!_disposed) EqClipboard.Value = Current; }
 
-    public bool CanPaste => EqClipboard.Value is not null;
+    public bool CanPaste => !_disposed && EqClipboard.Value is { } eq && eq.Bands.Count >= Limits.MinBands && eq.Bands.Count <= Limits.MaxBands;
 
     public void Paste()
     {
-        if (EqClipboard.Value is { } copied) Replace(copied);
+        if (CanPaste && EqClipboard.Value is { } copied) Replace(copied);
     }
 
     private void OnClipboardChanged() => Raise(nameof(CanPaste));
 
     /// <summary>Queue part of a band for the daemon, at most once a send interval per band.</summary>
-    internal void Send(int band, EqBandChange change) => _sender.Queue(band, change);
+    internal void Send(EqBandViewModel band, EqBandChange change)
+    {
+        if (!_disposed && Bands.Contains(band)) _sender.Queue(band.Number, change);
+    }
 
     /// <summary>The window closes: a comparison ends and the EQ comes back on.</summary>
     public void EndComparison() => Comparing = false;
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+        _comparing = false;
         EqClipboard.Changed -= OnClipboardChanged;
+        // This EQ left the mixer. Pending edits must not reach a replacement with the same channel id.
+        _sender.Clear();
         _sender.Dispose();
     }
 }
@@ -471,7 +523,7 @@ public sealed class EqBandViewModel : ViewModelBase
 
     public MicEqViewModel Owner { get; }
 
-    /// <summary>1 to 4, as the commands and the handles number the bands.</summary>
+    /// <summary>1 to 16, as the commands and the handles number the bands.</summary>
     public int Number { get; }
 
     public EqBand Band => _band;
@@ -553,6 +605,8 @@ public sealed class EqBandViewModel : ViewModelBase
     public decimal QMaximum => (decimal)Owner.Limits.Q.Max;
 
     /// <summary>The fields' names for a screen reader, each with the band's number.</summary>
+    public string RemoveName => Localizer.Format("EqRemoveBandName", Number);
+
     public string SwitchName => Localizer.Format("EqBandSwitchName", Number);
     public string TypeFieldName => Localizer.Format("EqBandTypeName", Number);
     public string FrequencyName => Localizer.Format("EqBandFrequencyName", Number);
@@ -683,7 +737,7 @@ public sealed class EqBandViewModel : ViewModelBase
     {
         _reported = band;
         if (_dragging) return;
-        if (_awaiting is { } awaiting && awaiting != band && Owner.Waiting(_awaitingSince)) return;
+        if (_awaiting is not null && Owner.Waiting(_awaitingSince)) return;
         _awaiting = null;
         Show(band);
     }
@@ -699,7 +753,7 @@ public sealed class EqBandViewModel : ViewModelBase
     private void Edit(EqBand band, EqBandChange change)
     {
         ShowLocal(band);
-        Owner.Send(Number, change);
+        Owner.Send(this, change);
     }
 
     private void Show(EqBand band)
@@ -740,8 +794,8 @@ internal sealed class EqBandSender : IDisposable
     private readonly TimeProvider _time;
     private readonly long _interval;
     private readonly Action<int, EqBandChange> _send;
-    private readonly EqBandChange?[] _pending = new EqBandChange?[MicEq.BandCount];
-    private readonly long[] _last = new long[MicEq.BandCount];
+    private readonly EqBandChange?[] _pending = new EqBandChange?[MicEq.MaximumBands];
+    private readonly long[] _last = new long[MicEq.MaximumBands];
     private readonly ITimer _timer;
     private bool _disposed;
 

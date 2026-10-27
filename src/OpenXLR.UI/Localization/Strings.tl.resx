@@ -2430,10 +2430,10 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
     <value>EQ</value>
   </data>
   <data name="EqButtonTip" xml:space="preserve">
-    <value>Four-band EQ ng mikropono, sa simula ng input bago ang low cut, ClipGuard at mga plugin. Nakailaw kapag naka-on, pula kapag hindi gumagana. Binubuksan ang editor.</value>
+    <value>EQ ng mikropono, sa simula ng input bago ang low cut, ClipGuard at mga plugin. Nakailaw kapag naka-on, pula kapag hindi gumagana. Binubuksan ang editor.</value>
   </data>
   <data name="EqButtonTipCapture" xml:space="preserve">
-    <value>Four-band EQ ng mikropono, sa computer na ito sa simula ng input bago ang mga plugin. Nakailaw kapag naka-on, pula kapag hindi gumagana. Binubuksan ang editor.</value>
+    <value>EQ ng mikropono, sa computer na ito sa simula ng input bago ang mga plugin. Nakailaw kapag naka-on, pula kapag hindi gumagana. Binubuksan ang editor.</value>
   </data>
   <data name="EqButtonNameOn" xml:space="preserve">
     <value>EQ ng {0}, on</value>
@@ -2463,7 +2463,7 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
     <value>Kopyahin</value>
   </data>
   <data name="EqCopyTip" xml:space="preserve">
-    <value>Kopyahin ang EQ na ito, switch at apat na band nito, upang i-paste sa ibang mikropono.</value>
+    <value>Kopyahin ang EQ na ito, switch at mga band nito, upang i-paste sa ibang mikropono.</value>
   </data>
   <data name="EqPaste" xml:space="preserve">
     <value>I-paste</value>
@@ -2547,7 +2547,7 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
     <value>Tumatakbo sa software ayon sa iyong pinili; kaya ng {0} na patakbuhin ito sa sariling processor.</value>
   </data>
   <data name="EqButtonTipDevice" xml:space="preserve">
-    <value>Four-band EQ ng mikropono, tumatakbo sa sariling processor ng {0} bago ang USB. Nakailaw kapag naka-on. Binubuksan ang editor.</value>
+    <value>EQ ng mikropono, tumatakbo sa sariling processor ng {0} bago ang USB. Nakailaw kapag naka-on. Binubuksan ang editor.</value>
   </data>
   <data name="EqStatusStarting" xml:space="preserve">
     <value>Naka-on, nagsisimula.</value>
@@ -2957,4 +2957,8 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
   <data name="DesktopKeysConfigureUnsupported" xml:space="preserve">
     <value>Hindi mabubuksan muli ng desktop na ito ang shortcut editor. Baguhin ang mga key sa shortcut setting ng desktop.</value>
   </data>
+  <data name="EqAddBand" xml:space="preserve"><value>Magdagdag ng band</value></data>
+  <data name="EqRemoveBandName" xml:space="preserve"><value>Alisin ang EQ band {0}</value></data>
+  <data name="EqDeviceBandLimit" xml:space="preserve"><value>Hanggang {1} EQ band ang suportado ng {0}. Tumatakbo sa software ang EQ na ito hanggang magkasya muli sa unit ang bilang ng mga band.</value></data>
+  <data name="EqRemoveBand" xml:space="preserve"><value>Alisin</value></data>
 </root>

@@ -627,7 +627,10 @@ function clearEqTurns(context = null) {
 }
 function pruneEqTurns() {
   for (const target of dialSends.keys())
-    if (isEqTarget(target) && !eqTarget(mixer(), target)) forgetEqTurn(target);
+    if (isEqTarget(target)) {
+      const eq = eqTarget(mixer(), target);
+      if (!eq || eq.eq.bands.length !== dialSends.get(target).eqBandCount) forgetEqTurn(target);
+    }
 }
 const eqBinding = inst => inst.action === "com.emaspa.openxlr.dial"
   ? JSON.stringify(targetsOf(inst)) : inst.settings.target ?? "";
@@ -638,15 +641,17 @@ function turnEq(context, inst, target, value) {
   if (!daemonUp || !eqCommand(eqTarget(mixer(), target), value)) {
     send({event: "showAlert", context}); return;
   }
-  const generation = connectionGeneration, binding = eqBinding(inst);
+  const generation = connectionGeneration, binding = eqBinding(inst), bandCount = eqTarget(mixer(), target).eq.bands.length;
   dialTurn(target, value, () => {
     if (generation !== connectionGeneration || !daemonUp || instances.get(context) !== inst || eqBinding(inst) !== binding) return;
-    const payload = eqCommand(eqTarget(mixer(), target), value);
+    const eq = eqTarget(mixer(), target);
+    if (eq?.eq.bands.length !== bandCount) { forgetEqTurn(target); return; }
+    const payload = eqCommand(eq, value);
     if (!payload) { forgetEqTurn(target); return; }
     if (!cmd(payload)) { forgetEqTurn(target); send({event: "showAlert", context}); }
   });
   const pending = dialSends.get(target);
-  if (pending) pending.eqContext = context;
+  if (pending) { pending.eqContext = context; pending.eqBandCount = bandCount; }
   refresh(context);
 }
 

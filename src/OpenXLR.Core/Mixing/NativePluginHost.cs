@@ -228,7 +228,7 @@ internal sealed class NativePluginHost : IDisposable
     {
         "soundcheck" => ["soundcheck"],
         "level" => ["level"],
-        "eq" => ["eq"],
+        "eq" => insert.Plugin is "eq" or "4" ? ["eq"] : ["eq-bands", insert.Plugin],
         "duck" => ["duck"],
         "clap" => ["clap", bundle ?? throw new InvalidOperationException("A CLAP insert needs the bundle it lives in."), insert.Plugin],
         "vst3" => ["vst3", bundle ?? throw new InvalidOperationException("A VST3 insert needs the bundle it lives in."), insert.Plugin],

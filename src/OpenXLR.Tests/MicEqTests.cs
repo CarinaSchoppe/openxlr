@@ -85,10 +85,10 @@ public sealed class MicEqTests
     }
 
     [Fact]
-    public void AnEqNeedsExactlyFourBands()
+    public void AnEqNeedsOneToSixteenBands()
     {
         Assert.Contains("need 'enabled' and 'bands'", MicEq.Check((MicEq?)null));
-        Assert.Contains("exactly 4", MicEq.Check(MicEq.Default with { Bands = MicEq.Default.Bands.Take(3).ToArray() }));
+        Assert.Contains("1 to 16", MicEq.Check(MicEq.Default with { Bands = [] }));
         Assert.Contains("band 2: a band is missing", MicEq.Check(MicEq.Default with { Bands = [MicEq.Default.Bands[0], null!, MicEq.Default.Bands[2], MicEq.Default.Bands[3]] }));
         Assert.Null(MicEq.Check(MicEq.Default));
     }
@@ -116,7 +116,7 @@ public sealed class MicEqTests
         {
             ("""{"bands":[]}""", "need 'eq' with 'enabled' and 'bands'"),
             ("""{"enabled":"yes","bands":[]}""", "need 'eq'"),
-            ("""{"enabled":true,"bands":[]}""", "exactly 4 bands"),
+            ("""{"enabled":true,"bands":[]}""", "1 to 16 bands"),
             ($$"""{"enabled":true,"bands":{{Bands("""{"enabled":true,"type":"peak","frequency":310,"q":1}""")}}}""", "band 2: need 'enabled', 'type', 'frequency', 'gain' and 'q'"),
             ($$"""{"enabled":true,"bands":{{Bands("""{"enabled":true,"type":"peak","frequency":"310","gain":0,"q":1}""")}}}""", "band 2: need"),
             ($$"""{"enabled":true,"bands":{{Bands("""{"enabled":true,"type":"bandPass","frequency":310,"gain":0,"q":1}""")}}}""", "band 2: type must be one of"),
@@ -153,8 +153,8 @@ public sealed class MicEqTests
     [InlineData("""{"cmd":"setEqBand","channel":"aux","band":1,"gain":3}""", "setEqBand: 'aux' is not a microphone input")]
     [InlineData("""{"cmd":"setEqBand","channel":"xlr1","band":2,"gain":3}""", null)]
     [InlineData("""{"cmd":"setEqBand","channel":"xlr1","band":4,"enabled":true,"type":"notch","frequency":3000,"gain":0,"q":10}""", null)]
-    [InlineData("""{"cmd":"setEqBand","channel":"xlr1","band":0,"gain":3}""", "need 'band' from 1 to 4")]
-    [InlineData("""{"cmd":"setEqBand","channel":"xlr1","band":5,"gain":3}""", "need 'band' from 1 to 4")]
+    [InlineData("""{"cmd":"setEqBand","channel":"xlr1","band":0,"gain":3}""", "need 'band' from 1 to 16")]
+    [InlineData("""{"cmd":"setEqBand","channel":"xlr1","band":17,"gain":3}""", "need 'band' from 1 to 16")]
     [InlineData("""{"cmd":"setEqBand","channel":"xlr1","gain":3}""", "need 'band'")]
     [InlineData("""{"cmd":"setEqBand","channel":"xlr1","band":1}""", "need at least one of")]
     [InlineData("""{"cmd":"setEqBand","channel":"xlr1","band":1,"type":"bandPass"}""", "type must be one of lowCut, lowShelf, peak, notch, highShelf, highCut")]
@@ -165,7 +165,7 @@ public sealed class MicEqTests
     [InlineData("""{"cmd":"setEqBand","channel":"xlr1","band":1,"q":11}""", "q must be")]
     [InlineData("""{"cmd":"setEq","channel":"xlr1"}""", "setEq: need 'eq' with 'enabled' and 'bands'")]
     [InlineData("""{"cmd":"setEq","channel":"aux","eq":{"enabled":false,"bands":[]}}""", "setEq: 'aux' is not a microphone input")]
-    [InlineData("""{"cmd":"setEq","channel":"xlr1","eq":{"enabled":false,"bands":[]}}""", "setEq: need exactly 4 bands")]
+    [InlineData("""{"cmd":"setEq","channel":"xlr1","eq":{"enabled":false,"bands":[]}}""", "setEq: need 1 to 16 bands")]
     public void EqCommandsAreCheckedBeforeTheMixer(string json, string? error)
     {
         string? problem = Check(json);
@@ -254,7 +254,7 @@ public sealed class MicEqTests
                 """);
             MixerSettings? settings = MixerSettings.Load(path, out string? warning);
             Assert.NotNull(settings);
-            Assert.Contains("eq.xlr2: need exactly 4 bands", warning);
+            Assert.Contains("eq.xlr2: need 1 to 16 bands", warning);
             Assert.Contains("eq.bad", warning);
             Assert.Equal(["cap1", "xlr1"], settings!.Eq.Keys.Order());
             // Snapped on load.
@@ -282,7 +282,7 @@ public sealed class MicEqTests
         SavedMixerValidation.Validate(back);
         Assert.Null(JsonSerializer.Deserialize<MixerScene>("{}", json)!.Eq);
         // A profile is applied whole, so one bad EQ refuses the file.
-        MixerScene bad = back with { Eq = new() { ["xlr1"] = eq with { Bands = [.. eq.Bands.Take(2)] } } };
+        MixerScene bad = back with { Eq = new() { ["xlr1"] = eq with { Bands = [] } } };
         Assert.Contains("eq.xlr1", Assert.Throws<JsonException>(() => SavedMixerValidation.Validate(bad)).Message);
     }
 

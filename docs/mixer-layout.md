@@ -235,6 +235,11 @@ every save. Every field is optional on read; an absent one is empty or off.
 | `exclusiveGroups` | exclusive channel groups, see [Exclusive groups](#exclusive-groups) |
 | `ducking` | the [ducking](api.md#ducking) setup, `{enabled, key, channels, mixes, sensitivity, amount, speed, processing}`; absent takes the defaults, off, and the next save writes them; one without `mixes` lowers in the default monitor mix. Unknown ids are dropped and an unknown preset or processing word is reset to its default, each with a note |
 
+The microphone `eq` tables keep their band count, from one to sixteen. The
+four-band default is unchanged; a profile also retains the full table. A
+supported unit runs at most four bands, with empty slots off. Larger tables
+use software and leave the saved processing preference intact.
+
 A null field or a null entry inside one is dropped and logged; so is a
 non-finite number in `mixVolumes`, `levels`, `channelVolumes` or an insert's `params`. A
 `monitorFeeds` entry for an output that is not selected is removed the next

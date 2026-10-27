@@ -74,12 +74,15 @@ public static class EqCurve
     public static double FrequencyOf(int i, int count) => Math.Pow(10, LogMin + (LogMax - LogMin) * i / (count - 1));
 
     /// <summary>The cascade of the bands that are on, as points across the plot.</summary>
-    public static Point[] Sum(IReadOnlyList<EqBand> bands, Rect plot, int count) =>
-        [.. Enumerable.Range(0, count).Select(i =>
+    public static Point[] Sum(IReadOnlyList<EqBand> bands, Rect plot, int count)
+    {
+        EqCoefficients[] coefficients = [.. bands.Where(b => b.Enabled).Select(b => EqResponse.Coefficients(b, SampleRate))];
+        return [.. Enumerable.Range(0, count).Select(i =>
         {
             double hz = FrequencyOf(i, count);
-            return new Point(X(hz, plot), Y(EqResponse.CascadeDb(bands, SampleRate, hz), plot));
+            return new Point(X(hz, plot), Y(coefficients.Sum(c => EqResponse.MagnitudeDb(c, SampleRate, hz)), plot));
         })];
+    }
 
     /// <summary>One band's own curve.</summary>
     public static Point[] Band(EqBand band, Rect plot, int count)
@@ -182,7 +185,7 @@ public sealed class EqGraph : Panel
         foreach (EqHandle handle in _handles) handle.InvalidateVisual();
     }
 
-    /// <summary>The four handles, in band order.</summary>
+    /// <summary>The handles, in band order.</summary>
     public IReadOnlyList<EqHandle> Handles => _handles;
 
     internal IReadOnlyList<EqRegion> RegionLabels => _regions;
@@ -230,6 +233,13 @@ public sealed class EqGraph : Panel
 
     private void OnModelChanged()
     {
+        if (_model is { } model && (_handles.Length != model.Bands.Count || _handles.Where((h, i) => !ReferenceEquals(h.Band, model.Bands[i])).Any()))
+        {
+            EndDrag();
+            foreach (EqHandle handle in _handles) Children.Remove(handle);
+            _handles = [.. model.Bands.Select(b => new EqHandle(this, b))];
+            foreach (EqHandle handle in _handles) Children.Add(handle);
+        }
         InvalidateArrange();
         _backdrop.InvalidateVisual();
         foreach (EqHandle handle in _handles) handle.InvalidateVisual();
@@ -296,6 +306,8 @@ public sealed class EqGraph : Panel
 
     internal static readonly string[] BandTokens = ["Ox.Eq.Band1", "Ox.Eq.Band2", "Ox.Eq.Band3", "Ox.Eq.Band4"];
 
+    internal static string BandToken(int index) => BandTokens[Math.Max(0, index) % BandTokens.Length];
+
     /// <summary>The graph's drawing, under the region labels and the handles; a panel's own rendering is sealed.</summary>
     internal void Draw(DrawingContext context)
     {
@@ -344,7 +356,7 @@ public sealed class EqGraph : Panel
             {
                 if (!bands[i].Enabled) continue;
                 if (Shaping(EqCurve.Band(bands[i], plot, count), zeroLine) is { } shape)
-                    context.DrawGeometry(null, new Pen(Live(BandTokens[i]), BandCurveThickness), shape);
+                    context.DrawGeometry(null, new Pen(Live(BandToken(i)), BandCurveThickness), shape);
             }
 
             // The sum, over a light fill to 0 dB. While the EQ is off or compared, it is drawn in the off colour.
@@ -657,7 +669,7 @@ public sealed class EqHandle : Control
     {
         double size = _graph.HandleSize, r = size / 2;
         var centre = new Point(Bounds.Width / 2, Bounds.Height / 2);
-        IBrush colour = SkinService.LiveBrush(EqGraph.BandTokens[Band.Number - 1]);
+        IBrush colour = SkinService.LiveBrush(EqGraph.BandToken(Band.Number - 1));
         IBrush background = SkinService.LiveBrush("Ox.Eq.Background");
         if (Band.IsSelected || IsFocused)
             context.DrawEllipse(null, new Pen(SkinService.LiveBrush("Ox.Eq.HandleRing"), 2), centre, r + 3, r + 3);

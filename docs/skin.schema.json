@@ -621,7 +621,7 @@
         },
         "Ox.Eq.Curve": {
           "$ref": "#/$defs/flatColour",
-          "description": "the sum of the four bands while the EQ is on, and in Mic setup the waveform's edges, its playhead and the target band's outline"
+          "description": "the sum of the active bands while the EQ is on, and in Mic setup the waveform's edges, its playhead and the target band's outline"
         },
         "Ox.Eq.CurveFill": {
           "$ref": "#/$defs/flatColour",

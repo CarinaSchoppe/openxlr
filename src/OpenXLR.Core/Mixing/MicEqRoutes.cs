@@ -127,6 +127,12 @@ public sealed partial class Mixer
     /// <summary>Whether a channel's EQ runs on its unit now.</summary>
     public bool EqRunsOnDevice(string channel) { lock (_gate) return _eqDevices.ContainsKey(channel); }
 
+    public bool CanRunEqOnDevice(string channel, int bands)
+    {
+        lock (_gate) return bands is >= MicEq.MinimumBands and <= WaveFxEq.Bands
+            && EqDeviceTargetLocked(channel, UnitInputsLocked(), bands) is not null;
+    }
+
     /// <summary>
     /// The device side. Set once the graph is built; until then, and in a
     /// run without the submixer, nothing is written to any unit.
@@ -182,9 +188,10 @@ public sealed partial class Mixer
     /// choice is the unit, no Sound Check session runs on it, and the unit
     /// has not failed to keep the EQ for that input in this run.
     /// </summary>
-    private EqUnitInput? EqDeviceTargetLocked(string channel, IReadOnlyDictionary<string, UnitInputStatus> carried)
+    private EqUnitInput? EqDeviceTargetLocked(string channel, IReadOnlyDictionary<string, UnitInputStatus> carried, int? bands = null)
     {
         if (_eqPort is null || !IsMicrophoneId(channel) || EqProcessingLocked(channel) != MicEqProcessing.Device) return null;
+        if ((bands ?? EqLocked(channel).Bands.Count) > WaveFxEq.Bands) return null;
         if (_soundCheckClaim == channel || _soundCheck is not null && _soundCheckChannel == channel) return null;
         if (!EqCarrierLocked(channel, carried, out UnitInputStatus? unit, out UnitEqSupport? support) || !support.Ready) return null;
         var target = new EqUnitInput(unit.Unit, unit.Input);
@@ -341,7 +348,7 @@ public sealed partial class Mixer
             Thread.Sleep(10);
     }
 
-    /// <summary>Replace a microphone's whole EQ: its switch and four bands.</summary>
+    /// <summary>Replace a microphone's whole EQ: its switch and bands.</summary>
     public void SetEq(string channel, MicEq eq)
     {
         if (MicEq.Check(eq) is string problem) throw new ArgumentException($"setEq: {problem}");
@@ -376,15 +383,16 @@ public sealed partial class Mixer
         }
     }
 
-    /// <summary>Part of one band, 1 to 4: the path a drag takes.</summary>
+    /// <summary>Part of one existing band: the path a drag takes.</summary>
     public void SetEqBand(string channel, int band, EqBandChange change)
     {
-        if (band is < 1 or > MicEq.BandCount) throw new ArgumentException($"setEqBand: band must be 1 to {MicEq.BandCount}");
+        if (band is < 1 or > MicEq.MaximumBands) throw new ArgumentException($"setEqBand: band must be 1 to {MicEq.MaximumBands}");
         if (change.IsEmpty) throw new ArgumentException("setEqBand: need at least one of 'enabled', 'type', 'frequency', 'gain' and 'q'");
         lock (_gate)
         {
             RequireMicrophoneLocked(channel);
             MicEq eq = EqLocked(channel);
+            if (band > eq.Bands.Count) throw new ArgumentException("setEqBand: the band does not exist");
             EqBand next = change.ApplyTo(eq.Bands[band - 1]);
             if (MicEq.Check(next) is string problem) throw new ArgumentException($"setEqBand: {problem}");
             _eq[channel] = eq.WithBand(band, MicEq.Snap(next));
@@ -421,11 +429,12 @@ public sealed partial class Mixer
         MicEq eq = SoftwareEqLocked(channel);
         if (_eqStages.TryGetValue(channel, out SoftwareEqBackend? stage))
         {
-            if (stage.IsAlive)
+            if (stage.IsAlive && (!eq.Enabled || stage.BandCount == eq.Bands.Count))
             {
                 try
                 {
-                    stage.Apply(eq);
+                    if (stage.BandCount == eq.Bands.Count) stage.Apply(eq);
+                    else stage.SetEnabled(false);
                     return;
                 }
                 catch (InvalidOperationException ex)
@@ -503,7 +512,7 @@ public sealed partial class Mixer
         FilterHandle? filter = null;
         try
         {
-            filter = _pw.CreateMicEq($"{ch.Id}_{++_eqGeneration}", SoftwareEqBackend.Controls(eq));
+            filter = _pw.CreateMicEq($"{ch.Id}_{++_eqGeneration}", SoftwareEqBackend.Controls(eq), eq.Bands.Count);
             var stage = new SoftwareEqBackend(_pw, filter, eq);
             into = RouteInputLocked(upstream, stage.Node, ch, upstreamProcessed);
             if (into.Pairs.Count == 0) throw new InvalidOperationException("The microphone could not be linked into its EQ.");

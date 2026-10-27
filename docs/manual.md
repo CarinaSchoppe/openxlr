@@ -1230,11 +1230,31 @@ and ends with **Stop and discard** or when the window closes:
 
 <a name="microphone-eq"></a>
 **Microphone EQ.** XLR 1, XLR 2 and every capture input on one mono port
-each have a four-band EQ with the same band types, ranges and steps as Wave
-Link's, and the same curves. It comes first on the input, before the low
+each have an EQ with one to sixteen bands and the same band types, ranges
+and steps as Wave Link's, and the same curves. It comes first on the input, before the low
 cut, ClipGuard and your plugins, so ClipGuard also catches a boost, and
 Mic setup's loop goes through it. A capture input has no low cut or
 ClipGuard, so its EQ comes straight before its plugins.
+
+The existing four-band setup stays the default. **Add band** adds a neutral
+bell in a gap between the existing frequencies; **Remove** beside a band
+removes it and renumbers the following bands. At least one band remains and
+at most sixteen are offered. The band list scrolls while the response graph
+stays visible. Reset restores the four defaults. Copy, paste, profiles and a
+restart retain the full table. The four skin colours repeat for additional
+bands, which retain their individual numbers.
+
+A supported interface runs up to four bands itself, with unused slots off.
+Above four, the complete EQ moves to software without changing your saved
+processing preference. It returns to the unit when its band count fits
+again and the unit is available. The editor explains the software fallback.
+Only the EQ stage is replaced when its software band count changes; the
+inserts keep running. An older daemon offers no Add or Remove controls.
+
+Rapid changes keep the latest value you chose while earlier reports arrive.
+After the short settling interval the editor follows external changes again.
+Removing a microphone closes its EQ editor and discards pending edits, so
+they cannot change a replacement channel with the same id.
 
 Open it with **EQ**. In INPUTS it sits on the microphone's input line,
 right after the chip that says what feeds it, and stands as tall as the
@@ -1246,7 +1266,7 @@ clicking **EQ** again brings it to the front.
 - The graph runs from 20 Hz to 20 kHz across and from -12 to +12 dB up the
   side. The six regions of a voice are shaded in turn and named along the
   top; point at a name to see what lives there. Each band draws its own
-  curve thin in its colour, and the sum of the four is the thick line.
+  curve thin in its colour, and the sum of the active bands is the thick line.
   While the EQ is off the sum is grey, and the bands still move, so you can
   set them up before switching it on.
 - Each band has a numbered handle, hollow while the band is off. Drag a
@@ -3950,7 +3970,7 @@ openxlr-tui
 ```
 
 In Inputs, **Microphone EQ** lists each microphone, including mono capture
-inputs. Open its **bands** row for the four-band editor. Up and Down select
+inputs. Open its **bands** row for the band editor. Up and Down select
 a control, Space toggles a switch, Left and Right change the type or value,
 and Escape returns to Inputs. Frequency moves by a sixth of an octave, with `[`
 and `]` or Ctrl+Left/Right moving a twenty-fourth, as a Deck dial does. Gain moves by 0.25 dB; Q moves one

@@ -354,13 +354,13 @@ public static class CommandValidation
                 return cmd.Value.GetBoolean() && !hostInstalled && !layout.EqRunsOnDevice(cmd.Channel) ? Mixer.EqNeedsHost : null;
             case "setEq":
                 if (MicEq.Read(cmd.Eq, out string? error) is not { } eq) return $"setEq: {error}";
-                return eq.Enabled && !hostInstalled && !layout.EqRunsOnDevice(cmd.Channel) ? Mixer.EqNeedsHost : null;
+                return eq.Enabled && !hostInstalled && !layout.CanRunEqOnDevice(cmd.Channel, eq.Bands.Count) ? Mixer.EqNeedsHost : null;
             case "setEqProcessing":
                 if (layout.EqRunsInSoftwareOnly(cmd.Channel)) return Mixer.EqSoftwareOnly(Short(cmd.Channel));
                 return cmd.Value.ValueKind == JsonValueKind.String && MicEqProcessing.IsValid(cmd.Value.GetString())
                     ? null : "setEqProcessing: value must be 'device' or 'software'";
             default:
-                if (cmd.Band is not int band || band is < 1 or > MicEq.BandCount) return $"setEqBand: need 'band' from 1 to {MicEq.BandCount}";
+                if (cmd.Band is not int band || band is < 1 or > MicEq.MaximumBands) return $"setEqBand: need 'band' from 1 to {MicEq.MaximumBands}";
                 var change = new EqBandChange(cmd.Enabled, cmd.Type, cmd.Frequency, cmd.Gain, cmd.Q);
                 if (change.IsEmpty) return "setEqBand: need at least one of 'enabled', 'type', 'frequency', 'gain' and 'q'";
                 if (change.Type is not null && MicEq.TypeIndex(change.Type) < 0)

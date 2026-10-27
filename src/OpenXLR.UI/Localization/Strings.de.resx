@@ -2449,10 +2449,10 @@ Von OpenXLR gesteuertes Interface wählen</value>
     <value>EQ</value>
   </data>
   <data name="EqButtonTip" xml:space="preserve">
-    <value>Der Vierband-EQ des Mikrofons, am Anfang des Eingangs vor Hochpass, ClipGuard und Plugins. Leuchtet, solange er an ist, rot, wenn er nicht laufen kann. Öffnet den Editor.</value>
+    <value>Der EQ des Mikrofons, am Anfang des Eingangs vor Hochpass, ClipGuard und Plugins. Leuchtet, solange er an ist, rot, wenn er nicht laufen kann. Öffnet den Editor.</value>
   </data>
   <data name="EqButtonTipCapture" xml:space="preserve">
-    <value>Der Vierband-EQ des Mikrofons, auf diesem Computer am Anfang des Eingangs vor den Plugins. Leuchtet, solange er an ist, rot, wenn er nicht laufen kann. Öffnet den Editor.</value>
+    <value>Der EQ des Mikrofons, auf diesem Computer am Anfang des Eingangs vor den Plugins. Leuchtet, solange er an ist, rot, wenn er nicht laufen kann. Öffnet den Editor.</value>
   </data>
   <data name="EqButtonNameOn" xml:space="preserve">
     <value>{0} EQ, an</value>
@@ -2482,7 +2482,7 @@ Von OpenXLR gesteuertes Interface wählen</value>
     <value>Kopieren</value>
   </data>
   <data name="EqCopyTip" xml:space="preserve">
-    <value>Kopiert diesen EQ, seinen Schalter und seine vier Bänder, zum Einfügen bei einem anderen Mikrofon.</value>
+    <value>Kopiert diesen EQ, seinen Schalter und alle seine Bänder, zum Einfügen bei einem anderen Mikrofon.</value>
   </data>
   <data name="EqPaste" xml:space="preserve">
     <value>Einfügen</value>
@@ -2566,7 +2566,7 @@ Von OpenXLR gesteuertes Interface wählen</value>
     <value>Läuft wie gewählt in Software; {0} kann ihn auf dem eigenen Prozessor rechnen.</value>
   </data>
   <data name="EqButtonTipDevice" xml:space="preserve">
-    <value>Der Vierband-EQ des Mikrofons, auf dem eigenen Prozessor von {0} vor USB. Leuchtet, solange er an ist. Öffnet den Editor.</value>
+    <value>Der EQ des Mikrofons, auf dem eigenen Prozessor von {0} vor USB. Leuchtet, solange er an ist. Öffnet den Editor.</value>
   </data>
   <data name="EqStatusStarting" xml:space="preserve">
     <value>An, startet.</value>
@@ -2991,4 +2991,8 @@ Von OpenXLR gesteuertes Interface wählen</value>
   <data name="MicSetupMicrophoneTip" xml:space="preserve">
     <value>Wähle das Mikrofon, das du einrichten willst. Eine laufende Aufnahme oder Mithören am angezeigten Mikrofon endet zuerst.</value>
   </data>
+  <data name="EqAddBand" xml:space="preserve"><value>Band hinzufügen</value></data>
+  <data name="EqRemoveBandName" xml:space="preserve"><value>EQ-Band {0} entfernen</value></data>
+  <data name="EqDeviceBandLimit" xml:space="preserve"><value>{0} unterstützt bis zu {1} EQ-Bänder. Dieser EQ läuft in Software, bis die Bandzahl wieder auf das Gerät passt.</value></data>
+  <data name="EqRemoveBand" xml:space="preserve"><value>Entfernen</value></data>
 </root>

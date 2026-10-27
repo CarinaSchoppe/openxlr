@@ -130,6 +130,9 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, IDuckingComman
     /// </summary>
     internal event Action<int, string>? BrowserTabActivationReceived;
 
+    public Task<string?> SetRouteAppsByDefaultAsync(bool value)
+        => EditLayoutAsync(new() { ["cmd"] = "setRouteAppsByDefault", ["value"] = value });
+
     public Task<string?> SetPreserveBrowserOutputsAsync(bool value)
         => EditLayoutAsync(new() { ["cmd"] = "setPreserveBrowserOutputs", ["value"] = value });
 

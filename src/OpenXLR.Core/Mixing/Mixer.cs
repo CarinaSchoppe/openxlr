@@ -1587,6 +1587,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 MonitorFeeds = new Dictionary<string, string>(_monitorFeeds),
                 MonitorOutputLabels = new Dictionary<string, string>(_monitorOutputLabels, StringComparer.Ordinal),
                 AppOverrides = new Dictionary<string, string>(Matcher.Overrides),
+                RouteAppsByDefault = Matcher.RouteByDefault,
                 PreserveBrowserOutputs = _preserveBrowserOutputs,
                 BrowserSiteChannels = _browserSiteChannels.Where(p => HasApplicationChannel(p.Value))
                     .ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal),
@@ -1649,6 +1650,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     {
         lock (_gate)
         {
+            SetRouteAppsByDefault(s.RouteAppsByDefault);
             RestoreBrowserSettingsLocked(s);
             SetMonitorMuteMicrophones(s.MonitorMuteMicrophones);
             _duckingSetup = DuckingSetup.Prune(s.Ducking ?? DuckingSetup.Default(_config), _config);
@@ -1695,7 +1697,8 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 if (!_apps.ContainsKey(identity))
                     _apps[identity] = new StreamAssignment(0, 0, label, identity,
                         Matcher.Overrides.TryGetValue(identity, out string? pinned)
-                            ? pinned : _config.ResolveApplicationChannel(app.ChannelId)) { Active = false, Running = false };
+                            ? pinned
+                            : Matcher.RouteByDefault ? _config.ResolveApplicationChannel(app.ChannelId) : StreamMatcher.Ignore) { Active = false, Running = false };
             }
 
             static string Sanitize(string v) => v.EndsWith(" (deleted)", StringComparison.Ordinal) ? v[..^10] : v;
@@ -2928,7 +2931,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                     // The one exception is a stream the session manager
                     // restored onto an OpenXLR channel from the time the app
                     // was managed; that one goes back to the default output.
-                    try { ReleaseStreamLocked(s.Serial); }
+                    try { if (!ReleaseStreamLocked(s.Serial)) continue; }
                     catch (InvalidOperationException) { continue; }
                     var left = new StreamAssignment(s.Id, s.Serial, s.Label, identity, StreamMatcher.Ignore);
                     _streams[s.Id] = left;
@@ -3054,13 +3057,17 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     /// elsewhere is left alone, and so is everything when the default output
     /// is unknown.
     /// </summary>
-    private void ReleaseStreamLocked(int serial)
+    private bool ReleaseStreamLocked(int serial)
     {
         string? current = _pw.StreamSinkName(serial);
-        if (current is null || !_config.Channels.Any(c => c.SinkName == current)) return;
+        if (current is null) return false;
+        if (!_config.Channels.Any(c => c.SinkName == current)) return true;
         string? fallback = _pw.GetDefaultSink();
-        if (string.IsNullOrEmpty(fallback) || fallback == current) return;
+        if (string.IsNullOrEmpty(fallback)) return false;
+        if (fallback == current) return true;
         _pw.MoveStreamToSink(serial, fallback);
+        // A refused or not yet applied move stays unplaced for the next sweep.
+        return _pw.IsStreamOnSink(serial, fallback);
     }
 
     /// <summary>
@@ -3225,6 +3232,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 Streams = [.. _apps.Values
                     .OrderByDescending(a => a.Active).ThenBy(a => a.Label, StringComparer.OrdinalIgnoreCase)],
                 PreserveBrowserOutputs = _preserveBrowserOutputs,
+                RouteAppsByDefault = Matcher.RouteByDefault,
                 BrowserTabs = BrowserTabsLocked(),
             });
         }

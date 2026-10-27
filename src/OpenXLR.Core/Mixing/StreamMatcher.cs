@@ -32,6 +32,9 @@ public sealed class StreamMatcher
     private readonly Dictionary<string, string> _overrides = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _fallbackChannel;
 
+    /// <summary>Apply automatic rules to apps without an explicit assignment.</summary>
+    public bool RouteByDefault { get; internal set; } = true;
+
     public StreamMatcher(IEnumerable<Rule>? rules = null, string fallbackChannel = "system")
     {
         _rules = [.. rules ?? DefaultRules()];
@@ -77,6 +80,8 @@ public sealed class StreamMatcher
     public string Match(AudioStream stream)
     {
         if (_overrides.TryGetValue(stream.Identity, out string? pinned)) return pinned;
+
+        if (!RouteByDefault) return Ignore;
 
         // Binary first, then app name, then the media name.
         foreach (string? field in new[] { stream.Binary, stream.AppName, stream.MediaName })

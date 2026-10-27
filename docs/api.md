@@ -274,6 +274,7 @@ that final acknowledgement (or an `error` without a request id):
 | `syncBrowserTabs` | `session`, `tabs` | WebSocket only; replace this companion's complete tab list. Only the connection that obtained the session may publish it; see [browser tabs](#browser-tabs) |
 | `assignBrowserTab` | `session`, `tabId`, `site`, `channel`, `remember` | select an application channel or `null` for browser default for a connected tab. Required `site` is the origin the caller saw; an assignment is refused if that tab has navigated to another origin. `remember` must be boolean; true saves the website origin preference, and `channel:null, remember:true` forgets it. False changes only this tab |
 | `activateBrowserTab` | `session`, `tabId`, `site` | ask the companion that registered a connected tab to bring it forward and start routing it, as its own Activate does. Refused unless `preserveBrowserOutputs` is on, `site` still matches the tab's origin, the tab has a channel, and it is neither capturing nor reporting an `activation`. Success means the request reached the companion, not that capture started; see [browser tabs](#browser-tabs) |
+| `setRouteAppsByDefault` | `value` | boolean only; automatic name rules for apps without an explicit assignment. True by default. False leaves them not managed by OpenXLR; explicit assignments still win. Saved in `mixer.json`, never recalled by a profile |
 | `setPreserveBrowserOutputs` | `value` | boolean only; explicitly enable or disable preservation of Chromium-family playback outputs. Saved in `mixer.json`, never recalled by a profile. Registration alone does not enable it |
 | `setMonitorMuteMicrophones` | `value` | boolean only, false by default; include XLR 1, XLR 2 and mono capture channels in the monitoring pause, across every OpenXLR mix. Stereo captures, Aux In, Line In and application channels keep playing. Saved only in `mixer.json`; takes effect immediately without restarting the daemon. See [monitoring and microphones](#monitoring-and-microphones) |
 | `listPlugins` | none | the installed LV2, CLAP and VST3 plugins, answered with a `plugins` message |
@@ -746,6 +747,23 @@ settings loader drops and logs insert keys outside the restored layout.
 
 ### Application names
 
+`mixer.routeAppsByDefault` reports whether automatic name rules apply to
+applications without a saved override. The default is true, preserving
+existing installations. `setRouteAppsByDefault` saves the new boolean before
+acknowledging it; a failed save leaves the old policy and placements intact.
+Running unassigned streams follow the new policy on the next sweep. Explicit
+channel assignments and explicit `ignore` overrides remain unchanged.
+With automatic routing off, `forgetApp` returns an app to `ignore` on its
+next registration. Turning automatic routing back on reclassifies silent
+apps when they next open a playback stream. The policy does not change
+browser tab assignments or disable `preserveBrowserOutputs`.
+
+`ignore` releases playback on an OpenXLR application sink to the desktop's
+current default output and otherwise leaves playback where the desktop put
+it. A refused or not yet confirmed move is retried on the next sweep.
+It does not mute the app or change that default. An OpenXLR default
+output can therefore still carry unmanaged playback.
+
 `mixer.streams` has one entry per application, not per stream: every
 playback stream and audio client of one application shares its `identity`,
 and the entry stands for all of them. `identity` is the key an assignment
@@ -1168,8 +1186,9 @@ All under `~/.config/openxlr/` (or `$XDG_CONFIG_HOME/openxlr/`):
   `mixes`, with `userMixes` kept for 0.2.0, `appearance`, see [mixer-layout.md](mixer-layout.md)), levels, mutes,
   device choices, the app registry, enforced defaults, `monitorMuted` (the
   monitoring pause, never part of a profile), `monitorMuteMicrophones` (the
-  opt-in microphone pause, also never part of a profile), `preserveBrowserOutputs` and
-  `browserSiteChannels` (origin-to-channel defaults, both machine settings
+  opt-in microphone pause, also never part of a profile), `routeAppsByDefault`,
+  `preserveBrowserOutputs` and
+  `browserSiteChannels` (origin-to-channel defaults, all machine settings
   absent from profiles), the software low
   cut, the insert chains, the microphone EQs (`eq`) and where they run
   (`eqProcessing`), the [ducking](#ducking) setup (`ducking`), the

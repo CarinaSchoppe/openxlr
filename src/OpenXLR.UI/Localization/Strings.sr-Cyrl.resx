@@ -1445,6 +1445,8 @@
   <data name="ShowHiddenHint" xml:space="preserve">
     <value>Прикажи избледело канале и миксеве скривене у Уреди распоред, на њиховим местима. Раде као и обично; распоред се не мења.</value>
   </data>
+  <data name="RouteAppsByDefault" xml:space="preserve"><value>Аутоматски усмери апликације без доделе</value></data>
+  <data name="RouteAppsByDefaultHint" xml:space="preserve"><value>Искључи да би апликације остале на радној површини док им не доделиш канал. Сачуване доделе и даље важе. Апликације које користе OpenXLR као подразумевани системски излаз и даље могу да се чују кроз тај канал.</value></data>
   <data name="PreAssignAChannelToAnAppThat" xml:space="preserve">
     <value>Унапред додели канал апликацији која још није репродуковала звук. Идентитет се претпоставља из покретача; ако апликација при првој репродукцији пријави нешто друго, појављује се као нова ставка.</value>
   </data>

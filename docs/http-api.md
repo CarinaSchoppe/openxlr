@@ -62,6 +62,13 @@ scan plugins or start helpers, so they share the one HTTP command slot: while
 a command or another of these reads is in flight they answer 429.
 Changes still go through `/commands`.
 
+The mixer resource reports `routeAppsByDefault`. Send
+`{"cmd":"setRouteAppsByDefault","value":false}` through `/commands` to leave
+unassigned apps not managed. Explicit assignments still apply. This is a
+machine setting, not profile state; a refused save returns an error without
+changing the policy. Not managed does not mute playback or bypass an OpenXLR
+system default. See [application names](api.md#application-names).
+
 The mixer resource also reports `preserveBrowserOutputs` and `browserTabs`
 as documented in [browser tabs](api.md#browser-tabs). A tab's `title` is empty
 unless it is capturing or has an assigned channel; its origin remains

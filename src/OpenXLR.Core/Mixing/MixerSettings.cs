@@ -93,6 +93,9 @@ public sealed record MixerSettings
     /// <summary>Application identity to channel id, from manual assignments.</summary>
     public Dictionary<string, string> AppOverrides { get; init; } = [];
 
+    /// <summary>Automatically classify applications without a saved assignment. Machine state, never profile state.</summary>
+    public bool RouteAppsByDefault { get; init; } = true;
+
     /// <summary>Leave Chromium output selection to the browser companion and desktop. Machine state only.</summary>
     public bool PreserveBrowserOutputs { get; init; }
 

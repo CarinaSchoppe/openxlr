@@ -90,6 +90,23 @@ public sealed class TuiViewTests
         return (app, sent);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AppsCanChangeTheDefaultWithoutAssigningAnApplication(bool enabled)
+    {
+        (App app, List<string> sent) = Ready(tab: 4);
+        var state = System.Text.Json.Nodes.JsonNode.Parse(StateJson)!;
+        state["mixer"]!["routeAppsByDefault"] = enabled;
+        app.Link.Receive(state.ToJsonString());
+        app.Draw(new Screen(140, 36));
+        Assert.Empty(sent);
+        app.Handle(new KeyPress(Key.Char, ' '));
+        JsonElement command = Command(sent);
+        Assert.Equal("setRouteAppsByDefault", Text(command, "cmd"));
+        Assert.Equal(!enabled, command.GetProperty("value").GetBoolean());
+    }
+
     private static JsonElement Command(List<string> sent)
     {
         string last = Assert.Single(sent);

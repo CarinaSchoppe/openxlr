@@ -64,6 +64,7 @@ internal static class BrowserTabsWindowTests
             // A daemon without browser routing: no button, nothing to open.
             Assert.False(button.IsVisible);
 
+            AppRoutingViewModelTests.Report(model, true);
             BrowserTabViewModelTests.Report(model, true, new JsonArray(
                 BrowserTabViewModelTests.Tab(title: "A long browser tab title with a video, a playlist and more details that must remain within the row", channel: "music", remember: true, capturing: true),
                 BrowserTabViewModelTests.Tab(id: 8, title: "", channel: null),
@@ -87,6 +88,19 @@ internal static class BrowserTabsWindowTests
             apps.Show();
             Layout(apps, 620, 700);
             AssertNoTabList(apps);
+            var automatic = apps.FindControl<CheckBox>("RouteAppsByDefault")!;
+            Assert.True(automatic.IsEffectivelyVisible);
+            Assert.True(automatic.IsEffectivelyEnabled);
+            Assert.True(automatic.IsChecked);
+            AssertInside(automatic, apps);
+            Capture(apps, $"apps-routing-{suffix}");
+            // The client is disposed: a refused edit must restore the actual
+            // checkbox too, including when its reported value did not change.
+            automatic.SetCurrentValue(CheckBox.IsCheckedProperty, false);
+            automatic.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(automatic.IsChecked);
+            Assert.True(model.RouteAppsByDefault);
             apps.Close();
 
             button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

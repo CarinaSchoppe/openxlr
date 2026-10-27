@@ -1476,6 +1476,8 @@
   <data name="ShowHiddenHint" xml:space="preserve">
     <value>Muestra atenuados en su sitio los canales y mezclas ocultos en Editar distribución. Funcionan como siempre; la distribución no cambia.</value>
   </data>
+  <data name="RouteAppsByDefault" xml:space="preserve"><value>Enrutar automáticamente las aplicaciones sin asignación</value></data>
+  <data name="RouteAppsByDefaultHint" xml:space="preserve"><value>Desactiva esta opción para dejar las aplicaciones en el escritorio hasta que les asignes un canal. Las asignaciones guardadas siguen vigentes. Si un canal de OpenXLR es la salida predeterminada del sistema, las aplicaciones pueden seguir sonando por él.</value></data>
   <data name="PreAssignAChannelToAnAppThat" xml:space="preserve">
     <value>Asigna de antemano un canal a una aplicación que aún no haya reproducido audio. Su identidad se deduce del lanzador; si se identifica de otra forma al reproducir por primera vez, aparecerá como una entrada nueva.</value>
   </data>

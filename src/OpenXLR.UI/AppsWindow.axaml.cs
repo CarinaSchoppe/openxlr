@@ -47,5 +47,11 @@ public partial class AppsWindow : Window
         if ((sender as Button)?.DataContext is AppStreamViewModel app) app.Forget();
     }
 
+    private async void OnRouteAppsByDefault(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm && sender is CheckBox { IsChecked: bool value })
+            await vm.SetRouteAppsByDefaultAsync(value);
+    }
+
     private void OnClose(object? sender, RoutedEventArgs e) => Close();
 }

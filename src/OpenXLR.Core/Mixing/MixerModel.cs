@@ -255,6 +255,8 @@ public sealed record MixerState
 
     public bool PreserveBrowserOutputs { get; init; }
 
+    public bool RouteAppsByDefault { get; init; } = true;
+
     public IReadOnlyList<BrowserTabState> BrowserTabs { get; init; } = [];
 
     /// <summary>

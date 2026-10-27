@@ -65,6 +65,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 DeviceConnected = false; RefreshBindings(); Status = Localizer.Text("StatusDaemonNotRunning");
                 ResetWaveInterfaces();
                 ResetBrowserTabs();
+                ResetAppRouting();
                 Inserts.ResetForNewConnection(); Inserts2.ResetForNewConnection();
                 foreach (MixViewModel mv in Mixes) mv.Inserts.ResetForNewConnection();
                 foreach (ChannelViewModel channel in Channels) channel.Inserts?.ResetForNewConnection();
@@ -969,6 +970,7 @@ public sealed partial class MainViewModel : ViewModelBase
             ApplyMixer(node["mixer"]);
             ApplyStreams(node["mixer"]);
             ApplyBrowserTabs(node["mixer"]);
+            ApplyAppRouting(node["mixer"]);
             Ducking.Apply(node["ducking"], node["mixer"]);
             // The daemon says whether XLR 1's signal has a hardware low cut and
             // ClipGuard in front of it; an older daemon leaves the window to

@@ -12,7 +12,7 @@
 %global deepfilter_version 0.5.6
 
 Name:           openxlr
-Version: 0.2.6
+Version: 0.3.0
 Release:        1%{?dist}
 Summary:        Linux Wave Link replacement for Elgato XLR interfaces and Wave microphones
 # OpenXLR is GPL-3.0-only. The native helper links RNNoise (BSD-3-Clause),
@@ -224,6 +224,14 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Tue Oct 27 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.3.0-1
+- Mixer: noise removal per microphone with RNNoise or DeepFilterNet 3, built into every package.
+- Mic setup: a guided window for position, level, listening and shape, replacing Sound Check, with a gain suggestion.
+- Mixer: the microphone EQ takes one to sixteen bands; the terminal mixer and the Deck edit its bands.
+- Window: the separate mixer window scales to 125 to 300 percent, to fit the window or a custom size.
+- Mixer: automatic routing of new applications can be turned off.
+- Daemon: the control API moves to a Unix socket with peer credentials; no token or TCP port.
+
 * Mon Oct 26 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.2.6-1
 - Devices: the Wave XLR Pro no longer plays Line In straight to the headphone jacks beside its channel.
 - Devices: a Level Lock for the Wave XLR Pro's Line In, in the UI, the Deck and the terminal mixer.

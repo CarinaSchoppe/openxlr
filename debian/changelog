@@ -1,3 +1,14 @@
+openxlr (0.3.0) resolute; urgency=medium
+
+  * Mixer: noise removal per microphone with RNNoise or DeepFilterNet 3, built into every package.
+  * Mic setup: a guided window for position, level, listening and shape, replacing Sound Check, with a gain suggestion.
+  * Mixer: the microphone EQ takes one to sixteen bands; the terminal mixer and the Deck edit its bands.
+  * Window: the separate mixer window scales to 125 to 300 percent, to fit the window or a custom size.
+  * Mixer: automatic routing of new applications can be turned off.
+  * Daemon: the control API moves to a Unix socket with peer credentials; no token or TCP port.
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Tue, 27 Oct 2026 18:24:16 +0000
+
 openxlr (0.2.6) resolute; urgency=medium
 
   * Devices: the Wave XLR Pro no longer plays Line In straight to the headphone jacks beside its channel.

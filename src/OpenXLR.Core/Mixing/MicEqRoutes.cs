@@ -24,8 +24,9 @@ namespace OpenXLR.Core.Mixing;
 /// behind it keeps running and no plugin restarts. Every value change, the
 /// EQ's own switch included, goes to the running stage live; turning the EQ
 /// off bypasses inside the stage and keeps it running until the route is
-/// next built, so on and off compare at once. A microphone whose EQ is off
-/// when its route is built gets no stage.
+/// next built, so on and off compare at once. The same stage runs the
+/// microphone's noise removal ahead of the EQ (<see cref="NoiseFor"/>), and
+/// a microphone with neither on when its route is built gets no stage.
 /// </summary>
 public sealed partial class Mixer
 {
@@ -216,8 +217,11 @@ public sealed partial class Mixer
     public static string EqSoftwareOnly(string channel)
         => $"setEqProcessing: '{channel}' is a capture input, whose EQ always runs on this computer";
 
-    /// <summary>Whether a route built now would put a software EQ stage at the channel's head.</summary>
+    /// <summary>Whether a route built now would run the channel's EQ in a software stage at its head.</summary>
     internal bool EqWantsSoftwareStage(string channel) { lock (_gate) return CarriesEqLocked(channel) && SoftwareEqLocked(channel).Enabled; }
+
+    /// <summary>Whether a route built now would put the microphone stage at the channel's head, for its EQ, its noise removal or both.</summary>
+    internal bool WantsMicrophoneStage(string channel) { lock (_gate) return StageWantedLocked(channel); }
 
     /// <summary>Whether a channel's EQ is software's to run: no unit runs it and none is still letting it go.</summary>
     private bool EqInSoftwareLocked(string channel) => !_eqDevices.ContainsKey(channel) && !_eqReleasing.ContainsKey(channel);
@@ -417,16 +421,18 @@ public sealed partial class Mixer
     }
 
     /// <summary>
-    /// Bring a microphone's software stage to its values: written live to a
-    /// running stage, which builds nothing; spliced in when the EQ is on, runs
-    /// in software and no stage runs. A stage that refuses a value is
-    /// replaced. A stage whose unit took the EQ over is switched off and kept
-    /// until the route is next built.
+    /// Bring a microphone's software stage to its values, the EQ's and noise
+    /// removal's: written live to a running stage, which builds nothing;
+    /// spliced in when either is on (the EQ running in software) and no stage
+    /// runs. A stage that refuses a value is replaced. A stage whose unit took
+    /// the EQ over is switched off and kept until the route is next built, as
+    /// is one whose noise removal and EQ were both switched off.
     /// </summary>
     private void ApplySoftwareEqLocked(string channel)
     {
         if (!_built) return;
         MicEq eq = SoftwareEqLocked(channel);
+        MicNoise noise = NoiseLocked(channel);
         if (_eqStages.TryGetValue(channel, out SoftwareEqBackend? stage))
         {
             if (stage.IsAlive && (!eq.Enabled || stage.BandCount == eq.Bands.Count))
@@ -435,6 +441,7 @@ public sealed partial class Mixer
                 {
                     if (stage.BandCount == eq.Bands.Count) stage.Apply(eq);
                     else stage.SetEnabled(false);
+                    stage.ApplyNoise(noise);
                     return;
                 }
                 catch (InvalidOperationException ex)
@@ -445,7 +452,7 @@ public sealed partial class Mixer
             SpliceEqLocked(channel, replace: true);
             return;
         }
-        if (!eq.Enabled) return;
+        if (!eq.Enabled && !noise.Enabled) return;
         // A capture input without inserts plays on its direct feed, which
         // has no head to splice into: it moves to its own route, with the
         // stage at the head, as an insert would move it. A source that is
@@ -509,11 +516,12 @@ public sealed partial class Mixer
         string key = EqKey(ch.Id);
         if (_restarts.Blocked(key)) return null;
         MicEq eq = SoftwareEqLocked(ch.Id);
+        MicNoise noise = NoiseLocked(ch.Id);
         FilterHandle? filter = null;
         try
         {
-            filter = _pw.CreateMicEq($"{ch.Id}_{++_eqGeneration}", SoftwareEqBackend.Controls(eq), eq.Bands.Count);
-            var stage = new SoftwareEqBackend(_pw, filter, eq);
+            filter = _pw.CreateMicEq($"{ch.Id}_{++_eqGeneration}", SoftwareEqBackend.Controls(eq, noise), eq.Bands.Count);
+            var stage = new SoftwareEqBackend(_pw, filter, eq, noise);
             into = RouteInputLocked(upstream, stage.Node, ch, upstreamProcessed);
             if (into.Pairs.Count == 0) throw new InvalidOperationException("The microphone could not be linked into its EQ.");
             _eqErrors.Remove(ch.Id);
@@ -615,7 +623,7 @@ public sealed partial class Mixer
         }
         if (!_pw.EqHostInstalled) return changed;
         foreach (ChannelDefinition ch in _config.Channels.Where(CarriesEq).ToList())
-            if (waitingForPause?.Contains(ch.Id) != true && !_eqStages.ContainsKey(ch.Id) && SoftwareEqLocked(ch.Id).Enabled && !_restarts.Blocked(EqKey(ch.Id))
+            if (waitingForPause?.Contains(ch.Id) != true && !_eqStages.ContainsKey(ch.Id) && StageWantedLocked(ch.Id) && !_restarts.Blocked(EqKey(ch.Id))
                 && _eqErrors.ContainsKey(ch.Id) && _inputFeeds.ContainsKey(ch.Id))
                 changed |= SpliceEqLocked(ch.Id, replace: false);
         return changed;

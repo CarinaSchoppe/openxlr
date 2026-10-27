@@ -186,8 +186,9 @@ public sealed partial class Mixer
             var movedApps = _apps.Where(kv => kv.Value.ChannelId == id).ToDictionary(kv => kv.Key, kv => kv.Value);
             string[] movedSites = [.. _browserSiteChannels.Where(kv => kv.Value == id).Select(kv => kv.Key)];
             _inserts.Remove(id, out List<InsertDefinition>? previousInserts);
-            // The saved file loses the channel's EQ with the channel.
+            // The saved file loses the channel's EQ and noise removal with the channel.
             _eq.Remove(id, out MicEq? previousEq);
+            _noise.Remove(id, out MicNoise? previousNoise);
             CellSnapshot cells = TakeChannelCellsLocked(id, previous.Mixes);
             _config = next;
             foreach (string identity in movedOverrides) Matcher.SetOverride(identity, fallback.Id);
@@ -199,6 +200,7 @@ public sealed partial class Mixer
                 _config = previous;
                 if (previousInserts is not null) _inserts[id] = previousInserts;
                 if (previousEq is not null) _eq[id] = previousEq;
+                if (previousNoise is not null) _noise[id] = previousNoise;
                 cells.Restore(this);
                 foreach (string identity in movedOverrides) Matcher.SetOverride(identity, id);
                 foreach ((string identity, StreamAssignment app) in movedApps) _apps[identity] = app;

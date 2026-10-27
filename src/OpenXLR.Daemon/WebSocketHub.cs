@@ -414,6 +414,7 @@ public sealed class WebSocketHub
             case "setEqEnabled":
             case "setEqBand":
             case "setEqProcessing":
+            case "setNoiseRemoval":
             case "setDucking":
             case "setDuckingProcessing":
                 error = _mixer.Apply(cmd);                     // broadcasts on success

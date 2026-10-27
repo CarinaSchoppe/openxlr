@@ -1025,6 +1025,64 @@ public sealed class PipeWireAdapter
     /// <summary>Whether the microphone EQ's helper is there to start.</summary>
     internal bool EqHostInstalled => File.Exists(EqHost ?? NativePluginHost.Executable);
 
+    // The engines each helper build said it carries, by its path and time.
+    private readonly Dictionary<string, IReadOnlyList<string>> _noiseEngines = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The noise removal engines the microphone stage's helper carries, as its
+    /// <c>engines</c> command reports them, in <see cref="MicNoise.Engines"/>
+    /// order. Asked once per build of the helper; empty without a helper and
+    /// from one that does not answer.
+    /// </summary>
+    internal IReadOnlyList<string> NoiseEngines
+    {
+        get
+        {
+            string executable = EqHost ?? NativePluginHost.Executable;
+            DateTime built;
+            try
+            {
+                if (!File.Exists(executable)) return [];
+                built = File.GetLastWriteTimeUtc(executable);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
+            string key = executable + "\n" + built.Ticks.ToString(CultureInfo.InvariantCulture);
+            lock (_noiseEngines)
+            {
+                if (_noiseEngines.TryGetValue(key, out IReadOnlyList<string>? known)) return known;
+                IReadOnlyList<string> engines = [];
+                try
+                {
+                    ProcessResult result = ProcessRunner.Run(executable, ["engines"], TimeSpan.FromSeconds(3), stdoutCap: 4096);
+                    if (result.ExitCode == 0) engines = ParseNoiseEngines(System.Text.Encoding.UTF8.GetString(result.Stdout));
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or IOException or System.ComponentModel.Win32Exception) { }
+                _noiseEngines[key] = engines;
+                return engines;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The engines in the helper's <c>engines</c> line, a JSON object whose
+    /// <c>denoise</c> array names them; names this daemon does not know are
+    /// left out, and anything unreadable is no engine at all.
+    /// </summary>
+    internal static IReadOnlyList<string> ParseNoiseEngines(string? output)
+    {
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(output ?? "");
+            if (document.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("denoise", out var list)
+                || list.ValueKind != System.Text.Json.JsonValueKind.Array) return [];
+            var named = list.EnumerateArray().Where(e => e.ValueKind == System.Text.Json.JsonValueKind.String)
+                .Select(e => e.GetString()).ToHashSet(StringComparer.Ordinal);
+            return [.. MicNoise.Engines.Where(named.Contains)];
+        }
+        catch (System.Text.Json.JsonException) { return []; }
+    }
+
     /// <summary>The duck stage's helper; null uses the installed helper beside the daemon.</summary>
     internal string? DuckHost { get; set; }
 
@@ -1081,7 +1139,7 @@ public sealed class PipeWireAdapter
         try
         {
             host = new NativePluginHost(new() { Id = id, Kind = "eq", Plugin = bands.ToString(CultureInfo.InvariantCulture), Params = new(controls) },
-                node, 1, rate, executable, [], meterSymbols: new HashSet<string>(StringComparer.Ordinal));
+                node, 1, rate, executable, [], meterSymbols: SoftwareEqBackend.Meters);
         }
         catch (InvalidOperationException ex)
         {

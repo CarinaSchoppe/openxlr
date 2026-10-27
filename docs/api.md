@@ -115,7 +115,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 
 | Type | When | Content |
 |---|---|---|
-| `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes), `recallOnConnect` (the profile recalled when the device connects, or null), `warning` (one sentence the user should see, or null: the mixer waiting for the audio server, which did not answer when the daemon built the graph (see `mixerWaiting`), mixer settings that cannot be written to disk, which the daemon keeps retrying with backoff, a device set aside after three hung USB transfers in one run, a device that does not answer USB reads (named, with the error, until a read succeeds or the unit leaves the bus), hardware input strips left silent because the capture node's name matches two units or because several interfaces are attached and none is driven, a hardware strip bound to a source that is missing, named twice, lacks the selected port or is not linked yet, one sentence per strip with the strip's name in front, or additional interface choices that could not be read or saved). In the mixer state, each channel carries `hardware` (true for the fixed input channels), `captureSource` (exact external source name or null), `capturePair` (zero-based pair), `captureMonoChannel` (the one zero-based source port fed to both sides, or null for a pair), `captureConnected` (its direct or chained capture route exists), `microphone` (true for `xlr1`, `xlr2` and a capture input with `captureMonoChannel` set), `chainWidth` (1 for those microphone inputs, 2 for a capture pair, null for Aux In, Line In and application channels; the binding decides this while unplugged too), `binding`, `bindingConnected`, `bindingWarning` and `unitInput` (see [input bindings](#input-bindings)), `present` (whether a client should draw the strip, see [input bindings](#input-bindings); `xlr2`, `aux` and `line` are absent on every model but the Wave XLR Pro, and `line` also needs the Pro's capture source in its 18-channel layout), `exclusiveGroup` (the id of the exclusive group the channel is in, or null), `volume` (the channel's own volume, 0 to 1, which `setChannelVolume` sets; every channel has one, `xlr1`, `xlr2`, `aux` and `line` included; an older daemon reports null for a hardware input), `captureGain` (on a capture input whose source OpenXLR does not drive, `{gainDb, minDb, maxDb, hardware}`, which `setCaptureGain` sets; absent on every other channel, on a capture input that takes a Wave unit's input, while the source is missing, and from an older daemon; see [capture input gain](#capture-input-gain)), and on a microphone channel, `xlr1`, `xlr2` and a capture input whose `microphone` is true, `eq` (see [microphone EQ](#microphone-eq); absent on every other channel, a capture input on a stereo pair included, and from an older daemon). An absent channel stays in the list and keeps its levels, so a client leaves it out of its strips rather than forgetting it. A capture channel is editable but cannot receive application assignments; `renamedSinceStart` says a user mix was renamed since the daemon started (its PipeWire device keeps the old name until a restart), and `layoutWarning` is a sentence for the layout editor when pipewire-pulse nears its open-file limit, or null. Every channel and mix also carries `appearance {icon, colour, hidden, defaultIcon}`: the first three as `setLayoutAppearance` set them (`icon` empty, `colour` null and `hidden` false by default), and `defaultIcon`, read-only, the built-in icon name the daemon chose for the item's kind, never empty (see [mixer-layout.md](mixer-layout.md#appearance) for the rule). A client draws `icon` when it is a text glyph or a name it can draw, nothing when it is `none`, and `defaultIcon` otherwise, which covers an empty `icon` and a name only a skin defines. The built-in names, their text characters and their path data are in `plugin/com.emaspa.openxlr.sdPlugin/icons.json`, generated from `src/OpenXLR.Core/Mixing/LayoutIcons.cs`. A client draws a hidden channel's sends and applications as usual and only leaves out its strip; for a hidden mix it leaves out the mix's master and the sends into it from its full mixer, and keeps the mix in output and monitor feed choices. The mixer state's `outputAppearance` maps the headphone outputs `phones1` and `phones2` to `{icon, colour, hidden, defaultIcon}` in the same form, `hidden` always false and `defaultIcon` `headset`; a model with one headphone output still carries both entries. Each mix carries `id`, `name`, `volume`, `muted`, `editable` (true for every monitor mix and virtual microphone, including Monitor A/B; false for Aux), `deletable` (editable and not the last remaining monitor) and `kind` (`monitor`, `virtualMic` or `auxPort`; a monitor mix the user added is `monitor` and editable), which gives a client the mix's volume ceiling. `defaultMonitorMix` names the implicit feed for outputs without an entry in `monitorFeeds`, independent of display order; `outputVolume` is the first selected output's volume, 0 to 1.5, or null with no output selected. In `devices`, every entry that is a sink carries `volume` (desktop scale, 1.0 = 100%) and `muted`; sources and the Wave XLR Pro pseudo-outputs omit both. A source carries `channels` and `positions` when PipeWire reports them, and any entry can carry `drivenUnit` (see below). A state is pushed whenever a sink's volume or mute changes |
+| `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes), `recallOnConnect` (the profile recalled when the device connects, or null), `warning` (one sentence the user should see, or null: the mixer waiting for the audio server, which did not answer when the daemon built the graph (see `mixerWaiting`), mixer settings that cannot be written to disk, which the daemon keeps retrying with backoff, a device set aside after three hung USB transfers in one run, a device that does not answer USB reads (named, with the error, until a read succeeds or the unit leaves the bus), hardware input strips left silent because the capture node's name matches two units or because several interfaces are attached and none is driven, a hardware strip bound to a source that is missing, named twice, lacks the selected port or is not linked yet, one sentence per strip with the strip's name in front, or additional interface choices that could not be read or saved). In the mixer state, each channel carries `hardware` (true for the fixed input channels), `captureSource` (exact external source name or null), `capturePair` (zero-based pair), `captureMonoChannel` (the one zero-based source port fed to both sides, or null for a pair), `captureConnected` (its direct or chained capture route exists), `microphone` (true for `xlr1`, `xlr2` and a capture input with `captureMonoChannel` set), `chainWidth` (1 for those microphone inputs, 2 for a capture pair, null for Aux In, Line In and application channels; the binding decides this while unplugged too), `binding`, `bindingConnected`, `bindingWarning` and `unitInput` (see [input bindings](#input-bindings)), `present` (whether a client should draw the strip, see [input bindings](#input-bindings); `xlr2`, `aux` and `line` are absent on every model but the Wave XLR Pro, and `line` also needs the Pro's capture source in its 18-channel layout), `exclusiveGroup` (the id of the exclusive group the channel is in, or null), `volume` (the channel's own volume, 0 to 1, which `setChannelVolume` sets; every channel has one, `xlr1`, `xlr2`, `aux` and `line` included; an older daemon reports null for a hardware input), `captureGain` (on a capture input whose source OpenXLR does not drive, `{gainDb, minDb, maxDb, hardware}`, which `setCaptureGain` sets; absent on every other channel, on a capture input that takes a Wave unit's input, while the source is missing, and from an older daemon; see [capture input gain](#capture-input-gain)), and on a microphone channel, `xlr1`, `xlr2` and a capture input whose `microphone` is true, `eq` (see [microphone EQ](#microphone-eq)) and `noise` (see [noise removal](#noise-removal)), both absent on every other channel, a capture input on a stereo pair included, and from an older daemon. An absent channel stays in the list and keeps its levels, so a client leaves it out of its strips rather than forgetting it. A capture channel is editable but cannot receive application assignments; `renamedSinceStart` says a user mix was renamed since the daemon started (its PipeWire device keeps the old name until a restart), and `layoutWarning` is a sentence for the layout editor when pipewire-pulse nears its open-file limit, or null. Every channel and mix also carries `appearance {icon, colour, hidden, defaultIcon}`: the first three as `setLayoutAppearance` set them (`icon` empty, `colour` null and `hidden` false by default), and `defaultIcon`, read-only, the built-in icon name the daemon chose for the item's kind, never empty (see [mixer-layout.md](mixer-layout.md#appearance) for the rule). A client draws `icon` when it is a text glyph or a name it can draw, nothing when it is `none`, and `defaultIcon` otherwise, which covers an empty `icon` and a name only a skin defines. The built-in names, their text characters and their path data are in `plugin/com.emaspa.openxlr.sdPlugin/icons.json`, generated from `src/OpenXLR.Core/Mixing/LayoutIcons.cs`. A client draws a hidden channel's sends and applications as usual and only leaves out its strip; for a hidden mix it leaves out the mix's master and the sends into it from its full mixer, and keeps the mix in output and monitor feed choices. The mixer state's `outputAppearance` maps the headphone outputs `phones1` and `phones2` to `{icon, colour, hidden, defaultIcon}` in the same form, `hidden` always false and `defaultIcon` `headset`; a model with one headphone output still carries both entries. Each mix carries `id`, `name`, `volume`, `muted`, `editable` (true for every monitor mix and virtual microphone, including Monitor A/B; false for Aux), `deletable` (editable and not the last remaining monitor) and `kind` (`monitor`, `virtualMic` or `auxPort`; a monitor mix the user added is `monitor` and editable), which gives a client the mix's volume ceiling. `defaultMonitorMix` names the implicit feed for outputs without an entry in `monitorFeeds`, independent of display order; `outputVolume` is the first selected output's volume, 0 to 1.5, or null with no output selected. In `devices`, every entry that is a sink carries `volume` (desktop scale, 1.0 = 100%) and `muted`; sources and the Wave XLR Pro pseudo-outputs omit both. A source carries `channels` and `positions` when PipeWire reports them, and any entry can carry `drivenUnit` (see below). A state is pushed whenever a sink's volume or mute changes |
 | `diagnostics` | in answer to `getDiagnostics` | `blocks`, mapping vendor block names to hex strings or read errors. An XLR Dock adds `paths`, the card number and the path each of its gain, mute and headphone controls takes (`Alsa` through the card's mixer, `Block` through the dock's config block when the card lacks the control, `None` when the USB handle is closed too, so the control is unavailable), and `alsa`, the values read through the card. `usbFault` carries the last USB fault of this run and `error` a dump that failed |
 | `meters` | 15 Hz while the mixer is built | live stereo levels per channel (`ch:<id>`) and mix (`mix:<id>`), and `duck:<id>` for each mix with a running software [ducking](#ducking) stage: one value, the reduction in dB now (0 while the key is quiet). While a client keeps a [meter before the chain](#meter-before-the-chain) running, `in:<id>` carries that microphone's `[rms, peak, clip]`, and while a [Sound Check](#sound-check) take loops, `take:<id>` carries one value, where the loop is across the take from 0 to 1 |
 | `soundCheckTake` | once, when the Sound Check helper finishes a take, and in answer to `getSoundCheckTake` | `channel`, `take` (the take's number in the session, from 1), `seconds` (its length) and `peaks` (200 values from 0 to 1, the peak of each stretch of the take in order); without a take `channel` is null, `take` 0 and `peaks` empty. See [Sound Check](#sound-check) |
@@ -308,6 +308,7 @@ that final acknowledgement (or an `error` without a request id):
 | `setEqEnabled` | `channel`, `value` | the EQ's own switch, a boolean. Off bypasses inside the running stage, so on and off compare at once |
 | `setEqBand` | `channel`, `band`, at least one of `enabled`, `type`, `frequency`, `gain`, `q` | change part of one existing band, numbered from 1 to 16; an absent field keeps its value. Values outside the ranges are refused, not clamped, and what is taken is snapped onto the EQ's steps. Switching the EQ on, here or through `setEq`, is refused at once when the native plugin host is not installed and no unit runs the channel's EQ |
 | `setEqProcessing` | `channel`, `value` | where a microphone's EQ runs when the unit it carries can run it: `device` (the default) on the unit's own DSP, or `software` on this computer. Any other value is refused. Saved in `mixer.json` under `eqProcessing`, never in a profile. Moving between the two switches the leaving one off first. Refused on a capture input, whose EQ always runs on this computer. See [where the EQ runs](#where-the-eq-runs) |
+| `setNoiseRemoval` | `channel`, at least one of `enabled`, `engine`, `strength` | a microphone's noise removal: `enabled` a boolean, `engine` `rnnoise` or `deepfilternet`, `strength` the most the noise is turned down, 0 to 100 dB. The channel rules are those of `setEq`. Values outside the range are refused, not clamped. Switching it on is refused at once when the native plugin host is not installed, and an engine the host was built without is refused. See [noise removal](#noise-removal) |
 | `adjustOutputVolume` | optional `device`, `value` | change a PipeWire output by desktop percentage points (`0.05` is 5%). Finite steps from -0.5 to 0.5, final volume clamped to 0 through 1.5. Omit `device` for the current desktop default |
 | `setOutputDeviceVolume` | optional `device`, `value` | set a PipeWire output's desktop volume; `value` finite, 0 to 1.5 on the desktop scale (1.0 is 100%), rejected outside that range. A monitor mix sink is set through its mix master; a selected monitor output follows the linked monitor-volume behaviour. Omit `device` for the current desktop default; device names are accepted and rejected as for `adjustOutputVolume` |
 | `toggleOutputMute` | optional `device` | toggle an output's mute; omit `device` for the current desktop default. On a selected physical monitor output it toggles `monitorMuted` for the whole monitor selection, as pressing a Deck monitor dial does; on a monitor mix sink it toggles only that mix; on any other output it toggles the sink's mute at the audio server |
@@ -1190,7 +1191,8 @@ All under `~/.config/openxlr/` (or `$XDG_CONFIG_HOME/openxlr/`):
   `preserveBrowserOutputs` and
   `browserSiteChannels` (origin-to-channel defaults, all machine settings
   absent from profiles), the software low
-  cut, the insert chains, the microphone EQs (`eq`) and where they run
+  cut, the insert chains, the microphone EQs (`eq`), noise removal
+  (`noiseRemoval`) and where the EQs run
   (`eqProcessing`), the [ducking](#ducking) setup (`ducking`), the
   per-channel volumes (`channelVolumes`), the exclusive groups
   (`exclusiveGroups`), the monitor feeds (`monitorFeeds`),
@@ -1532,7 +1534,9 @@ native plugin host at the head of the input's route, before the software
 low cut, ClipGuard and the inserts, so the channel volume, the sends, the
 meters and Sound Check's loop all see the equalised signal; in software the
 Wave XLR Pro's zero-latency hardware path and the other units' hardware
-monitor mix carry the raw microphone. It adds no latency. It is off until
+monitor mix carry the raw microphone. It adds no latency of its own; noise
+removal, which runs first in the same stage, does (see
+[noise removal](#noise-removal)). It is off until
 switched on.
 
 A channel's `eq` in the mixer state is
@@ -1715,6 +1719,76 @@ additional interface's input that no microphone carries, or in
 hardware-control mode: the unit keeps the EQ it last held.
 Another channel taking the same unit's audio, a capture channel on its node,
 hears the unit's EQ, as it hears the unit's low cut.
+
+### Noise removal
+
+Every channel that carries the [microphone EQ](#microphone-eq) (XLR 1,
+XLR 2 and every capture input on one mono port) has noise removal, with a
+choice of two engines:
+
+- `rnnoise`: RNNoise 0.2 from Xiph. Light on the processor, best on steady
+  noise such as hiss, hum and fans. It adds 30 ms.
+- `deepfilternet`: DeepFilterNet 3. Cleaner on keyboards, changing noise and
+  some room echo, at a higher processor cost. It adds its own 30 ms, plus
+  one audio quantum and 20 ms, because it runs on a thread of its own and
+  never on the audio thread: 55 ms at a quantum of 256, 71 ms at 1024.
+
+Both run at 48 kHz on mono audio. On a graph running at another rate the
+microphone passes through untouched and `error` says why. Noise removal
+runs in the native plugin host, first in the same stage as the software EQ,
+so the EQ, the software low cut, ClipGuard, the inserts, the channel
+volume, the sends, the meters and Sound Check's loop all hear the cleaned
+signal. Where the unit's own DSP runs the EQ, the stage runs noise removal
+alone. It is off until switched on.
+
+A channel's `noise` in the mixer state is
+`{enabled, engine, strength, engines, active, latencyMs, available, error}`:
+
+- `enabled`, `engine` and `strength`: the setting. `strength` is the most
+  the noise is turned down, 0 to 100 dB in whole decibels; at 100 the engine
+  works unlimited and at 0 the microphone passes through, late by the
+  engine's delay. DeepFilterNet takes it as its attenuation limit; RNNoise
+  mixes the microphone back in under its output at that level, so the same
+  figure means the same thing for both. The defaults are off, `rnnoise` and
+  100.
+- `engines`: the engines this installation's native plugin host carries,
+  from its `engines` command. Every package carries both; a build from
+  source without Rust carries only `rnnoise`. Empty without the host.
+- `active`: the engine heard now, or null. It lags `engine` while a change
+  fades over, and while DeepFilterNet loads its model, which takes a moment
+  the first time; the engine that played keeps playing meanwhile.
+- `latencyMs`: the delay the running engine adds, or null.
+- `available`: false when the native plugin host is not installed, or after
+  the stage failed three times in five minutes.
+- `error`: why the setting does not run as asked, or null: no host, an
+  engine this host was built without, a graph not at 48 kHz, an engine that
+  could not start, or DeepFilterNet stopping or not keeping up, which turns
+  noise removal off until it is switched off and on again or the other
+  engine is chosen.
+
+`setNoiseRemoval` takes the channel and at least one of `enabled`, `engine`
+and `strength`; an absent field keeps its value. Values outside the range
+are refused, not clamped, and the strength taken is snapped to whole
+decibels. Switching it on is refused at once when the native plugin host is
+not installed, and choosing an engine the host lacks is refused with
+`setNoiseRemoval: this installation's plugin host was built without
+DeepFilterNet`.
+
+Switching noise removal on with the EQ off starts the stage and links it in
+at the head of the route, as switching the EQ on does, and the microphone is
+never silent. Every other change goes to the running stage: the switch, the
+engine and the strength. Turning noise removal on or off, or changing the
+engine, fades the microphone out over 5 ms and back in over 5 ms, since the
+engines' outputs are late by different amounts and cannot be crossfaded;
+the strength changes at once. Switched off, the stage stays, with the EQ in
+it, until the route is next built.
+
+Noise removal is saved in `mixer.json` under `noiseRemoval`, by channel id,
+as `{enabled, engine, strength}`. A microphone absent there has it off. A
+profile saved now carries `mixer.noiseRemoval` for every microphone; a
+recall replaces the setting of each channel it names, and a profile
+without it, as every older one is, leaves noise removal alone. Deleting a
+capture input drops its setting with the channel.
 
 ### Ducking
 

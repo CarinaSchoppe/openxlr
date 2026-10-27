@@ -148,6 +148,15 @@ from firmware 1.0.14, the unit's own DSP runs the EQ, `eq.backend` reads `device
 `{"cmd":"setEqProcessing","channel":"xlr1","value":"software"}` moves XLR 1's
 EQ to this computer and `"value":"device"` back to the unit (see
 [where the EQ runs](api.md#where-the-eq-runs)).
+
+[Noise removal](api.md#noise-removal) takes one command, with any of its
+three fields:
+`{"cmd":"setNoiseRemoval","channel":"xlr1","enabled":true,"engine":"deepfilternet","strength":30}`
+switches XLR 1's noise removal on with DeepFilterNet and turns the noise
+down by at most 30 dB, and `{"cmd":"setNoiseRemoval","channel":"xlr1","strength":100}`
+lets it work unlimited. `GET /api/v1/channels/xlr1` reads it back as
+`noise`, with the engines this installation carries in `noise.engines`, the
+one heard now in `noise.active` and the delay it adds in `noise.latencyMs`.
 [Ducking](api.md#ducking) is one setup on any device:
 `{"cmd":"setDucking","value":{"enabled":true,"channels":["music","game"],"mixes":["monitor"],"amount":"high"}}`
 lowers Music and Game in Monitor A by 24 dB while XLR 1 is loud. The fields

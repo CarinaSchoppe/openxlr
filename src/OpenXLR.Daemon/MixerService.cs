@@ -1036,6 +1036,9 @@ public sealed class MixerService : IHostedService, IDisposable
                 case "setEqProcessing":
                     _mixer.SetEqProcessing(cmd.Channel!, cmd.Value.GetString()!);   // checked by CommandValidation
                     break;
+                case "setNoiseRemoval":
+                    _mixer.SetNoiseRemoval(cmd.Channel!, new MicNoiseChange(cmd.Enabled, cmd.Engine, cmd.Strength));
+                    break;
                 case "setDucking":
                 case "setDuckingProcessing":
                     // Saved in mixer.json before it applies; a failed save

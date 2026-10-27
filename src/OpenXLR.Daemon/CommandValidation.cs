@@ -85,6 +85,8 @@ public static class CommandValidation
             case "setEqBand":
             case "setEqProcessing":
                 return CheckEq(cmd, layout, nativeHostInstalled ?? PluginCatalog.HostInstalled);
+            case "setNoiseRemoval":
+                return CheckNoise(cmd, layout, nativeHostInstalled ?? PluginCatalog.HostInstalled);
             case "getNativeEditorRules":
                 return null;
             case "setNativeEditorRule":
@@ -371,6 +373,24 @@ public static class CommandValidation
                 EqBand probe = change.ApplyTo(MicEq.Default.Bands[0] with { Type = change.Type ?? MicEq.Peak });
                 return MicEq.Check(probe) is string problem ? $"setEqBand: {problem}" : null;
         }
+    }
+
+    /// <summary>
+    /// <c>setNoiseRemoval</c>: a microphone channel (one that carries the EQ)
+    /// and at least one of <c>enabled</c>, <c>engine</c> and <c>strength</c>,
+    /// each inside its range; a value outside it is refused, not clamped.
+    /// Switching it on is refused at once when the native helper is not
+    /// installed. Whether the helper carries the engine is the mixer's to say.
+    /// </summary>
+    internal static string? CheckNoise(Command cmd, ILayoutInfo layout, bool hostInstalled)
+    {
+        if (cmd.Channel is null) return "setNoiseRemoval: need 'channel'";
+        if (TooLong(cmd.Channel, 36) || !layout.IsMicrophoneChannel(cmd.Channel))
+            return $"setNoiseRemoval: '{Short(cmd.Channel)}' is not a microphone input";
+        var change = new MicNoiseChange(cmd.Enabled, cmd.Engine, cmd.Strength);
+        if (change.IsEmpty) return "setNoiseRemoval: need at least one of 'enabled', 'engine' and 'strength'";
+        if (MicNoise.Check(change.ApplyTo(MicNoise.Default)) is string problem) return $"setNoiseRemoval: {problem}";
+        return cmd.Enabled == true && !hostInstalled ? Mixer.NoiseNeedsHost : null;
     }
 
     /// <summary>The longest channel or mix list a <c>setDucking</c> may carry.</summary>

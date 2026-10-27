@@ -1253,6 +1253,8 @@ inserts keep running. An older daemon offers no Add or Remove controls.
 
 Rapid changes keep the latest value you chose while earlier reports arrive.
 After the short settling interval the editor follows external changes again.
+Removing a microphone closes its EQ editor and discards pending edits, so
+they cannot change a replacement channel with the same id.
 
 Open it with **EQ**. In INPUTS it sits on the microphone's input line,
 right after the chip that says what feeds it, and stands as tall as the

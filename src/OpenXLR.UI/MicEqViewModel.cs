@@ -36,7 +36,7 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     private readonly IEqCommands _commands;
     private readonly EqBandSender _sender;
     private readonly TimeProvider _time;
-    private bool _enabled, _comparing, _available = true;
+    private bool _enabled, _comparing, _disposed, _available = true;
     private bool? _awaitingEnabled;
     private long _awaitingEnabledSince;
     private string? _backend, _error;
@@ -91,8 +91,8 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
 
     public IReadOnlyList<EqBandViewModel> Bands { get; private set; }
 
-    public bool CanAddBand => Bands.Count < Limits.MaxBands;
-    public bool CanRemoveBand => Bands.Count > Limits.MinBands;
+    public bool CanAddBand => !_disposed && Bands.Count < Limits.MaxBands;
+    public bool CanRemoveBand => !_disposed && Bands.Count > Limits.MinBands;
     public bool VariableBands => Limits.MaxBands > Limits.MinBands;
 
     /// <summary>The ranges and steps the daemon reports, or the model's own from a daemon that sends none.</summary>
@@ -119,6 +119,7 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
         get => _enabled;
         set
         {
+            if (_disposed) return;
             if (_enabled == value && !_comparing) return;
             SetComparing(false, send: false);
             _enabled = value;
@@ -145,6 +146,7 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
 
     private void SetComparing(bool value, bool send)
     {
+        if (_disposed) return;
         if (_comparing == value) { Raise(nameof(Comparing)); return; }
         _comparing = value;
         if (send)
@@ -199,6 +201,7 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     /// </summary>
     public void ChooseProcessing(string value)
     {
+        if (_disposed) return;
         if (value is not ("device" or "software") || value == _processing || !HasProcessingChoice)
         {
             Raise(nameof(ProcessOnDevice));
@@ -332,6 +335,7 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     /// </summary>
     public void Apply(JsonNode eq, JsonNode? limits)
     {
+        if (_disposed) return;
         EqLimits read = ReadLimits(limits) ?? new EqLimits();
         if (read != Limits)
         {
@@ -432,7 +436,7 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     /// <summary>Put an EQ on this microphone: one <c>setEq</c>, in place of any band change still waiting.</summary>
     public void Replace(MicEq eq)
     {
-        if (MicEq.Check(eq) is not null) return;
+        if (_disposed || MicEq.Check(eq) is not null) return;
         eq = MicEq.Snap(eq);
         _sender.Clear();
         if (eq.Bands.Count != Bands.Count) { _awaitingShape = eq; _awaitingShapeSince = _time.GetTimestamp(); }
@@ -465,9 +469,9 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     /// <summary>Wave Link's four bands again, the switch left as it is.</summary>
     public void Reset() => Replace(MicEq.Default with { Enabled = _enabled });
 
-    public void Copy() => EqClipboard.Value = Current;
+    public void Copy() { if (!_disposed) EqClipboard.Value = Current; }
 
-    public bool CanPaste => EqClipboard.Value is { } eq && eq.Bands.Count >= Limits.MinBands && eq.Bands.Count <= Limits.MaxBands;
+    public bool CanPaste => !_disposed && EqClipboard.Value is { } eq && eq.Bands.Count >= Limits.MinBands && eq.Bands.Count <= Limits.MaxBands;
 
     public void Paste()
     {
@@ -479,7 +483,7 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     /// <summary>Queue part of a band for the daemon, at most once a send interval per band.</summary>
     internal void Send(EqBandViewModel band, EqBandChange change)
     {
-        if (Bands.Contains(band)) _sender.Queue(band.Number, change);
+        if (!_disposed && Bands.Contains(band)) _sender.Queue(band.Number, change);
     }
 
     /// <summary>The window closes: a comparison ends and the EQ comes back on.</summary>
@@ -487,7 +491,12 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+        _comparing = false;
         EqClipboard.Changed -= OnClipboardChanged;
+        // This EQ left the mixer. Pending edits must not reach a replacement with the same channel id.
+        _sender.Clear();
         _sender.Dispose();
     }
 }

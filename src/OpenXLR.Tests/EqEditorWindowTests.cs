@@ -339,12 +339,19 @@ public sealed class EqEditorWindowTests
             Assert.DoesNotContain(daemon.Commands, c => !EqCommands.Contains(c.Command["cmd"]!.GetValue<string>()));
 
             // A state without the EQ, from an older daemon: no button anywhere, and the editors go.
+            eq1.Enabled = true;
+            await Until(() => daemon.Eqs["xlr1"].Enabled);
+            eq1.Comparing = true;
+            await Until(() => !daemon.Eqs["xlr1"].Enabled);
+            daemon.Commands.Clear();
             daemon.WithEq = false;
             daemon.Pushes.Release();
             await Until(() => main.Channels.All(c => !c.HasEq));
             Pump(50);
             Assert.False(editor.IsVisible);
             Assert.False(second.IsVisible);
+            // Retiring the EQ must not restore comparison into a replacement with this id.
+            Assert.Empty(daemon.Commands);
             foreach (string name in new[] { "Xlr1Eq", "Xlr2Eq" })
                 Assert.False(window.FindControl<Button>(name)!.IsEffectivelyVisible);
             Assert.False(window.FindControl<WrapPanel>("SoftwareControls")!.IsEffectivelyVisible);

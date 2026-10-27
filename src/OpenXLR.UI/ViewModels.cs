@@ -1878,8 +1878,8 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
             if (_eq is { } gone)
             {
                 Eq = null;
-                EqWindows.Close(gone);
                 gone.Dispose();
+                EqWindows.Close(gone);
             }
             return;
         }

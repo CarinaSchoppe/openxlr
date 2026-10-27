@@ -12,9 +12,11 @@ public sealed class VariableEqEditorTests
     {
         public List<Eq> Whole { get; } = [];
         public List<int> Partial { get; } = [];
+        public List<bool> Switches { get; } = [];
+        public List<string> Processing { get; } = [];
         public Task SetEqAsync(string channel, Eq eq) { Whole.Add(eq); return Task.CompletedTask; }
-        public Task SetEqEnabledAsync(string channel, bool value) => Task.CompletedTask;
-        public Task SetEqProcessingAsync(string channel, string value) => Task.CompletedTask;
+        public Task SetEqEnabledAsync(string channel, bool value) { Switches.Add(value); return Task.CompletedTask; }
+        public Task SetEqProcessingAsync(string channel, string value) { Processing.Add(value); return Task.CompletedTask; }
         public Task SetEqBandAsync(string channel, int band, EqBandChange change) { Partial.Add(band); return Task.CompletedTask; }
     }
 
@@ -162,5 +164,41 @@ public sealed class VariableEqEditorTests
         clock.Ticks += TimeSpan.FromSeconds(2).Ticks;
         model.Apply(Node(Eq.Default with { Enabled = true }), Limits);
         Assert.False(model.Comparing);
+    }
+
+    [Fact]
+    public void RetiringAnEqDropsTheLastQueuedBandEdit()
+    {
+        var commands = new Commands();
+        using var model = new MicEqViewModel(commands, "guest", "Guest", TimeSpan.FromHours(1), new Clock());
+        model.Bands[0].Gain = 1;
+        Assert.Single(commands.Partial);
+        commands.Partial.Clear();
+        model.Bands[0].Gain = 2;
+        model.Dispose();
+        Assert.Empty(commands.Partial);
+    }
+
+    [Fact]
+    public void RetiredControlsCannotChangeAReplacementEqOrRestoreItsComparison()
+    {
+        var commands = new Commands();
+        using var model = new MicEqViewModel(commands, "xlr1", "Mic", TimeSpan.Zero);
+        JsonNode state = Node(Eq.Default with { Enabled = true });
+        state["processing"] = "device";
+        state["device"] = new JsonObject { ["name"] = "Unit", ["ready"] = true };
+        model.Apply(state, Limits);
+        model.Comparing = true;
+        commands.Switches.Clear();
+        model.Dispose();
+        model.EndComparison();
+        model.Enabled = false;
+        model.Replace(Eq.Default);
+        model.ChooseProcessing("software");
+        model.Bands[0].Gain = 1;
+        Assert.Empty(commands.Switches);
+        Assert.Empty(commands.Whole);
+        Assert.Empty(commands.Processing);
+        Assert.Empty(commands.Partial);
     }
 }

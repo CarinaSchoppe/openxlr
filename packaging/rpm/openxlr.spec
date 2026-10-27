@@ -3,14 +3,28 @@
 %global debug_package %{nil}
 %global __strip /usr/bin/true
 %global _build_id_links none
+# Nothing is stripped (above), so DeepFilterNet's Rust library is built
+# without the full debug information Fedora's RUSTFLAGS ask for, which
+# would make the native helper several times its size.
+%global rustflags_debuginfo 0
+# DeepFilterNet's version and model; native/Makefile checks the model
+# against its SHA-256.
+%global deepfilter_version 0.5.6
 
 Name:           openxlr
 Version: 0.2.6
 Release:        1%{?dist}
 Summary:        Linux Wave Link replacement for Elgato XLR interfaces and Wave microphones
-License:        GPL-3.0-only
+# OpenXLR is GPL-3.0-only. The native helper links RNNoise (BSD-3-Clause),
+# libDF and the DeepFilterNet 3 model (MIT OR Apache-2.0) and the Rust
+# crates DeepFilterNet is built from: most give a choice of MIT or
+# Apache-2.0, some are MIT only, prost is Apache-2.0, and the memchr and
+# regex families offer Unlicense OR MIT. `cargo metadata --filter-platform
+# x86_64-unknown-linux-gnu` in native/deepfilter lists every crate.
+License:        GPL-3.0-only AND BSD-3-Clause AND MIT AND Apache-2.0 AND (MIT OR Apache-2.0) AND (Unlicense OR MIT)
 URL:            https://github.com/emaspa/openxlr
 Source0:        %{name}-%{version}.tar.gz
+Source1:        https://raw.githubusercontent.com/Rikorose/DeepFilterNet/v%{deepfilter_version}/models/DeepFilterNet3_onnx.tar.gz#/DeepFilterNet3_onnx-%{deepfilter_version}.tar.gz
 ExclusiveArch:  x86_64
 
 BuildRequires:  dotnet-sdk-10.0
@@ -26,6 +40,11 @@ BuildRequires:  pipewire-devel
 BuildRequires:  lilv-devel
 BuildRequires:  lv2-devel
 BuildRequires:  libX11-devel
+# DeepFilterNet's noise removal is a Rust library linked into the helper.
+# Its crates come from crates.io during the build (COPR builds have the
+# network for the NuGet restore as well); Cargo.lock pins every one.
+BuildRequires:  cargo
+BuildRequires:  rust
 
 # Prebuilt .NET assemblies; dependencies are declared by hand, matching
 # the Debian and Arch packages.
@@ -75,10 +94,13 @@ interface once so the udev rule applies.
 
 %prep
 %autosetup
+install -Dm644 %{SOURCE1} native/deepfilter/model/DeepFilterNet3_onnx.tar.gz
 
 %build
 export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 \
        DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+# The native build fails rather than leave DeepFilterNet out.
+export DEEPFILTER=1
 dotnet publish src/OpenXLR.Daemon -c Release -r linux-x64 \
     --self-contained false -p:RestoreLockedMode=true \
     -p:EnableNativeLv2Host=true -o out/daemon
@@ -154,6 +176,14 @@ find %{buildroot}%{_datadir}/openxlr -type f -exec chmod 644 {} +
 find %{buildroot}%{_datadir}/openxlr -type d -exec chmod 755 {} +
 
 install -Dm644 LICENSE %{buildroot}%{_licensedir}/openxlr/LICENSE
+# The notices of the code the native helper carries.
+install -Dm644 native/rnnoise/COPYING %{buildroot}%{_licensedir}/openxlr/rnnoise/COPYING
+install -Dm644 native/deepfilter/libdf/LICENSE-MIT \
+    %{buildroot}%{_licensedir}/openxlr/deepfilter/LICENSE-MIT
+install -Dm644 native/deepfilter/libdf/LICENSE-APACHE \
+    %{buildroot}%{_licensedir}/openxlr/deepfilter/LICENSE-APACHE
+install -Dm644 native/clap/LICENSE %{buildroot}%{_licensedir}/openxlr/clap/LICENSE
+install -Dm644 native/vst3/LICENSE %{buildroot}%{_licensedir}/openxlr/vst3/LICENSE
 install -Dm644 README.md %{buildroot}%{_docdir}/openxlr/README.md
 
 %post
@@ -170,6 +200,10 @@ MSG
 
 %files
 %license %{_licensedir}/openxlr/LICENSE
+%license %{_licensedir}/openxlr/rnnoise/
+%license %{_licensedir}/openxlr/deepfilter/
+%license %{_licensedir}/openxlr/clap/
+%license %{_licensedir}/openxlr/vst3/
 %doc %{_docdir}/openxlr/README.md
 %{_prefix}/lib/openxlr/
 %{_bindir}/openxlr

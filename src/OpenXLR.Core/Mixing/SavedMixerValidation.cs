@@ -51,6 +51,7 @@ internal static class SavedMixerValidation
             Inserts = Inserts(settings, notes),
             Eq = Eq(settings.Eq, notes),
             EqProcessing = EqProcessing(settings.EqProcessing, notes),
+            NoiseRemoval = NoiseRemoval(settings.NoiseRemoval, notes),
             Ducking = Ducking(settings, notes),
             Appearance = Appearance(settings.Appearance, notes),
         };
@@ -67,6 +68,7 @@ internal static class SavedMixerValidation
         if (scene.MonitorFeeds is not null) Mapping(scene.MonitorFeeds, "monitorFeeds");
         if (scene.Inserts is not null) Inserts(scene.Inserts);
         if (scene.Eq is not null) Eq(scene.Eq);
+        if (scene.NoiseRemoval is not null) NoiseRemoval(scene.NoiseRemoval);
         if (scene.Ducking is { } ducking)
         {
             Require(!string.IsNullOrWhiteSpace(ducking.Key), "key must name a microphone channel", "ducking.key");
@@ -266,6 +268,23 @@ internal static class SavedMixerValidation
     }
 
     /// <summary>
+    /// Noise removal settings, each checked and snapped onto the strength's
+    /// steps. An entry that cannot be read is dropped and named, so that
+    /// microphone has noise removal off; the others are kept.
+    /// </summary>
+    private static Dictionary<string, MicNoise> NoiseRemoval(Dictionary<string, MicNoise>? entries, List<string> notes)
+    {
+        if (entries is null) { notes.Add($"noiseRemoval: {NullEntry}"); return []; }
+        var kept = new Dictionary<string, MicNoise>();
+        foreach ((string channel, MicNoise noise) in entries)
+        {
+            if (MicNoise.Check(noise) is string problem) notes.Add($"noiseRemoval.{channel}: {problem}");
+            else kept[channel] = MicNoise.Snap(noise);
+        }
+        return kept;
+    }
+
+    /// <summary>
     /// Where each microphone's EQ runs: an entry that is neither
     /// <c>device</c> nor <c>software</c> is dropped and named, and the channel
     /// takes the default.
@@ -324,6 +343,13 @@ internal static class SavedMixerValidation
     {
         foreach ((string channel, MicEq eq) in entries)
             if (MicEq.Check(eq) is string problem) throw new JsonException($"Invalid saved mixer field 'eq.{channel}': {problem}.");
+    }
+
+    private static void NoiseRemoval(IReadOnlyDictionary<string, MicNoise> entries)
+    {
+        foreach ((string channel, MicNoise noise) in entries)
+            if (MicNoise.Check(noise) is string problem)
+                throw new JsonException($"Invalid saved mixer field 'noiseRemoval.{channel}': {problem}.");
     }
 
     private static void Require([DoesNotReturnIf(false)] bool valid, string problem, string field)

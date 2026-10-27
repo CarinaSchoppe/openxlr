@@ -141,13 +141,26 @@
               </StackPanel>
               <StackPanel layout:StripPanel.Part="effects" Spacing="4">
                 <StackPanel Spacing="4" IsVisible="{Binding Main.HasMixer}">
-                  <!-- the microphone's EQ, then its plugin chain, in the order the signal meets them -->
+                  <!-- the microphone's EQ and noise removal, then its plugin chain -->
                   <WrapPanel Name="RackEffects" ItemSpacing="6" LineSpacing="4">
                     <Button Name="RackEq" Content="{loc:Text Key=Eq}" Classes="fx" Classes.fxOn="{Binding Channel.Eq.IsLit, FallbackValue=False}"
                             Classes.fxOff="{Binding Channel.Eq.IsFaulty, FallbackValue=False}"
                             Padding="12,3" FontSize="12" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"
                             IsVisible="{Binding Channel.HasEq}" Click="OnEq"
                             AutomationProperties.Name="{Binding Channel.Eq.ButtonName, FallbackValue=''}" ToolTip.Tip="{Binding Channel.Eq.ButtonTip, FallbackValue=''}"/>
+                    <Button Name="RackNoise" Content="{loc:Text Key=NoiseButton}" Classes="fx"
+                            Padding="12,3" FontSize="12" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"
+                            Classes.fxOn="{Binding Channel.Noise.IsLit, FallbackValue=False}" Classes.fxOff="{Binding Channel.Noise.IsFaulty, FallbackValue=False}"
+                            IsVisible="{Binding Channel.HasNoise, FallbackValue=False}"
+                            AutomationProperties.Name="{Binding Channel.Noise.ButtonName, FallbackValue=''}" ToolTip.Tip="{loc:Text Key=NoiseButtonTip}">
+                      <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedLeft">
+                          <StackPanel Classes="dev" MaxWidth="360">
+                            <views:NoiseRemovalControls DataContext="{Binding Channel.Noise}"/>
+                          </StackPanel>
+                        </Flyout>
+                      </Button.Flyout>
+                    </Button>
                     <Button Content="{Binding Main.Inserts.ButtonText}" Classes="fx" Classes.fxOn="{Binding Main.Inserts.IsProcessing}" Classes.fxOff="{Binding Main.Inserts.IsOff}"
                             Padding="12,3" FontSize="12"
                             MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"
@@ -238,13 +251,26 @@
               </StackPanel>
               <StackPanel layout:StripPanel.Part="effects" Spacing="4">
                 <StackPanel Spacing="4" IsVisible="{Binding Main.HasMixer}">
-                  <!-- the microphone's EQ, then its plugin chain, in the order the signal meets them -->
+                  <!-- the microphone's EQ and noise removal, then its plugin chain -->
                   <WrapPanel Name="RackEffects" ItemSpacing="6" LineSpacing="4">
                     <Button Name="RackEq" Content="{loc:Text Key=Eq}" Classes="fx" Classes.fxOn="{Binding Channel.Eq.IsLit, FallbackValue=False}"
                             Classes.fxOff="{Binding Channel.Eq.IsFaulty, FallbackValue=False}"
                             Padding="12,3" FontSize="12" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"
                             IsVisible="{Binding Channel.HasEq}" Click="OnEq"
                             AutomationProperties.Name="{Binding Channel.Eq.ButtonName, FallbackValue=''}" ToolTip.Tip="{Binding Channel.Eq.ButtonTip, FallbackValue=''}"/>
+                    <Button Name="RackNoise" Content="{loc:Text Key=NoiseButton}" Classes="fx"
+                            Padding="12,3" FontSize="12" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"
+                            Classes.fxOn="{Binding Channel.Noise.IsLit, FallbackValue=False}" Classes.fxOff="{Binding Channel.Noise.IsFaulty, FallbackValue=False}"
+                            IsVisible="{Binding Channel.HasNoise, FallbackValue=False}"
+                            AutomationProperties.Name="{Binding Channel.Noise.ButtonName, FallbackValue=''}" ToolTip.Tip="{loc:Text Key=NoiseButtonTip}">
+                      <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedLeft">
+                          <StackPanel Classes="dev" MaxWidth="360">
+                            <views:NoiseRemovalControls DataContext="{Binding Channel.Noise}"/>
+                          </StackPanel>
+                        </Flyout>
+                      </Button.Flyout>
+                    </Button>
                     <Button Content="{Binding Main.Inserts2.ButtonText}" Classes="fx" Classes.fxOn="{Binding Main.Inserts2.IsProcessing}" Classes.fxOff="{Binding Main.Inserts2.IsOff}"
                             Padding="12,3" FontSize="12"
                             MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"
@@ -450,13 +476,28 @@
                   <views:WaveUnitControls Name="RackExtraSwitches" Part="Switches" DataContext="{Binding ExtraUnit}"/>
                 </Panel>
               </StackPanel>
-              <!-- the microphone's EQ, on a capture input the daemon reports one for, then its plugin chain -->
+              <!-- the microphone's EQ and noise removal, on a capture input the daemon reports them for, then its plugin chain -->
               <StackPanel layout:StripPanel.Part="effects" Name="RackCaptureEffects" Spacing="4">
-                <Button Name="RackEq" Content="{loc:Text Key=Eq}" Classes="fx" Classes.fxOn="{Binding Channel.Eq.IsLit, FallbackValue=False}"
-                        Classes.fxOff="{Binding Channel.Eq.IsFaulty, FallbackValue=False}" HorizontalAlignment="Left"
-                        Padding="12,3" FontSize="12" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"
-                        IsVisible="{Binding Channel.HasEq}" Click="OnEq"
-                        AutomationProperties.Name="{Binding Channel.Eq.ButtonName, FallbackValue=''}" ToolTip.Tip="{Binding Channel.Eq.ButtonTip, FallbackValue=''}"/>
+                <WrapPanel Name="RackCaptureFx" ItemSpacing="6" LineSpacing="4">
+                  <Button Name="RackEq" Content="{loc:Text Key=Eq}" Classes="fx" Classes.fxOn="{Binding Channel.Eq.IsLit, FallbackValue=False}"
+                          Classes.fxOff="{Binding Channel.Eq.IsFaulty, FallbackValue=False}"
+                          Padding="12,3" FontSize="12" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"
+                          IsVisible="{Binding Channel.HasEq}" Click="OnEq"
+                          AutomationProperties.Name="{Binding Channel.Eq.ButtonName, FallbackValue=''}" ToolTip.Tip="{Binding Channel.Eq.ButtonTip, FallbackValue=''}"/>
+                  <Button Name="RackNoise" Content="{loc:Text Key=NoiseButton}" Classes="fx"
+                          Padding="12,3" FontSize="12" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"
+                          Classes.fxOn="{Binding Channel.Noise.IsLit, FallbackValue=False}" Classes.fxOff="{Binding Channel.Noise.IsFaulty, FallbackValue=False}"
+                          IsVisible="{Binding Channel.HasNoise, FallbackValue=False}"
+                          AutomationProperties.Name="{Binding Channel.Noise.ButtonName, FallbackValue=''}" ToolTip.Tip="{loc:Text Key=NoiseButtonTip}">
+                    <Button.Flyout>
+                      <Flyout Placement="BottomEdgeAlignedLeft">
+                        <StackPanel Classes="dev" MaxWidth="360">
+                          <views:NoiseRemovalControls DataContext="{Binding Channel.Noise}"/>
+                        </StackPanel>
+                      </Flyout>
+                    </Button.Flyout>
+                  </Button>
+                </WrapPanel>
                 <views:CaptureInsertsView DataContext="{Binding Channel}"/>
               </StackPanel>
             </layout:StripPanel>

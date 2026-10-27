@@ -56,6 +56,9 @@ python3 tools/deck-icons.py --check  # regenerate with no flag after changing La
 python3 tools/eq-reference.py --check  # regenerate with no flag after changing the EQ reference settings
 python3 packaging/flatpak/test-package.py  # the Flatpak manifest and its files
 python3 packaging/flatpak/nuget-sources.py --check  # regenerate with no flag after a package change
+python3 packaging/flatpak/cargo-sources.py --check  # regenerate with no flag after a change to native/deepfilter/Cargo.lock
+python3 packaging/check-deepfilter.py  # every package builds DeepFilterNet in, with the pinned model
+python3 packaging/ppa/test-prune-cargo-vendor.py  # the PPA's pruned crates still pass cargo's checksums
 shellcheck --severity=error tools/check-version.sh tools/check-locked-restore.sh tools/ci-install-packages.sh packaging/ppa/make-source.sh
 tools/check-version.sh                          # the six version locations agree
 tools/check-locked-restore.sh                   # every packaging path restores locked
@@ -66,7 +69,7 @@ python3 tools/omarchy-skins.py --check  # embedded meter tokens match the genera
 QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input packaging/omarchy/tests
 node --test packaging/omarchy/tests/*.test.mjs
 shellcheck --severity=error packaging/omarchy/openxlr-omarchy-enable
-make -C native  # C/C++, PipeWire, lilv, LV2 and X11 development headers
+make -C native  # C/C++, PipeWire, lilv, LV2 and X11 development headers; cargo for DeepFilterNet (DEEPFILTER=0 builds without)
 make -C native test-audio test-clap test-lv2 test-vst3 test-scan  # audio bounds, stall detection, CLAP bus layouts, latency reports, VST3 parameter and stream checks, scan phase markers
 dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~Lv2BundleTests|FullyQualifiedName~PluginSearchPathTests"  # run with lilv installed, even if the earlier suite ran without it
 python3 tools/test-monitor-volume.py  # private PipeWire server and session bus; pipewire-pulse, wireplumber, pactl, dbus-daemon
@@ -74,6 +77,7 @@ xvfb-run -a make -C native test-editor  # also needs Xvfb and xauth
 make -C native test-sound-check  # Sound Check loop backend, no audio server
 make -C native test-eq  # microphone EQ backend against the cookbook table, no audio server
 make -C native test-duck  # duck detector, gain depth and timing, no audio server
+make -C native test-denoise  # noise removal, RNNoise and DeepFilterNet when built (cargo), no audio server
 OPENXLR_TEST_DESKTOP=1 xvfb-run -a dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~TrayWindowTests
 OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
 OPENXLR_TEST_TOOLTIP=1 xvfb-run -a -s '-screen 0 1600x1000x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~ToolTipInputTests

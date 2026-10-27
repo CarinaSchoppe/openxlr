@@ -1,6 +1,8 @@
 // Microphone EQ targets use stable channel ids and the daemon's reported
 // ranges. There is no second EQ, preset table or hardware backend here.
-const FIELDS = {eq: "enabled", eqband: "enabled", eqtype: "type", eqfreq: "frequency", eqgain: "gain", eqq: "q"};
+// A microphone's noise removal switch (noise:<id>) rides along: it lives on
+// the same channels and acts like the EQ's own switch.
+const FIELDS = {eq: "enabled", noise: "enabled", eqband: "enabled", eqtype: "type", eqfreq: "frequency", eqgain: "gain", eqq: "q"};
 const TYPE_NAMES = {lowCut: "High pass", lowShelf: "Low shelf", peak: "Bell", notch: "Notch", highShelf: "High shelf", highCut: "Low pass"};
 const typeName = (type, compact = false) => compact && type === "highShelf" ? "Hi shelf"
   : Object.hasOwn(TYPE_NAMES, type) ? TYPE_NAMES[type] : type;
@@ -12,7 +14,7 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const round = value => Math.sign(value) * Math.round(Math.abs(value));
 
 export function isEqTarget(target) {
-  return typeof target === "string" && /^(eq|eqband|eqtype|eqfreq|eqgain|eqq):/.test(target);
+  return typeof target === "string" && /^(eq|noise|eqband|eqtype|eqfreq|eqgain|eqq):/.test(target);
 }
 
 function validRange(range, logarithmic = false, step = "step") {
@@ -25,7 +27,7 @@ export function eqTarget(mixer, target) {
   if (!isEqTarget(target) || target.length > 128) return null;
   const [kind, id, number, ...extra] = target.split(":");
   if (!id || id.length > 64 || !/^[a-zA-Z0-9_-]+$/.test(id) || extra.length
-      || (kind === "eq" ? number !== undefined : !/^[1-9][0-9]?$/.test(number ?? ""))) return null;
+      || (kind === "eq" || kind === "noise" ? number !== undefined : !/^[1-9][0-9]?$/.test(number ?? ""))) return null;
   const channel = channels(mixer).find(c => c?.id === id && c.present !== false
     && (c.microphone === true || c.microphone !== false && (id === "xlr1" || id === "xlr2")));
   const eq = channel?.eq, limits = mixer?.eqLimits;
@@ -42,11 +44,15 @@ export function eqTarget(mixer, target) {
         || !["frequency", "gain", "q"].every(field => finite(band[field])
           && band[field] >= limits[field].min && band[field] <= limits[field].max)) return null;
   }
-  const band = kind === "eq" ? 0 : Number(number);
+  const noise = channel.noise;
+  if (kind === "noise" && (!noise || typeof noise.enabled !== "boolean")) return null;
+  const band = kind === "eq" || kind === "noise" ? 0 : Number(number);
   if (band > eq.bands.length) return null;
-  const field = FIELDS[kind], state = band ? eq.bands[band - 1] : eq;
+  const field = FIELDS[kind], state = kind === "noise" ? noise : band ? eq.bands[band - 1] : eq;
   const value = field === "type" ? limits.types.indexOf(state.type) : state[field];
-  return {kind, channel, eq, limits, band, field, value,
+  // Whether the switch can be turned on: the EQ's, or noise removal's.
+  const available = (kind === "noise" ? noise.available : eq.available) !== false;
+  return {kind, channel, eq, limits, band, field, value, available,
     usable: field !== "gain" || usesGain(state.type)};
 }
 
@@ -58,6 +64,8 @@ export function eqChoices(mixer) {
     if (!entry) continue;
     const name = nameOf(channel);
     const toggles = [{target: `eq:${channel.id}`, label: `${name} EQ on/off`}];
+    if (eqTarget(mixer, `noise:${channel.id}`))
+      toggles.push({target: `noise:${channel.id}`, label: `${name} noise removal on/off`});
     const levels = [];
     for (let band = 1; band <= entry.eq.bands.length; band++) {
       toggles.push({target: `eqband:${channel.id}:${band}`, label: `${name} EQ band ${band} on/off`},
@@ -92,7 +100,8 @@ export function eqCommand(entry, value) {
   if (!entry) return null;
   const {field, band, channel, limits} = entry;
   if (field === "enabled") {
-    if (typeof value !== "boolean" || !band && value && entry.eq.available === false) return null;
+    if (typeof value !== "boolean" || !band && value && !entry.available) return null;
+    if (entry.kind === "noise") return {cmd: "setNoiseRemoval", channel: channel.id, enabled: value};
     return band ? {cmd: "setEqBand", channel: channel.id, band, enabled: value}
       : {cmd: "setEqEnabled", channel: channel.id, value};
   }
@@ -106,6 +115,7 @@ export function eqCommand(entry, value) {
 export function eqLabel(entry, value = entry?.value) {
   if (!entry) return "Microphone EQ";
   const name = nameOf(entry.channel);
+  if (entry.kind === "noise") return `${name}\nNoise`;
   return !entry.band ? `${name}\nEQ` : entry.field === "type"
     ? `${name}\n${entry.band}: ${typeName(entry.limits.types[value])}`
     : `${name}\nEQ band ${entry.band}`;

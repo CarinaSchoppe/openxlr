@@ -21,6 +21,9 @@
 
   <Target Name="BuildNativeLv2Host" BeforeTargets="BeforeBuild"
           Condition="'$(EnableNativeLv2Host)' == 'true' And $([MSBuild]::IsOSPlatform('Linux'))">
-    <Exec Command="make -C &quot;$(MSBuildProjectDirectory)/../../native&quot;" />
+    <!-- The native build's own output is not MSBuild's: a "warning:" line
+         from a compiler or from cargo building a dependency must not count as
+         a warning of this build. A failing make still fails it. -->
+    <Exec Command="make -C &quot;$(MSBuildProjectDirectory)/../../native&quot;" IgnoreStandardErrorWarningFormat="true" />
   </Target>
 </Project>

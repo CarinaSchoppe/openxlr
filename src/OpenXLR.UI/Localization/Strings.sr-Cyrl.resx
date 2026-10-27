@@ -3335,4 +3335,79 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   <data name="MicSetupEffectsHint" xml:space="preserve">
     <value>Заобиђи додатак да чујеш ланац без њега. Прозор ланца премешта, преименује и уклања додатке.</value>
   </data>
+  <data name="NoiseRemoval" xml:space="preserve">
+    <value>Уклањање шума</value>
+  </data>
+  <data name="NoiseRemovalSwitch" xml:space="preserve">
+    <value>Укључено</value>
+  </data>
+  <data name="NoiseRemovalSwitchTip" xml:space="preserve">
+    <value>Укључи или искључи уклањање шума. Кад је искључено, мотор и јачина чувају вредности за следећи пут.</value>
+  </data>
+  <data name="NoiseRemovalSwitchName" xml:space="preserve">
+    <value>Уклањање шума на {0}</value>
+  </data>
+  <data name="NoiseRemovalHint" xml:space="preserve">
+    <value>Ради прво, пре EQ-а и додатака, па све после њега чује очишћен глас. Укључивање, искључивање или промена мотора утиша микрофон на око 10 ms.</value>
+  </data>
+  <data name="NoiseRemovalEngine" xml:space="preserve">
+    <value>Мотор</value>
+  </data>
+  <data name="NoiseRemovalRnNoise" xml:space="preserve">
+    <value>RNNoise</value>
+  </data>
+  <data name="NoiseRemovalRnNoiseTip" xml:space="preserve">
+    <value>Штеди процесор и најбоље ради на уједначеном шуму као што су шиштање, брујање и вентилатори. Додаје 30 ms кашњења.</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNet" xml:space="preserve">
+    <value>DeepFilterNet</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNetTip" xml:space="preserve">
+    <value>Чистији на тастатурама, променљивом шуму и мало одјека собе. Троши више процесора и додаје око 55 до 70 ms кашњења.</value>
+  </data>
+  <data name="NoiseRemovalStrength" xml:space="preserve">
+    <value>Јачина</value>
+  </data>
+  <data name="NoiseRemovalStrengthName" xml:space="preserve">
+    <value>Јачина уклањања шума</value>
+  </data>
+  <data name="NoiseRemovalStrengthTip" xml:space="preserve">
+    <value>Највише колико се шум утиша. Смањи је ако ти глас звучи танко или водњикаво.</value>
+  </data>
+  <data name="NoiseRemovalStrengthValue" xml:space="preserve">
+    <value>{0} dB</value>
+  </data>
+  <data name="NoiseRemovalUnlimited" xml:space="preserve">
+    <value>Без ограничења</value>
+  </data>
+  <data name="NoiseRemovalStarting" xml:space="preserve">
+    <value>Покреће се.</value>
+  </data>
+  <data name="NoiseRemovalLoading" xml:space="preserve">
+    <value>DeepFilterNet учитава свој модел. Оно што је свирало наставља да свира док не буде спреман.</value>
+  </data>
+  <data name="NoiseRemovalRunning" xml:space="preserve">
+    <value>{0} ради и додаје {1} ms кашњења.</value>
+  </data>
+  <data name="NoiseRemovalNoDeepFilterNet" xml:space="preserve">
+    <value>Ова инсталација је направљена без DeepFilterNet-а, па се нуди само RNNoise.</value>
+  </data>
+  <data name="MicSetupNoNoise" xml:space="preserve">
+    <value>Демон не пријављује уклањање шума за овај микрофон.</value>
+  </data>
+  <data name="NoiseButton" xml:space="preserve">
+    <value>Уклони шум</value>
+  </data>
+  <data name="NoiseButtonTip" xml:space="preserve">
+    <value>Уклањање шума за овај микрофон: укључите га, изаберите механизам и подесите јачину.</value>
+  </data>
+  <data name="NoiseButtonNameOn" xml:space="preserve">
+    <value>Уклањање шума на {0}, укључено</value>
+  </data>
+  <data name="NoiseButtonNameOff" xml:space="preserve">
+    <value>Уклањање шума на {0}, искључено</value>
+  </data>
+  <data name="NoiseButtonNameUnavailable" xml:space="preserve">
+    <value>Уклањање шума на {0}, недоступно</value>
+  </data>
 </root>

@@ -49,6 +49,12 @@ public sealed record MixerScene
     /// </summary>
     public Dictionary<string, MicEq>? Eq { get; init; }
 
+    /// <summary>
+    /// Noise removal by channel; absent in older profiles, which leave it as
+    /// it is. A recall replaces the setting of each channel named here.
+    /// </summary>
+    public Dictionary<string, MicNoise>? NoiseRemoval { get; init; }
+
     /// <summary>The ducking setup without machine processing. Absent in older profiles, which leave it alone.</summary>
     public DuckingScene? Ducking { get; init; }
 }

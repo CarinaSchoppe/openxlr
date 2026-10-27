@@ -53,6 +53,9 @@ internal sealed class NativePluginHost : IDisposable
 
     public Process Process { get; }
 
+    /// <summary>The sample rate the helper was started at, the graph's at the time.</summary>
+    public int SampleRate => _sampleRate;
+
     /// <summary>
     /// Whether this helper loads a Windows plugin through yabridge, so Wine
     /// is running behind it. What Wine leaves in the daemon's control group

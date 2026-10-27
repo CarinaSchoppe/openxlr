@@ -3,24 +3,104 @@
 # under clap/ and vst3/ (both MIT), so building needs nothing beyond the
 # PipeWire, lilv, LV2 and X11 development files and a C and C++ compiler.
 PKGS = libpipewire-0.3 lilv-0 lv2 x11
+# Taken before the flags below are added: vendored code is built with the
+# caller's flags but not with this project's warnings.
+RNN_CFLAGS := -O2 -g $(CFLAGS) -w
 CPPFLAGS += $(shell pkg-config --cflags $(PKGS)) -isystem clap/include -isystem vst3
 WARN = -O2 -g -Wall -Wextra -Werror -Wno-unused-parameter
 CFLAGS += -std=c11 $(WARN)
 CXXFLAGS += -std=c++17 $(WARN) -fno-exceptions -fno-rtti
 LDLIBS += $(shell pkg-config --libs $(PKGS)) -ldl -lm -pthread
 
-OBJECTS = host.o lv2.o clap.o vst3.o sound-check.o eq.o duck.o level.o
-HEADERS = host.h icon.h $(wildcard clap/include/clap/*.h clap/include/clap/*/*.h) \
-          $(wildcard vst3/pluginterfaces/*/*.h)
+# Noise removal (denoise.c). RNNoise 0.2 (Xiph, BSD-3-Clause) is vendored
+# under rnnoise/ and always built in. DeepFilterNet 0.5.6 (MIT or
+# Apache-2.0) is a Rust static library from deepfilter/: DEEPFILTER=1 builds
+# it in and fails without cargo, DEEPFILTER=0 leaves it out, and auto, the
+# default, builds it in when cargo is on the PATH. Every package sets 1.
+# `openxlr-lv2-host engines` says which engines a build carries.
+DEEPFILTER ?= auto
+ifeq ($(DEEPFILTER),auto)
+override DEEPFILTER := $(if $(shell command -v $(or $(CARGO),cargo) 2>/dev/null),1,0)
+endif
 
-openxlr-lv2-host: $(OBJECTS)
-	$(CXX) $(OBJECTS) -o $@ $(LDFLAGS) $(LDLIBS)
+RNN_SOURCES = $(addprefix rnnoise/src/,denoise.c rnn.c pitch.c kiss_fft.c celt_lpc.c nnet.c \
+              nnet_default.c parse_lpcnet_weights.c rnnoise_data.c rnnoise_tables.c)
+RNN_CPPFLAGS = -Irnnoise/include -Irnnoise/src -DRNNOISE_BUILD
+# On x86 the network picks SSE4.1 or AVX2 code when the processor has it.
+ifneq ($(filter x86_64 i386 i486 i586 i686,$(firstword $(subst -, ,$(shell $(CC) -dumpmachine)))),)
+RNN_SOURCES += $(addprefix rnnoise/src/x86/,x86_dnn_map.c x86cpu.c nnet_sse4_1.c nnet_avx2.c)
+RNN_CPPFLAGS += -DRNN_ENABLE_X86_RTCD -DCPU_INFO_BY_ASM
+endif
+RNN_OBJECTS = $(RNN_SOURCES:.c=.o)
+RNN_HEADERS = $(wildcard rnnoise/include/*.h rnnoise/src/*.h rnnoise/src/x86/*.h)
+
+# DeepFilterNet's model is fetched once and checked against its SHA-256; a
+# package that builds offline puts the same file at DF_MODEL first. The
+# crates are fetched by cargo, or read from deepfilter/vendor when a package
+# vendored them there. DEEPFILTER_LIB names a library built elsewhere (Nix
+# builds it as a derivation of its own) and skips cargo.
+DF_VERSION = 0.5.6
+DF_MODEL = deepfilter/model/DeepFilterNet3_onnx.tar.gz
+DF_MODEL_URL = https://raw.githubusercontent.com/Rikorose/DeepFilterNet/v$(DF_VERSION)/models/DeepFilterNet3_onnx.tar.gz
+DF_MODEL_SHA256 = c94d91f70911001c946e0fabb4aa9adc37045f45a03b56008cb0c8244cb63616
+CARGO ?= cargo
+DF_CARGO_FLAGS = --release --locked --target-dir target $(if $(wildcard deepfilter/vendor/),--offline \
+                 --config 'source.crates-io.replace-with="vendored"' \
+                 --config 'source.vendored.directory="vendor"')
+ifeq ($(DEEPFILTER),1)
+DEEPFILTER_LIB ?= deepfilter/target/release/libopenxlr_deepfilter.a
+DF_DEPS = $(DEEPFILTER_LIB)
+DF_LINK = -Wl,--gc-sections $(DEEPFILTER_LIB) -lgcc_s -lutil -lrt
+endif
+
+OBJECTS = host.o lv2.o clap.o vst3.o sound-check.o eq.o duck.o level.o denoise.o $(RNN_OBJECTS)
+HEADERS = host.h icon.h denoise.h $(wildcard clap/include/clap/*.h clap/include/clap/*/*.h) \
+          $(wildcard vst3/pluginterfaces/*/*.h)
+# The stages and their tests link these beside the noise removal objects.
+DENOISE_OBJECTS = denoise.o $(RNN_OBJECTS)
+
+openxlr-lv2-host: $(OBJECTS) $(DF_DEPS)
+	$(CXX) $(OBJECTS) -o $@ $(LDFLAGS) $(DF_LINK) $(LDLIBS)
 
 %.o: %.c $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 %.o: %.cpp $(HEADERS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
+rnnoise/src/%.o: rnnoise/src/%.c $(RNN_HEADERS)
+	$(CC) $(RNN_CPPFLAGS) $(RNN_CFLAGS) -c $< -o $@
+
+rnnoise/src/x86/nnet_sse4_1.o: RNN_CFLAGS += -msse4.1
+rnnoise/src/x86/nnet_avx2.o: RNN_CFLAGS += -mavx -mfma -mavx2
+
+# Which optional engines denoise.c is compiled with; rewritten only when
+# that changes, so switching DEEPFILTER rebuilds what depends on it.
+build-config.h: FORCE
+	@printf '#define OPENXLR_DEEPFILTER %s\n' '$(DEEPFILTER)' > $@.new
+	@if cmp -s $@.new $@; then rm -f $@.new; else mv $@.new $@; fi
+
+denoise.o: denoise.c build-config.h rnnoise/include/rnnoise.h $(HEADERS)
+	$(CC) $(CPPFLAGS) -Irnnoise/include $(CFLAGS) -c $< -o $@
+
+$(DF_MODEL):
+	mkdir -p $(@D)
+	curl -fsSL --retry 3 -o $@.part '$(DF_MODEL_URL)'
+	mv $@.part $@
+
+deepfilter/model/verified: $(DF_MODEL)
+	echo '$(DF_MODEL_SHA256)  $(DF_MODEL)' | sha256sum -c --quiet -
+	touch $@
+
+deepfilter/target/release/libopenxlr_deepfilter.a: deepfilter/model/verified deepfilter/Cargo.toml \
+		deepfilter/Cargo.lock deepfilter/src/lib.rs deepfilter/libdf/Cargo.toml $(wildcard deepfilter/libdf/src/*.rs)
+	cd deepfilter && $(CARGO) build $(DF_CARGO_FLAGS)
+	touch $@
+
+.PHONY: FORCE deepfilter
+FORCE:
+# The library alone, for a package that builds it in a step of its own.
+deepfilter: deepfilter/target/release/libopenxlr_deepfilter.a
 
 tests/editor.o: tests/editor.c host.c $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
@@ -126,8 +206,8 @@ clean-sound-check:
 tests/eq.o: tests/eq.c eq.c host.c $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-tests/eq: tests/eq.o lv2.o clap.o vst3.o
-	$(CXX) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+tests/eq: tests/eq.o $(DENOISE_OBJECTS) lv2.o clap.o vst3.o $(DF_DEPS)
+	$(CXX) $(filter %.o,$^) -o $@ $(LDFLAGS) $(DF_LINK) $(LDLIBS)
 
 .PHONY: test-eq clean-eq
 test: test-eq
@@ -153,3 +233,22 @@ test-duck: tests/duck
 clean: clean-duck
 clean-duck:
 	rm -f tests/duck tests/duck.o
+
+# Noise removal: both engines driven through the microphone stage with a
+# synthetic voice in noise, with no audio server. DeepFilterNet is checked
+# when this build carries it.
+tests/denoise.o: tests/denoise.c eq.c host.c build-config.h $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+tests/denoise: tests/denoise.o $(DENOISE_OBJECTS) lv2.o clap.o vst3.o $(DF_DEPS)
+	$(CXX) $(filter %.o,$^) -o $@ $(LDFLAGS) $(DF_LINK) $(LDLIBS)
+
+.PHONY: test-denoise clean-denoise
+test: test-denoise
+test-denoise: tests/denoise openxlr-lv2-host
+	./tests/denoise ./openxlr-lv2-host
+
+clean: clean-denoise
+clean-denoise:
+	rm -f tests/denoise tests/denoise.o build-config.h $(RNN_OBJECTS) rnnoise/src/x86/*.o
+	rm -rf deepfilter/target deepfilter/model/verified

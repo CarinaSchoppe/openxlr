@@ -3335,4 +3335,79 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
   <data name="MicSetupEffectsHint" xml:space="preserve">
     <value>I-bypass ang plugin aron madungog ang chain nga wala kini. Sa chain window ibalhin, ilisan og ngalan ug tangtangon ang mga plugin.</value>
   </data>
+  <data name="NoiseRemoval" xml:space="preserve">
+    <value>Pagtangtang sa kasaba</value>
+  </data>
+  <data name="NoiseRemovalSwitch" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="NoiseRemovalSwitchTip" xml:space="preserve">
+    <value>I-on o i-off ang pagtangtang sa kasaba. Kon off, tipigan ang engine ug kusog alang sa sunod.</value>
+  </data>
+  <data name="NoiseRemovalSwitchName" xml:space="preserve">
+    <value>Pagtangtang sa kasaba sa {0}</value>
+  </data>
+  <data name="NoiseRemovalHint" xml:space="preserve">
+    <value>Mag-una kini, sa wala pa ang EQ ug mga plugin, busa limpyo nga tingog ang madungog sa tanan nga sunod. Ang pag-on, pag-off o pag-ilis sa engine mopahinay sa mikropono mga 10 ms.</value>
+  </data>
+  <data name="NoiseRemovalEngine" xml:space="preserve">
+    <value>Engine</value>
+  </data>
+  <data name="NoiseRemovalRnNoise" xml:space="preserve">
+    <value>RNNoise</value>
+  </data>
+  <data name="NoiseRemovalRnNoiseTip" xml:space="preserve">
+    <value>Gaan sa processor ug labing maayo sa padayon nga kasaba sama sa sitsit, ugong ug bentilador. Modugang og 30 ms nga delay.</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNet" xml:space="preserve">
+    <value>DeepFilterNet</value>
+  </data>
+  <data name="NoiseRemovalDeepFilterNetTip" xml:space="preserve">
+    <value>Mas limpyo sa keyboard, nag-usab-usab nga kasaba ug gamay nga lanog sa kwarto. Mogamit og mas daghang processor ug modugang og mga 55 hangtod 70 ms nga delay.</value>
+  </data>
+  <data name="NoiseRemovalStrength" xml:space="preserve">
+    <value>Kusog</value>
+  </data>
+  <data name="NoiseRemovalStrengthName" xml:space="preserve">
+    <value>Kusog sa pagtangtang sa kasaba</value>
+  </data>
+  <data name="NoiseRemovalStrengthTip" xml:space="preserve">
+    <value>Ang labing dako nga ipaubos sa kasaba. Ipaubos kini kon nipis o matubigon ang tingog nimo.</value>
+  </data>
+  <data name="NoiseRemovalStrengthValue" xml:space="preserve">
+    <value>{0} dB</value>
+  </data>
+  <data name="NoiseRemovalUnlimited" xml:space="preserve">
+    <value>Walay limitasyon</value>
+  </data>
+  <data name="NoiseRemovalStarting" xml:space="preserve">
+    <value>Nagsugod.</value>
+  </data>
+  <data name="NoiseRemovalLoading" xml:space="preserve">
+    <value>Gi-load sa DeepFilterNet ang model niini. Ang nagpatugtog kaniadto magpadayon hangtod andam na kini.</value>
+  </data>
+  <data name="NoiseRemovalRunning" xml:space="preserve">
+    <value>Nagdagan ang {0} ug modugang og {1} ms nga delay.</value>
+  </data>
+  <data name="NoiseRemovalNoDeepFilterNet" xml:space="preserve">
+    <value>Gihimo kini nga installation nga walay DeepFilterNet, busa RNNoise ra ang mapili.</value>
+  </data>
+  <data name="MicSetupNoNoise" xml:space="preserve">
+    <value>Walay gitaho nga pagtangtang sa kasaba ang daemon alang niining mikropono.</value>
+  </data>
+  <data name="NoiseButton" xml:space="preserve">
+    <value>Denoise</value>
+  </data>
+  <data name="NoiseButtonTip" xml:space="preserve">
+    <value>Pagtangtang sa kasaba alang niining mikropono: i-on, pilia ang engine ug itakda ang kusog.</value>
+  </data>
+  <data name="NoiseButtonNameOn" xml:space="preserve">
+    <value>Pagtangtang sa kasaba sa {0}, on</value>
+  </data>
+  <data name="NoiseButtonNameOff" xml:space="preserve">
+    <value>Pagtangtang sa kasaba sa {0}, off</value>
+  </data>
+  <data name="NoiseButtonNameUnavailable" xml:space="preserve">
+    <value>Pagtangtang sa kasaba sa {0}, dili magamit</value>
+  </data>
 </root>

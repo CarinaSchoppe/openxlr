@@ -1,0 +1,30 @@
+# The DeepFilterNet engine of the native helper's noise removal, built as a
+# static library and linked into openxlr-lv2-host. native/Makefile builds it
+# with --locked, and --offline when the crates are vendored under vendor/.
+[package]
+name = "openxlr-deepfilter"
+version = "1.0.0"
+edition = "2021"
+license = "GPL-3.0-only"
+# The oldest compiler the locked crates build with (measured): Ubuntu noble
+# ships 1.75. Cargo.lock stays at format 3, which noble's cargo reads.
+rust-version = "1.67"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+path = "src/lib.rs"
+
+[dependencies]
+deep_filter = { path = "libdf", default-features = false, features = ["tract"] }
+ndarray = "^0.15"
+
+[workspace]
+members = [".", "libdf"]
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = "thin"
+codegen-units = 16
+panic = "unwind"

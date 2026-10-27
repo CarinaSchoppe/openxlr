@@ -17,13 +17,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # debian/rules builds DeepFilterNet with the distribution's cargo and
+      # rustc (the oldest toolchain a package builds with), not the runner's
+      # rustup one.
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential debhelper dotnet-sdk-10.0 lintian \
             pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev \
-            wireplumber
+            wireplumber cargo rustc
+          /usr/bin/cargo --version
+          /usr/bin/rustc --version
 
       - name: Versions agree everywhere
         run: tools/check-version.sh
@@ -54,6 +59,9 @@ jobs:
                    usr/bin/openxlr usr/bin/openxlr-daemon; do
             grep -q " ./$f\$" contents.txt || { echo "missing from the package: $f"; exit 1; }
           done
+          dpkg-deb -x dist/openxlr_*.deb pkgroot
+          pkgroot/usr/lib/openxlr/daemon/openxlr-lv2-host engines | tee engines.json
+          grep -q '"deepfilternet"' engines.json || { echo "the helper lacks DeepFilterNet"; exit 1; }
 
       - name: Checksums
         run: cd dist && sha256sum openxlr_*.deb > SHA256SUMS-deb.txt && cat SHA256SUMS-deb.txt

@@ -109,6 +109,9 @@ internal sealed record ChannelEntry
     /// <summary>A microphone's EQ, or null for a channel that has none and from a daemon that predates it.</summary>
     public EqEntry? Eq { get; init; }
 
+    /// <summary>A microphone's noise removal, or null for a channel that has none and from a daemon that predates it.</summary>
+    public NoiseEntry? Noise { get; init; }
+
     /// <summary>XLR 1 or XLR 2, the strips a binding can move to another source.</summary>
     public bool Bindable => Hardware && Id is "xlr1" or "xlr2";
 
@@ -365,6 +368,31 @@ internal sealed record UnitInputEntry
 /// A microphone's EQ as far as the terminal shows it: its switch, what runs
 /// it and the choice of where. The bands are the window's to edit.
 /// </summary>
+/// <summary>A microphone's noise removal as the daemon reports it (docs/api.md, noise removal).</summary>
+internal sealed record NoiseEntry
+{
+    public bool Enabled { get; init; }
+    public string Engine { get; init; } = MicNoise.RnNoise;
+    public double Strength { get; init; } = MicNoise.DefaultStrength;
+    /// <summary>The engines the daemon's plugin host carries.</summary>
+    public IReadOnlyList<string> Engines { get; init; } = [];
+    /// <summary>The engine heard now, or null.</summary>
+    public string? Active { get; init; }
+    public double? LatencyMs { get; init; }
+    public bool Available { get; init; }
+    public string? Error { get; init; }
+
+    /// <summary>What runs, in a few words.</summary>
+    [JsonIgnore]
+    public string Status => Error is { Length: > 0 } error ? error
+        : !Available ? "cannot run"
+        : !Enabled ? "off"
+        : Active is null || LatencyMs is not double ms ? "on, starting"
+        : $"on, {EngineName(Active)}, adds {ms:0} ms";
+
+    internal static string EngineName(string engine) => engine == MicNoise.DeepFilterNet ? "DeepFilterNet" : "RNNoise";
+}
+
 internal sealed record EqEntry
 {
     public bool Enabled { get; init; }

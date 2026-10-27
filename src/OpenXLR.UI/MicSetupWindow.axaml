@@ -2,6 +2,7 @@
         xmlns:loc="using:OpenXLR.UI.Localization"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:OpenXLR.UI"
+        xmlns:views="using:OpenXLR.UI.Views"
         xmlns:skin="using:OpenXLR.UI.Skinning"
         x:Class="OpenXLR.UI.MicSetupWindow" x:DataType="vm:MicSetupViewModel"
         Title="{loc:Text Key=MicSetup}" Width="640" SizeToContent="Height" MinWidth="420" MinHeight="400"
@@ -237,6 +238,19 @@
                         Click="OnUndoPreset" VerticalAlignment="Center" ToolTip.Tip="{loc:Text Key=MicSetupUndoPresetTip}"
                         AutomationProperties.Name="{loc:Text Key=MicSetupUndoPreset}" AutomationProperties.HelpText="{loc:Text Key=MicSetupUndoPresetTip}"/>
               </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- noise removal: first in the microphone's stage, ahead of the EQ, heard live -->
+          <Border Classes="tile" Padding="12">
+            <StackPanel Spacing="8">
+              <Panel IsVisible="{Binding HasNoise}">
+                <views:NoiseRemovalControls Name="MicSetupNoise" DataContext="{Binding Noise}"/>
+              </Panel>
+              <StackPanel Spacing="8" IsVisible="{Binding NoNoise}">
+                <TextBlock Text="{loc:Text Key=NoiseRemoval}" Classes="h"/>
+                <TextBlock Name="MicSetupNoNoise" Text="{loc:Text Key=MicSetupNoNoise}" Classes="hint" TextWrapping="Wrap"/>
+              </StackPanel>
             </StackPanel>
           </Border>
 

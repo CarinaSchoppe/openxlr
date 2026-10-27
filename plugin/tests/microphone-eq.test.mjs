@@ -142,3 +142,24 @@ test("variable band choices follow each microphone and never expose a removed ba
   mixer.channels[0].eq.bands.push({...first});
   assert.equal(eqTarget(mixer, "eq:xlr1"), null);
 });
+
+test("noise removal rides along as a switch where the daemon reports it", () => {
+  const mixer = eqMixer();
+  assert.equal(eqTarget(mixer, "noise:xlr1"), null, "a daemon without noise removal offers no switch");
+  assert.ok(!eqChoices(mixer).toggleGroups[0].items.some(item => item.target === "noise:xlr1"));
+  mixer.channels[0].noise = {enabled: false, engine: "rnnoise", strength: 100, engines: ["rnnoise"], available: true};
+  const entry = eqTarget(mixer, "noise:xlr1");
+  assert.equal(entry.value, false);
+  assert.equal(eqLabel(entry), "Main mic\nNoise");
+  assert.ok(eqChoices(mixer).toggleGroups[0].items.some(item => item.target === "noise:xlr1"
+    && item.label === "Main mic noise removal on/off"));
+  assert.deepEqual(eqCommand(entry, true), {cmd: "setNoiseRemoval", channel: "xlr1", enabled: true});
+  assert.equal(eqDial(entry, true), null);
+  assert.equal(eqTarget(mixer, "noise:xlr1:1"), null);
+  // Without the helper it can be switched off but not on, as the EQ.
+  mixer.channels[0].noise.available = false;
+  assert.equal(eqCommand(eqTarget(mixer, "noise:xlr1"), true), null);
+  assert.deepEqual(eqCommand(eqTarget(mixer, "noise:xlr1"), false), {cmd: "setNoiseRemoval", channel: "xlr1", enabled: false});
+  // The EQ's own switch does not follow noise removal's availability.
+  assert.deepEqual(eqCommand(eqTarget(mixer, "eq:xlr1"), true), {cmd: "setEqEnabled", channel: "xlr1", value: true});
+});

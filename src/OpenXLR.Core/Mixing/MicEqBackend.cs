@@ -24,14 +24,24 @@ internal interface IMicEqBackend
 
 /// <summary>
 /// The EQ in the native helper's <c>eq</c> backend: a mono node at the head
-/// of a microphone's route. Values go down the helper's command pipe; the
-/// helper takes them at its next block, keeping its filter state, so a
+/// of a microphone's route, which runs the microphone's noise removal ahead
+/// of the EQ (native/denoise.c). Values go down the helper's command pipe;
+/// the helper takes them at its next block, keeping its filter state, so a
 /// change spawns nothing and builds no node. Only the controls that changed
 /// are written.
 /// </summary>
-internal sealed class SoftwareEqBackend(PipeWireAdapter pw, FilterHandle stage, MicEq applied) : IMicEqBackend
+internal sealed class SoftwareEqBackend(PipeWireAdapter pw, FilterHandle stage, MicEq applied, MicNoise? noise = null) : IMicEqBackend
 {
-    private readonly Dictionary<string, double> _written = Controls(applied);
+    /// <summary>
+    /// The stage's noise removal meters: the engine that plays (-1 none,
+    /// 0 RNNoise, 1 DeepFilterNet), why one asked for does not, and how many
+    /// blocks DeepFilterNet answered late.
+    /// </summary>
+    internal const string ActiveMeter = "denoise_active", StatusMeter = "denoise_status", LateMeter = "denoise_late";
+
+    internal static readonly IReadOnlySet<string> Meters = new HashSet<string>([ActiveMeter, StatusMeter, LateMeter], StringComparer.Ordinal);
+
+    private readonly Dictionary<string, double> _written = Controls(applied, noise ?? MicNoise.Default);
     private MicEq _applied = applied;
 
     public string Kind => "software";
@@ -58,16 +68,41 @@ internal sealed class SoftwareEqBackend(PipeWireAdapter pw, FilterHandle stage, 
         return controls;
     }
 
+    /// <summary>The helper's controls for noise removal, by the symbols native/denoise.c declares.</summary>
+    public static Dictionary<string, double> Controls(MicNoise noise) => new(StringComparer.Ordinal)
+    {
+        ["denoise_enabled"] = noise.Enabled ? 1 : 0,
+        ["denoise_engine"] = Math.Max(0, MicNoise.EngineIndex(noise.Engine)),
+        ["denoise_strength"] = noise.Strength,
+    };
+
+    /// <summary>Every control of the stage, which it starts with.</summary>
+    public static Dictionary<string, double> Controls(MicEq eq, MicNoise noise)
+    {
+        Dictionary<string, double> controls = Controls(eq);
+        foreach ((string symbol, double value) in Controls(noise)) controls[symbol] = value;
+        return controls;
+    }
+
     /// <exception cref="InvalidOperationException">The helper did not take a value.</exception>
     public void Apply(MicEq eq)
     {
-        foreach ((string symbol, double value) in Controls(eq))
+        Write(Controls(eq));
+        _applied = eq;
+    }
+
+    /// <summary>The microphone's noise removal, live.</summary>
+    /// <exception cref="InvalidOperationException">The helper did not take a value.</exception>
+    public void ApplyNoise(MicNoise noise) => Write(Controls(noise));
+
+    private void Write(Dictionary<string, double> controls)
+    {
+        foreach ((string symbol, double value) in controls)
         {
             if (_written.TryGetValue(symbol, out double was) && was == value) continue;
             Stage.NativeHost!.SetControl(symbol, value);
             _written[symbol] = value;
         }
-        _applied = eq;
     }
 
     public void ApplyBand(int band, EqBand value) => Apply(_applied.WithBand(band, value));

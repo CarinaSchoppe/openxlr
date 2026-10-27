@@ -2,6 +2,7 @@
 """Check the package's dependency inventory, exports and sandbox permissions."""
 import importlib.util
 import json
+import re
 from pathlib import Path
 import base64
 import tempfile
@@ -9,9 +10,25 @@ import unittest
 import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location('nuget_sources', HERE / 'nuget-sources.py')
-generator = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(generator)
+ROOT = HERE.parents[1]
+
+
+def load(name, filename):
+    spec = importlib.util.spec_from_file_location(name, HERE / filename)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+generator = load('nuget_sources', 'nuget-sources.py')
+cargo_generator = load('cargo_sources', 'cargo-sources.py')
+
+
+def makefile_value(name):
+    """A plain `NAME = value` from native/Makefile, with $(VAR) expanded."""
+    text = (ROOT / 'native' / 'Makefile').read_text()
+    value = re.search(rf'^{name}\s*=\s*(.+)$', text, re.M).group(1).strip()
+    return re.sub(r'\$\((\w+)\)', lambda m: makefile_value(m.group(1)), value)
 
 
 class PackageTests(unittest.TestCase):
@@ -68,6 +85,59 @@ class PackageTests(unittest.TestCase):
         for folder in ('.lv2', '.clap', '.vst3'):
             self.assertIn('--persist=' + folder, permissions)
             self.assertFalse(any(item.startswith('--filesystem=') and folder in item for item in permissions))
+
+    def test_cargo_crates_match_the_lock_file(self):
+        expected = cargo_generator.sources()
+        actual = json.loads((HERE / 'cargo-sources.json').read_text())
+        self.assertEqual(expected, actual)
+        lock = (ROOT / 'native' / 'deepfilter' / 'Cargo.lock').read_text()
+        registry = lock.count('source = "registry+https://github.com/rust-lang/crates.io-index"')
+        self.assertEqual(registry * 2, len(actual))
+        for item in actual:
+            self.assertTrue(item['dest'].startswith('native/deepfilter/vendor/'))
+            if item['type'] == 'archive':
+                self.assertRegex(item['sha256'], r'^[a-f0-9]{64}$')
+                self.assertTrue(item['url'].startswith('https://static.crates.io/crates/'))
+            else:
+                self.assertEqual('.cargo-checksum.json', item['dest-filename'])
+
+    def test_crates_from_elsewhere_are_refused(self):
+        with tempfile.TemporaryDirectory() as root:
+            lock = Path(root, 'Cargo.lock')
+            lock.write_text('version = 3\n\n[[package]]\nname = "x"\nversion = "1.0.0"\n'
+                            'source = "git+https://example.com/x"\n')
+            with self.assertRaisesRegex(ValueError, 'only crates.io'):
+                cargo_generator.sources(lock)
+
+    def test_deepfilter_model_is_the_one_native_makefile_checks(self):
+        manifest = json.loads((HERE / 'io.github.emaspa.openxlr.json').read_text())
+        module = next(m for m in manifest['modules'] if m['name'] == 'openxlr')
+        models = [s for s in module['sources']
+                  if isinstance(s, dict) and s.get('dest-filename') == 'DeepFilterNet3_onnx.tar.gz']
+        self.assertEqual(1, len(models))
+        model = models[0]
+        self.assertEqual(makefile_value('DF_MODEL_URL'), model['url'])
+        self.assertEqual(makefile_value('DF_MODEL_SHA256'), model['sha256'])
+        self.assertEqual('native/' + makefile_value('DF_MODEL'),
+                         model['dest'] + '/' + model['dest-filename'])
+
+    def test_deepfilter_is_built_in(self):
+        manifest = json.loads((HERE / 'io.github.emaspa.openxlr.json').read_text())
+        self.assertIn('org.freedesktop.Sdk.Extension.rust-stable', manifest['sdk-extensions'])
+        self.assertEqual('/usr/lib/sdk/rust-stable/bin', manifest['build-options']['append-path'])
+        module = next(m for m in manifest['modules'] if m['name'] == 'openxlr')
+        self.assertIn('cargo-sources.json', module['sources'])
+        tree = module['sources'][0]
+        self.assertEqual('dir', tree['type'])
+        for local in ('native/deepfilter/target', 'native/deepfilter/vendor', 'native/deepfilter/model'):
+            self.assertIn(local, tree['skip'])
+        build = (HERE / 'build.sh').read_text()
+        self.assertIn('export DEEPFILTER=1\n', build)
+        # Packaged notices of the code the native helper links.
+        for notice in ('native/rnnoise/COPYING', 'native/deepfilter/libdf/LICENSE-MIT',
+                       'native/deepfilter/libdf/LICENSE-APACHE'):
+            self.assertIn(f'install -Dm644 {notice} ', build)
+            self.assertTrue((ROOT / notice).is_file(), notice)
 
     def test_archives_are_pinned_and_no_git_source_floats(self):
         manifest = json.loads((HERE / 'io.github.emaspa.openxlr.json').read_text())

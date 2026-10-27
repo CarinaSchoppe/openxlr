@@ -104,6 +104,7 @@ internal sealed class InputsView : View
         AdditionalInputs(rows, link, state);
         Bindings(rows, app, state);
         Equalisers(rows, app, state);
+        NoiseRemovals(rows, app.Link, state);
 
         // The software low cut and ClipGuard run in the mixer, so they act on
         // any microphone on XLR 1; the gain lock guards the interface's gain.
@@ -300,6 +301,39 @@ internal sealed class InputsView : View
                     body["value"] = index == 1 ? "software" : "device";
                 })));
             if (eq.Why is { Length: > 0 } why) rows.Add(new TextRow($"{channel.Name} unit", why));
+        }
+    }
+
+    /// <summary>
+    /// Each microphone's noise removal: its switch, the engine among those the
+    /// daemon's plugin host carries, and the strength, each sent on its own
+    /// with setNoiseRemoval, with what runs and why not beside them.
+    /// </summary>
+    private static void NoiseRemovals(List<Row> rows, DaemonLink link, Snapshot state)
+    {
+        List<ChannelEntry> microphones = [.. state.Mixer.Shown.Where(channel => channel.Noise is not null)];
+        if (microphones.Count == 0) return;
+        rows.Add(new HeadingRow("Noise removal"));
+        foreach (ChannelEntry channel in microphones)
+        {
+            NoiseEntry noise = channel.Noise!;
+            string id = channel.Id;
+            void Send(string field, object value) => link.Send("setNoiseRemoval", body =>
+            {
+                body["channel"] = id;
+                body[field] = System.Text.Json.JsonSerializer.SerializeToNode(value);
+            });
+            rows.Add(new TextRow($"{channel.Name} noise removal", noise.Status));
+            if (!noise.Available) continue;
+            rows.Add(new ToggleRow($"{channel.Name} noise removal on", noise.Enabled, value => Send("enabled", value)));
+            string[] engines = [.. MicNoise.Engines.Where(noise.Engines.Contains)];
+            if (engines.Length > 1)
+                rows.Add(new ChoiceRow($"{channel.Name} engine", [.. engines.Select(NoiseEntry.EngineName)],
+                    Math.Max(0, Array.IndexOf(engines, noise.Engine)), index => Send("engine", engines[index])));
+            else rows.Add(new TextRow($"{channel.Name} engine", NoiseEntry.EngineName(noise.Engine)));
+            rows.Add(new NumberRow($"{channel.Name} strength", noise.Strength, MicNoise.MinStrength, MicNoise.MaxStrength, 6,
+                value => value >= MicNoise.MaxStrength ? "no limit" : $"{value:0} dB",
+                value => Send("strength", MicNoise.SnapStrength(value))) { FineStep = MicNoise.StrengthStep, Integer = true });
         }
     }
 

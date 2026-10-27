@@ -79,6 +79,8 @@ public sealed class MonitorMicrophonePauseReconnectTests
                 adapter.EqHost = Path.Combine(directory, "eq-host");
                 ExecutableScript.Write(adapter.EqHost, """
                     dir=${0%/*}
+                    # The engine list the state asks for starts no stage.
+                    if [ "$1" = engines ]; then echo '{"denoise":["rnnoise"],"rate":48000}'; exit 0; fi
                     printf '%s\n' "$*" >> "$dir/eq-starts"
                     if [ ! -f "$dir/eq-ready" ]; then exit 1; fi
                     echo "$2" > "$dir/eq-node"

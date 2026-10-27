@@ -16,6 +16,9 @@
   installation (the base .NET runtime alone does not run the daemon)
 - C/C++ compiler, make, pkg-config, PipeWire/lilv/LV2/X11 headers for the
   native plugin host; X11 or XWayland for plugin editors
+- Rust (cargo and rustc 1.67 or newer) and curl for DeepFilterNet, one of
+  the microphone's two noise removal engines. Without cargo the helper is
+  built with RNNoise alone; see [noise removal engines](#noise-removal-engines)
 - libusb 1.0
 - Optionally, a supported Elgato device for hardware control (see the
   device table in the README). The submixer works with any capture source
@@ -38,16 +41,16 @@ The native editor tests additionally use Xvfb and xauth.
 sudo pacman -S --needed dotnet-sdk aspnet-runtime pipewire pipewire-pulse wireplumber libusb libpulse alsa-utils glib2 xdg-utils gdk-pixbuf2 librsvg
 # optional: software ClipGuard for the XLR Dock, and LV2 plugins for inserts
 sudo pacman -S --needed swh-plugins lilv lsp-plugins-lv2
-# native host and editor test dependencies
-sudo pacman -S --needed base-devel lv2 libx11 libxtst xorg-server-xvfb xorg-xauth
+# native host and editor test dependencies (rust, or rustup with a toolchain)
+sudo pacman -S --needed base-devel lv2 libx11 libxtst xorg-server-xvfb xorg-xauth rust
 
 # Fedora
 sudo dnf install dotnet-sdk-10.0 aspnetcore-runtime-10.0 pipewire pipewire-pulseaudio wireplumber libusb1 pulseaudio-utils alsa-utils glib2 xdg-utils gdk-pixbuf2 librsvg2 ladspa-swh-plugins lilv-libs lsp-plugins-lv2
-sudo dnf install gcc-c++ make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel libXtst xorg-x11-server-Xvfb xorg-x11-xauth
+sudo dnf install gcc-c++ make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel libXtst xorg-x11-server-Xvfb xorg-x11-xauth cargo rust
 
 # Debian / Ubuntu (dotnet from Microsoft's feed if the distro lacks 10.0)
 sudo apt install dotnet-sdk-10.0 aspnetcore-runtime-10.0 pipewire pipewire-pulse wireplumber libusb-1.0-0 pulseaudio-utils alsa-utils libglib2.0-bin xdg-utils libgdk-pixbuf-2.0-0 librsvg2-common swh-plugins liblilv-0-0 lsp-plugins-lv2
-sudo apt install build-essential pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev libxtst6 xvfb xauth
+sudo apt install build-essential pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev libxtst6 xvfb xauth cargo rustc curl
 ```
 
 Verify the audio stack is PipeWire before going further:
@@ -82,6 +85,28 @@ line for the compiler or `pkg-config` error. Run `make -C native` from the
 same checkout to see the native failure directly. The missing daemon
 executable after a failed build is a consequence; finish the build before
 trying to launch it.
+
+<a name="noise-removal-engines"></a>
+### Noise removal engines
+
+The helper carries two noise removal engines for the microphone. RNNoise
+is part of the source tree and always built. DeepFilterNet is a Rust
+library under `native/deepfilter`, built when `cargo` is on the PATH. The
+first such build downloads its crates from crates.io and its model (7.6 MB,
+checked against the SHA-256 in `native/Makefile`), and takes about five
+minutes of processor time. Set `DEEPFILTER` to choose. `make` also reads it
+from the environment, so it applies to the `dotnet build` above too:
+
+```sh
+DEEPFILTER=1 make -C native   # build DeepFilterNet in, fail without cargo
+DEEPFILTER=0 make -C native   # RNNoise only, no Rust needed
+native/openxlr-lv2-host engines   # which engines this build has
+```
+
+Every package sets `DEEPFILTER=1`. For a build with no network, put the
+model at `native/deepfilter/model/DeepFilterNet3_onnx.tar.gz` and the
+crates under `native/deepfilter/vendor` (`cargo vendor --locked` in
+`native/deepfilter` fetches them); the build then reads only those.
 
 ## 3. Device access
 

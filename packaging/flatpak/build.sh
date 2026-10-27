@@ -2,6 +2,12 @@
 set -eu
 /app/bin/dotnet --info
 make -C native clean
+# DeepFilterNet is built in, from the crates cargo-sources.json unpacks
+# under native/deepfilter/vendor and the model the manifest fetched; the
+# build fails instead of leaving it out.
+export DEEPFILTER=1
+export CARGO_HOME="$PWD/native/deepfilter/.cargo-home"
+cargo --version
 runtime=$(cat packaging/flatpak/runtime-version)
 for project in OpenXLR.UI OpenXLR.Daemon OpenXLR.Tui; do
     case "$project" in
@@ -32,3 +38,9 @@ if [ -f docs/flatpak.md ]; then install -Dm644 docs/flatpak.md /app/share/doc/op
 mkdir -p /app/extensions/Plugins
 
 install -Dm644 LICENSE /app/share/licenses/openxlr/LICENSE
+# The notices of the code the native helper carries.
+install -Dm644 native/rnnoise/COPYING /app/share/licenses/openxlr/rnnoise/COPYING
+install -Dm644 native/deepfilter/libdf/LICENSE-MIT /app/share/licenses/openxlr/deepfilter/LICENSE-MIT
+install -Dm644 native/deepfilter/libdf/LICENSE-APACHE /app/share/licenses/openxlr/deepfilter/LICENSE-APACHE
+install -Dm644 native/clap/LICENSE /app/share/licenses/openxlr/clap/LICENSE
+install -Dm644 native/vst3/LICENSE /app/share/licenses/openxlr/vst3/LICENSE

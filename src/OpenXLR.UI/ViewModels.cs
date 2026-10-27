@@ -1453,6 +1453,7 @@ public sealed partial class MainViewModel : ViewModelBase
                     vm.SyncSends(mixIds);
                     vm.ApplyFromDaemon(c);
                     vm.ApplyEq(c["eq"], mixer["eqLimits"]);
+                    vm.ApplyNoise(c["noise"]);
                     vm.Inserts?.Apply(mixer["inserts"]?[vm.Id]);
                     vm.Inserts?.MicSetup.Apply(mixer["soundCheck"]);
                     vm.Inserts?.EnsurePluginsLoaded();
@@ -1824,6 +1825,7 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
             RefreshCaptureReadout();
             if (_showsVolumeReadout) Raise(nameof(ReadoutName));
             if (_eq is not null) _eq.ChannelName = value;
+            if (_noise is not null) _noise.ChannelName = value;
             if (_inserts is not null) _inserts.Title = value;
         }
     }
@@ -1887,6 +1889,33 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
         }
         if (_eq is null) Eq = new MicEqViewModel(_client, Id, Name);
         _eq!.Apply(eq, limits);
+    }
+
+    private MicNoiseViewModel? _noise;
+    /// <summary>
+    /// Noise removal, on a channel the daemon reports it for (the channels
+    /// that carry the EQ); null on every other channel and from a daemon
+    /// without it.
+    /// </summary>
+    public MicNoiseViewModel? Noise { get => _noise; private set { if (Set(ref _noise, value)) Raise(nameof(HasNoise)); } }
+
+    /// <summary>The channel has noise removal, so its Denoise button shows.</summary>
+    public bool HasNoise => _noise is not null;
+
+    /// <summary>Take the channel's <c>noise</c> from a state push.</summary>
+    internal void ApplyNoise(JsonNode? noise)
+    {
+        if (noise is not JsonObject)
+        {
+            if (_noise is { } gone)
+            {
+                Noise = null;
+                gone.Detach();
+            }
+            return;
+        }
+        if (_noise is null) Noise = new MicNoiseViewModel(_client, Id, Name);
+        _noise!.Apply(noise);
     }
 
     private bool _isHardware;
@@ -2214,6 +2243,7 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
         SliderSync.Forget($"chvol:{Id}");
         SliderSync.Forget($"capgain:{Id}");
         ApplyEq(null, null);
+        ApplyNoise(null);
         ApplyChainWidth(null);
     }
 

@@ -616,6 +616,49 @@ public sealed class MixMatrixTests
     }
 
     [Fact]
+    public async Task ARowsProcessingCarriesItsNoiseRemovalAndLightsWhileItRuns()
+    {
+        await using var client = new DaemonClient("ws://127.0.0.1:1/ws");
+        var model = new MainViewModel(client);
+        static string Cam(bool? enabled) => "{\"id\":\"cam\",\"name\":\"Camera\",\"captureSource\":\"cam\""
+            + (enabled is bool on
+                ? ",\"noise\":{\"enabled\":" + (on ? "true" : "false")
+                  + ",\"engine\":\"rnnoise\",\"strength\":100,\"engines\":[\"rnnoise\"],\"available\":true}"
+                : "")
+            + "}";
+        string xlr1 = InputBindingModelTests.Xlr("xlr1", 0, InputBindingModelTests.Input(1));
+        ApplyState(model, State($"{xlr1},{Cam(null)}"));
+        using var matrix = new MixMatrixViewModel(model);
+        MatrixRowViewModel Row(string id) => matrix.Rows.Single(r => r.Channel.Id == id);
+
+        // A capture input with no interface behind it has nothing to switch until the daemon reports noise removal for it.
+        Assert.False(Row("cam").ShowsProcessing);
+        Assert.False(Row("cam").ShowsNoise);
+        var raised = new List<string?>();
+        Row("cam").PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+        ApplyState(model, State($"{xlr1},{Cam(false)}"));
+        Assert.True(Row("cam").ShowsNoise);
+        Assert.True(Row("cam").ShowsProcessing);
+        Assert.Contains(nameof(MatrixRowViewModel.ShowsProcessing), raised);
+        Assert.False(Row("cam").ProcessingOn);
+
+        // Lit while it runs, said as it changes, whether the report or the switch turns it on.
+        raised.Clear();
+        ApplyState(model, State($"{xlr1},{Cam(true)}"));
+        Assert.True(Row("cam").ProcessingOn);
+        Assert.Contains(nameof(MatrixRowViewModel.ProcessingOn), raised);
+        raised.Clear();
+        Row("cam").Channel.Noise!.Enabled = false;
+        Assert.False(Row("cam").ProcessingOn);
+        Assert.Contains(nameof(MatrixRowViewModel.ProcessingOn), raised);
+
+        // A daemon that stops reporting it takes the part away again.
+        ApplyState(model, State($"{xlr1},{Cam(null)}"));
+        Assert.False(Row("cam").ShowsNoise);
+        Assert.False(Row("cam").ShowsProcessing);
+    }
+
+    [Fact]
     public async Task AWriteThroughACellIsTheSendsOwnAndTheMatrixSendsNoCommand()
     {
         var commands = new ConcurrentQueue<string>();

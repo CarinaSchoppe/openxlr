@@ -1,0 +1,53 @@
+# libDF from DeepFilterNet 0.5.6 (https://github.com/Rikorose/DeepFilterNet,
+# tag v0.5.6, directory libDF). The three source files under src/ are
+# unchanged copies; this manifest keeps only what the "tract" feature needs,
+# so no dataset, HDF5 or command-line dependency is resolved or vendored.
+# MIT or Apache-2.0, see LICENSE, LICENSE-MIT and LICENSE-APACHE.
+[package]
+name = "deep_filter"
+version = "0.5.6"
+authors = ["Hendrik Schröter"]
+edition = "2021"
+description = "Noise supression using deep filtering"
+repository = "https://github.com/Rikorose/DeepFilterNet"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+name = "df"
+path = "src/lib.rs"
+
+[features]
+transforms = ["dep:thiserror", "dep:ndarray", "dep:rubato"]
+logging = ["dep:log"]
+tract = [
+  "transforms",
+  "logging",
+  "dep:tract-core",
+  "dep:tract-onnx",
+  "dep:tract-pulse",
+  "dep:tract-hir",
+  "dep:rust-ini",
+  "dep:ndarray",
+  "dep:anyhow",
+  "dep:flate2",
+  "dep:tar",
+]
+
+[dependencies]
+rustfft = "^6.1.0"
+realfft = "^3.1.0"
+itertools = "0.10"
+num-complex = "^0.4"
+log = { version = "0.4", features = ["std"], optional = true }
+rubato = { version = "0.14", optional = true }
+thiserror = { version = "1.0", optional = true }
+anyhow = { version = "1.0", optional = true }
+ndarray = { version = "^0.15", optional = true }
+rust-ini = { version = "^0.19", optional = true }
+tract-core = { version = "^0.19.4", optional = true }
+tract-onnx = { version = "^0.19.4", optional = true }
+tract-pulse = { version = "^0.19.4", optional = true }
+tract-hir = { version = "^0.19.4", optional = true }
+flate2 = { version = "1.0.24", optional = true }
+tar = { version = "0.4.38", optional = true }

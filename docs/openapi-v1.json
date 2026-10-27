@@ -534,6 +534,16 @@
                     "cmd": "setMonitorMuteMicrophones",
                     "value": true
                   }
+                },
+                "noiseRemoval": {
+                  "summary": "Switch a microphone's noise removal on with DeepFilterNet, turning noise down by at most 30 dB",
+                  "value": {
+                    "cmd": "setNoiseRemoval",
+                    "channel": "xlr1",
+                    "enabled": true,
+                    "engine": "deepfilternet",
+                    "strength": 30
+                  }
                 }
               }
             }

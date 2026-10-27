@@ -629,6 +629,21 @@ public sealed class MicSetupViewModel : ViewModelBase
     public bool HasEq => _eq is not null;
     public bool NoEq => _eq is null;
 
+    private MicNoiseViewModel? _noise;
+    /// <summary>The channel's noise removal; null while the daemon reports none for it.</summary>
+    public MicNoiseViewModel? Noise
+    {
+        get => _noise;
+        internal set
+        {
+            if (!Set(ref _noise, value)) return;
+            Raise(nameof(HasNoise));
+            Raise(nameof(NoNoise));
+        }
+    }
+    public bool HasNoise => _noise is not null;
+    public bool NoNoise => _noise is null;
+
     /// <summary>The starting presets, in order.</summary>
     public IReadOnlyList<MicSetupPresetItem> Presets { get; }
 

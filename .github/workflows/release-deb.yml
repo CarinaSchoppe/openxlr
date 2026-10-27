@@ -22,8 +22,7 @@ jobs:
       # rustup one.
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          tools/ci-install-packages.sh \
             build-essential debhelper dotnet-sdk-10.0 lintian \
             pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev \
             wireplumber cargo rustc

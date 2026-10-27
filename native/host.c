@@ -963,6 +963,9 @@ extern const Backend eq_backend __attribute__((weak));
 extern const Backend eq_bands_backend __attribute__((weak));
 extern const Backend duck_backend __attribute__((weak));
 extern const Backend level_backend __attribute__((weak));
+// The noise removal engines this build carries (denoise.c), likewise absent
+// from the tests that leave the stages out.
+extern int denoise_print_engines(void) __attribute__((weak));
 
 static const Backend *backend_named(const char *name) {
   if (!strcmp(name, "soundcheck"))
@@ -996,6 +999,8 @@ int main(int argc, char **argv) {
     return clap_scan(argv[2]);
   if (argc == 3 && !strcmp(argv[1], "scan-vst3"))
     return vst3_scan(argv[2]);
+  if (argc == 2 && !strcmp(argv[1], "engines") && denoise_print_engines)
+    return denoise_print_engines();
   const Backend *backend = argc >= 2 ? backend_named(argv[1]) : NULL;
   int first = backend ? 2 + backend->argument_count : 0;  // NODE
   if (!backend || argc < first + 3) {
@@ -1011,7 +1016,8 @@ int main(int argc, char **argv) {
           "       openxlr-lv2-host duck NODE 2 RATE [SYMBOL=VALUE ...]\n"
           "       openxlr-lv2-host level NODE 1 RATE\n"
           "       openxlr-lv2-host scan-clap FILE\n"
-          "       openxlr-lv2-host scan-vst3 BUNDLE\n",
+          "       openxlr-lv2-host scan-vst3 BUNDLE\n"
+          "       openxlr-lv2-host engines\n",
           stderr);
     return 2;
   }

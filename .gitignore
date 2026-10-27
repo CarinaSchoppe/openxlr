@@ -19,6 +19,14 @@ native/tests/scan-plugin.so
 native/tests/sound-check
 native/tests/eq
 native/tests/duck
+native/tests/denoise
+native/build-config.h
+native/rnnoise/src/*.o
+native/rnnoise/src/x86/*.o
+# DeepFilterNet's build, its fetched model, and crates vendored by a package
+native/deepfilter/target/
+native/deepfilter/model/
+native/deepfilter/vendor/
 # nix build output symlink
 result
 

@@ -24,7 +24,10 @@ The flag compiles this directory and copies the helper next to the daemon,
 which is what the packaging recipes do. `make -C native` builds it alone.
 It needs a C11 and a C++ compiler, make, pkg-config and the development files for
 PipeWire, lilv, LV2 and X11; the libraries it links are already runtime
-dependencies of every package.
+dependencies of every package. DeepFilterNet, one of the two
+[noise removal](#noise-removal) engines, also needs cargo and rustc and,
+the first time, network for its crates and model; `DEEPFILTER=0` builds
+without it.
 
 `make -C native test-editor` runs the host's resize regression tests on
 `DISPLAY`, using a small test editor and a separate X connection. On a
@@ -412,6 +415,75 @@ double precision, and a filter whose whole state falls below 1e-25 is set to
 rest, so a decaying tail never reaches subnormal numbers. The test programs
 that compile `host.c` into themselves do not link `eq.o`; to them `eq` is an
 unknown backend.
+
+## Noise removal
+
+The same stage removes noise before its EQ (`denoise.c`), so the EQ, the
+chain and every mix hear the cleaned voice. Its controls sit beside the
+EQ's: `denoise_enabled`, `denoise_engine` (0 RNNoise, 1 DeepFilterNet) and
+`denoise_strength` (0 to 100 dB, the most the noise is turned down, 100
+unlimited). It reports three meters: `denoise_active`, the engine heard
+now (-1 none), `denoise_status`, why one asked for does not run (0 it runs,
+1 the graph is not at 48 kHz, 2 this build lacks the engine, 3 the engine
+could not start, 4 it stopped or fell behind), and `denoise_late`, the
+blocks DeepFilterNet answered late. Its delay is the stage's `latency`.
+Both engines work at 48 kHz on mono audio; at any other rate the stage
+passes the microphone through untouched and says so.
+
+- **RNNoise** 0.2 (Xiph, BSD-3-Clause), vendored under `rnnoise/` with its
+  `COPYING` and its model, and always built in. It runs on the audio thread
+  in 480-sample frames and allocates nothing per frame; on x86 it picks
+  SSE4.1 or AVX2 code at run time. It answers a frame two frames after it
+  takes it in, and the stage collects a frame first, so it adds 1440
+  samples, 30 ms. Strength mixes the input back in under its output at that
+  level, aligned to the same delay.
+- **DeepFilterNet** 3 (MIT or Apache-2.0) from `deepfilter/`: a Rust
+  static library, `openxlr-deepfilter`, that wraps libDF 0.5.6 (vendored
+  under `deepfilter/libdf/` with its licences; the three source files are
+  unchanged and the manifest keeps only the `tract` feature) behind a C
+  interface that catches every panic, and carries the model inside it.
+  Its inference allocates, so it runs on a worker thread of its own: the
+  audio thread writes into one ring, wakes the worker with a semaphore and
+  reads the other ring one block and two hops (960 samples) behind what it
+  wrote, plus the model's own 1440 samples. That is 55 ms at a quantum of
+  256 and 71 ms at 1024; a larger quantum later raises it once. Strength is
+  the model's attenuation limit; below 0.01 dB the library would hand the
+  input back without its delay, so the wrapper never goes lower. A hop the
+  worker has not answered in time plays the delayed input instead and counts
+  in `denoise_late`; a worker that fails or falls a ring behind turns
+  DeepFilterNet off until it is asked for again.
+
+Changing what is heard, on, off or the other engine, fades out over 5 ms
+and in over 5 ms: the engines are late by different amounts, so their
+outputs cannot be crossfaded. Until an engine has heard its own delay's
+worth of input, the input delayed to match plays in its place. A change to
+DeepFilterNet loads the model on the main thread, which takes a moment, and
+keeps what played before playing until the worker is there; the main thread
+hands workers over through one atomic slot and frees one only after the
+audio thread has handed it back.
+
+`make` builds DeepFilterNet in when cargo is on the `PATH` (`DEEPFILTER=auto`);
+`DEEPFILTER=1` requires it and `DEEPFILTER=0` leaves it out, and every package
+sets 1. The model is fetched once from the DeepFilterNet 0.5.6 tag and
+checked against its SHA-256 (in the Makefile); a build without network puts
+the same file at `deepfilter/model/DeepFilterNet3_onnx.tar.gz` first and the
+crates under `deepfilter/vendor/`, where cargo reads them offline.
+`DEEPFILTER_LIB` names a library built elsewhere. `openxlr-lv2-host engines`
+prints the engines a build carries as one line of JSON,
+`{"denoise":["rnnoise","deepfilternet"],"rate":48000}`, which the daemon reads
+to know what to offer.
+
+`make test-denoise` drives the stage with no audio server: a formant
+synthesiser speaking syllables in steady noise. For each engine it checks
+that the noise between syllables drops (RNNoise by 10 dB or more,
+DeepFilterNet by 15), that the syllables keep their level within 6 dB, and
+that the output lines up with the voice at the latency the stage reports;
+that strength 0 gives the delayed input back and a limit holds; that RNNoise
+gives the same output for blocks of any size; that switching on, off and
+between engines dips a steady tone for no more than 6 ms; that a graph at
+44.1 kHz passes through with its status; and that the `engines` line
+matches the build. `./tests/denoise ./openxlr-lv2-host --bench` also prints
+each engine's processing time.
 
 ## Scope
 

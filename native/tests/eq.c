@@ -10,6 +10,10 @@
 #include <assert.h>
 #include <time.h>
 
+// Noise removal's three controls and three meters, beside the EQ's own
+// (tests/denoise.c checks them).
+enum { DENOISE_CONTROLS = 6 };
+
 static const char *const TYPES[EQ_TYPES] = {"lowCut", "lowShelf", "peak",
                                             "notch", "highShelf", "highCut"};
 
@@ -360,7 +364,7 @@ static void check_controls(void) {
   eq_unload(two);
   free(two);
   Host *h = fresh(RATE);
-  assert(h->control_count == 1 + 5 * EQ_BANDS);
+  assert(h->control_count == 1 + 5 * EQ_BANDS + DENOISE_CONTROLS);
   const char *names[] = {"enabled", "type", "frequency", "gain", "qlog10"};
   for (int band = 1; band <= EQ_BANDS; band++)
     for (int k = 0; k < 5; k++) {
@@ -374,7 +378,7 @@ static void check_controls(void) {
   assert(set_control(h, "band1_type", 9));
   assert(atomic_load(&((Eq *)h->impl)->bands[0].type->desired) == HIGH_CUT);
   release(h);
-  puts("controls: the 21 symbols the daemon writes, clamped to their ranges");
+  puts("controls: the 21 EQ symbols the daemon writes, clamped to their ranges, beside noise removal's six");
 }
 
 static void check_variable_bands(void) {
@@ -394,7 +398,7 @@ static void check_variable_bands(void) {
     char *args[] = {number, NULL};
     assert(eq_load_bands(h, args));
     assert(((Eq *)h->impl)->band_count == (unsigned)count);
-    assert(h->control_count == (unsigned)(1 + 5 * count));
+    assert(h->control_count == (unsigned)(1 + 5 * count + DENOISE_CONTROLS));
     for (int band = 1; band <= count; band++) set_band(h, band, (Setting)OFF);
     set_band(h, count, (Setting){1, PEAK, 1000, 6, 1});
     set(h, "enabled", 1);

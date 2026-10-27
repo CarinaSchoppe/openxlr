@@ -623,7 +623,7 @@ public sealed class EqEditorModelTests
         Assert.False(eq.HasProcessingChoice);
         eq.ChooseProcessing("software");
         Assert.Empty(sent.Sent);
-        Assert.True(eq.ProcessOnDevice);
+        Assert.Equal("device", eq.Processing);
         // A unit but no choice in the state, which no daemon sends: still no switch.
         JsonNode noChoice = OnUnit(true, "device", "device", "1.0.15", ready: true);
         noChoice.AsObject().Remove("processing");
@@ -686,7 +686,8 @@ public sealed class EqEditorModelTests
         eq.Apply(OnUnit(true, "software", "software", "1.0.15", ready: true), null);
         Assert.True(eq.ProcessInSoftware);
 
-        // A unit that is not ready: the switch stays, showing the choice, and the note under it says why.
+        // A unit that cannot take the EQ: the switch stays, lit on software where the EQ runs, the
+        // unit's side cannot be pressed and its tooltip says why, as does the note under the switch.
         foreach ((string reason, string firmware, string expected) in new[]
         {
             ("firmwareOld", "1.0.0", Localizer.Format("EqDeviceFirmwareOld", "Wave XLR Dock MK.2", "1.0.0", "1.0.15")),
@@ -697,7 +698,13 @@ public sealed class EqEditorModelTests
         {
             eq.Apply(OnUnit(true, "software", "device", firmware, ready: false, reason), null);
             Assert.True(eq.HasProcessingChoice, reason);
-            Assert.True(eq.ProcessOnDevice, reason);
+            Assert.Equal("device", eq.Processing);
+            Assert.False(eq.ProcessOnDevice, reason);
+            Assert.True(eq.ProcessInSoftware, reason);
+            Assert.False(eq.CanProcessOnDevice, reason);
+            Assert.Equal(expected, eq.ProcessOnDeviceTip);
+            eq.ChooseProcessing("device");
+            Assert.Empty(sent.Sent);
             Assert.Equal(expected, eq.EditorNote);
             Assert.True(eq.HasEditorNote);
             Assert.Equal(Localizer.Text("EqStatusSoftware"), eq.Status);
@@ -710,6 +717,47 @@ public sealed class EqEditorModelTests
         eq.Apply(noUnit, null);
         Assert.False(eq.HasProcessingChoice);
         Assert.Null(eq.EditorNote);
+    }
+
+    [Fact]
+    public void MoreBandsThanTheUnitHoldsLightTheSoftwareSideAndKeepTheChoice()
+    {
+        var (eq, sent) = Model();
+        static JsonNode Five(string processing)
+        {
+            JsonNode state = OnUnit(true, "software", processing, "1.0.15", ready: true);
+            state["bands"]!.AsArray().Add(JsonNode.Parse("""{"enabled":true,"type":"peak","frequency":1000,"gain":3,"q":0.7046930689671475}"""));
+            return state;
+        }
+        string limit = Localizer.Format("EqDeviceBandLimit", "Wave XLR Dock MK.2", MicEq.BandCount);
+
+        // Five bands with the unit chosen: the EQ runs in software, and the switch says so.
+        eq.Apply(Five("device"), null);
+        Assert.Equal(5, eq.Bands.Count);
+        Assert.Equal("device", eq.Processing);
+        Assert.False(eq.ProcessOnDevice);
+        Assert.True(eq.ProcessInSoftware);
+        Assert.False(eq.CanProcessOnDevice);
+        Assert.Equal(limit, eq.ProcessOnDeviceTip);
+        Assert.Equal(limit, eq.EditorNote);
+        // The unit's side cannot be asked for while the bands do not fit.
+        eq.ChooseProcessing("device");
+        Assert.Empty(sent.Sent);
+
+        // Back to four bands: the kept choice puts the EQ on the unit again.
+        eq.Apply(OnUnit(true, "device", "device", "1.0.15", ready: true), null);
+        Assert.True(eq.ProcessOnDevice);
+        Assert.False(eq.ProcessInSoftware);
+        Assert.True(eq.CanProcessOnDevice);
+        Assert.Equal(Localizer.Format("EqProcessingDeviceTip", "Wave XLR Dock MK.2"), eq.ProcessOnDeviceTip);
+
+        // Pressing the software side while the bands do not fit makes software the choice.
+        eq.Apply(Five("device"), null);
+        eq.ChooseProcessing("software");
+        Assert.True(sent.Sent.TryDequeue(out var choice));
+        Assert.Equal(("setEqProcessing", "xlr1", (object)"software"), choice);
+        Assert.Equal("software", eq.Processing);
+        Assert.True(eq.ProcessInSoftware);
     }
 
     [Fact]

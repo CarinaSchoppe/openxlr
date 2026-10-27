@@ -1275,7 +1275,10 @@ bands, which retain their individual numbers.
 A supported interface runs up to four bands itself, with unused slots off.
 Above four, the complete EQ moves to software without changing your saved
 processing preference. It returns to the unit when its band count fits
-again and the unit is available. The editor explains the software fallback.
+again and the unit is available. Meanwhile **Where the EQ runs** lights
+**In software** and **On the unit** cannot be pressed. Pressing **In
+software** makes software your choice, so the EQ stays there after you
+remove bands.
 Only the EQ stage is replaced when its software band count changes; the
 inserts keep running. An older daemon offers no Add or Remove controls.
 
@@ -1378,19 +1381,22 @@ the input's route, and the plugin host is not needed.
   **Where the EQ runs** with **On the unit** and **In software**. **On the
   unit** is the default. **In software** runs the EQ on this computer
   instead and switches the unit's own EQ off, which keeps its bands. Use
-  it to compare the two, or to keep the unit plain. The lit side is the
-  choice the daemon keeps, and pressing it again changes nothing. The
-  mixer saves the choice per microphone; profiles do not carry it, and a
+  it to compare the two, or to keep the unit plain. The lit side is where
+  the EQ runs, and pressing it again changes nothing. While the unit
+  cannot take the EQ, for the reasons below, **In software** is lit and
+  **On the unit** cannot be pressed; its tooltip and the note under the
+  switch say why. Your choice is kept, and the EQ goes back to the unit
+  when it can take it again. The mixer saves the choice per microphone; profiles do not carry it, and a
   recall never changes it. The terminal mixer's Inputs tab shows the same
   choice.
-- On older firmware the EQ runs on this computer, and the switch keeps
-  your choice for when the unit is updated. A note under the switch names
+- On older firmware the EQ runs on this computer until the unit is
+  updated. A note under the switch names
   the unit's firmware and the version it needs: 1.0.15 on the MK.2 models,
   1.0.14 on the Pro. Elgato's updater is in
   Wave Link on Windows or macOS. The same note appears when the firmware
   version or the unit's EQ settings cannot be read, or when the unit did
   not keep an EQ written to it; switch the EQ off and on, or choose **In
-  software** and back, to try the unit again.
+  software** and then **On the unit**, to try the unit again.
 - Only the microphone the unit carries is equalised there: XLR 1 or XLR 2
   on the unit's own input, an additional interface's input, or a strip
   bound to the unit's own capture node. A microphone bound to any other

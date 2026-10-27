@@ -185,14 +185,26 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     /// </summary>
     public bool HasProcessingChoice => _hasDevice && _processingReported;
 
-    /// <summary>The switch's "On the unit" side is lit.</summary>
-    public bool ProcessOnDevice => _processing == "device";
+    /// <summary>
+    /// The unit can take the EQ now: it is ready and holds the bands. While it
+    /// cannot (older firmware, settings it cannot read, a write it did not
+    /// keep, more bands than it holds), the EQ runs in software whatever the
+    /// choice, and the choice is kept for when it can.
+    /// </summary>
+    private bool UnitTakesEq => _deviceReady && Bands.Count <= MicEq.BandCount;
 
-    /// <summary>The switch's "In software" side is lit.</summary>
-    public bool ProcessInSoftware => _processing == "software";
+    /// <summary>The switch's "On the unit" side is lit: the unit is chosen and can take the EQ.</summary>
+    public bool ProcessOnDevice => _processing == "device" && UnitTakesEq;
 
-    /// <summary>The "On the unit" side's tooltip, naming the unit.</summary>
-    public string ProcessOnDeviceTip => Localizer.Format("EqProcessingDeviceTip", _deviceName ?? Localizer.Text("EqTheInterface"));
+    /// <summary>The switch's "In software" side is lit: by choice, or because the unit cannot take the EQ.</summary>
+    public bool ProcessInSoftware => _processing == "software" || !UnitTakesEq;
+
+    /// <summary>The "On the unit" side can be pressed: the unit can take the EQ.</summary>
+    public bool CanProcessOnDevice => UnitTakesEq;
+
+    /// <summary>The "On the unit" side's tooltip: the unit named, or why it cannot take the EQ.</summary>
+    public string ProcessOnDeviceTip => (UnitTakesEq ? null : DeviceNote)
+        ?? Localizer.Format("EqProcessingDeviceTip", _deviceName ?? Localizer.Text("EqTheInterface"));
 
     /// <summary>
     /// A side of the switch was pressed: <c>device</c> or <c>software</c>.
@@ -202,7 +214,8 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
     public void ChooseProcessing(string value)
     {
         if (_disposed) return;
-        if (value is not ("device" or "software") || value == _processing || !HasProcessingChoice)
+        if (value is not ("device" or "software") || value == _processing || !HasProcessingChoice
+            || (value == "device" && !UnitTakesEq))
         {
             Raise(nameof(ProcessOnDevice));
             Raise(nameof(ProcessInSoftware));
@@ -306,6 +319,7 @@ public sealed class MicEqViewModel : ViewModelBase, IDisposable
         Raise(nameof(HasProcessingChoice));
         Raise(nameof(ProcessOnDevice));
         Raise(nameof(ProcessInSoftware));
+        Raise(nameof(CanProcessOnDevice));
         Raise(nameof(ProcessOnDeviceTip));
         Raise(nameof(DeviceBadgeTip));
         Raise(nameof(DeviceNote));

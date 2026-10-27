@@ -1445,6 +1445,8 @@
   <data name="ShowHiddenHint" xml:space="preserve">
     <value>Ipakita sa ilang dapit ang mga channel ug mix nga gitago sa I-edit ang layout, nga luspad. Magtrabaho gihapon sila sama sa naandan; walay mausab sa layout.</value>
   </data>
+  <data name="RouteAppsByDefault" xml:space="preserve"><value>Awtomatikong i-route ang mga aplikasyon nga walay pagtudlo</value></data>
+  <data name="RouteAppsByDefaultHint" xml:space="preserve"><value>I-off aron magpabilin ang mga app sa desktop hangtod motudlo ka og channel. Magamit gihapon ang mga natipigang pagtudlo. Ang mga app nga naggamit og OpenXLR nga system default makadula gihapon pinaagi niadtong channel.</value></data>
   <data name="PreAssignAChannelToAnAppThat" xml:space="preserve">
     <value>Itakda daan ang channel sa app nga wala pa makapatukar. Tag-anon ang identity gikan sa launcher niini; kon lahi ang ireport sa app sa unang pagpatukar, makita kini isip bag-ong entry.</value>
   </data>

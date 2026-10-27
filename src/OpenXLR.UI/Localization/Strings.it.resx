@@ -1485,6 +1485,8 @@
   <data name="ShowHiddenHint" xml:space="preserve">
     <value>Mostra al loro posto, sbiaditi, i canali e i mix nascosti in Modifica layout. Funzionano come sempre; nel layout non cambia nulla.</value>
   </data>
+  <data name="RouteAppsByDefault" xml:space="preserve"><value>Instrada automaticamente le applicazioni senza assegnazione</value></data>
+  <data name="RouteAppsByDefaultHint" xml:space="preserve"><value>Disattiva per lasciare le app al desktop finché non assegni un canale. Le assegnazioni salvate restano valide. Le app che usano un'uscita predefinita di sistema di OpenXLR possono comunque suonare attraverso quel canale.</value></data>
   <data name="PreAssignAChannelToAnAppThat" xml:space="preserve">
     <value>Preassegna un canale a un'app che non ha ancora riprodotto audio. L'identità viene dedotta dal suo lanciatore; se alla prima riproduzione l'app si presenta in modo diverso, compare semplicemente come una nuova voce.</value>
   </data>

@@ -222,6 +222,7 @@ pub struct DfTract {
     m_zeros: Vec<f32>,    // Preallocated buffer for applying a zero mask
     rolling_spec_buf_y: VecDeque<Tensor>, // Enhanced stage 1 spec buf
     rolling_spec_buf_x: VecDeque<Tensor>, // Noisy spec buf
+    skip_counter: usize,                  // Quiet hops in a row
 }
 
 #[cfg(all(not(feature = "capi"), feature = "default-model"))]
@@ -349,6 +350,7 @@ impl DfTract {
             m_zeros,
             rolling_spec_buf_y,
             rolling_spec_buf_x,
+            skip_counter: 0,
             df_states,
             post_filter: rp.post_filter,
             post_filter_beta: rp.post_filter_beta,
@@ -508,7 +510,16 @@ impl DfTract {
             (acc.0.max(x.abs()), acc.1 + x.powi(2))
         });
         let rms = e / noisy.len() as f32;
+        // As upstream after 0.5.6: a quiet hop is only zeroed, and its analysis
+        // skipped, once more than five came in a row. Skipping a lone quiet hop
+        // drops it from the overlap-add and the model's history, which garbles
+        // the speech around it.
         if rms < 1e-7 {
+            self.skip_counter += 1;
+        } else {
+            self.skip_counter = 0;
+        }
+        if self.skip_counter > 5 {
             enh.fill(0.);
             return Ok(-15.);
         }

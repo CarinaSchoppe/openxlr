@@ -328,6 +328,36 @@ static void check_deepfilter_blocks(void) {
     release(h);
   }
 }
+
+// The same voice in quieter rooms. At -50 dBFS of noise the model rates the
+// voice between its thresholds for gains alone and for deep filtering, where
+// DeepFilterNet's library defaults cut into the syllables; at -70 dBFS the
+// gaps fall below its quiet-hop level, where 0.5.6 zeroed lone hops and left
+// the gaps louder than they came in. Every syllable has to come through and
+// the noise between them has to drop.
+static void check_deepfilter_quiet_rooms(void) {
+  static float quiet[COUNT];
+  static const double rooms[] = {0.3, 0.03};
+  for (size_t r = 0; r < sizeof(rooms) / sizeof(rooms[0]); r++) {
+    for (size_t n = 0; n < COUNT; n++) quiet[n] = voice[n] + (float)rooms[r] * noise[n];
+    Host *h = stage(RATE, DENOISE_DEEPFILTER, 100);
+    run(h, quiet, output, COUNT, BLOCK);
+    size_t latency = eq_latency(h);
+    double worst = 0;
+    for (size_t at = 2 * RATE; at + RATE * 2 / 5 + latency <= COUNT; at += RATE * 2 / 5) {
+      double cut = rms_db(voice, at, at + RATE * 2 / 5, inside_syllable, 0)
+          - rms_db(output, at, at + RATE * 2 / 5 + latency, inside_syllable, latency);
+      worst = fmax(worst, cut);
+    }
+    double drop = rms_db(quiet, 2 * RATE, COUNT, between_syllables, 0)
+        - rms_db(output, 2 * RATE, COUNT, between_syllables, latency);
+    printf("DeepFilterNet with noise %.0f dB lower: the most a syllable loses is %.1f dB, noise %.1f dB down\n",
+           -20 * log10(rooms[r]), worst, drop);
+    assert(worst < 8);
+    assert(drop > 10);
+    release(h);
+  }
+}
 #endif
 
 static double cpu_seconds(void) {
@@ -363,6 +393,7 @@ int main(int argc, char **argv) {
   check_engine(DENOISE_DEEPFILTER, "DeepFilterNet", 15);
   check_strength(DENOISE_DEEPFILTER, "DeepFilterNet");
   check_deepfilter_blocks();
+  check_deepfilter_quiet_rooms();
 #else
   // Asked for anyway, it passes the input through and says why.
   Host *h = stage(RATE, DENOISE_DEEPFILTER, 100);

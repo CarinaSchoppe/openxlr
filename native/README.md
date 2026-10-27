@@ -439,9 +439,16 @@ passes the microphone through untouched and says so.
   level, aligned to the same delay.
 - **DeepFilterNet** 3 (MIT or Apache-2.0) from `deepfilter/`: a Rust
   static library, `openxlr-deepfilter`, that wraps libDF 0.5.6 (vendored
-  under `deepfilter/libdf/` with its licences; the three source files are
-  unchanged and the manifest keeps only the `tract` feature) behind a C
-  interface that catches every panic, and carries the model inside it.
+  under `deepfilter/libdf/` with its licences; the manifest keeps only the
+  `tract` feature, and the source carries one later upstream change, which
+  zeroes a quiet hop only once more than five came in a row instead of each
+  lone one) behind a C interface that catches every panic, and carries the
+  model inside it. It runs the model with the thresholds of DeepFilterNet's
+  own C API after 0.5.6 (-15, 35 and 35 dB of local SNR) rather than the
+  library defaults (-10, 30 and 20), under which a voice rated between 20
+  and 30 dB got the ERB gains without deep filtering and lost parts of
+  words; the model rates a clean voice lower the longer it runs, so after a
+  minute or two much of it landed there.
   Its inference allocates, so it runs on a worker thread of its own: the
   audio thread writes into one ring, wakes the worker with a semaphore and
   reads the other ring one block and two hops (960 samples) behind what it
@@ -481,8 +488,9 @@ that the output lines up with the voice at the latency the stage reports;
 that strength 0 gives the delayed input back and a limit holds; that RNNoise
 gives the same output for blocks of any size; that switching on, off and
 between engines dips a steady tone for no more than 6 ms; that a graph at
-44.1 kHz passes through with its status; and that the `engines` line
-matches the build. `./tests/denoise ./openxlr-lv2-host --bench` also prints
+44.1 kHz passes through with its status; that DeepFilterNet in rooms 10
+and 30 dB quieter loses under 8 dB from any syllable and still takes the
+noise down by 10 dB; and that the `engines` line matches the build. `./tests/denoise ./openxlr-lv2-host --bench` also prints
 each engine's processing time.
 
 ## Scope

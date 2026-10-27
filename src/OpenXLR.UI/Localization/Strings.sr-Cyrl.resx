@@ -2957,4 +2957,8 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   <data name="DesktopKeysConfigureUnsupported" xml:space="preserve">
     <value>Ова радна површина не може поново да отвори уређивач пречица. Промени доделе у подешавањима пречица радне површине.</value>
   </data>
+  <data name="EqAddBand" xml:space="preserve"><value>Додај појас</value></data>
+  <data name="EqRemoveBandName" xml:space="preserve"><value>Уклони EQ појас {0}</value></data>
+  <data name="EqDeviceBandLimit" xml:space="preserve"><value>{0} подржава највише {1} EQ појаса. Овај EQ ради у софтверу док број појасева поново не стане на уређај.</value></data>
+  <data name="EqRemoveBand" xml:space="preserve"><value>Уклони</value></data>
 </root>

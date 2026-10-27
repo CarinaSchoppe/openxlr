@@ -3030,4 +3030,310 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   <data name="EqRemoveBandName" xml:space="preserve"><value>Rimuovi la banda {0} dell'EQ</value></data>
   <data name="EqDeviceBandLimit" xml:space="preserve"><value>{0} supporta fino a {1} bande di EQ. Questo EQ funziona via software finché il numero di bande non rientra di nuovo nell'unità.</value></data>
   <data name="EqRemoveBand" xml:space="preserve"><value>Rimuovi</value></data>
+  <data name="MicSetupStepLevel" xml:space="preserve">
+    <value>Livello</value>
+  </data>
+  <data name="MicSetupStepListen" xml:space="preserve">
+    <value>Ascolto</value>
+  </data>
+  <data name="MicSetupIdle" xml:space="preserve">
+    <value>Microfono dal vivo. Nessuna ripresa registrata</value>
+  </data>
+  <data name="MicSetupReady" xml:space="preserve">
+    <value>Microfono dal vivo. {0:0.0} secondi pronti per il loop</value>
+  </data>
+  <data name="MicSetupLooping" xml:space="preserve">
+    <value>Loop di {0:0.0} secondi</value>
+  </data>
+  <data name="MicSetupLevelHint" xml:space="preserve">
+    <value>Parla come farai in onda, alla tua solita distanza dal microfono. Regola il guadagno in modo che i picchi della voce restino nella fascia e la spia di clip resti spenta.</value>
+  </data>
+  <data name="MicSetupBeforeEffects" xml:space="preserve">
+    <value>Microfono prima degli effetti</value>
+  </data>
+  <data name="MicSetupPeak" xml:space="preserve">
+    <value>Picco {0:0} dBFS</value>
+  </data>
+  <data name="MicSetupPeakSilent" xml:space="preserve">
+    <value>Nessun segnale</value>
+  </data>
+  <data name="MicSetupTargetTip" xml:space="preserve">
+    <value>I picchi del parlato dovrebbero restare nella fascia, tra -18 e -6 dBFS.</value>
+  </data>
+  <data name="MicSetupAverage" xml:space="preserve">
+    <value>Livello medio</value>
+  </data>
+  <data name="MicSetupClip" xml:space="preserve">
+    <value>Clip</value>
+  </data>
+  <data name="MicSetupClipTip" xml:space="preserve">
+    <value>Si accende quando il microfono raggiunge il fondo scala e resta accesa finché non la premi.</value>
+  </data>
+  <data name="MicSetupClipLit" xml:space="preserve">
+    <value>Spia di clip accesa: il microfono ha raggiunto il fondo scala. Premi per spegnerla.</value>
+  </data>
+  <data name="MicSetupClipDark" xml:space="preserve">
+    <value>Spia di clip spenta</value>
+  </data>
+  <data name="MicSetupGain" xml:space="preserve">
+    <value>Guadagno dell'interfaccia</value>
+  </data>
+  <data name="MicSetupNoGain" xml:space="preserve">
+    <value>OpenXLR non ha un controllo del guadagno per questo microfono. Regola il guadagno sul microfono o sulla sua interfaccia.</value>
+  </data>
+  <data name="MicSetupSuggestGain" xml:space="preserve">
+    <value>Suggerisci guadagno</value>
+  </data>
+  <data name="MicSetupSuggestHint" xml:space="preserve">
+    <value>Premi Suggerisci guadagno e parla per cinque secondi come farai in onda. OpenXLR misura la tua voce e suggerisce un guadagno che la porta nella fascia senza clip. Sull'interfaccia non cambia nulla finché non accetti.</value>
+  </data>
+  <data name="MicSetupSuggestListening" xml:space="preserve">
+    <value>In ascolto. Continua a parlare, mancano {0:0} s.</value>
+  </data>
+  <data name="MicSetupSuggestMeasured" xml:space="preserve">
+    <value>La tua voce ha raggiunto {0:0.0} dBFS nei tratti più forti, con il picco massimo a {1:0.0} dBFS.</value>
+  </data>
+  <data name="MicSetupSuggestTooFew" xml:space="preserve">
+    <value>Il misuratore ha inviato troppo poche letture per valutare. Tieni aperta questa finestra e misura di nuovo.</value>
+  </data>
+  <data name="MicSetupSuggestNoVoice" xml:space="preserve">
+    <value>Non si è sentito quasi nulla. Controlla che il microfono sia collegato e non silenziato, e che l'alimentazione phantom sia attiva se gli serve, poi misura di nuovo.</value>
+  </data>
+  <data name="MicSetupSuggestKeep" xml:space="preserve">
+    <value>Il guadagno di {0} dB porta già la tua voce nella fascia. Mantienilo.</value>
+  </data>
+  <data name="MicSetupSuggestKeepElsewhere" xml:space="preserve">
+    <value>La tua voce è già nella fascia.</value>
+  </data>
+  <data name="MicSetupSuggestChange" xml:space="preserve">
+    <value>Guadagno suggerito: {1} dB, ora {0} dB.</value>
+  </data>
+  <data name="MicSetupSuggestAtMaximum" xml:space="preserve">
+    <value>Anche al guadagno massimo dell'interfaccia, {0} dB, la tua voce resta circa {1:0} dB sotto l'obiettivo. Avvicinati al microfono o usane uno con più uscita.</value>
+  </data>
+  <data name="MicSetupSuggestAtMinimum" xml:space="preserve">
+    <value>Anche a 0 dB la tua voce è circa {0:0} dB sopra l'obiettivo. Allontanati dal microfono o parla più piano.</value>
+  </data>
+  <data name="MicSetupSuggestClipped" xml:space="preserve">
+    <value>La tua voce è andata in clip, quindi è più forte di quanto misurato. Abbassa il guadagno, poi misura di nuovo.</value>
+  </data>
+  <data name="MicSetupSuggestElsewhere" xml:space="preserve">
+    <value>OpenXLR non regola il guadagno di questo microfono. Cambialo di circa {0:+0;-0} dB sul microfono o sulla sua interfaccia, poi misura di nuovo.</value>
+  </data>
+  <data name="MicSetupSuggestLocked" xml:space="preserve">
+    <value>Il blocco del guadagno è attivo. Disattivalo per accettare.</value>
+  </data>
+  <data name="MicSetupSuggestUnreachable" xml:space="preserve">
+    <value>Al momento OpenXLR non può cambiare il guadagno di questa interfaccia.</value>
+  </data>
+  <data name="MicSetupSuggestStale" xml:space="preserve">
+    <value>Il guadagno o il microfono sono cambiati. Misura di nuovo.</value>
+  </data>
+  <data name="MicSetupSuggestSet" xml:space="preserve">
+    <value>Guadagno impostato a {0} dB. Misura di nuovo per controllare.</value>
+  </data>
+  <data name="MicSetupAcceptGain" xml:space="preserve">
+    <value>Accetta</value>
+  </data>
+  <data name="MicSetupDiscardGain" xml:space="preserve">
+    <value>Scarta</value>
+  </data>
+  <data name="MicSetupListenHint" xml:space="preserve">
+    <value>Registra fino a dieci secondi, poi metti in loop la ripresa e cambia gli effetti mentre senti le stesse parole. La ripresa resta in memoria e non viene mai salvata.</value>
+  </data>
+  <data name="MicSetupLoopTake" xml:space="preserve">
+    <value>Ripresa in loop</value>
+  </data>
+  <data name="MicSetupLiveMic" xml:space="preserve">
+    <value>Mic dal vivo</value>
+  </data>
+  <data name="MicSetupWaveform" xml:space="preserve">
+    <value>Forma d'onda della ripresa</value>
+  </data>
+  <data name="MicSetupNoTake" xml:space="preserve">
+    <value>Ancora nessuna ripresa. Registrane una per vederne la forma d'onda.</value>
+  </data>
+  <data name="MicSetupCompare" xml:space="preserve">
+    <value>Ascolta</value>
+  </data>
+  <data name="MicSetupProcessed" xml:space="preserve">
+    <value>Elaborato</value>
+  </data>
+  <data name="MicSetupRaw" xml:space="preserve">
+    <value>Grezzo</value>
+  </data>
+  <data name="MicSetupCompareHint" xml:space="preserve">
+    <value>Grezzo riproduce il microfono senza EQ, elaborazione software e plugin. I plugin restano in funzione, quindi il cambio si sente subito. Tutto ciò che questo canale alimenta sente il cambio, compresi i microfoni virtuali.</value>
+  </data>
+  <data name="MicSetupHearMyself" xml:space="preserve">
+    <value>Ascolta te stesso nel mix monitor finché questa finestra è aperta</value>
+  </data>
+  <data name="MicSetupHearMyselfLatency" xml:space="preserve">
+    <value>Attraverso questo computer ti senti con circa {0:0} ms di ritardo: i buffer del server audio più la latenza dichiarata dai plugin.</value>
+  </data>
+  <data name="MicSetupHearMyselfLatencyUnknown" xml:space="preserve">
+    <value>Attraverso questo computer ti senti con un leggero ritardo: i buffer del server audio più la latenza dichiarata dai plugin.</value>
+  </data>
+  <data name="MicSetupProDirect" xml:space="preserve">
+    <value>Il percorso a latenza zero del Wave XLR Pro verso le cuffie è disattivato durante la sessione, perché non può portare effetti.</value>
+  </data>
+  <data name="MicSetupNotHeard" xml:space="preserve">
+    <value>Al momento questo microfono non raggiunge le tue uscite monitor. Attiva Ascolta te stesso o riattiva il suo audio nel mix monitor.</value>
+  </data>
+  <data name="MicSetupClosingDiscards" xml:space="preserve">
+    <value>Chiudere questa finestra termina la sessione e scarta la ripresa. Ascolta te stesso e Grezzo terminano con essa; le impostazioni degli effetti restano come sono.</value>
+  </data>
+  <data name="MicSetupStepPosition" xml:space="preserve">
+    <value>Posizione</value>
+  </data>
+  <data name="MicSetupStepShape" xml:space="preserve">
+    <value>Suono</value>
+  </data>
+  <data name="MicSetupYourInterface" xml:space="preserve">
+    <value>questa interfaccia</value>
+  </data>
+  <data name="MicSetupPositionCapsule" xml:space="preserve">
+    <value>Questo microfono è la capsula integrata di {0}.</value>
+  </data>
+  <data name="MicSetupPositionXlr" xml:space="preserve">
+    <value>Questo microfono è sull'ingresso {1} di {0}.</value>
+  </data>
+  <data name="MicSetupPositionNone" xml:space="preserve">
+    <value>OpenXLR non controlla il dispositivo a cui è collegato questo microfono, quindi regola guadagno e alimentazione su quel dispositivo.</value>
+  </data>
+  <data name="MicSetupPlacement" xml:space="preserve">
+    <value>Dove metterlo</value>
+  </data>
+  <data name="MicSetupTipCapsuleFront" xml:space="preserve">
+    <value>Parla nella parte frontale del microfono, non nella parte superiore.</value>
+  </data>
+  <data name="MicSetupTipCapsuleRoom" xml:space="preserve">
+    <value>La capsula è a condensatore e sente l'ambiente più di un microfono dinamico. Tienila vicina alla bocca e lontana da tastiere e ventole.</value>
+  </data>
+  <data name="MicSetupTipXlrAddress" xml:space="preserve">
+    <value>Alcuni microfoni captano il suono dall'estremità, altri dal lato. Il manuale del microfono indica quale; parla verso quella parte, non di traverso.</value>
+  </data>
+  <data name="MicSetupTipXlrDistance" xml:space="preserve">
+    <value>Un microfono dinamico di solito lavora vicino alla bocca. Uno a condensatore può stare un po' più indietro, con più ambiente nel suono.</value>
+  </data>
+  <data name="MicSetupTipOtherDevice" xml:space="preserve">
+    <value>Parla verso la parte del microfono indicata dal suo manuale, non di traverso.</value>
+  </data>
+  <data name="MicSetupTipDistance" xml:space="preserve">
+    <value>Mantieni la stessa distanza mentre parli. Più vicino dà più basse e meno ambiente; più lontano dà più ambiente e meno basse.</value>
+  </data>
+  <data name="MicSetupTipAngle" xml:space="preserve">
+    <value>Puntalo verso la bocca leggermente di lato, così l'aria delle p e delle b gli passa accanto invece di colpirlo.</value>
+  </data>
+  <data name="MicSetupTipNoise" xml:space="preserve">
+    <value>Su un microfono cardioide, rivolgi il retro verso ventole, tastiere e altre fonti di rumore.</value>
+  </data>
+  <data name="MicSetupPhantomPower" xml:space="preserve">
+    <value>Alimentazione phantom</value>
+  </data>
+  <data name="MicSetupPhantomHint" xml:space="preserve">
+    <value>I microfoni a condensatore richiedono l'alimentazione phantom (48 V); quelli dinamici no, e la maggior parte non ne risente. Prima di attivarla su un microfono a nastro, controlla il suo manuale. Abbassa prima le cuffie, perché l'attivazione può produrre un colpo.</value>
+  </data>
+  <data name="MicSetupPhantomName" xml:space="preserve">
+    <value>Alimentazione phantom per questo microfono</value>
+  </data>
+  <data name="MicSetupPhantomElsewhere" xml:space="preserve">
+    <value>OpenXLR non gestisce l'alimentazione phantom di questo microfono. Se gli serve, attivala sull'interfaccia a cui è collegato.</value>
+  </data>
+  <data name="MicSetupShapeHint" xml:space="preserve">
+    <value>Metti in loop una ripresa nel passo Ascolto, poi modellane il suono qui. Ogni modifica qui sotto si sente subito, sulla ripresa o sul microfono dal vivo.</value>
+  </data>
+  <data name="MicSetupPresets" xml:space="preserve">
+    <value>Preset di partenza</value>
+  </data>
+  <data name="MicSetupPresetClear" xml:space="preserve">
+    <value>Nitido</value>
+  </data>
+  <data name="MicSetupPresetClearTip" xml:space="preserve">
+    <value>Taglio basse a 80 Hz, un po' meno rimbombo intorno a 300 Hz e una leggera spinta per presenza e aria.</value>
+  </data>
+  <data name="MicSetupPresetWarm" xml:space="preserve">
+    <value>Caldo</value>
+  </data>
+  <data name="MicSetupPresetWarmTip" xml:space="preserve">
+    <value>Taglio basse a 60 Hz, più corpo sotto i 200 Hz e alti più morbidi.</value>
+  </data>
+  <data name="MicSetupPresetBroadcast" xml:space="preserve">
+    <value>Broadcast</value>
+  </data>
+  <data name="MicSetupPresetBroadcastTip" xml:space="preserve">
+    <value>Taglio basse a 100 Hz, meno impasto intorno a 400 Hz e una spinta in avanti intorno a 4 kHz.</value>
+  </data>
+  <data name="MicSetupPresetHint" xml:space="preserve">
+    <value>Un preset imposta le quattro bande dell'EQ e accende l'EQ. È un punto di partenza: regolalo sulla curva qui sotto.</value>
+  </data>
+  <data name="MicSetupPresetApplied" xml:space="preserve">
+    <value>{0} è sull'EQ. Annulla preset ripristina l'EQ che avevi prima.</value>
+  </data>
+  <data name="MicSetupPresetUndone" xml:space="preserve">
+    <value>L'EQ è tornato com'era prima del preset.</value>
+  </data>
+  <data name="MicSetupUndoPreset" xml:space="preserve">
+    <value>Annulla preset</value>
+  </data>
+  <data name="MicSetupUndoPresetTip" xml:space="preserve">
+    <value>Ripristina l'EQ com'era prima dell'ultimo preset. Anche le modifiche fatte da allora vengono annullate.</value>
+  </data>
+  <data name="MicSetupEq" xml:space="preserve">
+    <value>EQ</value>
+  </data>
+  <data name="MicSetupEqEditor" xml:space="preserve">
+    <value>Tutte le bande</value>
+  </data>
+  <data name="MicSetupEqEditorTip" xml:space="preserve">
+    <value>Apri l'editor dell'EQ, con una riga di campi per ogni banda</value>
+  </data>
+  <data name="MicSetupNoEq" xml:space="preserve">
+    <value>Il demone non segnala alcun EQ per questo microfono.</value>
+  </data>
+  <data name="MicSetupFilters" xml:space="preserve">
+    <value>Taglio basse e ClipGuard</value>
+  </data>
+  <data name="MicSetupUnitLowCut" xml:space="preserve">
+    <value>Taglio basse dell'interfaccia</value>
+  </data>
+  <data name="MicSetupUnitClipGuard" xml:space="preserve">
+    <value>ClipGuard dell'interfaccia</value>
+  </data>
+  <data name="MicSetupUnitFiltersHint" xml:space="preserve">
+    <value>Il taglio basse e il ClipGuard propri dell'interfaccia agiscono prima della ripresa, quindi una ripresa in loop non cambia con essi. Usa Mic dal vivo per sentirli.</value>
+  </data>
+  <data name="MicSetupSoftwareLowCut" xml:space="preserve">
+    <value>Taglio basse software</value>
+  </data>
+  <data name="MicSetupSoftwareClipGuard" xml:space="preserve">
+    <value>ClipGuard software</value>
+  </data>
+  <data name="MicSetupSoftwareFiltersHint" xml:space="preserve">
+    <value>Il taglio basse e il ClipGuard software funzionano su questo computer dopo l'EQ, quindi il loop passa attraverso di essi.</value>
+  </data>
+  <data name="MicSetupNoFilters" xml:space="preserve">
+    <value>Questo microfono non ha un taglio basse né un ClipGuard propri. Quel compito lo svolge la banda di taglio basse dell'EQ.</value>
+  </data>
+  <data name="MicSetupEffects" xml:space="preserve">
+    <value>Plugin</value>
+  </data>
+  <data name="MicSetupAddEffect" xml:space="preserve">
+    <value>Aggiungi effetto</value>
+  </data>
+  <data name="MicSetupAddEffectTip" xml:space="preserve">
+    <value>Aggiungi un plugin alla fine della catena di questo microfono</value>
+  </data>
+  <data name="MicSetupBypassName" xml:space="preserve">
+    <value>Bypass di {0}</value>
+  </data>
+  <data name="MicSetupEditor" xml:space="preserve">
+    <value>Editor</value>
+  </data>
+  <data name="MicSetupEditorName" xml:space="preserve">
+    <value>Apri l'editor di {0}</value>
+  </data>
+  <data name="MicSetupEffectsHint" xml:space="preserve">
+    <value>Metti in bypass un plugin per sentire la catena senza di esso. La finestra della catena sposta, rinomina e rimuove i plugin.</value>
+  </data>
 </root>

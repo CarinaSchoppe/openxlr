@@ -2963,4 +2963,376 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
   <data name="EqRemoveBandName" xml:space="preserve"><value>Tangtanga ang EQ band {0}</value></data>
   <data name="EqDeviceBandLimit" xml:space="preserve"><value>Hangtod {1} ka EQ band ang masuportahan sa {0}. Nagdagan kining EQ sa software hangtod mohaum na usab sa unit ang gidaghanon sa mga band.</value></data>
   <data name="EqRemoveBand" xml:space="preserve"><value>Tangtanga</value></data>
+  <data name="OlderDaemonCannotConnectNote" xml:space="preserve">
+    <value>Nagdagan pa ang daemon gikan sa wala pa ang update, ug dili makakonektar niini kining window (v{0}). I-restart ang daemon aron makonektar.</value>
+  </data>
+  <data name="OlderDaemonRunning" xml:space="preserve">
+    <value>Nagdagan ang mas daang daemon</value>
+  </data>
+  <data name="OlderDaemonRunningSentence" xml:space="preserve">
+    <value>Nagdagan pa ang daemon gikan sa wala pa ang update.</value>
+  </data>
+  <data name="MixerScale" xml:space="preserve">
+    <value>Gidak-on sa mixer</value>
+  </data>
+  <data name="MixerScaleFit" xml:space="preserve">
+    <value>Ihaum sa window</value>
+  </data>
+  <data name="MixerScalePercent" xml:space="preserve">
+    <value>{0}%</value>
+  </data>
+  <data name="MixerScaleHint" xml:space="preserve">
+    <value>Padakoon ang mixer niining window. Pilion sa Ihaum sa window ang pinakadakong gidak-on nga makita ang matag control nga walay pag-scroll.</value>
+  </data>
+  <data name="MixerScaleNotSaved" xml:space="preserve">
+    <value>Magamit ang gidak-on sa mixer hangtod sirad-an kining window, apan dili kini ma-save: {0}</value>
+  </data>
+  <data name="MixerScaleCustom" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="MixerScaleCustomName" xml:space="preserve">
+    <value>Custom nga gidak-on sa mixer sa porsyento</value>
+  </data>
+  <data name="MixerScaleCustomHint" xml:space="preserve">
+    <value>Bisan unsang gidak-on gikan 100% hangtod 300%. Pag-type og gidak-on ug pislita ang Enter, o usba og 5% matag lakang gamit ang mga arrow.</value>
+  </data>
+  <data name="MixerScaleCustomUnit" xml:space="preserve">
+    <value>%</value>
+  </data>
+  <data name="StartupAudioService" xml:space="preserve">
+    <value>Nagdagan ang audio isip user service gawas sa app, busa ang app ra ang sugdan niining mga opsyon.</value>
+  </data>
+  <data name="StartupAudioInTray" xml:space="preserve">
+    <value>Mosugod ang audio sa pag-login uban ang app sa tray.</value>
+  </data>
+  <data name="FlatpakSetUpButton" xml:space="preserve">
+    <value>I-setup</value>
+  </data>
+  <data name="FlatpakRulesFailed" xml:space="preserve">
+    <value>Kinahanglan tan-awon ang setup sa WirePlumber: {0}</value>
+  </data>
+  <data name="DesktopKeysShortcutsUnavailable" xml:space="preserve">
+    <value>Walay global shortcut nga gitanyag niining desktop pinaagi sa portal. Magamit gihapon ang focus routing sa OpenDeck.</value>
+  </data>
+  <data name="MicSetup" xml:space="preserve">
+    <value>Setup sa mic</value>
+  </data>
+  <data name="MicSetupButtonTip" xml:space="preserve">
+    <value>I-setup ang mikropono lakang sa lakang: asa kini ibutang, ang level niini, usa ka take nga madungog nga raw ug naproseso, ug ang EQ ug mga plugin niini. Maabli sa XLR 1, o sa unang mikropono sa mixer.</value>
+  </data>
+  <data name="MicSetupMicrophone" xml:space="preserve">
+    <value>Mikropono</value>
+  </data>
+  <data name="MicSetupMicrophoneName" xml:space="preserve">
+    <value>Mikropono nga i-setup</value>
+  </data>
+  <data name="MicSetupMicrophoneTip" xml:space="preserve">
+    <value>Pilia ang mikropono nga i-setup. Mohunong una ang take o Paminawa ang akong tingog nga nagdagan sa gipakita.</value>
+  </data>
+  <data name="MicSetupStepLevel" xml:space="preserve">
+    <value>Level</value>
+  </data>
+  <data name="MicSetupStepListen" xml:space="preserve">
+    <value>Paminaw</value>
+  </data>
+  <data name="MicSetupIdle" xml:space="preserve">
+    <value>Live nga mikropono. Walay narekord nga take</value>
+  </data>
+  <data name="MicSetupReady" xml:space="preserve">
+    <value>Live nga mikropono. {0:0.0} ka segundo andam i-loop</value>
+  </data>
+  <data name="MicSetupLooping" xml:space="preserve">
+    <value>Gi-loop ang {0:0.0} ka segundo</value>
+  </data>
+  <data name="MicSetupLevelHint" xml:space="preserve">
+    <value>Sulti sama sa imong pagsulti on air, sa naandan nimong gilay-on gikan sa mikropono. Itakda ang gain aron ang peak sa imong tingog anaa sulod sa band ug magpabiling patay ang clip light.</value>
+  </data>
+  <data name="MicSetupBeforeEffects" xml:space="preserve">
+    <value>Mikropono sa dili pa ang mga effect</value>
+  </data>
+  <data name="MicSetupPeak" xml:space="preserve">
+    <value>Peak {0:0} dBFS</value>
+  </data>
+  <data name="MicSetupPeakSilent" xml:space="preserve">
+    <value>Walay signal</value>
+  </data>
+  <data name="MicSetupTargetTip" xml:space="preserve">
+    <value>Kinahanglan ang peak sa pagsulti anaa sa band, tali sa -18 ug -6 dBFS.</value>
+  </data>
+  <data name="MicSetupAverage" xml:space="preserve">
+    <value>Average nga level</value>
+  </data>
+  <data name="MicSetupClip" xml:space="preserve">
+    <value>Clip</value>
+  </data>
+  <data name="MicSetupClipTip" xml:space="preserve">
+    <value>Mosiga kon moabot sa full scale ang mikropono, ug magpabiling nagsiga hangtod imo kining pislitan.</value>
+  </data>
+  <data name="MicSetupClipLit" xml:space="preserve">
+    <value>Clip light, nagsiga: miabot sa full scale ang mikropono. Pislita aron mapalong.</value>
+  </data>
+  <data name="MicSetupClipDark" xml:space="preserve">
+    <value>Clip light, patay</value>
+  </data>
+  <data name="MicSetupGain" xml:space="preserve">
+    <value>Gain sa interface</value>
+  </data>
+  <data name="MicSetupNoGain" xml:space="preserve">
+    <value>Walay gain control ang OpenXLR alang niining mikropono. Itakda ang gain sa mikropono o sa kaugalingong interface niini.</value>
+  </data>
+  <data name="MicSetupSuggestGain" xml:space="preserve">
+    <value>Isugyot ang gain</value>
+  </data>
+  <data name="MicSetupSuggestHint" xml:space="preserve">
+    <value>Pislita ang Isugyot ang gain ug sulti sulod sa lima ka segundo sama sa imong pagsulti on air. Sukdon sa OpenXLR ang imong tingog ug isugyot ang gain nga mobutang niini sa band nga walay clipping. Walay mausab sa interface hangtod imo kining dawaton.</value>
+  </data>
+  <data name="MicSetupSuggestListening" xml:space="preserve">
+    <value>Naminaw. Padayon sa pagsulti, {0:0} s pa ang nahibilin.</value>
+  </data>
+  <data name="MicSetupSuggestMeasured" xml:space="preserve">
+    <value>Miabot sa {0:0.0} dBFS ang imong tingog sa kusog nga mga bahin, ug {1:0.0} dBFS ang pinakataas nga peak niini.</value>
+  </data>
+  <data name="MicSetupSuggestTooFew" xml:space="preserve">
+    <value>Gamay ra kaayo ang mga reading nga gipadala sa meter aron makahukom. Ipabiling bukas kining window ug sukda pag-usab.</value>
+  </data>
+  <data name="MicSetupSuggestNoVoice" xml:space="preserve">
+    <value>Halos walay nadungog. Susiha nga konektado ang mikropono ug dili naka-mute, ug naka-on ang phantom power kon kinahanglan niini, dayon sukda pag-usab.</value>
+  </data>
+  <data name="MicSetupSuggestKeep" xml:space="preserve">
+    <value>Ang gain nga {0} dB nagbutang na sa imong tingog sa band. Ipabilin kini.</value>
+  </data>
+  <data name="MicSetupSuggestKeepElsewhere" xml:space="preserve">
+    <value>Anaa na sa band ang imong tingog.</value>
+  </data>
+  <data name="MicSetupSuggestChange" xml:space="preserve">
+    <value>Gisugyot nga gain: {1} dB, karon {0} dB.</value>
+  </data>
+  <data name="MicSetupSuggestAtMaximum" xml:space="preserve">
+    <value>Bisan sa pinakataas nga gain sa interface, {0} dB, mga {1:0} dB ubos pa sa target ang imong tingog. Duol pa sa mikropono, o gamit og mikropono nga mas kusog og output.</value>
+  </data>
+  <data name="MicSetupSuggestAtMinimum" xml:space="preserve">
+    <value>Bisan sa 0 dB mga {0:0} dB lapas sa target ang imong tingog. Layo gamay sa mikropono o sulti nga mas hinay.</value>
+  </data>
+  <data name="MicSetupSuggestClipped" xml:space="preserve">
+    <value>Nag-clip ang imong tingog, busa mas kusog kini kaysa sa nasukod. Pahinayi ang gain, dayon sukda pag-usab.</value>
+  </data>
+  <data name="MicSetupSuggestElsewhere" xml:space="preserve">
+    <value>Dili itakda sa OpenXLR ang gain niining mikropono. Usba kini og mga {0:+0;-0} dB sa mikropono o sa interface niini, dayon sukda pag-usab.</value>
+  </data>
+  <data name="MicSetupSuggestLocked" xml:space="preserve">
+    <value>Naka-on ang gain lock. I-off kini aron madawat.</value>
+  </data>
+  <data name="MicSetupSuggestUnreachable" xml:space="preserve">
+    <value>Dili mausab sa OpenXLR ang gain niining interface karon.</value>
+  </data>
+  <data name="MicSetupSuggestStale" xml:space="preserve">
+    <value>Nausab ang gain o mikropono. Sukda pag-usab.</value>
+  </data>
+  <data name="MicSetupSuggestSet" xml:space="preserve">
+    <value>Gitakda ang gain sa {0} dB. Sukda pag-usab aron masusi.</value>
+  </data>
+  <data name="MicSetupAcceptGain" xml:space="preserve">
+    <value>Dawata</value>
+  </data>
+  <data name="MicSetupDiscardGain" xml:space="preserve">
+    <value>Isalikway</value>
+  </data>
+  <data name="MicSetupListenHint" xml:space="preserve">
+    <value>Pagrekord hangtod napulo ka segundo, dayon i-loop ang take ug usba ang mga effect samtang madungog nimo ang samang mga pulong. Magpabilin sa memory ang take ug dili gayod i-save.</value>
+  </data>
+  <data name="MicSetupLoopTake" xml:space="preserve">
+    <value>I-loop ang take</value>
+  </data>
+  <data name="MicSetupLiveMic" xml:space="preserve">
+    <value>Live mic</value>
+  </data>
+  <data name="MicSetupWaveform" xml:space="preserve">
+    <value>Waveform sa take</value>
+  </data>
+  <data name="MicSetupNoTake" xml:space="preserve">
+    <value>Wala pay take. Pagrekord og usa aron makita ang waveform niini.</value>
+  </data>
+  <data name="MicSetupCompare" xml:space="preserve">
+    <value>Paminawa</value>
+  </data>
+  <data name="MicSetupProcessed" xml:space="preserve">
+    <value>Naproseso</value>
+  </data>
+  <data name="MicSetupRaw" xml:space="preserve">
+    <value>Raw</value>
+  </data>
+  <data name="MicSetupCompareHint" xml:space="preserve">
+    <value>Patokaron sa Raw ang mikropono nga walay EQ, software processing ug mga plugin niini. Magpadayon sa pagdagan ang mga plugin, busa madungog dayon ang pagbalhin. Madungog ang pagbalhin sa tanang gipadad-an niining channel, apil ang virtual nga mga mikropono.</value>
+  </data>
+  <data name="MicSetupHearMyself" xml:space="preserve">
+    <value>Paminawa ang akong tingog sa monitor mix samtang bukas kining window</value>
+  </data>
+  <data name="MicSetupHearMyselfLatency" xml:space="preserve">
+    <value>Pinaagi niining computer, mga {0:0} ms nga ulahi nimo madungog ang imong tingog: ang mga buffer sa audio server ug ang latency nga gi-report sa mga plugin.</value>
+  </data>
+  <data name="MicSetupHearMyselfLatencyUnknown" xml:space="preserve">
+    <value>Pinaagi niining computer, gamay nga ulahi nimo madungog ang imong tingog: ang mga buffer sa audio server ug ang latency nga gi-report sa mga plugin.</value>
+  </data>
+  <data name="MicSetupProDirect" xml:space="preserve">
+    <value>Naka-off sa panahon sa session ang zero-latency nga agianan sa Wave XLR Pro padulong sa headphone, kay dili kini makadala og mga effect.</value>
+  </data>
+  <data name="MicSetupNotHeard" xml:space="preserve">
+    <value>Wala karon moabot kining mikropono sa imong mga monitor output. I-on ang Paminawa ang akong tingog, o i-unmute kini sa monitor mix.</value>
+  </data>
+  <data name="MicSetupClosingDiscards" xml:space="preserve">
+    <value>Ang pagsira niining window motapos sa session ug isalikway ang take. Mohunong usab ang Paminawa ang akong tingog ug Raw; magpabilin ang imong mga setting sa effect.</value>
+  </data>
+  <data name="MicSetupStepPosition" xml:space="preserve">
+    <value>Posisyon</value>
+  </data>
+  <data name="MicSetupStepShape" xml:space="preserve">
+    <value>Hulma</value>
+  </data>
+  <data name="MicSetupYourInterface" xml:space="preserve">
+    <value>imong interface</value>
+  </data>
+  <data name="MicSetupPositionCapsule" xml:space="preserve">
+    <value>Kining mikropono mao ang built-in nga capsule sa {0}.</value>
+  </data>
+  <data name="MicSetupPositionXlr" xml:space="preserve">
+    <value>Anaa kining mikropono sa input {1} sa {0}.</value>
+  </data>
+  <data name="MicSetupPositionNone" xml:space="preserve">
+    <value>Dili kontrolon sa OpenXLR ang device diin nakakabit kining mikropono, busa itakda ang gain ug power niini sa maong device.</value>
+  </data>
+  <data name="MicSetupPlacement" xml:space="preserve">
+    <value>Asa kini ibutang</value>
+  </data>
+  <data name="MicSetupTipCapsuleFront" xml:space="preserve">
+    <value>Sulti sa atubangan sa mikropono, dili sa ibabaw niini.</value>
+  </data>
+  <data name="MicSetupTipCapsuleRoom" xml:space="preserve">
+    <value>Condenser ang capsule, nga mas makadungog sa kuwarto kaysa dynamic nga mikropono. Ipaduol kini sa imong baba ug ipalayo sa mga keyboard ug bentilador.</value>
+  </data>
+  <data name="MicSetupTipXlrAddress" xml:space="preserve">
+    <value>Ang ubang mikropono mokuha og tingog gikan sa tumoy, ang uban gikan sa kilid. Ang manwal sa mikropono ang moingon kon asa; sulti ngadto sa maong bahin, dili patabok niini.</value>
+  </data>
+  <data name="MicSetupTipXlrDistance" xml:space="preserve">
+    <value>Kasagaran molihok og maayo ang dynamic nga mikropono kon duol sa baba. Mahimong ibutang og gamay nga layo ang condenser, nga mas daghan ang kuwarto sa tingog.</value>
+  </data>
+  <data name="MicSetupTipOtherDevice" xml:space="preserve">
+    <value>Sulti ngadto sa bahin sa mikropono nga gihisgotan sa manwal niini, dili patabok niini.</value>
+  </data>
+  <data name="MicSetupTipDistance" xml:space="preserve">
+    <value>Ipabilin ang samang gilay-on samtang nagsulti. Kon mas duol, mas daghan ang ubos nga tingog ug mas gamay ang kuwarto; kon mas layo, mas daghan ang kuwarto ug mas gamay ang ubos nga tingog.</value>
+  </data>
+  <data name="MicSetupTipAngle" xml:space="preserve">
+    <value>Itumong kini sa imong baba gikan sa gamay nga kilid, aron ang hangin sa mga tingog nga p ug b molabay niini imbes moigo.</value>
+  </data>
+  <data name="MicSetupTipNoise" xml:space="preserve">
+    <value>Sa cardioid nga mikropono, itumong ang likod niini ngadto sa mga bentilador, keyboard ug ubang kasaba.</value>
+  </data>
+  <data name="MicSetupPhantomPower" xml:space="preserve">
+    <value>Phantom power</value>
+  </data>
+  <data name="MicSetupPhantomHint" xml:space="preserve">
+    <value>Nagkinahanglan og phantom power (48 V) ang mga condenser nga mikropono; dili ang mga dynamic, ug kadaghanan kanila dili maapektuhan niini. Basaha ang manwal sa ribbon nga mikropono sa dili pa kini i-on. Pahinayi una ang imong headphone, kay mahimong mobagting kon i-switch kini.</value>
+  </data>
+  <data name="MicSetupPhantomName" xml:space="preserve">
+    <value>Phantom power alang niining mikropono</value>
+  </data>
+  <data name="MicSetupPhantomElsewhere" xml:space="preserve">
+    <value>Dili i-switch sa OpenXLR ang phantom power alang niining mikropono. Kon kinahanglan niini, i-on kini sa interface diin kini nakakabit.</value>
+  </data>
+  <data name="MicSetupShapeHint" xml:space="preserve">
+    <value>I-loop ang take sa lakang nga Paminaw, dayon hulmaha kini dinhi. Madungog dayon ang matag kausaban sa ubos, sa take o sa live nga mikropono.</value>
+  </data>
+  <data name="MicSetupPresets" xml:space="preserve">
+    <value>Sinugdanang mga preset</value>
+  </data>
+  <data name="MicSetupPresetClear" xml:space="preserve">
+    <value>Klaro</value>
+  </data>
+  <data name="MicSetupPresetClearTip" xml:space="preserve">
+    <value>Low cut sa 80 Hz, gamay nga pagkunhod sa kulob duol sa 300 Hz ug gamay nga pagpakusog sa presence ug air.</value>
+  </data>
+  <data name="MicSetupPresetWarm" xml:space="preserve">
+    <value>Init</value>
+  </data>
+  <data name="MicSetupPresetWarmTip" xml:space="preserve">
+    <value>Low cut sa 60 Hz, dugang kabug-at ubos sa 200 Hz ug mas hinay nga taas.</value>
+  </data>
+  <data name="MicSetupPresetBroadcast" xml:space="preserve">
+    <value>Broadcast</value>
+  </data>
+  <data name="MicSetupPresetBroadcastTip" xml:space="preserve">
+    <value>Low cut sa 100 Hz, mas gamay nga lapok duol sa 400 Hz ug pagpakusog duol sa 4 kHz aron moduol ang tingog.</value>
+  </data>
+  <data name="MicSetupPresetHint" xml:space="preserve">
+    <value>Itakda sa preset ang upat ka band sa EQ ug i-on ang EQ. Sinugdanan ra kini: usba kini sa kurba sa ubos.</value>
+  </data>
+  <data name="MicSetupPresetApplied" xml:space="preserve">
+    <value>Anaa na sa EQ ang {0}. Ibalik sa I-undo ang preset ang EQ nga imong naa sa wala pa kini.</value>
+  </data>
+  <data name="MicSetupPresetUndone" xml:space="preserve">
+    <value>Nabalik na ang EQ sama sa wala pa ang preset.</value>
+  </data>
+  <data name="MicSetupUndoPreset" xml:space="preserve">
+    <value>I-undo ang preset</value>
+  </data>
+  <data name="MicSetupUndoPresetTip" xml:space="preserve">
+    <value>Ibalik ang EQ sama sa wala pa ang kataposang preset. Mawala usab ang mga kausaban niini sukad niadto.</value>
+  </data>
+  <data name="MicSetupEq" xml:space="preserve">
+    <value>EQ</value>
+  </data>
+  <data name="MicSetupEqEditor" xml:space="preserve">
+    <value>Tanang band</value>
+  </data>
+  <data name="MicSetupEqEditorTip" xml:space="preserve">
+    <value>Ablihi ang EQ editor, nga adunay laray sa mga field matag band</value>
+  </data>
+  <data name="MicSetupNoEq" xml:space="preserve">
+    <value>Walay EQ nga gi-report sa daemon alang niining mikropono.</value>
+  </data>
+  <data name="MicSetupFilters" xml:space="preserve">
+    <value>Low cut ug ClipGuard</value>
+  </data>
+  <data name="MicSetupUnitLowCut" xml:space="preserve">
+    <value>Low cut sa interface</value>
+  </data>
+  <data name="MicSetupUnitClipGuard" xml:space="preserve">
+    <value>ClipGuard sa interface</value>
+  </data>
+  <data name="MicSetupUnitFiltersHint" xml:space="preserve">
+    <value>Molihok ang kaugalingong low cut ug ClipGuard sa interface sa dili pa ang take, busa dili mausab ang gi-loop nga take tungod kanila. Gamita ang Live mic aron madungog sila.</value>
+  </data>
+  <data name="MicSetupSoftwareLowCut" xml:space="preserve">
+    <value>Software low cut</value>
+  </data>
+  <data name="MicSetupSoftwareClipGuard" xml:space="preserve">
+    <value>Software ClipGuard</value>
+  </data>
+  <data name="MicSetupSoftwareFiltersHint" xml:space="preserve">
+    <value>Nagdagan niining computer ang software low cut ug ClipGuard human sa EQ, busa moagi kanila ang loop.</value>
+  </data>
+  <data name="MicSetupNoFilters" xml:space="preserve">
+    <value>Walay kaugalingong low cut o ClipGuard kining mikropono. Ang low cut band sa EQ ang mohimo niana.</value>
+  </data>
+  <data name="MicSetupEffects" xml:space="preserve">
+    <value>Mga plugin</value>
+  </data>
+  <data name="MicSetupAddEffect" xml:space="preserve">
+    <value>Idugang ang effect</value>
+  </data>
+  <data name="MicSetupAddEffectTip" xml:space="preserve">
+    <value>Idugang ang plugin sa tumoy sa chain niining mikropono</value>
+  </data>
+  <data name="MicSetupBypassName" xml:space="preserve">
+    <value>I-bypass ang {0}</value>
+  </data>
+  <data name="MicSetupEditor" xml:space="preserve">
+    <value>Editor</value>
+  </data>
+  <data name="MicSetupEditorName" xml:space="preserve">
+    <value>Ablihi ang editor sa {0}</value>
+  </data>
+  <data name="MicSetupEffectsHint" xml:space="preserve">
+    <value>I-bypass ang plugin aron madungog ang chain nga wala kini. Sa chain window ibalhin, ilisan og ngalan ug tangtangon ang mga plugin.</value>
+  </data>
 </root>

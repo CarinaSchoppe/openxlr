@@ -34,9 +34,9 @@ is measured over one that is described.
   API, with every change saved before it is acknowledged. An output
   follows any mix or a sum of mixes. XLR 1 and XLR 2 can be bound to any
   capture source while the interface stays driven, and a capture input is
-  a full microphone strip: its own insert chain, the microphone EQ, Sound
-  Check when mono, and the controls of the unit behind it. Exclusive
-  channel groups, ducking on every device, profiles with one recalled on
+  a full microphone strip: its own insert chain, the microphone EQ, noise
+  removal and Mic setup when mono, and the controls of the unit behind
+  it. Exclusive channel groups, ducking on every device, profiles with one recalled on
   connect, and browser tabs routed to channels through the Chromium
   companion.
 - [x] Plugins. LV2, CLAP and VST3 inserts on every input and mix, with
@@ -44,7 +44,7 @@ is measured over one that is described.
   yabridge and the optional companion; installation from the UI; presets
   with A/B comparison; latency compensation across mixes; a scanner that
   passes over a bundle that hangs.
-- [x] Clients. The UI, with sixteen built-in skins, skins that rearrange
+- [x] Clients. The UI, with seventeen built-in skins, skins that rearrange
   it, Broadcast and Wave among them with the mixer drawn as a matrix,
   system, light and dark modes, a compact and a large density, the Flow
   window and seven languages. The terminal mixer `openxlr-tui`, drawing the same skins. The
@@ -77,7 +77,10 @@ them for a while before more is built on top.
   microphone garbles after a while on one owner's machine. Every failure
   recorded so far had the native plugin host in the microphone's path,
   and a capture card driving the graph with the Wave XLR resampled as its
-  follower. The owner's recordings with and without the chain come next.
+  follower. On a fresh CachyOS install it broke as soon as an LV2 RNNoise
+  insert was added, with the same setup that ran for days on Bazzite. The
+  built-in noise removal and a WirePlumber rule that keeps PipeWire off
+  the Wave XLR's gain control are the next tests.
 - [ ] Hardware acceptance of the 0.2 work. Each of these is released and
   none is marked verified until it runs on real units
   ([hardware-support.md](hardware-support.md#input-bindings)):
@@ -85,7 +88,7 @@ them for a while before more is built on top.
     Dock or a Wave:3 as the interface, the unit's controls following the
     channel that carries its microphone, the Pro's zero-latency monitor
     path, replugs and daemon restarts;
-  - capture inputs: their insert chain and Sound Check in the UI and the
+  - capture inputs: their insert chain and Mic setup in the UI and the
     terminal mixer, the controls of an additional interface behind one,
     and a source changed in place;
   - the Pro's ducking on the USB Aux port, by ear;
@@ -101,19 +104,14 @@ them for a while before more is built on top.
 - [x] The microphone EQ in every client: a band editor in the terminal
   mixer, followed by EQ keys and dials in the OpenDeck plugin. The
   graphical UI already has the full editor.
-- [ ] Mic setup, a guided microphone test in the UI in place of the Sound
-  Check window, in three parts. First the window with Level and Listen:
-  the meter before the chain, the take's waveform, Hear myself and an
-  instant Raw and Processed switch. Then Shape (the EQ, the inserts and
-  starting presets inside the window) and Position. Then a suggested gain
-  and a crossfade where the loop starts over. Its order against the
-  terminal mixer's EQ is not decided.
-- [ ] Noise removal on every microphone that has the EQ, first in its
+- [x] Mic setup, a guided microphone test in the UI in place of the Sound
+  Check window: Position, Level with the meter before the chain and a
+  suggested gain, Listen with an instant Raw and Processed switch, and
+  Shape with the EQ, the inserts and starting presets.
+- [x] Noise removal on every microphone that has the EQ, first in its
   native stage: RNNoise or DeepFilterNet per microphone, with a strength,
   in Mic setup, the terminal mixer, a Deck key and the API, and both
-  engines in every package. Coded and tested offline and on a private
-  PipeWire server; a listening check on a Wave XLR comes before it is
-  called done. It follows Mic setup, whose Shape step holds it.
+  engines in every package.
 
 ### Devices
 

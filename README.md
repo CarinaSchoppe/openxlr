@@ -78,12 +78,16 @@ If you own an untested device, open an issue with a diagnostics archive
 - **Ducking**: a key microphone lowers chosen channels in chosen mixes
   while you speak. It runs in software on every device, and on the Pro's
   own processor when the setup fits what the unit can do.
-- **Microphone processing**: a four-band EQ with Wave Link's band types
-  and steps on XLR 1, XLR 2 and mono capture inputs, run on the unit
-  where the hardware has one, and Mic setup, which meters the microphone
+- **Microphone processing**: an EQ of one to sixteen bands with Wave
+  Link's band types and steps on XLR 1, XLR 2 and mono capture inputs, up
+  to four of them run on the unit where the hardware has an EQ, and Mic
+  setup, which meters the microphone
   before any processing and loops a recorded take through the EQ and
   plugins while you tune them in the same window, raw or processed at a
   click, with placement tips and three starting EQ presets.
+- **Noise removal** on each microphone, first in its chain: RNNoise for
+  steady hiss and hum, or DeepFilterNet 3 for typing, clicks and some room
+  echo. Both are built into every package.
 - **Plugin inserts**: LV2, CLAP and VST3 chains on each microphone input
   and each mix, with native editors, generated controls and bypass.
   Windows VST3 and CLAP plugins run through the `openxlr-yabridge`

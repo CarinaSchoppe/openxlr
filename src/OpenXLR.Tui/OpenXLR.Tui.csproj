@@ -25,6 +25,7 @@
     <Compile Include="../OpenXLR.Core/AppearanceModes.cs" Link="AppearanceModes.cs" />
     <Compile Include="../OpenXLR.Core/Mixing/LayoutIcons.cs" Link="LayoutIcons.cs" />
     <Compile Include="../OpenXLR.Core/Mixing/MicEq.cs" Link="MicEq.cs" />
+    <Compile Include="../OpenXLR.Core/Mixing/MicNoise.cs" Link="MicNoise.cs" />
   </ItemGroup>
 
   <ItemGroup>

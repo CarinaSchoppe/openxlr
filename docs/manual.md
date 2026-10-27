@@ -1048,7 +1048,10 @@ new microphone's. Pressing Mic setup in the header or in a
 chain window while the window is open moves it the same way. If stopping
 fails, the window stays on the current microphone and shows the error so
 you can retry. A daemon reconnection during the switch also leaves the
-current microphone selected.
+current microphone selected. If the chosen input is removed or replaced
+while the switch waits, the window stays on the current microphone too.
+Removing the microphone shown closes its Mic setup window, even when the
+main window opened it.
 
 The window takes the height its step needs, up to the screen's height, so
 nothing is cut off or needs scrolling until the screen is too short. If

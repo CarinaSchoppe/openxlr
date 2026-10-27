@@ -168,6 +168,7 @@ public sealed class MicSetupViewModel : ViewModelBase
             string? error = await StopOnCloseAsync();
             if (epoch != _connectionEpoch || error is not null) return false;
         }
+        if (_inputs is { } inputs && !inputs.Items.Any(i => ReferenceEquals(i.Setup, next))) return false;
         next.Step = Step;
         return true;
     }
@@ -771,6 +772,7 @@ public sealed class MicSetupViewModel : ViewModelBase
         Clipped = false;
         // A measurement or a suggestion belongs to the connection it was made on.
         _measure = null;
+        _measuredGain = null;
         _suggestion = null;
         _gainNote = null;
         RaiseSuggestion();
@@ -778,6 +780,17 @@ public sealed class MicSetupViewModel : ViewModelBase
         _beforePreset = null;
         _presetStatus = null;
         RaisePresets();
+    }
+
+    /// <summary>The input left the mixer; release subscriptions to controls it no longer carries.</summary>
+    internal void Detach()
+    {
+        Reset();
+        Unit = null;
+        ExtraUnit = null;
+        Eq = null;
+        Software = null;
+        Inputs = null;
     }
 
     private void RaiseButtons()

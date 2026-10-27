@@ -94,6 +94,14 @@ public partial class MicSetupWindow : Window
 
     private MicSetupViewModel? Setup => DataContext as MicSetupViewModel;
 
+    /// <summary>The daemon removed this input and its session. Close without stopping a replacement with the same id.</summary>
+    internal static void CloseRemovedInput(MicSetupViewModel setup)
+    {
+        if (_open is not { } window || !ReferenceEquals(window.Setup, setup)) return;
+        window._closed = true;
+        window.Close();
+    }
+
     private void KeepMeter() { if (Setup is { } vm) _ = vm.KeepMeterAsync(); }
 
     // --- the microphone picker ---

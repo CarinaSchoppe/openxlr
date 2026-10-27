@@ -140,6 +140,61 @@ public sealed class MicSetupReliabilityTests : IDisposable
         Assert.True(current.Active);
     }
 
+    [Theory]
+    [InlineData("remove")]
+    [InlineData("replace")]
+    [InlineData("rename")]
+    public async Task ChangingThePickerDuringStopOnlyAcceptsTheSameInputInstance(string change)
+    {
+        var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var server = await SocketTestServer.Start(async (socket, cancellation) =>
+        {
+            JsonNode command = await SocketTestServer.Receive(socket, cancellation);
+            received.TrySetResult();
+            await release.Task.WaitAsync(cancellation);
+            await SocketTestServer.Send(socket, new { type = "commandResult",
+                requestId = command["requestId"]!.GetValue<string>() }, cancellation);
+            await Task.Delay(Timeout.Infinite, cancellation);
+        });
+        await using var client = new DaemonClient(server.Url);
+        var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.ConnectionChanged += up => { if (up) connected.TrySetResult(); };
+        client.Start();
+        await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var inputs = new MicSetupInputs();
+        var current = new MicSetupViewModel(client, "xlr1") { Inputs = inputs, Step = MicSetupStep.Level };
+        var next = new MicSetupViewModel(client, "guest") { Inputs = inputs };
+        inputs.Update([new("Mic", current), new("Guest", next)]);
+        current.Apply(JsonNode.Parse("""{"channel":"xlr1","mode":"live","seconds":1}"""));
+        Task<bool> handover = current.HandOverAsync(next);
+        await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        inputs.Update(change switch
+        {
+            "remove" => [new("Mic", current)],
+            "replace" => [new("Mic", current), new("Guest", new MicSetupViewModel(client, "guest") { Inputs = inputs })],
+            _ => [new("Mic", current), new("Renamed guest", next)],
+        });
+        release.TrySetResult();
+        Assert.Equal(change == "rename", await handover.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(change == "rename" ? MicSetupStep.Level : MicSetupStep.Position, next.Step);
+    }
+
+    [Fact]
+    public async Task ARetiredCaptureSetupReleasesTheSharedGainAndEqModels()
+    {
+        await using var client = new DaemonClient("ws://127.0.0.1:1/ws");
+        var main = new MainViewModel(client);
+        var chain = new InsertsViewModel(client, "guest", 1);
+        MicSetupViewModel setup = chain.MicSetup;
+        setup.Unit = main.UnitInput1;
+        using var eq = new MicEqViewModel(client, "guest", "Guest");
+        setup.Eq = eq;
+        chain.Detach();
+        Assert.False(setup.CarriesUnit);
+        Assert.Null(setup.Eq);
+    }
+
     [Fact]
     public async Task ALateWaveformCannotReplaceANewerTakeOrOneAlreadyRequested()
     {

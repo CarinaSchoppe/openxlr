@@ -43,8 +43,10 @@
     <StackPanel Grid.Row="3" Name="EqFooter">
       <WrapPanel Name="EqProcessing" IsVisible="{Binding HasProcessingChoice}" ItemSpacing="6" LineSpacing="4" Margin="0,8,0,0">
         <TextBlock Name="EqProcessingLabel" Text="{loc:Text Key=EqProcessingLabel}" VerticalAlignment="Center"/>
-        <!-- two sides of one switch: the lit side is the daemon's choice, and a press asks for its side -->
+        <!-- two sides of one switch: the lit side is the daemon's choice, and a press asks for its side;
+             a unit that cannot take the EQ lights the software side and leaves its own side off -->
         <ToggleButton Name="EqOnUnit" Content="{loc:Text Key=EqProcessingDevice}" IsChecked="{Binding ProcessOnDevice, Mode=OneWay}"
+                      IsEnabled="{Binding CanProcessOnDevice}" ToolTip.ShowOnDisabled="True"
                       Click="OnProcessOnUnit" ToolTip.Tip="{Binding ProcessOnDeviceTip}"/>
         <ToggleButton Name="EqInSoftware" Content="{loc:Text Key=EqProcessingSoftware}" IsChecked="{Binding ProcessInSoftware, Mode=OneWay}"
                       Click="OnProcessInSoftware" ToolTip.Tip="{loc:Text Key=EqProcessingSoftwareTip}"/>

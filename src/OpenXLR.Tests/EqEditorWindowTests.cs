@@ -539,7 +539,8 @@ public sealed class EqEditorWindowTests
         Assert.True(onUnit.IsChecked);
         Assert.True(badge.IsVisible);
 
-        // Older firmware: the switch stays on the choice, and the note under it says why the unit does not run it.
+        // Older firmware: the switch lights where the EQ runs, the unit's side cannot be pressed, and the
+        // note under it says why the unit does not run it.
         daemon.Device = "old";
         daemon.Pushes.Release();
         await Until(() => !eq.OnDevice && eq.HasDeviceNote);
@@ -547,7 +548,10 @@ public sealed class EqEditorWindowTests
         Assert.False(badge.IsVisible);
         Assert.True(note.IsEffectivelyVisible);
         Assert.True(choice.IsEffectivelyVisible);
-        Assert.True(onUnit.IsChecked);
+        Assert.False(onUnit.IsChecked);
+        Assert.True(inSoftware.IsChecked);
+        Assert.False(onUnit.IsEnabled);
+        Assert.Equal(note.Text, ToolTip.GetTip(onUnit));
         Assert.Equal(Localizer.Format("EqDeviceFirmwareOld", "Wave XLR Dock MK.2", "1.0.0", "1.0.15"), note.Text);
         Layout(editor, 820, 600);
         Capture(editor, "eq-editor-older-firmware");

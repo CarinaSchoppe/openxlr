@@ -249,6 +249,11 @@ internal static class DuckingWindowTests
             Assert.Equal(["XLR 1", "Aux In", "Game", "Music", "Browser", "System", "Voice Chat", "Headset"], ChannelNames());
             Assert.Equal(Localizer.Format("DuckingDeviceKeyNotSupported", "Wave XLR Pro"), note.Text);
             Assert.Equal(Localizer.Format("DuckingStatusOnComputer", "XLR 2"), status.Text);
+            // The switch lights where it runs: this computer, with the unit's side off and saying why.
+            Assert.True(onComputer.IsChecked);
+            Assert.False(onUnit.IsChecked);
+            Assert.False(onUnit.IsEnabled);
+            Assert.Equal(note.Text, ToolTip.GetTip(onUnit));
 
             // The reduction bar reads the largest duck meter.
             await live!.Push(JsonNode.Parse("""{"type":"meters","levels":{"duck:monitor":[12.0],"duck:stream":[6.0],"mix:monitor":[0.3,0.3]}}""")!);
@@ -263,15 +268,18 @@ internal static class DuckingWindowTests
                 Capture(ducking, $"ducking-software-{(int)width}");
             }
 
-            // Runs on this computer, by choice: the switch moves and the note goes.
+            // Runs on this computer, by choice: the choice is sent, and the note stays while the unit cannot run it.
             JsonNode processing = await Sent(() => onComputer.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));
             Assert.Equal(("setDuckingProcessing", "software"), (processing["cmd"]!.GetValue<string>(), processing["value"]!.GetValue<string>()));
-            await Until(() => onComputer.IsChecked == true && onUnit.IsChecked == false && !note.IsEffectivelyVisible);
+            await Until(() => main.Ducking.Processing == "software" && onComputer.IsChecked == true && onUnit.IsChecked == false
+                && note.IsEffectivelyVisible && !onUnit.IsEnabled);
 
             // Back to XLR 1 and the unit: the badge returns and the bar hides.
             sentBefore = commands.Count;
             key.SelectedItem = main.Ducking.Keys.Single(k => k.Id == "xlr1");
             await Until(() => commands.Count == sentBefore + 1);
+            // The unit can run it again: its side can be pressed, and software by choice needs no note.
+            await Until(() => onUnit.IsEnabled && onComputer.IsChecked == true && !note.IsEffectivelyVisible);
             await Sent(() => onUnit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));
             await Until(() => badge.IsEffectivelyVisible && !reduction.IsEffectivelyVisible && onUnit.IsChecked == true
                 && status.Text == Localizer.Format("DuckingStatusOnUnit", "Wave XLR Pro"));

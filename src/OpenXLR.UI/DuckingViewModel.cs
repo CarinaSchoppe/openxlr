@@ -240,14 +240,22 @@ public sealed class DuckingViewModel : ViewModelBase
     /// <summary>The user's choice of where it runs: <c>device</c> or <c>software</c>.</summary>
     public string Processing => _processing;
 
-    /// <summary>The "This unit" side is lit.</summary>
-    public bool ProcessOnDevice => _processing == "device";
+    /// <summary>
+    /// The "This unit" side is lit: the unit is chosen and can run the setup.
+    /// While it cannot, this computer runs it whatever the choice, and the
+    /// choice is kept for when the unit can.
+    /// </summary>
+    public bool ProcessOnDevice => _processing == "device" && _deviceReady;
 
-    /// <summary>The "This computer" side is lit.</summary>
-    public bool ProcessInSoftware => _processing == "software";
+    /// <summary>The "This computer" side is lit: by choice, or because the unit cannot run the setup.</summary>
+    public bool ProcessInSoftware => _processing == "software" || !_deviceReady;
 
-    /// <summary>The "This unit" side's tooltip: where the unit listens and what it lowers.</summary>
-    public string ProcessOnDeviceTip => Localizer.Format("DuckingProcessingDeviceTip", DeviceName);
+    /// <summary>The "This unit" side can be pressed: the unit can run the setup.</summary>
+    public bool CanProcessOnDevice => _deviceReady;
+
+    /// <summary>The "This unit" side's tooltip: where the unit listens and what it lowers, or why it cannot run the setup.</summary>
+    public string ProcessOnDeviceTip => (_deviceReady ? null : UnitReason)
+        ?? Localizer.Format("DuckingProcessingDeviceTip", DeviceName);
 
     /// <summary>
     /// A side of the switch was pressed: <c>device</c> or <c>software</c>.
@@ -256,7 +264,8 @@ public sealed class DuckingViewModel : ViewModelBase
     /// </summary>
     public void ChooseProcessing(string value)
     {
-        if (value is not ("device" or "software") || value == _processing || !HasProcessingChoice || !CanEdit)
+        if (value is not ("device" or "software") || value == _processing || !HasProcessingChoice || !CanEdit
+            || (value == "device" && !_deviceReady))
         {
             Raise(nameof(ProcessOnDevice));
             Raise(nameof(ProcessInSoftware));
@@ -282,26 +291,22 @@ public sealed class DuckingViewModel : ViewModelBase
     private string KeyName => _layoutChannels.FirstOrDefault(c => c.Id == _key)?.Name ?? _key;
 
     /// <summary>
-    /// Why the unit does not run the setup while it is the one chosen. The
-    /// reasons that name no channel or mix read from the catalogue; the
-    /// others name them, so the daemon's own sentence is shown, as it is for
-    /// a reason this window does not know.
+    /// Why the unit cannot run the setup, chosen or not, shown under the
+    /// switch. The reasons that name no channel or mix read from the
+    /// catalogue; the others name them, so the daemon's own sentence is
+    /// shown, as it is for a reason this window does not know. A mixer that
+    /// is off is said by the status instead.
     /// </summary>
-    public string? Note
+    public string? Note => !_hasDevice || !CanEdit || _deviceReady || _reason == "mixerOff" ? null : UnitReason;
+
+    private string UnitReason => _reason switch
     {
-        get
-        {
-            if (!_hasDevice || !CanEdit || _processing != "device" || _deviceReady) return null;
-            return _reason switch
-            {
-                "mixerOff" => null,
-                "keyNotSupported" => Localizer.Format("DuckingDeviceKeyNotSupported", DeviceName),
-                "failed" => Localizer.Format("DuckingDeviceFailed", DeviceName),
-                "unsupportedBlock" => Localizer.Format("DuckingDeviceUnsupported", DeviceName),
-                _ => _note ?? Localizer.Format("DuckingDeviceNotReady", DeviceName),
-            };
-        }
-    }
+        "mixerOff" => Localizer.Text("DuckingMixerOff"),
+        "keyNotSupported" => Localizer.Format("DuckingDeviceKeyNotSupported", DeviceName),
+        "failed" => Localizer.Format("DuckingDeviceFailed", DeviceName),
+        "unsupportedBlock" => Localizer.Format("DuckingDeviceUnsupported", DeviceName),
+        _ => _note ?? Localizer.Format("DuckingDeviceNotReady", DeviceName),
+    };
 
     public bool HasNote => Note is not null;
 
@@ -531,6 +536,7 @@ public sealed class DuckingViewModel : ViewModelBase
         Raise(nameof(Processing));
         Raise(nameof(ProcessOnDevice));
         Raise(nameof(ProcessInSoftware));
+        Raise(nameof(CanProcessOnDevice));
         Raise(nameof(ProcessOnDeviceTip));
         Raise(nameof(Backend));
         Raise(nameof(OnDevice));

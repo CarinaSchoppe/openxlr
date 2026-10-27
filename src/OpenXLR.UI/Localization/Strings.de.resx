@@ -817,6 +817,7 @@
   <data name="GainLockTheDaemonRejectsEveryGainChange" xml:space="preserve">
     <value>Gain sperren: Der Daemon lehnt jede Gain-Änderung ab</value>
   </data>
+  <data name="MicSetupSuggestStale" xml:space="preserve"><value>Gain oder Mikrofon haben sich geändert. Miss erneut.</value></data>
   <data name="GroupNamePlaceholder" xml:space="preserve">
     <value>Gruppenname, z. B. Mikrofone</value>
   </data>

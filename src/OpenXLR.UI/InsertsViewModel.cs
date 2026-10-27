@@ -214,7 +214,8 @@ public sealed partial class InsertsViewModel : ViewModelBase
     {
         if (IsDetached) return;
         IsDetached = true;
-        MicSetup.Reset();
+        MicSetup.Detach();
+        MicSetupWindow.CloseRemovedInput(MicSetup);
         _catalogGeneration++;
         ResetEffectWorkflow();
         Apply(null);

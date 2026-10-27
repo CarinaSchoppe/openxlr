@@ -355,6 +355,10 @@ public sealed class CaptureInputWindowTests
             Assert.Same(kept, guest.Inserts);
             Assert.Equal("Renamed guest", kept.Title);
             InsertWindows.OpenChain(window, kept, guest.Id);
+            // The header can own Mic setup, so closing the chain alone does not retire it.
+            MicSetupWindow setup = MicSetupWindow.Open(window, kept.MicSetup);
+            await Until(() => setup.IsVisible);
+            int stopsBeforeRemoval = soundCommands.Count(c => c["action"]?.GetValue<string>() == "stop");
             lock (gate)
                 foreach (JsonNode? channel in state["mixer"]!["channels"]!.AsArray())
                 {
@@ -367,6 +371,8 @@ public sealed class CaptureInputWindowTests
             Assert.DoesNotContain(window.GetVisualDescendants().OfType<Button>(), b => b.Name == "CaptureInserts" && b.IsEffectivelyVisible);
             Assert.DoesNotContain(window.OwnedWindows.OfType<MixInsertsWindow>(), w => w.IsVisible);
             Assert.True(kept.IsDetached);
+            await Until(() => !setup.IsVisible);
+            Assert.Equal(stopsBeforeRemoval, soundCommands.Count(c => c["action"]?.GetValue<string>() == "stop"));
             Assert.All(main.CaptureInputs, c => Assert.False(c.Microphone));
             Assert.Equal(2, commands.Count);
         }

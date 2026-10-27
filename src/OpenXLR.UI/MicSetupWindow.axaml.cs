@@ -45,7 +45,9 @@ public partial class MicSetupWindow : Window
         {
             _meter.Stop();
             _measure.Stop();
-            Setup?.CancelGainMeasure();
+            // A normal close already ended its measurement before waiting.
+            // Another window may now be measuring the same input.
+            if (!_closing) Setup?.CancelGainMeasure();
             Watch(null);
             if (_open == this) _open = null;
         };
@@ -62,6 +64,8 @@ public partial class MicSetupWindow : Window
             _closing = true;
             if (_open == this) _open = null;
             _meter.Stop();
+            _measure.Stop();
+            vm.CancelGainMeasure();
             IsEnabled = false; // Do not queue a new recording behind the pending stop.
             await vm.StopOnCloseAsync();
             _closed = true;
@@ -94,6 +98,14 @@ public partial class MicSetupWindow : Window
 
     private MicSetupViewModel? Setup => DataContext as MicSetupViewModel;
 
+    /// <summary>The daemon removed this input and its session. Close without stopping a replacement with the same id.</summary>
+    internal static void CloseRemovedInput(MicSetupViewModel setup)
+    {
+        if (_open is not { } window || !ReferenceEquals(window.Setup, setup)) return;
+        window._closed = true;
+        window.Close();
+    }
+
     private void KeepMeter() { if (Setup is { } vm) _ = vm.KeepMeterAsync(); }
 
     // --- the microphone picker ---
@@ -114,10 +126,15 @@ public partial class MicSetupWindow : Window
         _moving = true;
         _measure.Stop();
         IsEnabled = false;
-        try { await current.HandOverAsync(next); }
-        finally { _moving = false; }
+        bool moved;
+        try { moved = await current.HandOverAsync(next); }
+        finally
+        {
+            _moving = false;
+            if (!_closing && !_closed) IsEnabled = true;
+        }
         if (_closing || _closed) return;
-        IsEnabled = true;
+        if (!moved) { current.RaiseInputs(); return; }
         DataContext = next;
         KeepMeter();
     }

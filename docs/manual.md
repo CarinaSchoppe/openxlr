@@ -39,7 +39,8 @@ happen on your system:
   SFX` and the hardware channels as outputs, and `OpenXLR Stream` and
   `OpenXLR Chat` as inputs; a layout you have edited ([section 3.12](#layout))
   comes back as you left it.
-- Applications that play audio are moved onto a channel output by name
+- Unless automatic routing is disabled in Manage, applications that play
+  audio are moved onto a channel output by name
   ([section 2](#concepts)). They keep playing; only the device they play into
   changes.
 - Your system default output and input are left as they were. The
@@ -767,6 +768,20 @@ scroll horizontally and vertically. Resizing the window manually turns off autom
 <a name="apps"></a>
 ### 3.3 Put an application on a different channel
 
+Open Manage in APPLICATIONS and turn off **Automatically route unassigned
+applications** to leave new apps not managed until you choose a channel.
+Saved assignments still apply, including apps explicitly marked Not managed.
+The choice survives a daemon restart and is not changed by loading a profile.
+Live unassigned playback follows a changed default on the next routing sweep;
+when you turn automatic routing back on, silent apps get their automatic
+channel the next time they play. Forgetting an app uses the current policy.
+The terminal mixer's Apps tab offers the same switch.
+
+Not managed means the desktop chooses the output, not that the app is silent.
+Playback on an OpenXLR channel is released to Linux's current default output.
+If that default is itself an OpenXLR channel, unmanaged apps can still be
+heard through it. Browser tab routing and saved website choices are separate.
+
 The APPLICATIONS card lists every app that is currently registered with
 PipeWire as an audio client; a green light means it is playing. Manage sits
 beside the APPLICATIONS heading, like Edit layout beside SUBMIXER. Browser
@@ -823,7 +838,7 @@ recovery.
    you can bring it back by picking a channel.
 4. Forget, in the same window, drops an app and its remembered channel.
    A running app, including one already playing audio, re-registers on the
-   next sweep and is routed by the rules again; use "Not managed" for a
+   next sweep and follows the automatic-routing choice; use "Not managed" for a
    lasting opt-out.
 
 An app that is missing from the card is not registered with PipeWire

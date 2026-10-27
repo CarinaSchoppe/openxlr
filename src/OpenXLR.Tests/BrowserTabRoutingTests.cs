@@ -664,7 +664,7 @@ public sealed class BrowserTabRoutingTests
         Assert.Null(app.OutputChannelId);
     }
 
-    private sealed class BrowserGraph : IDisposable
+    internal sealed class BrowserGraph : IDisposable
     {
         private readonly string _directory = Directory.CreateTempSubdirectory("openxlr-browser-routing-").FullName;
         private readonly string? _oldPath = Environment.GetEnvironmentVariable("PATH");
@@ -693,6 +693,7 @@ public sealed class BrowserTabRoutingTests
                   'list sink-inputs short') /bin/cat "$dir/inputs" ;;
                   load-module\ *) printf '1\n' ;;
                   'move-sink-input 100 OpenXLR_ch_system') printf '100\t1\n' > "$dir/inputs" ;;
+                  'move-sink-input 100 desktop') printf '100\t3\n' > "$dir/inputs" ;;
                   'move-sink-input 100 OpenXLR_ch_music') printf '100\t2\n' > "$dir/inputs" ;;
                   'move-sink-input 101 OpenXLR_ch_system') printf '101\t1\n' > "$dir/inputs" ;;
                   'move-sink-input 101 desktop') printf '101\t3\n' > "$dir/inputs" ;;

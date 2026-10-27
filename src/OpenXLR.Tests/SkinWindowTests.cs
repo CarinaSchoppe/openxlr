@@ -1577,6 +1577,7 @@ public sealed partial class SkinWindowTests
     private static void TheApplicationsWindowKeepsItsBottomControlsReachable()
     {
         var vm = new MainViewModel(new DaemonClient());
+        AppRoutingViewModelTests.Report(vm, true);
         // More applications than could ever fit, with labels long enough to
         // push the rows wide as well as deep.
         for (int i = 0; i < 60; i++)
@@ -1611,6 +1612,10 @@ public sealed partial class SkinWindowTests
                         .First(b => (b.Content as string) == Localizer.Text("Close"));
                     ComboBox picker = window.FindControl<ComboBox>("InstalledPicker")!;
                     ScrollViewer list = window.FindControl<ScrollViewer>("KnownApps")!;
+                    CheckBox automatic = window.FindControl<CheckBox>("RouteAppsByDefault")!;
+                    Assert.True(automatic.IsEffectivelyVisible);
+                    Assert.True(automatic.IsChecked);
+                    Assert.Contains(list, automatic.GetVisualAncestors());
 
                     foreach (Control control in new Control[] { add, close, picker })
                     {

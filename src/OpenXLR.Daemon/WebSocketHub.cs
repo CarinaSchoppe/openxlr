@@ -387,6 +387,7 @@ public sealed class WebSocketHub
             case "assignStream":
             case "assignApp":
             case "assignBrowserTab":
+            case "setRouteAppsByDefault":
             case "setPreserveBrowserOutputs":
             case "forgetApp":
             case "setMonitorOutput":

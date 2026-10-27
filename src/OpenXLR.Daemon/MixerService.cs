@@ -819,6 +819,10 @@ public sealed class MixerService : IHostedService, IDisposable
                     else _mixer.AssignBrowserTab(cmd.Session!, cmd.TabId!.Value, cmd.Site!, cmd.Channel, false, _ => null);
                     Changed?.Invoke();
                     return null;
+                case "setRouteAppsByDefault":
+                    _saves.RunSaved(() => _mixer.SetRouteAppsByDefault(cmd.Value.GetBoolean(), s => s.Save()));
+                    Changed?.Invoke();
+                    return null;
                 case "setPreserveBrowserOutputs":
                     _saves.RunSaved(() => _mixer.SetPreserveBrowserOutputs(cmd.Value.GetBoolean(), s => s.Save()));
                     Changed?.Invoke();

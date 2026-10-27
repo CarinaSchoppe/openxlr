@@ -93,6 +93,7 @@ public static class CommandValidation
                 return CheckPluginWineTrace(cmd);
             case "setMixLatencyCompensation":
             case "setMonitorMuted":
+            case "setRouteAppsByDefault":
             case "setPreserveBrowserOutputs":
             case "setMonitorMuteMicrophones":
                 return cmd.Value.ValueKind is JsonValueKind.True or JsonValueKind.False

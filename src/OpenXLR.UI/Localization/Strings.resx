@@ -3316,4 +3316,6 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   <data name="MicSetupEffectsHint" xml:space="preserve">
     <value>Bypass a plugin to hear the chain without it. The chain window moves, renames and removes plugins.</value>
   </data>
+  <data name="RouteAppsByDefault" xml:space="preserve"><value>Automatically route unassigned applications</value></data>
+  <data name="RouteAppsByDefaultHint" xml:space="preserve"><value>Turn off to leave apps on the desktop until you assign a channel. Saved assignments still apply. Apps using an OpenXLR system default can still play through that channel.</value></data>
 </root>

@@ -11,7 +11,7 @@ internal sealed class AppsView : View
 
     public override string Title => "Apps";
 
-    public override string Keys => "Left/Right channel  i ignore  f forget";
+    public override string Keys => "Space toggle  Left/Right channel  i ignore  f forget";
 
     public override void Draw(Screen screen, Rect area, App app)
     {
@@ -41,6 +41,9 @@ internal sealed class AppsView : View
 
         int playing = streams.Count(stream => stream.Running);
         rows.Add(new HeadingRow($"Applications ({streams.Count} known, {playing} playing)"));
+        if (state.Mixer.RouteAppsByDefault is bool automatic)
+            rows.Add(new ToggleRow("Auto-route unassigned apps", automatic, value =>
+                app.Link.Send("setRouteAppsByDefault", body => body["value"] = value)));
         if (streams.Count == 0) rows.Add(new TextRow("Nothing here yet", "start an application"));
         foreach (StreamEntry stream in streams)
             rows.Add(new AppRow(stream, targets, state, app));

@@ -652,6 +652,11 @@ restores the split profile when it stops.
 
 ## Application routing
 
+- Automatic app routing can be disabled in Manage or the terminal mixer's
+  Apps tab. Unassigned apps then stay not managed until assigned by hand;
+  saved assignments keep working. The choice survives restarts and profile
+  recalls. Not managed playback can still use an OpenXLR system default
+
 - The optional [Chromium companion](browser-routing.md) lists individual
   tabs in a Browser tabs window, opened from the button beside Manage in
   APPLICATIONS, which also holds the option that turns tab routing on.

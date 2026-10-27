@@ -43,6 +43,13 @@ public sealed partial class MonitorVolumeIntegrationTests
         {
             using var http = new HttpClient(ControlConnection.HttpHandler(listener.Path)) { BaseAddress = new Uri("http://localhost") };
 
+            Assert.True((await Read("mixer"))["routeAppsByDefault"]!.GetValue<bool>());
+            await Send(new { cmd = "setRouteAppsByDefault", value = false });
+            Assert.False((await Read("mixer"))["routeAppsByDefault"]!.GetValue<bool>());
+            Assert.False(MixerSettings.Load()!.RouteAppsByDefault);
+            await Send(new { cmd = "setRouteAppsByDefault", value = true });
+            Assert.True((await Read("mixer"))["routeAppsByDefault"]!.GetValue<bool>());
+
             var channels = (await Read("channels")).AsArray();
             Assert.Equal(["software", "other"], channels.Select(c => c!["id"]!.GetValue<string>()));
             await Send(new { cmd = "setChannelMuted", channel = "other", mix = "monitor2", value = true });

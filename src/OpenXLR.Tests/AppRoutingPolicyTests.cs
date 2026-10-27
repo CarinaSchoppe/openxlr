@@ -1,0 +1,167 @@
+using System.Text.Json;
+using OpenXLR.Core.Mixing;
+using OpenXLR.Daemon;
+using static OpenXLR.Tests.BrowserTabRoutingTests;
+
+namespace OpenXLR.Tests;
+
+[Collection("xdg-config")]
+public sealed class AppRoutingPolicyTests
+{
+    [Theory]
+    [InlineData("chromium", "browser")]
+    [InlineData("Spotify", "music")]
+    [InlineData("Discord", "voicechat")]
+    [InlineData("wine64-preloader", "game")]
+    [InlineData("game.exe", "game")]
+    [InlineData("unknown", "system")]
+    public void OnlyAutomaticRulesAreDisabled(string binary, string expected)
+    {
+        var matcher = new StreamMatcher();
+        var stream = new AudioStream(10, binary, binary, null);
+        Assert.Equal(expected, matcher.Match(stream));
+        matcher.RouteByDefault = false;
+        Assert.Equal(StreamMatcher.Ignore, matcher.Match(stream));
+        matcher.SetOverride(stream.Identity, "music");
+        Assert.Equal("music", matcher.Match(stream));
+        matcher.RemoveOverride(stream.Identity);
+        Assert.Equal(StreamMatcher.Ignore, matcher.Match(stream));
+        matcher.RouteByDefault = true;
+        Assert.Equal(expected, matcher.Match(stream));
+    }
+
+    [Fact]
+    public void ChangingTheDefaultReleasesOnlyUnassignedPlaybackAndDoesNotUnmuteIt()
+    {
+        using var graph = new BrowserGraph();
+        graph.Build();
+        graph.Mixer.SyncStreams();
+        graph.ClearCalls();
+        graph.Mixer.SetRouteAppsByDefault(false);
+        Assert.True(graph.Mixer.SyncStreams());
+        Assert.Equal(StreamMatcher.Ignore, Assert.Single(graph.Mixer.Snapshot().Streams).ChannelId);
+        Assert.Contains("move-sink-input 100 desktop", graph.Calls);
+        Assert.DoesNotContain(graph.Calls, call => call.StartsWith("set-sink-input-mute"));
+        graph.ClearCalls();
+        graph.Mixer.SetRouteAppsByDefault(false);
+        graph.Mixer.SyncStreams();
+        Assert.DoesNotContain(graph.Calls, call => call.StartsWith("move-sink-input"));
+
+        graph.Mixer.AssignApp("chromium", "music");
+        graph.Mixer.SyncStreams();
+        Assert.Equal("music", Assert.Single(graph.Mixer.Snapshot().Streams).ChannelId);
+        graph.ClearCalls();
+        graph.Mixer.SetRouteAppsByDefault(true);
+        graph.Mixer.SyncStreams();
+        graph.Mixer.SetRouteAppsByDefault(false);
+        graph.Mixer.SyncStreams();
+        Assert.DoesNotContain(graph.Calls, call => call.StartsWith("move-sink-input") || call.StartsWith("set-sink-input-mute"));
+        Assert.Equal("music", graph.Mixer.Matcher.Overrides["chromium"]);
+
+        graph.Mixer.ForgetApp("chromium");
+        graph.Mixer.SyncStreams();
+        Assert.Equal(StreamMatcher.Ignore, Assert.Single(graph.Mixer.Snapshot().Streams).ChannelId);
+        graph.Mixer.SetRouteAppsByDefault(true);
+        graph.Mixer.SyncStreams();
+        Assert.Equal("system", Assert.Single(graph.Mixer.Snapshot().Streams).ChannelId);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ARefusedReleaseIsRetriedInsteadOfBeingRememberedAsComplete(bool explicitIgnore)
+    {
+        using var graph = new BrowserGraph();
+        graph.Build();
+        graph.Mixer.SyncStreams();
+        graph.RefuseMoves();
+        if (explicitIgnore) graph.Mixer.AssignApp("chromium", StreamMatcher.Ignore);
+        else graph.Mixer.SetRouteAppsByDefault(false);
+        graph.Mixer.SyncStreams();
+        File.Delete(Path.Combine(graph.Folder, "refuse-moves"));
+        graph.ClearCalls();
+        graph.Mixer.SyncStreams();
+        Assert.Contains("move-sink-input 100 desktop", graph.Calls);
+        Assert.Equal(StreamMatcher.Ignore, Assert.Single(graph.Mixer.Snapshot().Streams).ChannelId);
+    }
+
+    [Fact]
+    public void ADesktopOutputIsLeftAloneAndBrowserPreservationStillWins()
+    {
+        using var graph = new BrowserGraph();
+        graph.Build();
+        graph.Mixer.SetRouteAppsByDefault(false);
+        graph.SetStreamSink(3);
+        graph.Mixer.SyncStreams();
+        Assert.DoesNotContain(graph.Calls, call => call.StartsWith("move-sink-input") || call.StartsWith("set-sink-input-mute"));
+        graph.Mixer.SetPreserveBrowserOutputs(true);
+        graph.Mixer.AssignApp("chromium", "music");
+        graph.Mixer.SyncStreams();
+        StreamAssignment app = Assert.Single(graph.Mixer.Snapshot().Streams);
+        Assert.True(app.BrowserHeld);
+        Assert.Equal("music", app.ChannelId);
+        Assert.DoesNotContain(graph.Calls, call => call.StartsWith("move-sink-input"));
+    }
+
+    [Fact]
+    public void FailedSaveLeavesBothRoutingAndTheReportedPolicyUnchanged()
+    {
+        using var graph = new BrowserGraph();
+        graph.Build();
+        graph.Mixer.SyncStreams();
+        StreamAssignment before = Assert.Single(graph.Mixer.Snapshot().Streams);
+        graph.ClearCalls();
+        Assert.Throws<IOException>(() => graph.Mixer.SetRouteAppsByDefault(false, settings =>
+        {
+            Assert.False(settings.RouteAppsByDefault);
+            return "disk full";
+        }));
+        Assert.True(graph.Mixer.Snapshot().RouteAppsByDefault);
+        Assert.True(graph.Mixer.ExportSettings().RouteAppsByDefault);
+        Assert.Equal(before, Assert.Single(graph.Mixer.Snapshot().Streams));
+        graph.Mixer.SyncStreams();
+        Assert.DoesNotContain(graph.Calls, call => call.StartsWith("move-sink-input"));
+    }
+
+    [Fact]
+    public void SettingsSurviveRestartAndOldSettingsRetainAutomaticRouting()
+    {
+        using var graph = new BrowserGraph();
+        graph.Build();
+        graph.Mixer.AssignApp("pinned", "music");
+        string path = Path.Combine(graph.Folder, "mixer.json");
+        graph.Mixer.SetRouteAppsByDefault(false, settings => settings.Save(path));
+        MixerSettings saved = Assert.IsType<MixerSettings>(MixerSettings.Load(path, out string? warning));
+        Assert.Null(warning);
+        Assert.False(saved.RouteAppsByDefault);
+        using var restored = new Mixer();
+        graph.Build(restored);
+        restored.ApplySettings(saved with { KnownApps = [new("other", "Other", "music"), new("pinned", "Pinned", "system")] });
+        Assert.False(restored.Snapshot().RouteAppsByDefault);
+        Assert.Equal(StreamMatcher.Ignore, restored.Snapshot().Streams.Single(a => a.Identity == "other").ChannelId);
+        Assert.Equal("music", restored.Snapshot().Streams.Single(a => a.Identity == "pinned").ChannelId);
+        restored.ApplyScene(restored.ExportScene());
+        Assert.False(restored.Snapshot().RouteAppsByDefault);
+        using var unbuilt = new Mixer();
+        unbuilt.ApplySettings(saved);
+        Assert.False(unbuilt.ExportSettings().RouteAppsByDefault);
+        File.WriteAllText(path, "{}");
+        Assert.True(MixerSettings.Load(path, out _)!.RouteAppsByDefault);
+    }
+
+    [Theory]
+    [InlineData("true", true)]
+    [InlineData("false", true)]
+    [InlineData("null", false)]
+    [InlineData("1", false)]
+    [InlineData("\"false\"", false)]
+    [InlineData("{}", false)]
+    public void TheCommandAcceptsOnlyAnExplicitBoolean(string value, bool accepted)
+    {
+        using JsonDocument doc = JsonDocument.Parse(value);
+        var command = new Command { Cmd = "setRouteAppsByDefault", Value = doc.RootElement.Clone() };
+        using var mixer = new Mixer();
+        Assert.Equal(accepted, CommandValidation.Check(command, mixer, _ => null) is null);
+        Assert.NotNull(CommandValidation.Check(new Command { Cmd = "setRouteAppsByDefault" }, mixer, _ => null));
+    }
+}

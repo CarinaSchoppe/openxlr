@@ -45,27 +45,36 @@
                    FontSize="11" Foreground="{DynamicResource Ox.Text.Muted}" TextWrapping="Wrap"
                    Margin="0,0,0,6"/>
         <ScrollViewer Name="KnownApps" MinHeight="96" VerticalScrollBarVisibility="Auto">
-          <!-- the overlay scrollbar would sit on the Forget column -->
-          <ItemsControl ItemsSource="{Binding Apps}" Margin="0,0,16,0">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:AppStreamViewModel">
-                <Grid ColumnDefinitions="10,8,*,130,8,Auto" Margin="0,3">
-                  <skin:StatusLed IsOn="{Binding Active}"
-                                  AutomationProperties.Name="{loc:Text Key=StreamState}"
-                                  ToolTip.Tip="{Binding StatusText}"/>
-                  <TextBlock Grid.Column="2" Text="{Binding Label}" Foreground="{DynamicResource Ox.Text.Primary}"
-                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                             ToolTip.Tip="{Binding Identity}"/>
-                  <ComboBox Grid.Column="3" HorizontalAlignment="Stretch"
-                            ItemsSource="{Binding Channels}"
-                            SelectedItem="{Binding SelectedChannel, Mode=TwoWay}"
-                            ToolTip.Tip="{Binding BrowserHeldNote}"/>
-                  <Button Grid.Column="5" Content="{loc:Text Key=Forget}" Padding="10,3" FontSize="12"
-                          Click="OnForget"/>
-                </Grid>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
+          <StackPanel Spacing="10">
+            <StackPanel Spacing="6" IsVisible="{Binding AppRoutingSupported}">
+              <CheckBox Name="RouteAppsByDefault" IsChecked="{Binding RouteAppsByDefault, Mode=OneWay}"
+                        IsEnabled="{Binding CanSetAppRouting}" Click="OnRouteAppsByDefault">
+                <TextBlock Text="{loc:Text Key=RouteAppsByDefault}" TextWrapping="Wrap"/>
+              </CheckBox>
+              <TextBlock Text="{loc:Text Key=RouteAppsByDefaultHint}" Classes="note" TextWrapping="Wrap"/>
+            </StackPanel>
+            <!-- the overlay scrollbar would sit on the Forget column -->
+            <ItemsControl ItemsSource="{Binding Apps}" Margin="0,0,16,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:AppStreamViewModel">
+                  <Grid ColumnDefinitions="10,8,*,130,8,Auto" Margin="0,3">
+                    <skin:StatusLed IsOn="{Binding Active}"
+                                    AutomationProperties.Name="{loc:Text Key=StreamState}"
+                                    ToolTip.Tip="{Binding StatusText}"/>
+                    <TextBlock Grid.Column="2" Text="{Binding Label}" Foreground="{DynamicResource Ox.Text.Primary}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding Identity}"/>
+                    <ComboBox Grid.Column="3" HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding Channels}"
+                              SelectedItem="{Binding SelectedChannel, Mode=TwoWay}"
+                              ToolTip.Tip="{Binding BrowserHeldNote}"/>
+                    <Button Grid.Column="5" Content="{loc:Text Key=Forget}" Padding="10,3" FontSize="12"
+                            Click="OnForget"/>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
         </ScrollViewer>
       </DockPanel>
     </Border>

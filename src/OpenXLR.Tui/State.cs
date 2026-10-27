@@ -443,6 +443,8 @@ internal sealed record DeviceDescriptor
 
 internal sealed record MixerSnapshot
 {
+    public bool? RouteAppsByDefault { get; init; }
+
     public List<MixEntry> Mixes { get; init; } = [];
     public List<ChannelEntry> Channels { get; init; } = [];
 

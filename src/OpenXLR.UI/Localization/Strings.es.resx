@@ -2967,4 +2967,6 @@ Selecciona la interfaz que controla OpenXLR</value>
   <data name="BrowserTabsGuideHint" xml:space="preserve">
     <value>Abrir la guía sobre el enrutamiento de pestañas del navegador</value>
   </data>
+  <data name="RouteAppsByDefault" xml:space="preserve"><value>Enrutar automáticamente las aplicaciones sin asignación</value></data>
+  <data name="RouteAppsByDefaultHint" xml:space="preserve"><value>Desactiva esta opción para dejar las aplicaciones en el escritorio hasta que les asignes un canal. Las asignaciones guardadas siguen vigentes. Si un canal de OpenXLR es la salida predeterminada del sistema, las aplicaciones pueden seguir sonando por él.</value></data>
 </root>

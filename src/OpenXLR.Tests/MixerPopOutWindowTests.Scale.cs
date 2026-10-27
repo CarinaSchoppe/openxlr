@@ -203,6 +203,7 @@ internal static partial class MixerPopOutWindowTests
         Layout(popped, 800, 600);
         Assert.True(popped.CustomScale);
         Assert.True(box.IsEffectivelyVisible);
+        CheckScaleLabelColours(popped);
         Assert.Equal(MixerScale.MinimumPercent, box.Minimum);
         Assert.Equal(MixerScale.MaximumPercent, box.Maximum);
         Assert.Equal(MixerScale.FitStepPercent, box.Increment);
@@ -323,6 +324,29 @@ internal static partial class MixerPopOutWindowTests
         Assert.Null(scaler.LayoutTransform);
         Assert.Equal(1, popped.Scale);
         Assert.Equal(scroll.Viewport.Width, panel.Width, 0.5);
+    }
+
+    /// <summary>The size captions use the skin even when the desktop prefers light controls.</summary>
+    private static void CheckScaleLabelColours(MixerWindow popped)
+    {
+        var previous = Application.Current!.RequestedThemeVariant;
+        try
+        {
+            Application.Current.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Light;
+            Settle(popped);
+            var colour = Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(popped.FindResource("Ox.Text.Primary")).Color;
+            foreach (string key in new[] { "MixerScale", "MixerScaleCustomUnit" })
+            {
+                TextBlock caption = popped.GetVisualDescendants().OfType<TextBlock>()
+                    .Single(t => t.Text == Localizer.Text(key));
+                Assert.Equal(colour, Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(caption.Foreground).Color);
+            }
+        }
+        finally
+        {
+            Application.Current.RequestedThemeVariant = previous;
+            Settle(popped);
+        }
     }
 
     /// <summary>Enter in the size box's text, as the keyboard sends it.</summary>

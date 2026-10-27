@@ -2373,6 +2373,10 @@ channel, or change the view, the skin or Touch sizing. It never goes below
 the skin sets them. A window too small for the panel at 100% scrolls. For a
 smaller mixer, use the compact or mini view, or Standard sizing.
 
+Fit keeps the panel's proportions. An ultrawide window can still have space
+beside it; choose a larger fixed or custom size if you prefer bigger controls
+with scrolling.
+
 **Custom** shows a percentage box beside the picker, or under it in a narrow
 window. The box starts at the size the panel has now, so picking Custom after
 Fit to window keeps the size Fit found. Type any whole size from 100% to

@@ -248,10 +248,6 @@ public partial class MicSetupWindow : Window
 
     private void OnUndoPreset(object? sender, RoutedEventArgs e) => Setup?.UndoPreset();
 
-    // Two sides of one choice: the lit side is the daemon's, a press asks for its side.
-    private void OnRnNoise(object? sender, RoutedEventArgs e) => Setup?.Noise?.ChooseEngine(MicNoise.RnNoise);
-    private void OnDeepFilterNet(object? sender, RoutedEventArgs e) => Setup?.Noise?.ChooseEngine(MicNoise.DeepFilterNet);
-
     /// <summary>The full editor, with a row of fields per band, on the same EQ.</summary>
     private void OnEqEditor(object? sender, RoutedEventArgs e)
     {

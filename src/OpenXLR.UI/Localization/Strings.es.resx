@@ -3034,4 +3034,19 @@ Selecciona la interfaz que controla OpenXLR</value>
   <data name="MicSetupNoNoise" xml:space="preserve">
     <value>El daemon no informa de eliminación de ruido para este micrófono.</value>
   </data>
+  <data name="NoiseButton" xml:space="preserve">
+    <value>Reducir ruido</value>
+  </data>
+  <data name="NoiseButtonTip" xml:space="preserve">
+    <value>Eliminación de ruido para este micrófono: actívala, elige el motor y ajusta la intensidad.</value>
+  </data>
+  <data name="NoiseButtonNameOn" xml:space="preserve">
+    <value>Eliminación de ruido en {0}, activa</value>
+  </data>
+  <data name="NoiseButtonNameOff" xml:space="preserve">
+    <value>Eliminación de ruido en {0}, desactivada</value>
+  </data>
+  <data name="NoiseButtonNameUnavailable" xml:space="preserve">
+    <value>Eliminación de ruido en {0}, no disponible</value>
+  </data>
 </root>

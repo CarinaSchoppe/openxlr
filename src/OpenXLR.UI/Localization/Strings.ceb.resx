@@ -3395,4 +3395,19 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
   <data name="MicSetupNoNoise" xml:space="preserve">
     <value>Walay gitaho nga pagtangtang sa kasaba ang daemon alang niining mikropono.</value>
   </data>
+  <data name="NoiseButton" xml:space="preserve">
+    <value>Denoise</value>
+  </data>
+  <data name="NoiseButtonTip" xml:space="preserve">
+    <value>Pagtangtang sa kasaba alang niining mikropono: i-on, pilia ang engine ug itakda ang kusog.</value>
+  </data>
+  <data name="NoiseButtonNameOn" xml:space="preserve">
+    <value>Pagtangtang sa kasaba sa {0}, on</value>
+  </data>
+  <data name="NoiseButtonNameOff" xml:space="preserve">
+    <value>Pagtangtang sa kasaba sa {0}, off</value>
+  </data>
+  <data name="NoiseButtonNameUnavailable" xml:space="preserve">
+    <value>Pagtangtang sa kasaba sa {0}, dili magamit</value>
+  </data>
 </root>

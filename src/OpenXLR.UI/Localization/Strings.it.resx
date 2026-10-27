@@ -3396,4 +3396,19 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   <data name="MicSetupNoNoise" xml:space="preserve">
     <value>Il daemon non segnala alcuna riduzione del rumore per questo microfono.</value>
   </data>
+  <data name="NoiseButton" xml:space="preserve">
+    <value>Riduci rumore</value>
+  </data>
+  <data name="NoiseButtonTip" xml:space="preserve">
+    <value>Riduzione del rumore per questo microfono: accendila, scegli il motore e regola l'intensità.</value>
+  </data>
+  <data name="NoiseButtonNameOn" xml:space="preserve">
+    <value>Riduzione del rumore su {0}, accesa</value>
+  </data>
+  <data name="NoiseButtonNameOff" xml:space="preserve">
+    <value>Riduzione del rumore su {0}, spenta</value>
+  </data>
+  <data name="NoiseButtonNameUnavailable" xml:space="preserve">
+    <value>Riduzione del rumore su {0}, non disponibile</value>
+  </data>
 </root>

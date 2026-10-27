@@ -3382,4 +3382,19 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   <data name="MicSetupNoNoise" xml:space="preserve">
     <value>The daemon reports no noise removal for this microphone.</value>
   </data>
+  <data name="NoiseButton" xml:space="preserve">
+    <value>Denoise</value>
+  </data>
+  <data name="NoiseButtonTip" xml:space="preserve">
+    <value>Noise removal for this microphone: switch it on, choose the engine and set the strength.</value>
+  </data>
+  <data name="NoiseButtonNameOn" xml:space="preserve">
+    <value>{0} noise removal, on</value>
+  </data>
+  <data name="NoiseButtonNameOff" xml:space="preserve">
+    <value>{0} noise removal, off</value>
+  </data>
+  <data name="NoiseButtonNameUnavailable" xml:space="preserve">
+    <value>{0} noise removal, unavailable</value>
+  </data>
 </root>

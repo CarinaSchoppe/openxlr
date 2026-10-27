@@ -3395,4 +3395,19 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
   <data name="MicSetupNoNoise" xml:space="preserve">
     <value>Walang iniuulat na pag-alis ng ingay ang daemon para sa mikroponong ito.</value>
   </data>
+  <data name="NoiseButton" xml:space="preserve">
+    <value>Denoise</value>
+  </data>
+  <data name="NoiseButtonTip" xml:space="preserve">
+    <value>Pag-alis ng ingay para sa mikroponong ito: i-on, piliin ang engine at itakda ang lakas.</value>
+  </data>
+  <data name="NoiseButtonNameOn" xml:space="preserve">
+    <value>Pag-alis ng ingay sa {0}, on</value>
+  </data>
+  <data name="NoiseButtonNameOff" xml:space="preserve">
+    <value>Pag-alis ng ingay sa {0}, off</value>
+  </data>
+  <data name="NoiseButtonNameUnavailable" xml:space="preserve">
+    <value>Pag-alis ng ingay sa {0}, hindi available</value>
+  </data>
 </root>

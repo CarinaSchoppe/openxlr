@@ -1269,9 +1269,14 @@ and ends with **Stop and discard** or when the window closes:
 can have background noise taken out before anything else hears the
 microphone: it runs first, ahead of the EQ, the low cut, ClipGuard and your
 plugins, so they, your mixes, your calls and Mic setup's loop all get the
-cleaned voice. Find it in Mic setup's **Shape** step, in the terminal
-mixer's Inputs tab, and as a key on the Deck. It is off until you switch
-it on, and it runs on this computer even when the interface runs the EQ.
+cleaned voice. In INPUTS and in an input rack, **Denoise** right after the
+microphone's **EQ** button opens its controls. In the Broadcast, Wave and
+Compact Desk matrix they are in the row head's **Mic** button, under the
+interface's switches. They are also in Mic setup's **Shape** step, in the
+terminal mixer's Inputs tab, and on a Deck key. **Denoise** turns green
+while noise removal runs and red when it is on and cannot run; **Mic**
+turns green while it runs. It is off until you switch it on, and it runs
+on this computer even when the interface runs the EQ.
 
 Two engines do the work, and you choose per microphone:
 
@@ -2576,9 +2581,11 @@ phantom power's settling time still apply. Beside the name,
 Expander, Voice Tune, Phantom, ClipGuard and Compressor, the ones your
 interface has, with the Voice Tune strength while Voice Tune is on. On an
 interface without a hardware low cut or ClipGuard, XLR 1's software low cut
-and ClipGuard are there too. They are the same buttons as in INPUTS, so
-switching one here switches it there. **Mic** turns green while one of them
-is on, and its small lamp lights red while phantom power is on, so you can
+and ClipGuard are there too. Under them is the microphone's
+[noise removal](#noise-removal), which also gives a capture input with no
+interface behind it a **Mic** button. They are the same controls as in
+INPUTS, so switching one here switches it there. **Mic** turns green while
+one of them is on or noise removal runs, and its small lamp lights red while phantom power is on, so you can
 see both without opening it. Under **Mic** is the input's gain in dB. While
 you move the row's volume fader it shows the volume instead, as a
 percentage, and goes back to the gain one second after you let go. A
@@ -3788,7 +3795,7 @@ Capture channels host LV2, CLAP and VST3 inserts in the UI and through
 the [HTTP API](http-api.md). In the classic layout, INPUTS shows one block
 per capture input after Aux In and Line In, in layout order. Each block has its name, a
 source chip with a connection light and any warning, on a mono port the
-**EQ** button right after the chip, its volume,
+**EQ** and **Denoise** buttons right after the chip, its volume,
 and an **Inserts** button with the chain below it. The chip opens the source
 dialog. An input rack shows the source in its `binding` part and the
 chain in `effects`. Broadcast and Wave put the source under the channel's

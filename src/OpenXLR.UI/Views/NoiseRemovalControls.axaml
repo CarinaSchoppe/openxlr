@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:OpenXLR.UI"
+             xmlns:loc="using:OpenXLR.UI.Localization"
+             x:Class="OpenXLR.UI.Views.NoiseRemovalControls"
+             x:DataType="vm:MicNoiseViewModel">
+  <!-- A microphone's noise removal: the switch, the engine, the strength and what the daemon
+       says runs. Mic setup's Shape step, the Denoise button's flyout beside the EQ and the
+       mix matrix's processing flyout all show these, bound to the channel's one model. -->
+  <StackPanel Spacing="8">
+    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+      <TextBlock Text="{loc:Text Key=NoiseRemoval}" Classes="h" VerticalAlignment="Center"/>
+      <ToggleButton Grid.Column="1" Name="NoiseSwitch" Content="{loc:Text Key=NoiseRemovalSwitch}"
+                    IsEnabled="{Binding Available, FallbackValue=False}"
+                    IsChecked="{Binding Enabled, Mode=TwoWay, FallbackValue=False}"
+                    AutomationProperties.Name="{Binding SwitchName, FallbackValue=''}" ToolTip.Tip="{loc:Text Key=NoiseRemovalSwitchTip}"/>
+    </Grid>
+    <TextBlock Text="{loc:Text Key=NoiseRemovalHint}" Classes="hint" TextWrapping="Wrap"/>
+    <WrapPanel Name="NoiseEngines" ItemSpacing="6" LineSpacing="4" IsEnabled="{Binding Available, FallbackValue=False}">
+      <TextBlock Text="{loc:Text Key=NoiseRemovalEngine}" Classes="body" VerticalAlignment="Center"/>
+      <ToggleButton Name="NoiseRnNoise" Content="{loc:Text Key=NoiseRemovalRnNoise}"
+                    IsChecked="{Binding IsRnNoise, Mode=OneWay, FallbackValue=False}" Click="OnRnNoise"
+                    ToolTip.Tip="{loc:Text Key=NoiseRemovalRnNoiseTip}" AutomationProperties.HelpText="{loc:Text Key=NoiseRemovalRnNoiseTip}"/>
+      <ToggleButton Name="NoiseDeepFilterNet" Content="{loc:Text Key=NoiseRemovalDeepFilterNet}"
+                    IsChecked="{Binding IsDeepFilterNet, Mode=OneWay, FallbackValue=False}" Click="OnDeepFilterNet"
+                    IsEnabled="{Binding HasDeepFilterNet, FallbackValue=False}"
+                    ToolTip.Tip="{loc:Text Key=NoiseRemovalDeepFilterNetTip}" AutomationProperties.HelpText="{loc:Text Key=NoiseRemovalDeepFilterNetTip}"/>
+    </WrapPanel>
+    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" IsEnabled="{Binding Available, FallbackValue=False}">
+      <TextBlock Text="{loc:Text Key=NoiseRemovalStrength}" Classes="body" VerticalAlignment="Center"/>
+      <Slider Grid.Column="1" Name="NoiseStrength" vm:FaderInput.Step="1"
+              Minimum="{Binding MinStrength, FallbackValue=0}" Maximum="{Binding MaxStrength, FallbackValue=100}"
+              Value="{Binding Strength, Mode=TwoWay, FallbackValue=100}"
+              AutomationProperties.Name="{loc:Text Key=NoiseRemovalStrengthName}" ToolTip.Tip="{loc:Text Key=NoiseRemovalStrengthTip}"/>
+      <TextBlock Grid.Column="2" Text="{Binding StrengthText, FallbackValue=''}" Classes="val" VerticalAlignment="Center"/>
+    </Grid>
+    <TextBlock Name="NoiseStatus" Text="{Binding Status, FallbackValue=''}" Classes="hint" TextWrapping="Wrap"
+               IsVisible="{Binding ShowsReport, FallbackValue=False}"/>
+    <TextBlock Name="NoiseError" Text="{Binding Status, FallbackValue=''}" Classes="warn" TextWrapping="Wrap"
+               IsVisible="{Binding HasError, FallbackValue=False}"/>
+    <TextBlock Name="NoDeepFilterNet" Text="{loc:Text Key=NoiseRemovalNoDeepFilterNet}" Classes="hint" TextWrapping="Wrap"
+               IsVisible="{Binding LacksDeepFilterNet, FallbackValue=False}"/>
+  </StackPanel>
+</UserControl>

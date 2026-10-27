@@ -472,7 +472,7 @@ public sealed class MatrixRowViewModel : ViewModelBase
     {
         (InputStripKind.Xlr1 or InputStripKind.Xlr2 or InputStripKind.Capture, SkinStripParts.Mute) => CarriesUnit || CarriesExtraUnit,
         (InputStripKind.Xlr1 or InputStripKind.Xlr2 or InputStripKind.Capture, SkinMatrixParts.Processing) =>
-            Unit is { HasSwitches: true } || ExtraUnit is { HasSwitches: true } || ShowsSoftware,
+            Unit is { HasSwitches: true } || ExtraUnit is { HasSwitches: true } || ShowsSoftware || ShowsNoise,
         (InputStripKind.AuxIn, SkinStripParts.Gain) => Main.CapAuxInput || Channel.HasVolume,
         (InputStripKind.LineIn, SkinStripParts.Gain) => Main.CapLineInput || Channel.HasVolume,
         (_, SkinStripParts.Gain) => CarriesUnit || CarriesExtraUnit || Channel.HasVolume || ShowsCaptureGain,
@@ -525,12 +525,16 @@ public sealed class MatrixRowViewModel : ViewModelBase
     /// <summary>The processing part holds XLR 1's software low cut or ClipGuard: the row is XLR 1 and one of them applies.</summary>
     public bool ShowsSoftware => Kind == InputStripKind.Xlr1 && Main.ShowSoftwareControls;
 
+    /// <summary>The processing part holds the microphone's noise removal: the daemon reports it for the channel and the mixer is there.</summary>
+    public bool ShowsNoise => Channel.HasNoise && Main.HasMixer;
+
     /// <summary>
     /// The processing button is lit: a switch the input's interface has is
-    /// on, or XLR 1's software low cut or ClipGuard is.
+    /// on, XLR 1's software low cut or ClipGuard is, or noise removal runs.
     /// </summary>
     public bool ProcessingOn => Unit is { SwitchesOn: true } || ExtraUnit is { SwitchesOn: true }
-        || ShowsSoftware && (Main.ShowSoftLowCut && Main.SoftLowCutOn || Main.ShowSoftClipGuard && Main.SoftClipGuard);
+        || ShowsSoftware && (Main.ShowSoftLowCut && Main.SoftLowCutOn || Main.ShowSoftClipGuard && Main.SoftClipGuard)
+        || ShowsNoise && Channel.Noise is { IsLit: true };
 
     /// <summary>The processing button says that phantom power is on, or settling, without being opened.</summary>
     public bool PhantomOn => Unit is { PhantomShown: true } || ExtraUnit is { PhantomShown: true };
@@ -729,6 +733,7 @@ public sealed class MatrixRowViewModel : ViewModelBase
             case nameof(ChannelViewModel.HasVolume) or nameof(ChannelViewModel.ShowsCaptureGain): RefreshSpec(); break;
             case nameof(ChannelViewModel.Inserts): Raise(nameof(Inserts)); Raise(nameof(InsertsKey)); RefreshSpec(); break;
             case nameof(ChannelViewModel.HasEq): Raise(nameof(ShowsEq)); Raise(nameof(Tall)); break;
+            case nameof(ChannelViewModel.Noise): WatchUnits(); Raise(nameof(ShowsNoise)); RaiseSwitches(); break;
             case nameof(ChannelViewModel.ShownUnitInput):
                 Raise(nameof(Unit)); Raise(nameof(CarriesUnit)); WatchUnits(); RefreshSpec(); RaiseSwitches();
                 break;
@@ -744,7 +749,7 @@ public sealed class MatrixRowViewModel : ViewModelBase
         {
             case nameof(MainViewModel.CapAuxInput) when Kind == InputStripKind.AuxIn: RefreshSpec(); break;
             case nameof(MainViewModel.CapLineInput) when Kind == InputStripKind.LineIn: RefreshSpec(); break;
-            case nameof(MainViewModel.HasMixer): Raise(nameof(ShowsEq)); Raise(nameof(Tall)); break;
+            case nameof(MainViewModel.HasMixer): Raise(nameof(ShowsEq)); Raise(nameof(Tall)); Raise(nameof(ShowsNoise)); RaiseSwitches(); break;
             case nameof(MainViewModel.ShowSoftLowCut) or nameof(MainViewModel.ShowSoftClipGuard) when Kind == InputStripKind.Xlr1:
                 Raise(nameof(ShowsSoftware)); RaiseSwitches(); break;
             case nameof(MainViewModel.SoftLowCutHz) or nameof(MainViewModel.SoftClipGuard) when Kind == InputStripKind.Xlr1:
@@ -753,10 +758,11 @@ public sealed class MatrixRowViewModel : ViewModelBase
     }
 
     // The input view models this row's switches come from: the primary
-    // unit's, which live as long as the window's model, and an additional
-    // unit's while the row carries it.
+    // unit's, which live as long as the window's model, an additional
+    // unit's while the row carries it, and the channel's noise removal.
     private UnitInputViewModel? _watchedUnit;
     private WaveUnitInputViewModel? _watchedExtra;
+    private MicNoiseViewModel? _watchedNoise;
 
     private void WatchUnits()
     {
@@ -774,6 +780,18 @@ public sealed class MatrixRowViewModel : ViewModelBase
             _watchedExtra = extra;
             if (extra is not null) extra.PropertyChanged += OnUnitChanged;
         }
+        MicNoiseViewModel? noise = _detached ? null : Channel.Noise;
+        if (!ReferenceEquals(_watchedNoise, noise))
+        {
+            if (_watchedNoise is not null) _watchedNoise.PropertyChanged -= OnNoiseChanged;
+            _watchedNoise = noise;
+            if (noise is not null) noise.PropertyChanged += OnNoiseChanged;
+        }
+    }
+
+    private void OnNoiseChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is null or nameof(MicNoiseViewModel.IsLit)) Raise(nameof(ProcessingOn));
     }
 
     private void OnUnitChanged(object? sender, PropertyChangedEventArgs e)

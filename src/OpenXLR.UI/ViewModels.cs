@@ -1897,7 +1897,10 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
     /// that carry the EQ); null on every other channel and from a daemon
     /// without it.
     /// </summary>
-    public MicNoiseViewModel? Noise { get => _noise; private set => Set(ref _noise, value); }
+    public MicNoiseViewModel? Noise { get => _noise; private set { if (Set(ref _noise, value)) Raise(nameof(HasNoise)); } }
+
+    /// <summary>The channel has noise removal, so its Denoise button shows.</summary>
+    public bool HasNoise => _noise is not null;
 
     /// <summary>Take the channel's <c>noise</c> from a state push.</summary>
     internal void ApplyNoise(JsonNode? noise)

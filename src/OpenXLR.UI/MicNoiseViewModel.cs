@@ -52,7 +52,12 @@ public sealed class MicNoiseViewModel : ViewModelBase
     public string ChannelName
     {
         get => _channelName;
-        internal set { if (Set(ref _channelName, value)) Raise(nameof(SwitchName)); }
+        internal set
+        {
+            if (!Set(ref _channelName, value)) return;
+            Raise(nameof(SwitchName));
+            Raise(nameof(ButtonName));
+        }
     }
 
     /// <summary>The switch's accessible name, with the channel in it.</summary>
@@ -147,6 +152,16 @@ public sealed class MicNoiseViewModel : ViewModelBase
     /// <summary>The helper runs but was built without DeepFilterNet, which is then offered greyed out with a note.</summary>
     public bool LacksDeepFilterNet => _available && !HasDeepFilterNet;
 
+    /// <summary>Noise removal runs: the Denoise button and the matrix's processing button light.</summary>
+    public bool IsLit => _enabled && _available && _error is not { Length: > 0 };
+
+    /// <summary>Noise removal is on and cannot run: the Denoise button takes the alert colour.</summary>
+    public bool IsFaulty => _enabled && (!_available || _error is { Length: > 0 });
+
+    /// <summary>The Denoise button's name for a screen reader: whose noise removal, and its state.</summary>
+    public string ButtonName => IsFaulty ? Localizer.Format("NoiseButtonNameUnavailable", _channelName)
+        : _enabled ? Localizer.Format("NoiseButtonNameOn", _channelName) : Localizer.Format("NoiseButtonNameOff", _channelName);
+
     private static string EngineName(string engine)
         => engine == MicNoise.DeepFilterNet ? Localizer.Text("NoiseRemovalDeepFilterNet") : Localizer.Text("NoiseRemovalRnNoise");
 
@@ -197,6 +212,9 @@ public sealed class MicNoiseViewModel : ViewModelBase
         Raise(nameof(HasStatus));
         Raise(nameof(HasError));
         Raise(nameof(ShowsReport));
+        Raise(nameof(IsLit));
+        Raise(nameof(IsFaulty));
+        Raise(nameof(ButtonName));
     }
 
     /// <summary>The channel left: nothing more is sent.</summary>

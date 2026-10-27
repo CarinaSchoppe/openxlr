@@ -3058,4 +3058,19 @@ Von OpenXLR gesteuertes Interface wählen</value>
   <data name="MicSetupNoNoise" xml:space="preserve">
     <value>Der Daemon meldet für dieses Mikrofon keine Rauschentfernung.</value>
   </data>
+  <data name="NoiseButton" xml:space="preserve">
+    <value>Entrauschen</value>
+  </data>
+  <data name="NoiseButtonTip" xml:space="preserve">
+    <value>Rauschentfernung für dieses Mikrofon: einschalten, Engine wählen und Stärke einstellen.</value>
+  </data>
+  <data name="NoiseButtonNameOn" xml:space="preserve">
+    <value>Rauschentfernung für {0}, an</value>
+  </data>
+  <data name="NoiseButtonNameOff" xml:space="preserve">
+    <value>Rauschentfernung für {0}, aus</value>
+  </data>
+  <data name="NoiseButtonNameUnavailable" xml:space="preserve">
+    <value>Rauschentfernung für {0}, nicht verfügbar</value>
+  </data>
 </root>

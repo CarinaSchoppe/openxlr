@@ -3395,4 +3395,19 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   <data name="MicSetupNoNoise" xml:space="preserve">
     <value>Демон не пријављује уклањање шума за овај микрофон.</value>
   </data>
+  <data name="NoiseButton" xml:space="preserve">
+    <value>Уклони шум</value>
+  </data>
+  <data name="NoiseButtonTip" xml:space="preserve">
+    <value>Уклањање шума за овај микрофон: укључите га, изаберите механизам и подесите јачину.</value>
+  </data>
+  <data name="NoiseButtonNameOn" xml:space="preserve">
+    <value>Уклањање шума на {0}, укључено</value>
+  </data>
+  <data name="NoiseButtonNameOff" xml:space="preserve">
+    <value>Уклањање шума на {0}, искључено</value>
+  </data>
+  <data name="NoiseButtonNameUnavailable" xml:space="preserve">
+    <value>Уклањање шума на {0}, недоступно</value>
+  </data>
 </root>

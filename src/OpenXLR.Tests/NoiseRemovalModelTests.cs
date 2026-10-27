@@ -120,4 +120,35 @@ public sealed class NoiseRemovalModelTests
         Assert.Equal(Localizer.Text("NoiseRemovalStarting"), noise.Status);
         Assert.Equal(Localizer.Format("NoiseRemovalSwitchName", "XLR 1"), noise.SwitchName);
     });
+
+    [Fact]
+    public void TheDenoiseButtonLightsWhileItRunsAndWarnsWhenItCannot() => TestUi.Run(() =>
+    {
+        var time = new ManualTime();
+        var noise = new MicNoiseViewModel(new Recorder(), "xlr1", "XLR 1", time);
+        var raised = new List<string?>();
+        noise.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+        noise.Apply(State());
+        Assert.False(noise.IsLit);
+        Assert.False(noise.IsFaulty);
+        Assert.Equal(Localizer.Format("NoiseButtonNameOff", "XLR 1"), noise.ButtonName);
+
+        noise.Enabled = true;
+        Assert.True(noise.IsLit);
+        Assert.Contains(nameof(MicNoiseViewModel.IsLit), raised);
+        Assert.Equal(Localizer.Format("NoiseButtonNameOn", "XLR 1"), noise.ButtonName);
+
+        // On and refused, or on with no helper: the alert colour, not the lit one.
+        noise.Apply(State(enabled: true, error: "Noise removal runs at 48 kHz."));
+        Assert.False(noise.IsLit);
+        Assert.True(noise.IsFaulty);
+        Assert.Equal(Localizer.Format("NoiseButtonNameUnavailable", "XLR 1"), noise.ButtonName);
+        noise.Apply(State(enabled: true, engines: "[]", available: false));
+        Assert.True(noise.IsFaulty);
+        // Off, a missing helper is no fault of the button's.
+        time.Advance(MicNoiseViewModel.EchoWait);
+        noise.Apply(State(engines: "[]", available: false));
+        Assert.False(noise.IsFaulty);
+        Assert.False(noise.IsLit);
+    });
 }

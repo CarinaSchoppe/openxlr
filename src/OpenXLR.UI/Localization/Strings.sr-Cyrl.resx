@@ -2963,4 +2963,376 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   <data name="EqRemoveBandName" xml:space="preserve"><value>Уклони EQ појас {0}</value></data>
   <data name="EqDeviceBandLimit" xml:space="preserve"><value>{0} подржава највише {1} EQ појаса. Овај EQ ради у софтверу док број појасева поново не стане на уређај.</value></data>
   <data name="EqRemoveBand" xml:space="preserve"><value>Уклони</value></data>
+  <data name="OlderDaemonCannotConnectNote" xml:space="preserve">
+    <value>Сервис покренут пре ажурирања и даље ради, а овај кориснички интерфејс (v{0}) не може да се повеже с њим. Поново покрени сервис да се повежеш.</value>
+  </data>
+  <data name="OlderDaemonRunning" xml:space="preserve">
+    <value>Ради старији сервис</value>
+  </data>
+  <data name="OlderDaemonRunningSentence" xml:space="preserve">
+    <value>Сервис покренут пре ажурирања и даље ради.</value>
+  </data>
+  <data name="MixerScale" xml:space="preserve">
+    <value>Величина миксера</value>
+  </data>
+  <data name="MixerScaleFit" xml:space="preserve">
+    <value>Уклопи у прозор</value>
+  </data>
+  <data name="MixerScalePercent" xml:space="preserve">
+    <value>{0}%</value>
+  </data>
+  <data name="MixerScaleHint" xml:space="preserve">
+    <value>Приказује миксер већим у овом прозору. Уклопи у прозор бира највећу величину која приказује све контроле без померања.</value>
+  </data>
+  <data name="MixerScaleNotSaved" xml:space="preserve">
+    <value>Величина миксера важи док се овај прозор не затвори, али није могла да се сачува: {0}</value>
+  </data>
+  <data name="MixerScaleCustom" xml:space="preserve">
+    <value>Прилагођено</value>
+  </data>
+  <data name="MixerScaleCustomName" xml:space="preserve">
+    <value>Прилагођена величина миксера у процентима</value>
+  </data>
+  <data name="MixerScaleCustomHint" xml:space="preserve">
+    <value>Било која величина од 100% до 300%. Упиши величину и притисни Enter или је мењај за 5% стрелицама.</value>
+  </data>
+  <data name="MixerScaleCustomUnit" xml:space="preserve">
+    <value>%</value>
+  </data>
+  <data name="StartupAudioService" xml:space="preserve">
+    <value>Звук ради као кориснички сервис ван апликације, па ове опције покрећу само апликацију.</value>
+  </data>
+  <data name="StartupAudioInTray" xml:space="preserve">
+    <value>Звук се покреће при пријави, с апликацијом у системској палети.</value>
+  </data>
+  <data name="FlatpakSetUpButton" xml:space="preserve">
+    <value>Подеси</value>
+  </data>
+  <data name="FlatpakRulesFailed" xml:space="preserve">
+    <value>Подешавање WirePlumber-а захтева пажњу: {0}</value>
+  </data>
+  <data name="DesktopKeysShortcutsUnavailable" xml:space="preserve">
+    <value>Ова радна површина не нуди глобалне пречице кроз дијалог дозвола. Усмеравање фокусиране апликације за OpenDeck остаје доступно.</value>
+  </data>
+  <data name="MicSetup" xml:space="preserve">
+    <value>Подешавање микрофона</value>
+  </data>
+  <data name="MicSetupButtonTip" xml:space="preserve">
+    <value>Подеси микрофон корак по корак: где стоји, његов ниво, снимак који чујеш сиров и обрађен, и његов EQ и додаци. Отвара се на XLR 1 или на првом микрофону у миксеру.</value>
+  </data>
+  <data name="MicSetupMicrophone" xml:space="preserve">
+    <value>Микрофон</value>
+  </data>
+  <data name="MicSetupMicrophoneName" xml:space="preserve">
+    <value>Микрофон за подешавање</value>
+  </data>
+  <data name="MicSetupMicrophoneTip" xml:space="preserve">
+    <value>Изабери микрофон за подешавање. Снимак или Чуј себе на приказаном микрофону прво се заустављају.</value>
+  </data>
+  <data name="MicSetupStepLevel" xml:space="preserve">
+    <value>Ниво</value>
+  </data>
+  <data name="MicSetupStepListen" xml:space="preserve">
+    <value>Слушање</value>
+  </data>
+  <data name="MicSetupIdle" xml:space="preserve">
+    <value>Микрофон уживо. Нема снимка</value>
+  </data>
+  <data name="MicSetupReady" xml:space="preserve">
+    <value>Микрофон уживо. Снимак ({0:0.0} s) спреман за петљу</value>
+  </data>
+  <data name="MicSetupLooping" xml:space="preserve">
+    <value>Петља: {0:0.0} s</value>
+  </data>
+  <data name="MicSetupLevelHint" xml:space="preserve">
+    <value>Говори као у етеру, на уобичајеној удаљености од микрофона. Подеси појачање тако да врхови гласа буду у појасу, а лампица изобличења остане угашена.</value>
+  </data>
+  <data name="MicSetupBeforeEffects" xml:space="preserve">
+    <value>Микрофон пре ефеката</value>
+  </data>
+  <data name="MicSetupPeak" xml:space="preserve">
+    <value>Врх {0:0} dBFS</value>
+  </data>
+  <data name="MicSetupPeakSilent" xml:space="preserve">
+    <value>Нема сигнала</value>
+  </data>
+  <data name="MicSetupTargetTip" xml:space="preserve">
+    <value>Врхови говора треба да буду у појасу, између -18 и -6 dBFS.</value>
+  </data>
+  <data name="MicSetupAverage" xml:space="preserve">
+    <value>Просечан ниво</value>
+  </data>
+  <data name="MicSetupClip" xml:space="preserve">
+    <value>Изобличење</value>
+  </data>
+  <data name="MicSetupClipTip" xml:space="preserve">
+    <value>Засветли када микрофон достигне пуну скалу и светли док је не притиснеш.</value>
+  </data>
+  <data name="MicSetupClipLit" xml:space="preserve">
+    <value>Лампица изобличења светли: микрофон је достигао пуну скалу. Притисни да је угасиш.</value>
+  </data>
+  <data name="MicSetupClipDark" xml:space="preserve">
+    <value>Лампица изобличења угашена</value>
+  </data>
+  <data name="MicSetupGain" xml:space="preserve">
+    <value>Појачање интерфејса</value>
+  </data>
+  <data name="MicSetupNoGain" xml:space="preserve">
+    <value>OpenXLR нема контролу појачања за овај микрофон. Подеси појачање на микрофону или на његовом интерфејсу.</value>
+  </data>
+  <data name="MicSetupSuggestGain" xml:space="preserve">
+    <value>Предложи појачање</value>
+  </data>
+  <data name="MicSetupSuggestHint" xml:space="preserve">
+    <value>Притисни Предложи појачање и говори пет секунди као у етеру. OpenXLR мери твој глас и предлаже појачање које га ставља у појас без изобличења. Ништа се не мења на интерфејсу док не прихватиш.</value>
+  </data>
+  <data name="MicSetupSuggestListening" xml:space="preserve">
+    <value>Слушам. Настави да говориш, преостало: {0:0} s.</value>
+  </data>
+  <data name="MicSetupSuggestMeasured" xml:space="preserve">
+    <value>Твој глас је у гласнијим деловима достизао {0:0.0} dBFS, а највиши врх био је {1:0.0} dBFS.</value>
+  </data>
+  <data name="MicSetupSuggestTooFew" xml:space="preserve">
+    <value>Мерач је послао премало очитавања за процену. Остави овај прозор отвореним и измери поново.</value>
+  </data>
+  <data name="MicSetupSuggestNoVoice" xml:space="preserve">
+    <value>Скоро ништа се не чује. Провери да ли је микрофон повезан и није утишан и да ли је фантомско напајање укључено ако му треба, па измери поново.</value>
+  </data>
+  <data name="MicSetupSuggestKeep" xml:space="preserve">
+    <value>Појачање од {0} dB већ ставља твој глас у појас. Задржи га.</value>
+  </data>
+  <data name="MicSetupSuggestKeepElsewhere" xml:space="preserve">
+    <value>Твој глас је већ у појасу.</value>
+  </data>
+  <data name="MicSetupSuggestChange" xml:space="preserve">
+    <value>Предложено појачање: {1} dB, сада {0} dB.</value>
+  </data>
+  <data name="MicSetupSuggestAtMaximum" xml:space="preserve">
+    <value>Чак и на највећем појачању интерфејса, {0} dB, твој глас остаје око {1:0} dB испод циља. Приђи ближе микрофону или користи микрофон јачег излаза.</value>
+  </data>
+  <data name="MicSetupSuggestAtMinimum" xml:space="preserve">
+    <value>Чак и на 0 dB твој глас је око {0:0} dB изнад циља. Удаљи се од микрофона или говори тише.</value>
+  </data>
+  <data name="MicSetupSuggestClipped" xml:space="preserve">
+    <value>Твој глас је изобличен, па је гласнији него што ово мерење показује. Смањи појачање, па измери поново.</value>
+  </data>
+  <data name="MicSetupSuggestElsewhere" xml:space="preserve">
+    <value>OpenXLR не подешава појачање овог микрофона. Промени га за око {0:+0;-0} dB на микрофону или његовом интерфејсу, па измери поново.</value>
+  </data>
+  <data name="MicSetupSuggestLocked" xml:space="preserve">
+    <value>Закључавање појачања је укључено. Откључај га да прихватиш.</value>
+  </data>
+  <data name="MicSetupSuggestUnreachable" xml:space="preserve">
+    <value>OpenXLR тренутно не може да промени појачање овог интерфејса.</value>
+  </data>
+  <data name="MicSetupSuggestStale" xml:space="preserve">
+    <value>Појачање или микрофон су се променили. Измери поново.</value>
+  </data>
+  <data name="MicSetupSuggestSet" xml:space="preserve">
+    <value>Појачање је постављено на {0} dB. Измери поново за проверу.</value>
+  </data>
+  <data name="MicSetupAcceptGain" xml:space="preserve">
+    <value>Прихвати</value>
+  </data>
+  <data name="MicSetupDiscardGain" xml:space="preserve">
+    <value>Одбаци</value>
+  </data>
+  <data name="MicSetupListenHint" xml:space="preserve">
+    <value>Сними до десет секунди, па пусти снимак у петљи и мењај ефекте док слушаш исте речи. Снимак остаје у меморији и никад се не чува.</value>
+  </data>
+  <data name="MicSetupLoopTake" xml:space="preserve">
+    <value>Снимак у петљи</value>
+  </data>
+  <data name="MicSetupLiveMic" xml:space="preserve">
+    <value>Микрофон уживо</value>
+  </data>
+  <data name="MicSetupWaveform" xml:space="preserve">
+    <value>Таласни облик снимка</value>
+  </data>
+  <data name="MicSetupNoTake" xml:space="preserve">
+    <value>Још нема снимка. Сними један да видиш његов таласни облик.</value>
+  </data>
+  <data name="MicSetupCompare" xml:space="preserve">
+    <value>Слушај</value>
+  </data>
+  <data name="MicSetupProcessed" xml:space="preserve">
+    <value>Обрађено</value>
+  </data>
+  <data name="MicSetupRaw" xml:space="preserve">
+    <value>Сирово</value>
+  </data>
+  <data name="MicSetupCompareHint" xml:space="preserve">
+    <value>Сирово пушта микрофон без EQ-а, софтверске обраде и додатака. Додаци настављају да раде, па се промена чује одмах. Све што овај канал напаја чује промену, укључујући виртуелне микрофоне.</value>
+  </data>
+  <data name="MicSetupHearMyself" xml:space="preserve">
+    <value>Чуј себе у мониторском миксу док је овај прозор отворен</value>
+  </data>
+  <data name="MicSetupHearMyselfLatency" xml:space="preserve">
+    <value>Преко овог рачунара чујеш себе са кашњењем од око {0:0} ms: бафери звучног сервера и кашњење које пријављују додаци.</value>
+  </data>
+  <data name="MicSetupHearMyselfLatencyUnknown" xml:space="preserve">
+    <value>Преко овог рачунара чујеш себе с малим кашњењем: бафери звучног сервера и кашњење које пријављују додаци.</value>
+  </data>
+  <data name="MicSetupProDirect" xml:space="preserve">
+    <value>Путања без кашњења до слушалица на Wave XLR Pro искључена је током сесије, јер не може да преноси ефекте.</value>
+  </data>
+  <data name="MicSetupNotHeard" xml:space="preserve">
+    <value>Овај микрофон тренутно не стиже до твојих мониторских излаза. Укључи Чуј себе или га укључи у мониторском миксу.</value>
+  </data>
+  <data name="MicSetupClosingDiscards" xml:space="preserve">
+    <value>Затварање овог прозора завршава сесију и одбацује снимак. Чуј себе и Сирово се завршавају с њом; подешавања ефеката остају каква јесу.</value>
+  </data>
+  <data name="MicSetupStepPosition" xml:space="preserve">
+    <value>Положај</value>
+  </data>
+  <data name="MicSetupStepShape" xml:space="preserve">
+    <value>Обликовање</value>
+  </data>
+  <data name="MicSetupYourInterface" xml:space="preserve">
+    <value>твог интерфејса</value>
+  </data>
+  <data name="MicSetupPositionCapsule" xml:space="preserve">
+    <value>Овај микрофон је уграђена капсула {0}.</value>
+  </data>
+  <data name="MicSetupPositionXlr" xml:space="preserve">
+    <value>Овај микрофон је на улазу {1} {0}.</value>
+  </data>
+  <data name="MicSetupPositionNone" xml:space="preserve">
+    <value>OpenXLR не контролише уређај на ком је овај микрофон, па његово појачање и напајање подеси на том уређају.</value>
+  </data>
+  <data name="MicSetupPlacement" xml:space="preserve">
+    <value>Где стоји</value>
+  </data>
+  <data name="MicSetupTipCapsuleFront" xml:space="preserve">
+    <value>Говори у предњу страну микрофона, не у његов врх.</value>
+  </data>
+  <data name="MicSetupTipCapsuleRoom" xml:space="preserve">
+    <value>Капсула је кондензаторска и чује просторију више од динамичког микрофона. Држи је близу уста и даље од тастатура и вентилатора.</value>
+  </data>
+  <data name="MicSetupTipXlrAddress" xml:space="preserve">
+    <value>Неки микрофони примају звук с краја, а неки са стране. Упутство микрофона каже који; говори у тај део, не попреко.</value>
+  </data>
+  <data name="MicSetupTipXlrDistance" xml:space="preserve">
+    <value>Динамички микрофон обично ради близу уста. Кондензаторски може бити мало даље, с више просторије у звуку.</value>
+  </data>
+  <data name="MicSetupTipOtherDevice" xml:space="preserve">
+    <value>Говори у део микрофона који наводи његово упутство, не попреко.</value>
+  </data>
+  <data name="MicSetupTipDistance" xml:space="preserve">
+    <value>Држи исту удаљеност док говориш. Ближе даје више ниских и мање просторије; даље даје више просторије и мање ниских.</value>
+  </data>
+  <data name="MicSetupTipAngle" xml:space="preserve">
+    <value>Усмери га ка устима мало са стране, да ваздух гласова п и б прође поред њега уместо да га удари.</value>
+  </data>
+  <data name="MicSetupTipNoise" xml:space="preserve">
+    <value>На кардиоидном микрофону окрени његову задњу страну ка вентилаторима, тастатурама и другој буци.</value>
+  </data>
+  <data name="MicSetupPhantomPower" xml:space="preserve">
+    <value>Фантомско напајање</value>
+  </data>
+  <data name="MicSetupPhantomHint" xml:space="preserve">
+    <value>Кондензаторским микрофонима треба фантомско напајање (48 V); динамичким не треба, и на већину не утиче. Пре укључивања провери упутство микрофона с траком. Прво утишај слушалице, јер укључивање може да пукне.</value>
+  </data>
+  <data name="MicSetupPhantomName" xml:space="preserve">
+    <value>Фантомско напајање за овај микрофон</value>
+  </data>
+  <data name="MicSetupPhantomElsewhere" xml:space="preserve">
+    <value>OpenXLR не укључује фантомско напајање за овај микрофон. Ако му треба, укључи га на интерфејсу на који је прикључен.</value>
+  </data>
+  <data name="MicSetupShapeHint" xml:space="preserve">
+    <value>Пусти снимак у петљи у кораку Слушање, па га обликуј овде. Свака промена испод чује се одмах, на снимку или на микрофону уживо.</value>
+  </data>
+  <data name="MicSetupPresets" xml:space="preserve">
+    <value>Почетни пресети</value>
+  </data>
+  <data name="MicSetupPresetClear" xml:space="preserve">
+    <value>Јасно</value>
+  </data>
+  <data name="MicSetupPresetClearTip" xml:space="preserve">
+    <value>Одсецање ниских на 80 Hz, мало мање тупости око 300 Hz и благо истицање присутности и ваздуха.</value>
+  </data>
+  <data name="MicSetupPresetWarm" xml:space="preserve">
+    <value>Топло</value>
+  </data>
+  <data name="MicSetupPresetWarmTip" xml:space="preserve">
+    <value>Одсецање ниских на 60 Hz, више пуноће испод 200 Hz и мекши врх.</value>
+  </data>
+  <data name="MicSetupPresetBroadcast" xml:space="preserve">
+    <value>Радио</value>
+  </data>
+  <data name="MicSetupPresetBroadcastTip" xml:space="preserve">
+    <value>Одсецање ниских на 100 Hz, мање мутноће око 400 Hz и истицање око 4 kHz које глас гура напред.</value>
+  </data>
+  <data name="MicSetupPresetHint" xml:space="preserve">
+    <value>Пресет поставља четири појаса EQ-а и укључује EQ. То је почетна тачка: дотерај га на кривој испод.</value>
+  </data>
+  <data name="MicSetupPresetApplied" xml:space="preserve">
+    <value>Пресет {0} је на EQ-у. Опозови пресет враћа EQ који си имао пре њега.</value>
+  </data>
+  <data name="MicSetupPresetUndone" xml:space="preserve">
+    <value>EQ је враћен какав је био пре пресета.</value>
+  </data>
+  <data name="MicSetupUndoPreset" xml:space="preserve">
+    <value>Опозови пресет</value>
+  </data>
+  <data name="MicSetupUndoPresetTip" xml:space="preserve">
+    <value>Врати EQ какав је био пре последњег пресета. Измене направљене после тога такође се губе.</value>
+  </data>
+  <data name="MicSetupEq" xml:space="preserve">
+    <value>EQ</value>
+  </data>
+  <data name="MicSetupEqEditor" xml:space="preserve">
+    <value>Сви појасеви</value>
+  </data>
+  <data name="MicSetupEqEditorTip" xml:space="preserve">
+    <value>Отвори уређивач EQ-а, с редом поља за сваки појас</value>
+  </data>
+  <data name="MicSetupNoEq" xml:space="preserve">
+    <value>Сервис не пријављује EQ за овај микрофон.</value>
+  </data>
+  <data name="MicSetupFilters" xml:space="preserve">
+    <value>Одсецање ниских и ClipGuard</value>
+  </data>
+  <data name="MicSetupUnitLowCut" xml:space="preserve">
+    <value>Одсецање ниских на интерфејсу</value>
+  </data>
+  <data name="MicSetupUnitClipGuard" xml:space="preserve">
+    <value>ClipGuard на интерфејсу</value>
+  </data>
+  <data name="MicSetupUnitFiltersHint" xml:space="preserve">
+    <value>Одсецање ниских и ClipGuard самог интерфејса делују пре снимка, па се снимак у петљи с њима не мења. Користи Микрофон уживо да их чујеш.</value>
+  </data>
+  <data name="MicSetupSoftwareLowCut" xml:space="preserve">
+    <value>Софтверско одсецање ниских</value>
+  </data>
+  <data name="MicSetupSoftwareClipGuard" xml:space="preserve">
+    <value>Софтверски ClipGuard</value>
+  </data>
+  <data name="MicSetupSoftwareFiltersHint" xml:space="preserve">
+    <value>Софтверско одсецање ниских и ClipGuard раде на овом рачунару после EQ-а, па петља пролази кроз њих.</value>
+  </data>
+  <data name="MicSetupNoFilters" xml:space="preserve">
+    <value>Овај микрофон нема сопствено одсецање ниских ни ClipGuard. Тај посао обавља појас за одсецање ниских у EQ-у.</value>
+  </data>
+  <data name="MicSetupEffects" xml:space="preserve">
+    <value>Додаци</value>
+  </data>
+  <data name="MicSetupAddEffect" xml:space="preserve">
+    <value>Додај ефекат</value>
+  </data>
+  <data name="MicSetupAddEffectTip" xml:space="preserve">
+    <value>Додај додатак на крај ланца овог микрофона</value>
+  </data>
+  <data name="MicSetupBypassName" xml:space="preserve">
+    <value>Заобиђи {0}</value>
+  </data>
+  <data name="MicSetupEditor" xml:space="preserve">
+    <value>Уређивач</value>
+  </data>
+  <data name="MicSetupEditorName" xml:space="preserve">
+    <value>Отвори уређивач додатка {0}</value>
+  </data>
+  <data name="MicSetupEffectsHint" xml:space="preserve">
+    <value>Заобиђи додатак да чујеш ланац без њега. Прозор ланца премешта, преименује и уклања додатке.</value>
+  </data>
 </root>

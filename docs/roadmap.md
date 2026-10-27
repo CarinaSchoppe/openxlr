@@ -108,6 +108,12 @@ them for a while before more is built on top.
   starting presets inside the window) and Position. Then a suggested gain
   and a crossfade where the loop starts over. Its order against the
   terminal mixer's EQ is not decided.
+- [ ] Noise removal on every microphone that has the EQ, first in its
+  native stage: RNNoise or DeepFilterNet per microphone, with a strength,
+  in Mic setup, the terminal mixer, a Deck key and the API, and both
+  engines in every package. Coded and tested offline and on a private
+  PipeWire server; a listening check on a Wave XLR comes before it is
+  called done. It follows Mic setup, whose Shape step holds it.
 
 ### Devices
 

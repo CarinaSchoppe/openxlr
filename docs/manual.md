@@ -1211,6 +1211,11 @@ take or on the live microphone:
 
   The high pass and the shelves keep the EQ's default Q of 0.70. Every
   band is on.
+- **Noise removal** comes first: **On** switches it, **RNNoise** and
+  **DeepFilterNet** choose the engine, and **Strength** sets how far the
+  noise may be turned down. The line under it says which engine is heard
+  and the delay it adds, or why it does not run. See
+  [noise removal](#noise-removal).
 - **EQ** is the graph the [microphone EQ](#microphone-eq) editor draws,
   edited the same way: drag a handle, use the wheel for Q, double click to
   switch a band, right click for its type. **EQ on** beside it switches
@@ -1258,6 +1263,54 @@ and ends with **Stop and discard** or when the window closes:
   port the input takes, the refusal says the capture port is unavailable.
 - Mic setup needs the native plugin host the packages include. A source
   build without `-p:EnableNativeLv2Host=true` refuses it with that reason.
+
+<a name="noise-removal"></a>
+**Noise removal.** XLR 1, XLR 2 and every capture input on one mono port
+can have background noise taken out before anything else hears the
+microphone: it runs first, ahead of the EQ, the low cut, ClipGuard and your
+plugins, so they, your mixes, your calls and Mic setup's loop all get the
+cleaned voice. Find it in Mic setup's **Shape** step, in the terminal
+mixer's Inputs tab, and as a key on the Deck. It is off until you switch
+it on, and it runs on this computer even when the interface runs the EQ.
+
+Two engines do the work, and you choose per microphone:
+
+- **RNNoise** is light on the processor and best on steady noise: hiss,
+  hum, a fan, an air conditioner. It adds 30 ms of delay. It is the
+  default.
+- **DeepFilterNet** is cleaner on noise that changes, such as typing,
+  clicks and street sound, and takes out some room echo. It uses more of
+  the processor and adds more delay: 55 ms with PipeWire's usual small
+  buffers, about 70 ms with larger ones. The first time you choose it,
+  its model takes a moment to load, and the microphone keeps its sound
+  until it is ready.
+
+On a Ryzen 9 9950X3D, one microphone takes about half a percent of one core
+with RNNoise and about two percent with DeepFilterNet; an older or slower
+processor needs more.
+
+**Strength** is the most the noise is turned down, from 0 to 100 dB. At
+**No limit** the engine takes out all it can. If your voice starts to sound
+thin, watery or clipped at the start of words, lower it: 20 to 30 dB keeps
+a little of the room and sounds more natural. At 0 the microphone passes
+through untouched, only late.
+
+Switching noise removal on or off, or changing the engine, makes a short
+dip of about 10 ms in your voice, because the engines are late by
+different amounts. Strength changes at once. The delay is the same for
+every mix and every call, so the voice stays in step with itself, but you
+hear it in your headphones that much later through a monitor mix; the
+interface's own direct monitoring, where it has it, is not delayed.
+
+Noise removal runs at a 48 kHz audio graph, which is how PipeWire and every
+Wave interface run unless you changed it. At another rate the microphone
+passes through untouched and the line under the controls says so. It needs
+the native plugin host the packages include; every package carries both
+engines. A build from source without Rust offers RNNoise only, and the
+Shape step says so.
+
+The setting is saved with the mixer and in profiles. A profile saved
+before noise removal leaves it as it is.
 
 <a name="microphone-eq"></a>
 **Microphone EQ.** XLR 1, XLR 2 and every capture input on one mono port
@@ -3082,9 +3135,14 @@ its value while its title says **EQ off** or **band off**. Gain reads
 **n/a** for a cut or notch, which keeps its stored gain but does not use it.
 Pressing an EQ dial switches that band, leaving the whole EQ switch alone.
 Use the EQ on/off key to enable the whole EQ. Dial stacks use the same
-tap/press cycling as other controls.
+tap/press cycling as other controls. Where the daemon reports
+[noise removal](#noise-removal) for the microphone, the group also has a
+**noise removal on/off** key, which switches it with the engine and strength
+set in Mic setup; it cannot switch noise removal on without the native
+plugin host.
 
 The saved targets use channel ids: `eq:<channel>` for the EQ switch,
+`noise:<channel>` for the noise removal switch,
 `eqband:<channel>:<band>` for a band switch, and `eqtype:`, `eqfreq:`,
 `eqgain:` or `eqq:` followed by the same channel and band for type,
 frequency, gain or Q. Bands are numbered from 1. Renaming a microphone
@@ -4029,6 +4087,12 @@ cannot be applied afterwards, even if a new microphone reuses the same
 channel id before the next screen redraw. Settings are saved by the daemon in the
 same mixer and profile state as edits made in the graphical UI.
 
+Below it, **Noise removal** lists each microphone's
+[noise removal](#noise-removal): what runs and the delay it adds, or why it
+does not run; its on switch; the engine, offered when the daemon's plugin
+host carries both; and the strength, in steps of 6 dB with `[` and `]`
+moving one, and **no limit** at the top.
+
 The mixer opens as a desk of vertical channel strips; the Matrix section
 shows the same sends as one grid, every channel against every mix. The left bank shows
 sends into the selected mix; the right bank holds the mix masters. Each
@@ -4072,7 +4136,7 @@ Eight sections are reachable with `1` to `8`, Tab and Shift+Tab:
 |---|---|
 | 1 Mixer | channel sends, mix masters, stereo meters and level history; channel and user mix creation, renaming, removal and ordering |
 | 2 Matrix | the whole submixer as one grid: every channel's send into every mix, the mix masters and their meters across the top, a meter beside each channel. With height to spare a channel's meter is stereo: its name and its sends sit on a row of their own, the left bar on the row above and the right bar on the row below, so the name is centred between its two bars and each bar is centred on its letter. Where only two rows a channel fit, the name sits beside the left bar. Either way a blank row follows each channel, so its right bar never touches the next channel's left one. A short terminal keeps one row a channel and one summed bar. A microphone input, including a mono capture input, carries one bar rather than a pair of the same reading. A strip bound to another microphone shows its source, or why it is silent, on the row under its name, and a silent one's name is in the warning colour |
-| 3 Inputs | hardware controls in grouped cards with gain arcs on a wide terminal, or a scrolling list in a small one; gain, mute, low cut, expander, voice tune and its strength, phantom power, ClipGuard and the compressor for each of the interface's inputs, headed by the channel that carries it; what feeds XLR 1 and XLR 2; each capture microphone's source, connection and carried unit controls; what runs each microphone's EQ and, on a unit that can run it, the choice between the unit and software; software processing, headphones, direct monitor blend, hardware output routing, [ducking](#terminal-ducking) on any device, USB Aux return and, on a Wave XLR Pro, the Line In gain; each capture input's own gain |
+| 3 Inputs | hardware controls in grouped cards with gain arcs on a wide terminal, or a scrolling list in a small one; gain, mute, low cut, expander, voice tune and its strength, phantom power, ClipGuard and the compressor for each of the interface's inputs, headed by the channel that carries it; what feeds XLR 1 and XLR 2; each capture microphone's source, connection and carried unit controls; what runs each microphone's EQ and, on a unit that can run it, the choice between the unit and software; each microphone's noise removal, its engine and strength; software processing, headphones, direct monitor blend, hardware output routing, [ducking](#terminal-ducking) on any device, USB Aux return and, on a Wave XLR Pro, the Line In gain; each capture input's own gain |
 | 4 Outputs | selected monitor sinks and their feeds, shared output volume, the monitoring pause (**Mute monitoring**, microphone sends also pause when enabled in Options), each sink's volume and mute, and the system default sink and source |
 | 5 Apps | every known application and its channel assignment, including the desktop's own routing |
 | 6 Inserts | the chain on each input and mix, its order, bypass and status; add a plugin from the catalogue, narrowed by typing, of those that fit the chain's width; open a plugin's native editor or edit its generated controls when the editor is blocked or refused |

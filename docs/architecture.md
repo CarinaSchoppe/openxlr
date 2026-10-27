@@ -256,7 +256,8 @@ reopened after 2 s, doubling on each further failure up to 32 s.
 
 ```
 src/            .NET solution: Core (device + mixer), Daemon, UI, Tui, Probe, Tests
-native/         optional C/C++ plugin host, vendored interface headers, editor tests
+native/         optional C/C++ plugin host, vendored interface headers, noise removal
+                (RNNoise under rnnoise/, DeepFilterNet's Rust wrapper under deepfilter/), tests
 plugin/         the OpenDeck (Stream Deck) plugin
 docs/           this documentation, protocol write-up, capture guides
 tools/          proprobe.py, a standalone Python probe for the vendor protocol,

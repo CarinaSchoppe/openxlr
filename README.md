@@ -278,6 +278,17 @@ finding was verified on a real device.
 
 ## License
 
-[GPL-3.0](LICENSE). If you find OpenXLR useful, consider
+[GPL-3.0](LICENSE). The native plugin host carries third-party code under
+its own licences, each kept beside it: the CLAP headers in `native/clap`
+and the VST3 interface headers in `native/vst3` (both MIT), RNNoise 0.2 in
+`native/rnnoise` (BSD-3-Clause), libDF from DeepFilterNet 0.5.6 in
+`native/deepfilter/libdf` and the DeepFilterNet3 model it embeds (MIT or
+Apache-2.0), and the Rust crates DeepFilterNet builds on, listed with their
+versions in `native/deepfilter/Cargo.lock`, each under the licence its own
+package states: MIT, Apache-2.0 or a choice that includes one of them, with
+Unicode-DFS-2016 beside MIT or Apache-2.0 for one and CC0-1.0 for
+tiny-keccak.
+
+If you find OpenXLR useful, consider
 [buying me a coffee](https://buymeacoffee.com/emaspa) or supporting it on
 [Ko-fi](https://ko-fi.com/emaspa).

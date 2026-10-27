@@ -172,6 +172,20 @@ physical gain dial.
   head of the input before its inserts, with the same editor without the
   switch and the badge; its Mic setup take is the raw microphone, looped
   through the EQ ([api.md](api.md#eq-on-capture-inputs)).
+- Noise removal: on the same microphones, first in the same native stage,
+  ahead of the EQ, the low cut, ClipGuard and the inserts, with a choice of
+  two engines per microphone. RNNoise 0.2 (Xiph) is light, best on steady
+  hiss and hum, and adds 30 ms; DeepFilterNet 3 is cleaner on typing,
+  changing noise and some room echo, costs more processor and adds 55 to
+  71 ms, since it runs on a thread of its own and never on the audio
+  thread. A strength from 0 to 100 dB limits how far the noise is turned
+  down, the same for both. Switching it on or off or changing the engine
+  dips the voice for about 10 ms; the strength changes live. It runs at a
+  48 kHz graph and says so at any other rate. Every package carries both
+  engines; a source build without Rust carries RNNoise and says so. Mic
+  setup's Shape step, the terminal mixer, a Deck key and
+  [`setNoiseRemoval`](api.md#noise-removal) control it, and it is saved
+  with the mixer and in profiles.
 - Gain lock: the daemon rejects every gain change while the lock is set,
   from any client, and stores the lock per device in `gainlock.json`.
   Shown only for devices without a physical gain dial, which would

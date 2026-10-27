@@ -300,11 +300,17 @@ public sealed class DuckingViewModelTests
         Assert.Equal(Localizer.Text("DuckingNotHeld"), model.Status);
         Assert.True(model.Warns);
 
-        // Chosen but not ready: the catalogue's sentence for a reason it knows, software running it.
+        // Chosen but not ready: the catalogue's sentence for a reason it knows, software running it. The
+        // switch lights this computer, the unit's side cannot be pressed, and its tooltip says why.
         model.Apply(Ducking(enabled: true, key: "xlr2", channels: "\"music\"", backend: "\"software\"",
             device: Pro(ready: false, reason: "keyNotSupported", note: "The Wave XLR Pro ducks only with XLR 1 as the key.")), Mixer());
         Assert.False(model.OnDevice);
+        Assert.Equal("device", model.Processing);
+        Assert.False(model.ProcessOnDevice);
+        Assert.True(model.ProcessInSoftware);
+        Assert.False(model.CanProcessOnDevice);
         Assert.Equal(Localizer.Format("DuckingDeviceKeyNotSupported", "Wave XLR Pro"), model.Note);
+        Assert.Equal(model.Note, model.ProcessOnDeviceTip);
         Assert.Equal(Localizer.Format("DuckingStatusOnComputer", "XLR 2"), model.Status);
         Assert.False(model.Warns);
         Assert.True(model.ShowReduction);
@@ -316,15 +322,23 @@ public sealed class DuckingViewModelTests
         model.Apply(Ducking(enabled: true, backend: "\"software\"", device: Pro(ready: false, reason: "somethingNew", note: "A new reason.")), Mixer());
         Assert.Equal("A new reason.", model.Note);
 
-        // Software by choice: no note, the switch says so.
+        // Software by choice while the unit cannot run it: the note stays, saying why the unit's side is off.
         model.ChooseProcessing("software");
         Assert.True(sent.Sent.TryDequeue(out var chosen));
         Assert.Equal(("setDuckingProcessing", "software"), (chosen.Command, chosen.Value.GetValue<string>()));
         Assert.True(model.ProcessInSoftware);
-        Assert.Null(model.Note);
-        // The side already chosen sends nothing.
+        Assert.Equal("A new reason.", model.Note);
+        // The side already chosen sends nothing, and the unit's side cannot be asked for.
         model.ChooseProcessing("software");
+        model.ChooseProcessing("device");
         Assert.Empty(sent.Sent);
+
+        // Software by choice on a unit that can run it: no note, the switch says so, and the unit's side can be pressed.
+        model.Apply(Ducking(enabled: true, backend: "\"software\"", processing: "software", device: Pro()), Mixer());
+        Assert.True(model.ProcessInSoftware);
+        Assert.True(model.CanProcessOnDevice);
+        Assert.Null(model.Note);
+        Assert.Equal(Localizer.Format("DuckingProcessingDeviceTip", "Wave XLR Pro"), model.ProcessOnDeviceTip);
 
         // No unit with hardware ducking: no choice, whatever the processing word says.
         model.Apply(Ducking(enabled: true, backend: "\"software\""), Mixer());

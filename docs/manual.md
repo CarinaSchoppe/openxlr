@@ -698,9 +698,12 @@ When the setup does not fit, the computer runs it and the state says why
 Moving from one to the other never ducks twice. There can be a moment
 without ducking while it moves. To keep it on this computer whatever the
 setup, choose **Runs on**, **This computer** in the Ducking window
-(`setDuckingProcessing` over the API). It shows the unit's reason
-under **Runs on** while the unit is chosen and cannot run it, and the
-**Hardware processing** badge beside its title while the unit does.
+(`setDuckingProcessing` over the API). **Runs on** lights where ducking
+runs. While the unit cannot run the setup, **This computer** is lit and
+**This unit** cannot be pressed; its tooltip and the line under **Runs
+on** give the unit's reason. Your choice is kept, and ducking goes back
+to the unit once the setup fits it again. The **Hardware processing**
+badge shows beside the title while the unit runs it.
 
 **Where each side sits in the signal.** The unit and this computer listen
 and lower at different points:

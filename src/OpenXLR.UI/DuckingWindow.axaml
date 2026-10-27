@@ -28,13 +28,15 @@
       <WrapPanel Name="DuckingProcessing" IsVisible="{Binding HasProcessingChoice}" IsEnabled="{Binding CanEdit}"
                  ItemSpacing="6" LineSpacing="4">
         <TextBlock Text="{loc:Text Key=DuckingProcessingLabel}" Classes="h" VerticalAlignment="Center"/>
-        <!-- two sides of one switch: the lit side is the daemon's choice, and a press asks for its side -->
+        <!-- two sides of one switch: the lit side is the daemon's choice, and a press asks for its side;
+             a unit that cannot run the setup lights this computer's side and leaves its own side off -->
         <ToggleButton Name="DuckingOnUnit" Content="{loc:Text Key=DuckingProcessingDevice}" IsChecked="{Binding ProcessOnDevice, Mode=OneWay}"
+                      IsEnabled="{Binding CanProcessOnDevice}" ToolTip.ShowOnDisabled="True"
                       Click="OnProcessOnUnit" ToolTip.Tip="{Binding ProcessOnDeviceTip}"/>
         <ToggleButton Name="DuckingOnComputer" Content="{loc:Text Key=DuckingProcessingSoftware}" IsChecked="{Binding ProcessInSoftware, Mode=OneWay}"
                       Click="OnProcessInSoftware" ToolTip.Tip="{loc:Text Key=DuckingProcessingSoftwareTip}"/>
       </WrapPanel>
-      <!-- why the unit, chosen to run it, does not -->
+      <!-- why the unit cannot run it -->
       <TextBlock Name="DuckingDeviceNote" Text="{Binding Note}" IsVisible="{Binding HasNote}" Classes="hint" TextWrapping="Wrap"/>
       <!-- how far the chosen channels are lowered now, while this computer runs it -->
       <Grid Name="DuckingReduction" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" IsVisible="{Binding ShowReduction}">

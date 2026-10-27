@@ -810,6 +810,7 @@
   <data name="GainLockTheDaemonRejectsEveryGainChange" xml:space="preserve">
     <value>Bloqueo de ganancia: mientras esté activado, el demonio rechaza cualquier cambio de ganancia</value>
   </data>
+  <data name="MicSetupSuggestStale" xml:space="preserve"><value>Ha cambiado la ganancia o el micrófono. Vuelve a medir.</value></data>
   <data name="GroupNamePlaceholder" xml:space="preserve">
     <value>Nombre del grupo, p. ej. Micrófonos</value>
   </data>

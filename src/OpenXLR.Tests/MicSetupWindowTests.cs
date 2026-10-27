@@ -409,7 +409,7 @@ internal static class MicSetupWindowTests
     // Use the existing layout test's real X11 application and dispatcher.
     internal static void CheckPendingClose()
     {
-        Task check = Verify();
+        Task check = VerifyCloseAndMove();
         var deadline = DateTime.UtcNow.AddSeconds(10);
         while (!check.IsCompleted && DateTime.UtcNow < deadline)
         {
@@ -418,6 +418,52 @@ internal static class MicSetupWindowTests
         }
         Assert.True(check.IsCompleted, "Mic setup close test hung.");
         check.GetAwaiter().GetResult();
+    }
+
+    private static async Task VerifyCloseAndMove()
+    {
+        await Verify();
+        await VerifyRefusedMove();
+    }
+
+    private static async Task VerifyRefusedMove()
+    {
+        await using var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            while (!stop.IsCancellationRequested)
+            {
+                JsonNode command = await SocketTestServer.Receive(socket, stop);
+                if (command["cmd"]!.GetValue<string>() == "watchInputMeter") continue;
+                await SocketTestServer.Send(socket, new { type = "commandResult",
+                    requestId = command["requestId"]!.GetValue<string>(), error = "The microphone could not be restored." }, stop);
+            }
+        });
+        await using var client = new DaemonClient(server.Url);
+        var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.ConnectionChanged += up => { if (up) connected.TrySetResult(); };
+        client.Start();
+        await connected.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var current = new MicSetupViewModel(client, "xlr1");
+        var next = new MicSetupViewModel(client, "guest");
+        var inputs = new MicSetupInputs();
+        inputs.Update([new("Current", current), new("Guest", next)]);
+        current.Inputs = next.Inputs = inputs;
+        current.Apply(JsonNode.Parse("""{"channel":"xlr1","mode":"live","seconds":1}"""));
+        var window = new MicSetupWindow { DataContext = current };
+        try
+        {
+            window.Show();
+            ComboBox picker = window.FindControl<ComboBox>("MicSetupInput")!;
+            await Until(() => ReferenceEquals((picker.SelectedItem as MicSetupInput)?.Setup, current));
+            picker.SelectedItem = inputs.Items[1];
+            await Until(() => window.IsEnabled && current.Error is not null);
+            Assert.Same(current, window.DataContext);
+            Assert.Same(current, (picker.SelectedItem as MicSetupInput)?.Setup);
+            Assert.Equal("The microphone could not be restored.", current.Error);
+            Assert.True(picker.IsEffectivelyEnabled);
+            Assert.True(window.FindControl<TextBlock>("MicSetupError")!.IsEffectivelyVisible);
+        }
+        finally { window.Close(); }
     }
 
     private static async Task Verify()

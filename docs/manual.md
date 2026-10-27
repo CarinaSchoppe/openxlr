@@ -1045,7 +1045,10 @@ Choosing another one moves the window to it on the same step. A take, Raw
 or Hear myself running on the one shown stops first, as when the window
 closes. The meter, the gain, the tips, the EQ and the plugins are then the
 new microphone's. Pressing Mic setup in the header or in a
-chain window while the window is open moves it the same way.
+chain window while the window is open moves it the same way. If stopping
+fails, the window stays on the current microphone and shows the error so
+you can retry. A daemon reconnection during the switch also leaves the
+current microphone selected.
 
 The window takes the height its step needs, up to the screen's height, so
 nothing is cut off or needs scrolling until the screen is too short. If
@@ -1117,8 +1120,10 @@ it.
 - For a microphone whose gain OpenXLR does not set, such as a USB
   microphone or another make of interface, the window says how many dB to
   change on the device.
-- If the gain moves while OpenXLR listens or before you accept, the window
-  asks you to measure again rather than overwrite it.
+- If the gain, its range or the microphone's source changes while OpenXLR
+  listens or before you accept, the window discards the suggestion and asks
+  you to measure again. Returning the gain or source to its old setting
+  does not restore the old measurement. Renaming the channel leaves it valid.
 
 **Listen** records a take and plays it back through the chain:
 
@@ -1135,7 +1140,8 @@ it.
   interface's own gain and processing are already in the take, so changing
   those while it loops changes nothing.
 - The take's waveform appears once it is recorded, with a line that
-  follows the loop.
+  follows the loop. While another completed take is being fetched the last
+  waveform stays visible; a late reply for an older take cannot replace it.
 - **Processed** and **Raw** switch between the microphone through its EQ,
   software processing and plugins and the microphone without any of them,
   on the take or on the live microphone. The plugins keep running and the

@@ -1421,6 +1421,9 @@ fields describe the running session and are false, null or 0 without one:
   recording starts before the message is published. While the next take's
   meter batch arrives, requests still return the previous completed take;
   the new waveform, duration and take number become visible together.
+  Within a session, clients keep the newest take received or requested and
+  ignore older replies and duplicates. An idle session or `take: 0` clears
+  that tracking for the next session.
 
 The helper has two outputs. The main one feeds the channel's route as
 before, through the EQ, the software processing and the inserts. The tap

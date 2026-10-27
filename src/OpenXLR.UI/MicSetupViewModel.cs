@@ -2,6 +2,7 @@ using OpenXLR.UI.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
@@ -112,6 +113,7 @@ public sealed class MicSetupViewModel : ViewModelBase
     private readonly DaemonClient _client;
     private bool _busy, _active;
     private int _connectionEpoch;
+    private int _requestRevision;
     private string _mode = "idle";
     private double _seconds;
     private string? _error;
@@ -156,12 +158,18 @@ public sealed class MicSetupViewModel : ViewModelBase
     /// nothing of this microphone carries on unseen. The next one opens on the
     /// step shown here.
     /// </summary>
-    public async Task HandOverAsync(MicSetupViewModel next)
+    public async Task<bool> HandOverAsync(MicSetupViewModel next)
     {
-        if (ReferenceEquals(next, this)) return;
+        if (ReferenceEquals(next, this)) return true;
         CancelGainMeasure();
-        if (_active || _busy) await StopOnCloseAsync();
+        int epoch = _connectionEpoch;
+        if (_active || _busy)
+        {
+            string? error = await StopOnCloseAsync();
+            if (epoch != _connectionEpoch || error is not null) return false;
+        }
         next.Step = Step;
+        return true;
     }
 
     // --- steps ---
@@ -272,7 +280,15 @@ public sealed class MicSetupViewModel : ViewModelBase
     public UnitInputViewModel? Unit
     {
         get => _unit;
-        internal set { if (Set(ref _unit, value)) { Raise(nameof(CarriesUnit)); Raise(nameof(HasGain)); Raise(nameof(NoGain)); RaiseCarrier(); } }
+        internal set
+        {
+            UnitInputViewModel? old = _unit;
+            if (!Set(ref _unit, value)) return;
+            if (old is not null) old.PropertyChanged -= OnGainChanged;
+            if (value is not null) value.PropertyChanged += OnGainChanged;
+            CheckMeasuredGain();
+            Raise(nameof(CarriesUnit)); Raise(nameof(HasGain)); Raise(nameof(NoGain)); RaiseCarrier();
+        }
     }
     public bool CarriesUnit => _unit is not null;
 
@@ -281,7 +297,15 @@ public sealed class MicSetupViewModel : ViewModelBase
     public WaveUnitInputViewModel? ExtraUnit
     {
         get => _extraUnit;
-        internal set { if (Set(ref _extraUnit, value)) { Raise(nameof(CarriesExtraUnit)); Raise(nameof(HasGain)); Raise(nameof(NoGain)); RaiseCarrier(); } }
+        internal set
+        {
+            WaveUnitInputViewModel? old = _extraUnit;
+            if (!Set(ref _extraUnit, value)) return;
+            if (old is not null) old.PropertyChanged -= OnGainChanged;
+            if (value is not null) value.PropertyChanged += OnGainChanged;
+            CheckMeasuredGain();
+            Raise(nameof(CarriesExtraUnit)); Raise(nameof(HasGain)); Raise(nameof(NoGain)); RaiseCarrier();
+        }
     }
     public bool CarriesExtraUnit => _extraUnit is { HasGain: true };
 
@@ -415,6 +439,38 @@ public sealed class MicSetupViewModel : ViewModelBase
     private GainControl? _measuredGain;
     private GainSuggestion? _suggestion;
     private string? _gainNote;
+    private (ChannelBinding? Binding, UnitInputInfo? Unit, string? Source, int Pair, int? Port, bool Connected) _input;
+
+    /// <summary>A source or unit changed, even when the same gain control and value are reused.</summary>
+    internal void ObserveInput(ChannelViewModel? input)
+    {
+        var next = (input?.Binding, input?.UnitInput, input?.CaptureSource, input?.CapturePair ?? 0,
+            input?.CaptureMonoChannel, input?.CaptureSource is not null ? input.CaptureConnected : input?.BindingConnected == true);
+        if (_input == next) return;
+        _input = next;
+        InvalidateGain();
+    }
+
+    private void OnGainChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.PropertyName) || e.PropertyName is nameof(UnitInputViewModel.GainDb) or nameof(UnitInputViewModel.GainMaxDb))
+            CheckMeasuredGain();
+    }
+
+    private void CheckMeasuredGain()
+    {
+        if (!SameGain(_measuredGain, CurrentGain)) InvalidateGain();
+    }
+
+    private void InvalidateGain()
+    {
+        if (_measure is null && _suggestion is null) return;
+        _measure = null;
+        _suggestion = null;
+        _measuredGain = null;
+        _gainNote = Localizer.Text("MicSetupSuggestStale");
+        RaiseSuggestion();
+    }
 
     /// <summary>Suggest gain is listening to the microphone.</summary>
     public bool Measuring => _measure is not null;
@@ -504,7 +560,8 @@ public sealed class MicSetupViewModel : ViewModelBase
     }
 
     private static bool SameGain(GainControl? a, GainControl? b)
-        => a is null ? b is null : b is { } other && ReferenceEquals(a.Value.Owner, other.Owner) && a.Value.GainDb == other.GainDb;
+        => a is null ? b is null : b is { } other && ReferenceEquals(a.Value.Owner, other.Owner)
+            && a.Value.GainDb == other.GainDb && a.Value.MaxDb == other.MaxDb;
 
     /// <summary>
     /// Write the suggested gain through the input's own control, the one the
@@ -655,7 +712,7 @@ public sealed class MicSetupViewModel : ViewModelBase
         // state that names a take this view never received asks for it.
         int take = _active ? state?["take"]?.GetValue<int>() ?? 0 : 0;
         if (take == 0) { _take = _requestedTake = 0; Peaks = null; }
-        else if (take != _take && take != _requestedTake)
+        else if (take > Math.Max(_take, _requestedTake))
         {
             _requestedTake = take;
             _ = _client.RequestSoundCheckTakeAsync();
@@ -671,11 +728,9 @@ public sealed class MicSetupViewModel : ViewModelBase
     {
         if (message?["channel"]?.GetValue<string>() != Channel || !_active) return;
         int take = message["take"]?.GetValue<int>() ?? 0;
-        if (take == 0) return;
+        if (take <= _take || take < _requestedTake || message["peaks"] is not JsonArray { Count: > 0 } peaks) return;
         _take = take;
-        Peaks = message["peaks"] is JsonArray peaks
-            ? [.. peaks.Select(p => Number(p) is double d ? Math.Clamp(d, 0, 1) : 0)]
-            : null;
+        Peaks = [.. peaks.Select(p => Number(p) is double d ? Math.Clamp(d, 0, 1) : 0)];
     }
 
     /// <summary>The meters' <c>in:</c> entry for this channel: rms, peak and the clip flag.</summary>
@@ -730,20 +785,22 @@ public sealed class MicSetupViewModel : ViewModelBase
         Raise(nameof(CanRecord)); Raise(nameof(CanLoop)); Raise(nameof(CanLive)); Raise(nameof(CanStop)); Raise(nameof(CanSwitch));
     }
 
-    /// <summary>One request at a time; its error shows until the next one or the state clears it.</summary>
-    private async Task SendAsync(Func<Task<string?>> request)
+    /// <summary>One request owns the controls and error. Stop may queue behind it and take ownership.</summary>
+    private async Task<string?> SendAsync(Func<Task<string?>> request, bool supersede = false)
     {
-        if (_busy) return;
+        if (_busy && !supersede) return null;
         int epoch = _connectionEpoch;
+        int revision = ++_requestRevision;
         _busy = true; RaiseButtons();
         try
         {
             string? error = await request();
-            if (epoch == _connectionEpoch) Error = error;
+            if (epoch == _connectionEpoch && revision == _requestRevision) Error = error;
+            return error;
         }
         finally
         {
-            if (epoch == _connectionEpoch) { _busy = false; RaiseButtons(); }
+            if (epoch == _connectionEpoch && revision == _requestRevision) { _busy = false; RaiseButtons(); }
             // A refused switch snaps back to what the daemon holds.
             Raise(nameof(ListenProcessed)); Raise(nameof(ListenRaw)); Raise(nameof(HearMyself));
         }
@@ -763,10 +820,6 @@ public sealed class MicSetupViewModel : ViewModelBase
     /// Closing can follow a pending record command; the stop is sent behind
     /// it rather than dropped because the buttons are disabled for a moment.
     /// </summary>
-    public async Task StopOnCloseAsync()
-    {
-        int epoch = _connectionEpoch;
-        string? error = await _client.SoundCheckAsync(Channel, "stop");
-        if (epoch == _connectionEpoch) Error = error;
-    }
+    public Task<string?> StopOnCloseAsync()
+        => SendAsync(() => _client.SoundCheckAsync(Channel, "stop"), supersede: true);
 }

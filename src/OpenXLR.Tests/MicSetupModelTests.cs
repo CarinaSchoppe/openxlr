@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using OpenXLR.UI;
 using OpenXLR.UI.Localization;
@@ -359,6 +360,27 @@ public sealed class MicSetupModelTests
 
 
     // --- the chosen preset ---
+
+    [Fact]
+    public async Task PresetUndoRestoresEveryBandAdvertisedByTheDaemon()
+    {
+        await using var client = new DaemonClient("ws://127.0.0.1:1/ws");
+        var sent = new Recorder();
+        using var eq = new MicEqViewModel(sent, "xlr1", "Mic", TimeSpan.Zero, new ManualTime());
+        JsonNode limits = JsonSerializer.SerializeToNode(EqLimits.Instance, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        int count = limits["maxBands"]?.GetValue<int>() ?? limits["bands"]!.GetValue<int>();
+        MicEq before = new() { Enabled = true, Bands = [.. Enumerable.Range(0, count)
+            .Select(i => MicEq.Default.Bands[i % MicEq.BandCount] with { Gain = i * .25 })] };
+        Assert.Null(MicEq.Check(before));
+        eq.Apply(Reported(before), limits);
+        var setup = new MicSetupViewModel(client, "xlr1") { Eq = eq };
+        setup.ApplyPreset(MicSetupPresets.Warm);
+        Assert.Equal(MicSetupPresets.Warm.Eq, sent.Eq());
+        setup.UndoPreset();
+        Assert.Equal(before, sent.Eq());
+        Assert.Equal(before, eq.Current);
+        Assert.Equal(count, eq.Bands.Count);
+    }
 
     /// <summary>A channel's <c>eq</c> as the daemon reports it, with these bands.</summary>
     private static JsonNode Reported(MicEq eq) => new JsonObject

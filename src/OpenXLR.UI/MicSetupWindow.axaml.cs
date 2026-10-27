@@ -114,10 +114,15 @@ public partial class MicSetupWindow : Window
         _moving = true;
         _measure.Stop();
         IsEnabled = false;
-        try { await current.HandOverAsync(next); }
-        finally { _moving = false; }
+        bool moved;
+        try { moved = await current.HandOverAsync(next); }
+        finally
+        {
+            _moving = false;
+            if (!_closing && !_closed) IsEnabled = true;
+        }
         if (_closing || _closed) return;
-        IsEnabled = true;
+        if (!moved) { current.RaiseInputs(); return; }
         DataContext = next;
         KeepMeter();
     }

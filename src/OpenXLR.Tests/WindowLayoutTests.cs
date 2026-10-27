@@ -338,10 +338,10 @@ public sealed class WindowLayoutTests
                     }
                     foreach (string name in new[] { "MicSetupSteps", "MicSetupClose" })
                         AssertInside(micSetup.FindControl<Control>(name)!, micSetup);
-                    // Shape's preset undo, add effect and each plugin's bypass and editor keep to the window's width.
+                    // Shape's preset undo, add effect and each plugin's bypass, editor and remove keep to the window's width.
                     if (step == MicSetupStep.Shape)
                         foreach (Control control in micSetup.GetVisualDescendants().OfType<Control>().Where(c => c.IsEffectivelyVisible
-                                     && c.Name is "MicSetupUndoPreset" or "MicSetupAddEffect" or "MicSetupBypass" or "MicSetupInsertEditor"))
+                                     && c.Name is "MicSetupUndoPreset" or "MicSetupAddEffect" or "MicSetupBypass" or "MicSetupInsertEditor" or "MicSetupRemoveInsert"))
                             AssertInside(control, micSetup);
                     Assert.True(micSetup.GetVisualDescendants().OfType<ScrollViewer>().Single().Bounds.Height > 50);
                     Capture(micSetup, $"mic-setup-{step.ToString().ToLowerInvariant()}-minimum");

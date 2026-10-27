@@ -330,7 +330,13 @@ public sealed class CaptureInputWindowTests
                 Assert.Equal(id == "guest", model.CanMicSetup);
                 Button micSetup = chain.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, Localizer.Text("MicSetup")));
                 Assert.Equal(id == "guest", micSetup.IsEffectivelyVisible);
-                if (id == "guest") await MicSetupWindowTests.CheckCaptureChain(main, chain, soundCommands, meterWatches, eqCommands, bypassCommands);
+                if (id == "guest")
+                {
+                    await MicSetupWindowTests.CheckCaptureChain(main, chain, soundCommands, meterWatches, eqCommands, bypassCommands);
+                    // Mic setup removed the guest's plugin: one chain with nothing in it.
+                    JsonNode removed = Assert.Single(commands, c => c["channel"]!.GetValue<string>() == id);
+                    Assert.Empty(removed["inserts"]!.AsArray());
+                }
                 chain.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, Localizer.Text("AddPlugin")))
                     .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Until(() => chain.OwnedWindows.OfType<PluginPickerWindow>().Any(w => w.IsVisible));
@@ -340,8 +346,8 @@ public sealed class CaptureInputWindowTests
                 Assert.Equal(plugin, choice.Uri);
                 list.SelectedItem = choice;
                 picker.FindControl<Button>("AddButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                await Until(() => commands.Any(c => c["channel"]!.GetValue<string>() == id));
-                JsonNode command = commands.Single(c => c["channel"]!.GetValue<string>() == id);
+                await Until(() => commands.Count(c => c["channel"]!.GetValue<string>() == id) == (id == "guest" ? 2 : 1));
+                JsonNode command = commands.Last(c => c["channel"]!.GetValue<string>() == id);
                 Assert.Equal("setInserts", command["cmd"]!.GetValue<string>());
                 Assert.Equal(plugin, command["inserts"]!.AsArray().Last()!["plugin"]!.GetValue<string>());
                 chain.Close();
@@ -374,7 +380,8 @@ public sealed class CaptureInputWindowTests
             await Until(() => !setup.IsVisible);
             Assert.Equal(stopsBeforeRemoval, soundCommands.Count(c => c["action"]?.GetValue<string>() == "stop"));
             Assert.All(main.CaptureInputs, c => Assert.False(c.Microphone));
-            Assert.Equal(2, commands.Count);
+            // Mic setup's removal, then one plugin added to each input.
+            Assert.Equal(3, commands.Count);
         }
         finally { window.Close(); }
     }

@@ -1231,8 +1231,9 @@ take or on the live microphone:
 - **Plugins** lists the channel's insert chain: each plugin's state light,
   **Bypass**, and **Editor**, which opens the plugin's own editor when it
   runs in the plugin host and its generated controls otherwise, as the
-  chain's cog does. **Add effect** adds a plugin at the end of the chain.
-  The chain window still moves, renames and removes plugins.
+  chain's cog does, and **✕**, which removes the plugin from the chain.
+  **Add effect** adds a plugin at the end of the chain. The chain window
+  still moves and renames plugins.
 
 A session starts with **Record**, **Live mic**, **Raw** or **Hear myself**,
 and ends with **Stop and discard** or when the window closes:

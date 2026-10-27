@@ -3332,6 +3332,9 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   <data name="MicSetupEditorName" xml:space="preserve">
     <value>Отвори уређивач додатка {0}</value>
   </data>
+  <data name="MicSetupRemoveName" xml:space="preserve">
+    <value>Уклони {0}</value>
+  </data>
   <data name="MicSetupEffectsHint" xml:space="preserve">
     <value>Заобиђи додатак да чујеш ланац без њега. Прозор ланца премешта, преименује и уклања додатке.</value>
   </data>

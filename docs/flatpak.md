@@ -113,7 +113,11 @@ Restart daemon restarts the child without touching host services, or
 asks the user service's daemon to restart when one serves the UI. When an
 update leaves a service daemon from before the control socket running, the
 UI asks it over its old loopback port, with the token that daemon wrote.
-That is the only request the UI still sends there. Failed
+That is the only request the UI still sends there. The legacy token must be
+a regular file of at most 256 bytes; unreadable files and symbolic links
+are refused. If the older daemon does not exit within the five-second
+WebSocket deadline, the window reports a failed restart so it can be retried.
+Failed
 children are retried with a delay; an unavailable control socket or owned daemon lock
 ends the attempt. Restart interrupts a pending retry delay. A parent-process wait also stops the daemon if the
 UI crashes. The tray uses the app's D-Bus namespace, including when

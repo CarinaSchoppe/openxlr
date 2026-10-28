@@ -61,13 +61,15 @@ public sealed class ClientUpgradeTests : IDisposable
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task TheFlatpakRestartOfAnOlderDaemonSendsTheTokenThenRestart(bool accepted)
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public async Task TheFlatpakRestartOfAnOlderDaemonSendsTheTokenThenRestart(bool accepted, bool unicode)
     {
         string token = new('b', 64);
         string tokenPath = Path.Combine(_directory, "token");
-        File.WriteAllText(tokenPath, token + "\n");
+        File.WriteAllText(tokenPath, token + "\n", unicode ? System.Text.Encoding.Unicode : System.Text.Encoding.UTF8);
         var received = new List<string>();
         await using var server = await SocketTestServer.Start(async (socket, stop) =>
         {
@@ -101,5 +103,45 @@ public sealed class ClientUpgradeTests : IDisposable
         var deadline = DateTime.UtcNow.AddSeconds(10);
         while (!ready() && DateTime.UtcNow < deadline) await Task.Delay(10);
         Assert.True(ready());
+    }
+
+    [Fact]
+    public async Task ALegacyTokenPipeCannotBlockRestart()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        string path = Path.Combine(_directory, "token");
+        Assert.True(OpenXLR.Core.ProcessRunner.Run("mkfifo", [path]).Ok);
+        int port = ClosedPort();
+        Task<Exception?> reading = Task.Run<Exception?>(() => Record.Exception(() =>
+            Assert.False(OpenXLR.UI.LegacyDaemonRestart.Request(port, path))));
+        try { Assert.Null(await reading.WaitAsync(TimeSpan.FromSeconds(2))); }
+        finally
+        {
+            if (!reading.IsCompleted)
+            {
+                using var writer = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+                writer.Write("invalid token"u8);
+            }
+            await reading.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        Assert.True(File.Exists(path));
+    }
+
+    [Fact]
+    public async Task ALegacyRestartDeadlineIsNotASuccessfulRestart()
+    {
+        string tokenPath = Path.Combine(_directory, "token");
+        File.WriteAllText(tokenPath, new string('b', 64) + "\n");
+        var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            Assert.Equal("auth", (await SocketTestServer.Receive(socket, stop))["cmd"]!.GetValue<string>());
+            Assert.Equal("restartDaemon", (await SocketTestServer.Receive(socket, stop))["cmd"]!.GetValue<string>());
+            received.TrySetResult();
+            await Task.Delay(Timeout.Infinite, stop);
+        });
+        Task<bool> request = Task.Run(() => OpenXLR.UI.LegacyDaemonRestart.Request(new Uri(server.Url).Port, tokenPath));
+        await received.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.False(await request.WaitAsync(TimeSpan.FromSeconds(7)));
     }
 }

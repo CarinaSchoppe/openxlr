@@ -34,7 +34,7 @@ internal static class LegacyDaemonRestart
         // The older daemon wrote 64 hex digits and a newline into a private file.
         var file = new FileInfo(tokenPath);
         if (!file.Exists || file.LinkTarget is not null || file.Length > 256) return false;
-        string token = (await File.ReadAllTextAsync(tokenPath)).Trim();
+        string token = RegularFile.ReadText(tokenPath, 256).Trim();
         if (token.Length != 64) return false;
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -56,7 +56,7 @@ internal static class LegacyDaemonRestart
                     return result.CloseStatus != WebSocketCloseStatus.PolicyViolation;
             }
         }
-        catch (Exception ex) when (ex is WebSocketException or OperationCanceledException) { /* the daemon went away */ }
+        catch (WebSocketException) when (!timeout.IsCancellationRequested) { /* the daemon went away */ }
         return true;
     }
 }

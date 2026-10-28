@@ -473,7 +473,9 @@ worth of input, the input delayed to match plays in its place. A change to
 DeepFilterNet loads the model on the main thread, which takes a moment, and
 keeps what played before playing until the worker is there; the main thread
 hands workers over through one atomic slot and frees one only after the
-audio thread has handed it back.
+audio thread has handed it back. It keeps ownership while the audio thread
+borrows the worker, so a return during a tick cannot start a second model
+load. A returned worker is reused or stopped before another is loaded.
 
 `make` builds DeepFilterNet in when cargo is on the `PATH` (`DEEPFILTER=auto`);
 `DEEPFILTER=1` requires it and `DEEPFILTER=0` leaves it out, and every package
@@ -498,6 +500,10 @@ between engines dips a steady tone for no more than 6 ms; that a graph at
 and 30 dB quieter loses under 8 dB from any syllable and still takes the
 noise down by 10 dB; and that the `engines` line matches the build. `./tests/denoise ./openxlr-lv2-host --bench` also prints
 each engine's processing time.
+
+The same target runs `tests/denoise-handoff` with a fake model: a worker
+returned during a tick, repeated switches while it is borrowed, and a
+retry after loading fails. All created models must be freed at unload.
 
 ## Scope
 

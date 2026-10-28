@@ -243,12 +243,20 @@ tests/denoise.o: tests/denoise.c eq.c host.c build-config.h $(HEADERS)
 tests/denoise: tests/denoise.o $(DENOISE_OBJECTS) lv2.o clap.o vst3.o $(DF_DEPS)
 	$(CXX) $(filter %.o,$^) -o $@ $(LDFLAGS) $(DF_LINK) $(LDLIBS)
 
+# The handoff test compiles denoise.c with a fake DeepFilterNet model.
+tests/denoise-handoff.o: tests/denoise-handoff.c denoise.c host.c build-config.h $(HEADERS)
+	$(CC) $(CPPFLAGS) -Irnnoise/include $(CFLAGS) -c $< -o $@
+
+tests/denoise-handoff: tests/denoise-handoff.o $(RNN_OBJECTS) lv2.o clap.o vst3.o
+	$(CXX) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+
 .PHONY: test-denoise clean-denoise
 test: test-denoise
-test-denoise: tests/denoise openxlr-lv2-host
+test-denoise: tests/denoise tests/denoise-handoff openxlr-lv2-host
 	./tests/denoise ./openxlr-lv2-host
+	./tests/denoise-handoff
 
 clean: clean-denoise
 clean-denoise:
-	rm -f tests/denoise tests/denoise.o build-config.h $(RNN_OBJECTS) rnnoise/src/x86/*.o
+	rm -f tests/denoise tests/denoise.o tests/denoise-handoff tests/denoise-handoff.o build-config.h $(RNN_OBJECTS) rnnoise/src/x86/*.o
 	rm -rf deepfilter/target deepfilter/model/verified

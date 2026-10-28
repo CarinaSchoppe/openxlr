@@ -119,9 +119,12 @@ struct Denoise {
   uint32_t df_window;    // samples since df_peak was reset
   uint64_t late;         // blocks DeepFilterNet answered late
 
+  // Main thread only. Remains true while the audio thread borrows the
+  // worker, so returning it cannot make a second model load race the first.
+  bool df_loaded;
+
   // Between the threads.
   _Atomic(DfWorker *) df_spare;  // loaded by the main thread, not in use
-  _Atomic bool df_held;          // the audio thread holds a worker
   _Atomic int df_broken;         // the audio thread gave up on DeepFilterNet
   _Atomic bool df_load_failed;   // the main thread could not load it
   _Atomic uint32_t latency;
@@ -234,15 +237,11 @@ static DfWorker *df_start(Denoise *d) {
 #endif
 }
 
-// The audio thread takes a loaded worker, if one is waiting. Held is raised
-// first, so the main thread never sees a worker in neither place.
+// The audio thread takes a loaded worker, if one is waiting. The main
+// thread owns its lifetime even while it is borrowed here.
 static bool df_take(Denoise *d) {
-  atomic_store(&d->df_held, true);
   DfWorker *w = atomic_exchange(&d->df_spare, NULL);
-  if (!w) {
-    atomic_store(&d->df_held, false);
-    return false;
-  }
+  if (!w) return false;
   d->df = w;
   return true;
 }
@@ -251,7 +250,6 @@ static void df_give_back(Denoise *d) {
   if (!d->df) return;
   atomic_store(&d->df_spare, d->df);
   d->df = NULL;
-  atomic_store(&d->df_held, false);
 }
 
 // --- loading -------------------------------------------------------------------
@@ -326,6 +324,7 @@ bool denoise_activate(Denoise *d) {
   if (engine == DENOISE_DEEPFILTER) {
     DfWorker *w = df_start(d);
     if (w) {
+      d->df_loaded = true;
       atomic_store(&d->df_spare, w);
       df_take(d);
     } else {
@@ -362,14 +361,21 @@ void denoise_main_thread(Denoise *d) {
   bool want = asked && d->rate_ok && denoise_engine_built(DENOISE_DEEPFILTER)
       && !atomic_load(&d->df_broken) && !atomic_load(&d->df_load_failed);
   if (want) {
-    if (!atomic_load(&d->df_spare) && !atomic_load(&d->df_held)) {
+    if (!d->df_loaded) {
       DfWorker *w = df_start(d);
-      DfWorker *none = NULL;
       if (!w) atomic_store(&d->df_load_failed, true);
-      else if (!atomic_compare_exchange_strong(&d->df_spare, &none, w)) df_stop(w);
+      else {
+        d->df_loaded = true;
+        atomic_store(&d->df_spare, w);
+      }
     }
-  } else
-    df_stop(atomic_exchange(&d->df_spare, NULL));
+  } else {
+    DfWorker *w = atomic_exchange(&d->df_spare, NULL);
+    if (w) {
+      df_stop(w);
+      d->df_loaded = false;
+    }
+  }
 
   int status = DENOISE_OK;
   if (on(d->enabled)) {

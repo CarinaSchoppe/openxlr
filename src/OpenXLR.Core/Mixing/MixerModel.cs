@@ -257,6 +257,12 @@ public sealed record MixerState
 
     public bool RouteAppsByDefault { get; init; } = true;
 
+    /// <summary>The forced block size in frames, or null when PipeWire chooses.</summary>
+    public int? BlockSize { get; init; }
+
+    /// <summary>The block sizes setBlockSize accepts, smallest first.</summary>
+    public IReadOnlyList<int> BlockSizes { get; init; } = Mixer.BlockSizes;
+
     public IReadOnlyList<BrowserTabState> BrowserTabs { get; init; } = [];
 
     /// <summary>

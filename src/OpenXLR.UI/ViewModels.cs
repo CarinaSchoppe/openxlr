@@ -1393,6 +1393,7 @@ public sealed partial class MainViewModel : ViewModelBase
         if (mixer is null)
         {
             foreach (MicSetupViewModel setup in MicSetups()) setup.Apply(null);
+            ApplyBlockSize(null);
             HasMixer = false; RenamedSinceStart = false; LayoutWarning = ""; ExclusiveGroups = []; return;
         }
         HasMixer = true;
@@ -1408,6 +1409,7 @@ public sealed partial class MainViewModel : ViewModelBase
         SoftClipGuardError = mixer["softClipGuardError"]?.GetValue<string>();
         SoftClipGuard = mixer["softClipGuard"]?.GetValue<bool>() ?? false;
         CompensateMixLatency = mixer["compensateMixLatency"]?.GetValue<bool>() ?? false;
+        ApplyBlockSize(mixer);
         MixLatencyError = mixer["mixLatencyError"]?.GetValue<string>();
         Inserts.Apply(mixer["inserts"]?["xlr1"]);
         Inserts2.Apply(mixer["inserts"]?["xlr2"]);

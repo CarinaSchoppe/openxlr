@@ -21,7 +21,8 @@ internal static class SavedMixerValidation
     /// <summary>
     /// The settings with malformed entries removed: null list entries, null
     /// dictionary values, non-finite levels, user mixes of an unknown kind,
-    /// and apps or inserts missing a required field.
+    /// apps or inserts missing a required field, and a block size PipeWire
+    /// is not offered.
     /// <paramref name="dropped"/> names each removal.
     /// </summary>
     internal static MixerSettings Sanitize(MixerSettings settings, out IReadOnlyList<string> dropped)
@@ -54,7 +55,15 @@ internal static class SavedMixerValidation
             NoiseRemoval = NoiseRemoval(settings.NoiseRemoval, notes),
             Ducking = Ducking(settings, notes),
             Appearance = Appearance(settings.Appearance, notes),
+            BlockSize = BlockSize(settings.BlockSize, notes),
         };
+    }
+
+    private static int? BlockSize(int? frames, List<string> notes)
+    {
+        if (frames is not int f || Mixer.BlockSizes.Contains(f)) return frames;
+        notes.Add($"blockSize {f} is not one of {string.Join(", ", Mixer.BlockSizes)}");
+        return null;
     }
 
     internal static void Validate(MixerScene scene)

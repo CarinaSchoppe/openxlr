@@ -5,7 +5,8 @@ namespace OpenXLR.Tui;
 /// list is the same one the window shows, read from the same folders, and the
 /// choice is written back to the same file, so picking Gruvbox here is
 /// picking it in the window too. Material's mode is the same shared choice.
-/// What feeds XLR 1 and XLR 2 is chosen on the Inputs tab.
+/// What feeds XLR 1 and XLR 2 is chosen on the Inputs tab. The block size
+/// is the daemon's, the same one the window's Options set.
 /// </summary>
 internal sealed class OptionsView : View
 {
@@ -16,7 +17,7 @@ internal sealed class OptionsView : View
 
     public override string Title => "Options";
 
-    public override string Keys => "Left/Right mode  Enter use skin  R reload skins";
+    public override string Keys => "Left/Right change  Enter use skin  R reload skins";
 
     public override void Draw(Screen screen, Rect area, App app)
     {
@@ -37,6 +38,18 @@ internal sealed class OptionsView : View
     private List<Row> Build(App app)
     {
         List<Row> rows = [];
+        if (State(app)?.Mixer is { BlockSizes.Count: > 0 } mixer)
+        {
+            string[] names = ["automatic", .. mixer.BlockSizes.Select(f => $"{f} samples ({f / 48.0:0.#} ms)")];
+            int at = mixer.BlockSize is int forced ? mixer.BlockSizes.IndexOf(forced) + 1 : 0;
+            rows.Add(new HeadingRow("Audio"));
+            rows.Add(new ChoiceRow("Block size", names, at, index =>
+            {
+                int? frames = index == 0 ? null : mixer.BlockSizes[index - 1];
+                app.Link.Send("setBlockSize", body => body["value"] = frames);
+                app.Say(frames is int f ? $"Block size {f} samples; the device reopens" : "Block size left to PipeWire");
+            }));
+        }
         rows.AddRange(
         [
             new HeadingRow("Appearance"),

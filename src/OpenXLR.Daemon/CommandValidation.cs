@@ -100,6 +100,10 @@ public static class CommandValidation
             case "setMonitorMuteMicrophones":
                 return cmd.Value.ValueKind is JsonValueKind.True or JsonValueKind.False
                     ? null : $"{cmd.Cmd}: value must be a boolean";
+            case "setBlockSize":
+                return cmd.Value.ValueKind is JsonValueKind.Null
+                    || cmd.Value.ValueKind is JsonValueKind.Number && cmd.Value.TryGetInt32(out int frames) && Mixer.BlockSizes.Contains(frames)
+                    ? null : $"setBlockSize: value must be null or one of {string.Join(", ", Mixer.BlockSizes)}";
             case "addWindowsPluginFolder":
             case "removeWindowsPluginFolder":
             case "getWindowsPluginFiles":

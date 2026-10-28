@@ -115,6 +115,15 @@
                   ToolTip.Tip="{loc:Text Key=DelayTheOtherMixesSoEachLines}"/>
         <TextBlock Name="MixLatencyError" Text="{Binding Main.MixLatencyError}" Classes="warn" TextWrapping="Wrap"
                    IsVisible="{Binding Main.MixLatencyError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+        <!-- the graph's block size, forced through the meters, or left to PipeWire -->
+        <Grid Name="BlockSizeRow" ColumnDefinitions="110,*" IsVisible="{Binding Main.BlockSizeReported}">
+          <TextBlock Text="{loc:Text Key=BlockSize}" Classes="h" VerticalAlignment="Center"/>
+          <ComboBox Name="BlockSize" Grid.Column="1" HorizontalAlignment="Stretch"
+                    ItemsSource="{Binding Main.BlockSizeChoices}" SelectedIndex="{Binding Main.BlockSizeIndex, Mode=TwoWay}"
+                    IsEnabled="{Binding Main.HasMixer}" AutomationProperties.Name="{loc:Text Key=BlockSize}"/>
+        </Grid>
+        <TextBlock Name="BlockSizeHint" Text="{loc:Text Key=BlockSizeHint}" Classes="hint" TextWrapping="Wrap"
+                   IsVisible="{Binding Main.BlockSizeReported}"/>
         <StackPanel Name="SoftwareMixerNotes" Spacing="6">
           <TextBlock Text="{loc:Text Key=ApplicationChannelsMixesVirtualMicrophonesAndInserts}"
                      FontSize="11" Foreground="{DynamicResource Ox.Text.Secondary}" TextWrapping="Wrap"/>

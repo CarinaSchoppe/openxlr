@@ -1589,6 +1589,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 MonitorOutputLabels = new Dictionary<string, string>(_monitorOutputLabels, StringComparer.Ordinal),
                 AppOverrides = new Dictionary<string, string>(Matcher.Overrides),
                 RouteAppsByDefault = Matcher.RouteByDefault,
+                BlockSize = _blockSize,
                 PreserveBrowserOutputs = _preserveBrowserOutputs,
                 BrowserSiteChannels = _browserSiteChannels.Where(p => HasApplicationChannel(p.Value))
                     .ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal),
@@ -1653,6 +1654,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         lock (_gate)
         {
             SetRouteAppsByDefault(s.RouteAppsByDefault);
+            SetBlockSize(s.BlockSize);
             RestoreBrowserSettingsLocked(s);
             SetMonitorMuteMicrophones(s.MonitorMuteMicrophones);
             _duckingSetup = DuckingSetup.Prune(s.Ducking ?? DuckingSetup.Default(_config), _config);
@@ -3240,6 +3242,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                     .OrderByDescending(a => a.Active).ThenBy(a => a.Label, StringComparer.OrdinalIgnoreCase)],
                 PreserveBrowserOutputs = _preserveBrowserOutputs,
                 RouteAppsByDefault = Matcher.RouteByDefault,
+                BlockSize = _blockSize,
                 BrowserTabs = BrowserTabsLocked(),
             });
         }
@@ -3470,6 +3473,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         RemoveInputMetersLocked();
         _meters.Dispose();
         _meters = new MeterReader();   // Dispose is terminal; a rebuild needs a fresh reader
+        _meters.SetForceQuantum(_blockSize);
         foreach (PortLink route in _monitorRoutes.Values) _pw.Unlink(route);
         _monitorRoutes.Clear();
         _monitorMuted = false;

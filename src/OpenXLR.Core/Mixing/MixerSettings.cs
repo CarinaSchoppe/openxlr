@@ -96,6 +96,13 @@ public sealed record MixerSettings
     /// <summary>Automatically classify applications without a saved assignment. Machine state, never profile state.</summary>
     public bool RouteAppsByDefault { get; init; } = true;
 
+    /// <summary>
+    /// The block size forced on the graph in frames, or null to leave it to
+    /// PipeWire. Loading drops a value outside <see cref="Mixer.BlockSizes"/>.
+    /// Machine state, never profile state.
+    /// </summary>
+    public int? BlockSize { get; init; }
+
     /// <summary>Leave Chromium output selection to the browser companion and desktop. Machine state only.</summary>
     public bool PreserveBrowserOutputs { get; init; }
 

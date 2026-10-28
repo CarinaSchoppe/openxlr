@@ -101,7 +101,9 @@ Update checks are also controlled in Options. They are off by default. You can
 make one explicit check with **Check now**, or opt into a background check at
 startup; opted-in checks run at most once per 24 hours. A notice contains the
 upstream stable release notes as plain text and a link to GitHub. OpenXLR never
-downloads or installs an update.
+downloads or installs an update. **Dismiss** hides that release's notice,
+including when another check is still finishing. A newer release can show
+a new notice.
 
 <a name="concepts"></a>
 ## 2. Concepts

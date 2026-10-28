@@ -130,6 +130,10 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
     /// </summary>
     internal event Action<int, string>? BrowserTabActivationReceived;
 
+    /// <summary>Force the graph's block size in frames, or null for automatic.</summary>
+    public Task<string?> SetBlockSizeAsync(int? frames)
+        => EditLayoutAsync(new() { ["cmd"] = "setBlockSize", ["value"] = frames! });
+
     public Task<string?> SetRouteAppsByDefaultAsync(bool value)
         => EditLayoutAsync(new() { ["cmd"] = "setRouteAppsByDefault", ["value"] = value });
 

@@ -179,6 +179,18 @@
   <data name="AutostartRemovedOutside" xml:space="preserve">
     <value>La entrada de inicio automático del mezclador se eliminó fuera de OpenXLR y se ha dejado así. Desactiva y vuelve a activar esta opción para crearla.</value>
   </data>
+  <data name="BlockSize" xml:space="preserve">
+    <value>Tamaño de bloque</value>
+  </data>
+  <data name="BlockSizeAuto" xml:space="preserve">
+    <value>Automático</value>
+  </data>
+  <data name="BlockSizeFrames" xml:space="preserve">
+    <value>{0} muestras ({1} ms)</value>
+  </data>
+  <data name="BlockSizeHint" xml:space="preserve">
+    <value>Cuánto audio procesa PipeWire de una vez en el grafo donde funciona OpenXLR, para cada aplicación que hay en él. Los bloques más pequeños acortan el retardo de la eliminación de ruido y de los plugins y usan más procesador. Automático deja la elección a PipeWire. Un cambio vuelve a abrir el dispositivo, lo que se oye como un corte breve.</value>
+  </data>
   <data name="BridgeAgainEveryFolderYabridgeKnowsForWindows" xml:space="preserve">
     <value>Volver a adaptar todas las carpetas de plugins de Windows que conoce yabridge, para incluir los instalados desde entonces</value>
   </data>

@@ -426,6 +426,8 @@ public sealed class MixerService : IHostedService, IDisposable
         _mixer.SetInputBindings(saved?.InputBindings);
         _mixer.SetMonitorMuteMicrophones(saved?.MonitorMuteMicrophones ?? false);
         _mixer.SetMonitorMuted(saved?.MonitorMuted ?? false);
+        // Before the build, so the meters start with the force.
+        _mixer.SetBlockSize(saved?.BlockSize);
         UpdateInputDeviceHint();
         _mixer.Build(MixerConfig.FromSettings(saved), output);
         // Units run their microphone's EQ only while the submixer runs: in
@@ -821,6 +823,11 @@ public sealed class MixerService : IHostedService, IDisposable
                     return null;
                 case "setRouteAppsByDefault":
                     _saves.RunSaved(() => _mixer.SetRouteAppsByDefault(cmd.Value.GetBoolean(), s => s.Save()));
+                    Changed?.Invoke();
+                    return null;
+                case "setBlockSize":
+                    _saves.RunSaved(() => _mixer.SetBlockSize(
+                        cmd.Value.ValueKind is System.Text.Json.JsonValueKind.Null ? null : cmd.Value.GetInt32(), s => s.Save()));
                     Changed?.Invoke();
                     return null;
                 case "setPreserveBrowserOutputs":

@@ -19,12 +19,21 @@ public sealed class MeterReader : IDisposable
 
     private readonly Dictionary<string, Meter> _meters = [];
     private readonly object _gate = new();
-    private readonly Lazy<int> _latencyMs = new(ReadLatencyMs);
+    private readonly Lazy<(int? Quantum, int? Rate)> _graph = new(ReadGraphSettings);
+    private int? _forceQuantum;
+    private CancellationTokenSource? _release;
     private bool _disposed;
+
+    /// <summary>
+    /// How long the meters hold PipeWire's default quantum after a forced one
+    /// is cleared, before they stop forcing at all.
+    /// </summary>
+    internal TimeSpan ReleaseHold { get; init; } = TimeSpan.FromSeconds(2);
 
     private sealed class Meter
     {
         public required Process Process { get; init; }
+        public string? SinkName { get; init; }  // set for a sink meter, which a new force restarts
         public double SumL, SumR;    // sums of squares since the last poll
         public long Count;
         public double DispL, DispR;  // smoothed display values
@@ -33,6 +42,12 @@ public sealed class MeterReader : IDisposable
 
     /// <summary>Begin metering a sink by monitoring its output.</summary>
     public void Add(string id, string sinkName)
+    {
+        lock (_gate) AddLocked(id, SinkMeter(sinkName), sinkName);
+    }
+
+    /// <summary>The capture process that meters <paramref name="sinkName"/>.</summary>
+    internal ProcessStartInfo SinkMeter(string sinkName)
     {
         var psi = new ProcessStartInfo("parec")
         {
@@ -47,7 +62,7 @@ public sealed class MeterReader : IDisposable
         // chunks, which turns a steady signal into a once-a-second spike
         // followed by decay. The latency is also a quantum request to the
         // graph, so it matches the graph's own default (see LatencyMs).
-        psi.ArgumentList.Add($"--latency-msec={_latencyMs.Value}");
+        psi.ArgumentList.Add($"--latency-msec={LatencyMs(_graph.Value.Quantum, _graph.Value.Rate)}");
         // A meter reads one sink and must stay on it. The session manager
         // treats a stream that it linked to the default output as following
         // the default (target.node -1 in the default metadata) and moves it
@@ -57,7 +72,64 @@ public sealed class MeterReader : IDisposable
         // WirePlumber 0.4 destroys such a stream when its target is not ready
         // yet, and a meter starts right after its sink is created.
         psi.ArgumentList.Add($"--property=node.link-group=openxlr-meter-{sinkName}");
-        Add(id, psi);
+        // A block size the user chose. Every meter shares the driver of the
+        // sink it reads, so the force reaches the whole graph OpenXLR runs in.
+        if (_forceQuantum is int quantum)
+            psi.ArgumentList.Add($"--property=node.force-quantum={quantum}");
+        return psi;
+    }
+
+    /// <summary>The quantum the sink meters force on their graph, or null.</summary>
+    internal int? ForceQuantum { get { lock (_gate) return _forceQuantum; } }
+
+    /// <summary>
+    /// Force the graph the meters join to run at <paramref name="quantum"/>
+    /// frames, or leave the choice to PipeWire again with null. A sink meter
+    /// carries the force as node.force-quantum, so every one restarts with
+    /// the new value; PipeWire reopens the driver at the new size, which is
+    /// heard as a short gap. A device in IRQ mode (the pro-audio profile)
+    /// keeps the period it was opened with once nothing forces it any more,
+    /// so clearing a force first forces PipeWire's default quantum for
+    /// <see cref="ReleaseHold"/> and only then stops forcing.
+    /// </summary>
+    public void SetForceQuantum(int? quantum)
+    {
+        lock (_gate)
+        {
+            if (_disposed) return;
+            bool releasing = _release is not null;
+            _release?.Cancel();
+            _release = null;
+            if (quantum is null && (_forceQuantum is not null || releasing))
+            {
+                int fallback = _graph.Value.Quantum ?? 1024;
+                var release = new CancellationTokenSource();
+                _release = release;
+                RestartSinkMetersLocked(fallback);
+                _ = Task.Delay(ReleaseHold, release.Token).ContinueWith(t =>
+                {
+                    lock (_gate)
+                    {
+                        if (t.IsCanceled || _release != release || _disposed) return;
+                        _release = null;
+                        RestartSinkMetersLocked(null);
+                    }
+                }, TaskScheduler.Default);
+                return;
+            }
+            RestartSinkMetersLocked(quantum);
+        }
+    }
+
+    private void RestartSinkMetersLocked(int? quantum)
+    {
+        if (_forceQuantum == quantum) return;
+        _forceQuantum = quantum;
+        foreach ((string id, Meter meter) in _meters.Where(m => m.Value.SinkName is not null).ToArray())
+        {
+            RemoveLocked(id);
+            AddLocked(id, SinkMeter(meter.SinkName!), meter.SinkName);
+        }
     }
 
     /// <summary>
@@ -78,7 +150,7 @@ public sealed class MeterReader : IDisposable
         return (int)Math.Clamp((q * 1000 + r - 1) / r, 1, 50);
     }
 
-    private static int ReadLatencyMs()
+    private static (int? Quantum, int? Rate) ReadGraphSettings()
     {
         try
         {
@@ -86,50 +158,54 @@ public sealed class MeterReader : IDisposable
             int? rate = null;
             try { rate = PipeWireAdapter.ParseGraphSampleRate(settings); }
             catch (InvalidOperationException) { /* keep the default */ }
-            return LatencyMs(PipeWireAdapter.ParseGraphQuantum(settings), rate);
+            return (PipeWireAdapter.ParseGraphQuantum(settings), rate);
         }
-        catch (Exception) { return LatencyMs(null, null); }
+        catch (Exception) { return (null, null); }
     }
 
     /// <summary>Begin metering with a capture process of the caller's choosing.</summary>
     internal void Add(string id, ProcessStartInfo psi)
     {
-        lock (_gate)
-        {
-            if (_disposed || _meters.ContainsKey(id)) return;
+        lock (_gate) AddLocked(id, psi, null);
+    }
 
-            Process? p;
-            try { p = Process.Start(psi); }
-            catch (Exception) { return; }
-            if (p is null) return;
+    private void AddLocked(string id, ProcessStartInfo psi, string? sinkName)
+    {
+        if (_disposed || _meters.ContainsKey(id)) return;
 
-            var meter = new Meter { Process = p };
-            _meters[id] = meter;
-            // Take both streams here, while the gate still holds the process:
-            // Remove and Dispose can retire the meter before either thread is
-            // scheduled, and Process.StandardOutput on a disposed process
-            // throws, on a raw thread with no handler above it. Reading a
-            // stream that was closed underneath fails inside the loops, where
-            // it is caught.
-            Stream output = p.StandardOutput.BaseStream;
-            Stream errors = p.StandardError.BaseStream;
-            new Thread(() => Pump(meter, output)) { IsBackground = true, Name = $"meter-{id}" }.Start();
-            // stderr must be drained: parec blocks once the pipe fills with
-            // warnings, which silently freezes its audio output mid-stream.
-            new Thread(() => Drain(errors)) { IsBackground = true, Name = $"meter-err-{id}" }.Start();
-        }
+        Process? p;
+        try { p = Process.Start(psi); }
+        catch (Exception) { return; }
+        if (p is null) return;
+
+        var meter = new Meter { Process = p, SinkName = sinkName };
+        _meters[id] = meter;
+        // Take both streams here, while the gate still holds the process:
+        // Remove and Dispose can retire the meter before either thread is
+        // scheduled, and Process.StandardOutput on a disposed process
+        // throws, on a raw thread with no handler above it. Reading a
+        // stream that was closed underneath fails inside the loops, where
+        // it is caught.
+        Stream output = p.StandardOutput.BaseStream;
+        Stream errors = p.StandardError.BaseStream;
+        new Thread(() => Pump(meter, output)) { IsBackground = true, Name = $"meter-{id}" }.Start();
+        // stderr must be drained: parec blocks once the pipe fills with
+        // warnings, which silently freezes its audio output mid-stream.
+        new Thread(() => Drain(errors)) { IsBackground = true, Name = $"meter-err-{id}" }.Start();
     }
 
     /// <summary>Stop metering one sink; its process goes with it.</summary>
     public void Remove(string id)
     {
-        lock (_gate)
-        {
-            if (!_meters.Remove(id, out Meter? meter)) return;
-            try { if (!meter.Process.HasExited) meter.Process.Kill(entireProcessTree: true); }
-            catch (Exception) { /* already gone */ }
-            meter.Process.Dispose();
-        }
+        lock (_gate) RemoveLocked(id);
+    }
+
+    private void RemoveLocked(string id)
+    {
+        if (!_meters.Remove(id, out Meter? meter)) return;
+        try { if (!meter.Process.HasExited) meter.Process.Kill(entireProcessTree: true); }
+        catch (Exception) { /* already gone */ }
+        meter.Process.Dispose();
     }
 
     /// <summary>

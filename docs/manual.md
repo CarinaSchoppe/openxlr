@@ -1048,6 +1048,24 @@ are not aligned against other inputs. Compensation does not cover the device's o
 hardware's direct monitoring. The setting is saved with the mixer and stays
 as it is when a profile is loaded.
 
+<a name="block-size"></a>
+PipeWire moves audio in blocks, and anything that has to wait for a whole
+block before it can work adds the block's length to the delay: noise
+removal, and plugins that process in blocks. In Options, AUDIO,
+**Block size** sets the block for the graph OpenXLR runs in: 256 samples
+(5.3 ms at 48 kHz), 512 (10.7 ms) or 1024 (21.3 ms). Automatic, the
+default, leaves it to PipeWire, which runs at its configured default,
+usually 1024, unless an application asks for less.
+
+A size you choose applies to every application that plays or records
+through OpenXLR's mixes, and it wins over what they ask for. Smaller blocks
+cost more processor time, and on a busy machine they can crackle; go up a
+step if they do. A change reopens the audio device, which you hear as a
+short gap. A size forced for the whole system with
+`pw-metadata -n settings 0 clock.force-quantum` still wins over this one.
+The choice is saved with the mixer, stays as it is when a profile is
+loaded, and is on the terminal mixer's Options tab too.
+
 <a name="mic-setup"></a>
 <a name="sound-check"></a>
 **Mic setup.** Press **Mic setup** in the SUBMIXER header, beside
@@ -1296,7 +1314,8 @@ Two engines do the work, and you choose per microphone:
   buffers, 61 ms with its usual 1024-sample ones and 83 ms with 2048. The
   delay follows PipeWire's buffer size, so the figure shown can change
   while it runs. OpenXLR's level meters ask for PipeWire's default size,
-  so they never raise it themselves. The first time you choose
+  so they never raise it themselves, and [Block size](#block-size) can
+  set a smaller one. The first time you choose
   DeepFilterNet, its
   model takes a moment to load, and the microphone keeps its sound until
   it is ready.

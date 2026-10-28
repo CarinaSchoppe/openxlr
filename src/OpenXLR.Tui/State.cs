@@ -473,6 +473,11 @@ internal sealed record MixerSnapshot
 {
     public bool? RouteAppsByDefault { get; init; }
 
+    /// <summary>The forced block size in frames, or null when PipeWire chooses.</summary>
+    public int? BlockSize { get; init; }
+    /// <summary>The sizes setBlockSize takes; empty from a daemon without the setting.</summary>
+    public List<int> BlockSizes { get; init; } = [];
+
     public List<MixEntry> Mixes { get; init; } = [];
     public List<ChannelEntry> Channels { get; init; } = [];
 

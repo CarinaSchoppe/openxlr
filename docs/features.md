@@ -178,7 +178,8 @@ physical gain dial.
   hiss and hum, and adds 30 ms; DeepFilterNet 3 is cleaner on typing,
   changing noise and some room echo, costs more processor and adds 51 ms
   at a quantum of 256 or 61 ms at 1024, since it runs on a thread of its
-  own and never on the audio thread. A strength from 0 to 100 dB limits
+  own and never on the audio thread. The block size option below sets
+  that quantum. A strength from 0 to 100 dB limits
   how far the noise is turned down, the same for both. Switching it on or
   off or changing the engine dips the voice for about 10 ms; the strength
   changes live. It runs at a 48 kHz graph and says so at any other rate.
@@ -569,6 +570,12 @@ none. Optional latency compensation, off by default, delays the faster mixes
 so they line up with the mix whose inserts take longest, up to two seconds;
 a plugin with no figure counts as zero. Turning it on or off rebuilds every
 chain. See [plugin latency](manual.md#plugin-latency).
+
+A block size option forces PipeWire's quantum for the graph OpenXLR runs
+in to 256, 512 or 1024 samples, or leaves it to PipeWire. It holds against
+other applications' requests, and it works on a Wave XLR Pro in the
+pro-audio profile too, where PipeWire ignores ordinary requests. See
+[block size](manual.md#block-size).
 
 Chains and exposed parameter values are saved with the mixer and profiles.
 Opaque plugin state, loaded sample files and plugin preset data are not

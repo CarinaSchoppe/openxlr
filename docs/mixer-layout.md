@@ -224,6 +224,7 @@ every save. Every field is optional on read; an absent one is empty or off.
 | `enforcedDefaultSource` | the source held as the system default |
 | `appOverrides` | application identity to remembered channel |
 | `routeAppsByDefault` | apply name rules to applications without an explicit assignment; true when absent. False leaves them not managed. Explicit assignments still win. Machine setting, never recalled by a profile |
+| `blockSize` | the quantum forced on OpenXLR's graph in frames, 256, 512 or 1024; absent leaves it to PipeWire. Another value is dropped on load. Machine setting, never recalled by a profile; [API behaviour](api.md#block-size) |
 | `preserveBrowserOutputs` | leave recognized Chromium playback on its browser/desktop-selected output; false when absent. Machine setting, never recalled by a profile |
 | `browserSiteChannels` | up to 128 canonical HTTP(S) origins to application channel ids for the optional [browser companion](browser-routing.md). Deleting a channel moves its defaults to the fallback application channel; unknown channels in loaded settings are discarded. Machine settings only; live tab titles, ids and sessions are not saved |
 | `knownApps` | `{identity, label, channelId}` for every application seen |

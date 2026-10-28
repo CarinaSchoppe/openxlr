@@ -275,6 +275,7 @@ that final acknowledgement (or an `error` without a request id):
 | `assignBrowserTab` | `session`, `tabId`, `site`, `channel`, `remember` | select an application channel or `null` for browser default for a connected tab. Required `site` is the origin the caller saw; an assignment is refused if that tab has navigated to another origin. `remember` must be boolean; true saves the website origin preference, and `channel:null, remember:true` forgets it. False changes only this tab |
 | `activateBrowserTab` | `session`, `tabId`, `site` | ask the companion that registered a connected tab to bring it forward and start routing it, as its own Activate does. Refused unless `preserveBrowserOutputs` is on, `site` still matches the tab's origin, the tab has a channel, and it is neither capturing nor reporting an `activation`. Success means the request reached the companion, not that capture started; see [browser tabs](#browser-tabs) |
 | `setRouteAppsByDefault` | `value` | boolean only; automatic name rules for apps without an explicit assignment. True by default. False leaves them not managed by OpenXLR; explicit assignments still win. Saved in `mixer.json`, never recalled by a profile |
+| `setBlockSize` | `value` | `null`, or 256, 512 or 1024 frames, the sizes `mixer.blockSizes` lists; force the quantum of the graph OpenXLR runs in, or leave it to PipeWire with `null`. Saved in `mixer.json` before it is acknowledged, never recalled by a profile; see [block size](#block-size) |
 | `setPreserveBrowserOutputs` | `value` | boolean only; explicitly enable or disable preservation of Chromium-family playback outputs. Saved in `mixer.json`, never recalled by a profile. Registration alone does not enable it |
 | `setMonitorMuteMicrophones` | `value` | boolean only, false by default; include XLR 1, XLR 2 and mono capture channels in the monitoring pause, across every OpenXLR mix. Stereo captures, Aux In, Line In and application channels keep playing. Saved only in `mixer.json`; takes effect immediately without restarting the daemon. See [monitoring and microphones](#monitoring-and-microphones) |
 | `listPlugins` | none | the installed LV2, CLAP and VST3 plugins, answered with a `plugins` message |
@@ -746,6 +747,29 @@ only the input keys the profile names, so an older profile leaves capture
 chains alone. Mix keys keep their existing absent-means-empty rule. The
 settings loader drops and logs insert keys outside the restored layout.
 
+### Block size
+
+`mixer.blockSizes` lists the block sizes in frames that `setBlockSize`
+takes, smallest first; a daemon without the setting leaves it out.
+`mixer.blockSize` is the forced size, absent while PipeWire chooses. The
+meters carry the force as `node.force-quantum` on their `parec` streams,
+which share the driver of the sinks they read, so it reaches every node in
+OpenXLR's graph and holds against other clients' `node.latency` requests.
+PipeWire reopens the driver at the new size, a short gap in the audio. A
+global `clock.force-quantum` in the settings metadata still wins.
+
+A device driven in IRQ mode, such as a Wave XLR Pro in the pro-audio
+profile, keeps the period it was opened with when nothing forces one, and
+ignores `node.latency`. When a forced size is cleared, the meters force the
+settings' `clock.quantum` (1024 without one) for 2 s and then stop forcing,
+so such a device returns to the default instead of staying at the last
+forced size.
+
+While nothing is forced, each meter asks for the default quantum
+(`clock.quantum` at `clock.rate`, rounded up to whole milliseconds), which
+PipeWire rounds back down to the same quantum, so the meters never change
+the block size themselves.
+
 ### Application names
 
 `mixer.routeAppsByDefault` reports whether automatic name rules apply to
@@ -1188,7 +1212,7 @@ All under `~/.config/openxlr/` (or `$XDG_CONFIG_HOME/openxlr/`):
   device choices, the app registry, enforced defaults, `monitorMuted` (the
   monitoring pause, never part of a profile), `monitorMuteMicrophones` (the
   opt-in microphone pause, also never part of a profile), `routeAppsByDefault`,
-  `preserveBrowserOutputs` and
+  `preserveBrowserOutputs`, `blockSize` and
   `browserSiteChannels` (origin-to-channel defaults, all machine settings
   absent from profiles), the software low
   cut, the insert chains, the microphone EQs (`eq`), noise removal

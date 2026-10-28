@@ -107,6 +107,26 @@ public sealed class TuiViewTests
         Assert.Equal(!enabled, command.GetProperty("value").GetBoolean());
     }
 
+    [Theory]
+    [InlineData(null, true, 256)]
+    [InlineData(1024, true, null)]
+    [InlineData(null, false, 1024)]
+    public void OptionsStepTheBlockSize(int? forced, bool right, int? expected)
+    {
+        (App app, List<string> sent) = Ready(tab: 7);
+        var state = System.Text.Json.Nodes.JsonNode.Parse(StateJson)!;
+        state["mixer"]!["blockSizes"] = new System.Text.Json.Nodes.JsonArray(256, 512, 1024);
+        state["mixer"]!["blockSize"] = forced;
+        app.Link.Receive(state.ToJsonString());
+        app.Draw(new Screen(140, 36));
+        Assert.Empty(sent);
+        app.Handle(new KeyPress(right ? Key.Right : Key.Left));
+        JsonElement command = Command(sent);
+        Assert.Equal("setBlockSize", Text(command, "cmd"));
+        if (expected is int frames) Assert.Equal(frames, command.GetProperty("value").GetInt32());
+        else Assert.Equal(JsonValueKind.Null, command.GetProperty("value").ValueKind);
+    }
+
     private static JsonElement Command(List<string> sent)
     {
         string last = Assert.Single(sent);

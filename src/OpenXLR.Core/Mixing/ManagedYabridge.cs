@@ -7,6 +7,8 @@ namespace OpenXLR.Core.Mixing;
 /// <summary>The optional, versioned bridge package and OpenXLR's private wrappers.</summary>
 internal sealed record ManagedYabridge(string Directory, string Version, string SourceCommit)
 {
+    private const int MaxReceiptBytes = 64 * 1024;
+
     internal static readonly string[] RequiredFiles =
     [
         "yabridgectl", "yabridge-host.exe", "yabridge-host.exe.so",
@@ -41,7 +43,9 @@ internal sealed record ManagedYabridge(string Directory, string Version, string 
             try
             {
                 if (RequiredFiles.Any(file => !File.Exists(Path.Combine(candidate, file)))) continue;
-                using JsonDocument receipt = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(candidate, "openxlr-yabridge.json")));
+                foreach (string file in RequiredFiles) RegularFile.Require(Path.Combine(candidate, file));
+                using JsonDocument receipt = JsonDocument.Parse(RegularFile.ReadBytes(
+                    Path.Combine(candidate, "openxlr-yabridge.json"), MaxReceiptBytes));
                 JsonElement root = receipt.RootElement;
                 if (root.GetProperty("formatVersion").GetInt32() != 1 || !root.GetProperty("wineInputFix").GetBoolean()) continue;
                 string? version = root.GetProperty("version").GetString();

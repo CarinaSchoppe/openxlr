@@ -1680,6 +1680,11 @@ An existing system or user yabridge installation remains supported. It is
 used when the companion is absent, or when the daemon environment sets
 `OPENXLR_YABRIDGE=system`. An absolute path in that variable selects a
 companion installed elsewhere. Restart the daemon after changing it.
+A companion is selected only when its package description is a regular
+JSON file of at most 64 KiB and its required programs and libraries are
+regular files. Symbolic links to regular files are supported. A damaged
+package is skipped, including one containing a named pipe, socket or
+device file; it cannot hold up discovery of another installed companion.
 
 **Using a separate yabridge installation.** Install Wine through your
 distribution. For yabridge, use its distribution package where available

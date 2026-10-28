@@ -26,6 +26,8 @@ namespace OpenXLR.Core.Mixing;
 /// </summary>
 public sealed class ScanCache
 {
+    private const int MaxIndexBytes = ProcessRunner.DefaultStdoutCap;
+
     /// <summary>One bundle as it was when scanned, where its description is, and what wrote it.</summary>
     /// <param name="Target">
     /// Where a bundle that is itself a symbolic link pointed, so a link aimed
@@ -94,6 +96,7 @@ public sealed class ScanCache
         {
             string path = Path.Combine(_directory, entry.File);
             if (new FileInfo(path).LinkTarget is not null) return null;
+            RegularFile.Require(path);
             using var stream = File.OpenRead(path);
             // Cache reads have the same byte budget as a live scanner. Size
             // changes during the read must not cause an unbounded allocation.
@@ -167,7 +170,7 @@ public sealed class ScanCache
         try
         {
             OpenXlrPaths.EnsurePrivateDir(_directory);
-            OpenXlrPaths.WriteAtomic(Path.Combine(_directory, "index.json"), JsonSerializer.Serialize(_index, Options));
+            OpenXlrPaths.WriteAtomicJson(Path.Combine(_directory, "index.json"), _index, Options, MaxIndexBytes);
             _dirty = false;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* next run scans again */ }
@@ -314,7 +317,7 @@ public sealed class ScanCache
         try
         {
             if (!File.Exists(path)) return new(StringComparer.Ordinal);
-            var entries = JsonSerializer.Deserialize<Dictionary<string, Entry>>(File.ReadAllText(path), Options)
+            var entries = JsonSerializer.Deserialize<Dictionary<string, Entry>>(RegularFile.ReadText(path, MaxIndexBytes), Options)
                 ?? new(StringComparer.Ordinal);
             // The index is cache data, not permission to read or delete an
             // arbitrary path. Failure markers have no description file.

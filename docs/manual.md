@@ -1615,9 +1615,12 @@ are not searched for further bundles.
 The scan cache is disposable. Invalid index entries are ignored independently,
 so undamaged descriptions and records of failed scans remain usable. Cached
 descriptions must use the filename assigned to their bundle and must not be
-symbolic links; cache cleanup does not follow index paths to other files. A
-description larger than the live scanner's 64 MiB output limit is ignored and
-scanned again. Pointing a linked folder at a different build of a plugin
+symbolic links; cache cleanup does not follow index paths to other files.
+The index and descriptions must be regular files, so a named pipe cannot
+hold up discovery. A description larger than the live scanner's 64 MiB
+output limit is ignored and scanned again. An index above 64 MiB is ignored
+too; saving one above that limit leaves the previous index intact.
+Pointing a linked folder at a different build of a plugin
 also scans it again. A bundle with a folder link that loops back on itself,
 or with a very large number of files, still loads, but OpenXLR scans it every
 time instead of caching it.

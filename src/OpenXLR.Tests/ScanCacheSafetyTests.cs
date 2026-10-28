@@ -109,6 +109,80 @@ public sealed class ScanCacheSafetyTests : IDisposable
         Assert.Equal(length, Assert.IsType<byte[]>(new ScanCache(CacheDirectory, "scanner").Lookup(bundle)).Length);
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task SpecialCacheFilesAreMissesWithoutWaitingForAWriter(bool index, bool linked)
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        string bundle = Store("plugin.clap");
+        var entries = JsonSerializer.Deserialize<Dictionary<string, ScanCache.Entry>>(File.ReadAllText(Index), Options)!;
+        string path = index ? Index : Path.Combine(CacheDirectory, entries[bundle].File);
+        string pipe = linked ? Path.Combine(_root, "pipe") : path;
+        File.Delete(path);
+        Assert.True(ProcessRunner.Run("mkfifo", [pipe]).Ok);
+        if (linked) File.CreateSymbolicLink(path, pipe);
+
+        Task<Exception?> read = Task.Run<Exception?>(() => Record.Exception(() =>
+            Assert.Null(new ScanCache(CacheDirectory, "scanner").Lookup(bundle))));
+        try
+        {
+            Assert.Null(await read.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.True(File.Exists(pipe));
+        }
+        finally
+        {
+            // Release an old blocking reader too, so a regression fails the
+            // assertion without leaving the test process waiting on the FIFO.
+            if (!read.IsCompleted)
+            {
+                using var writer = new FileStream(pipe, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+                writer.Write("{}"u8);
+            }
+            await read.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+
+        var repaired = new ScanCache(CacheDirectory, "scanner");
+        repaired.Store(bundle, "{}"u8.ToArray());
+        repaired.Save();
+        Assert.Equal("{}"u8.ToArray(), new ScanCache(CacheDirectory, "scanner").Lookup(bundle));
+    }
+
+    [Fact]
+    public void AnOversizedValidIndexIsAMissAndCanBeReplaced()
+    {
+        string bundle = Store("plugin.clap");
+        using (var file = new FileStream(Index, FileMode.Append))
+        {
+            byte[] spaces = Enumerable.Repeat((byte)' ', 65536).ToArray();
+            while (file.Length <= ProcessRunner.DefaultStdoutCap)
+                file.Write(spaces, 0, (int)Math.Min(spaces.Length, ProcessRunner.DefaultStdoutCap + 1L - file.Length));
+        }
+
+        var cache = new ScanCache(CacheDirectory, "scanner");
+        Assert.Null(cache.Lookup(bundle));
+        cache.Store(bundle, "{}"u8.ToArray());
+        cache.Save();
+        Assert.True(new FileInfo(Index).Length < ProcessRunner.DefaultStdoutCap);
+        Assert.Equal("{}"u8.ToArray(), new ScanCache(CacheDirectory, "scanner").Lookup(bundle));
+    }
+
+    [Fact]
+    public void SavingAnOversizedIndexKeepsThePreviousIndexAndCanRetry()
+    {
+        string bundle = Store("plugin.clap");
+        string previous = File.ReadAllText(Index);
+        var cache = new ScanCache(CacheDirectory, "scanner");
+        cache.StoreFailure(bundle, new string('x', ProcessRunner.DefaultStdoutCap));
+        cache.Save();
+        Assert.Equal(previous, File.ReadAllText(Index));
+
+        cache.StoreFailure(bundle, "timeout");
+        cache.Save();
+        Assert.Equal("timeout", new ScanCache(CacheDirectory, "scanner").Failure(bundle)!.FailureReason);
+    }
+
     [Fact]
     public void ALinkedDescriptionIsNotReadAndCleanupPreservesItsTarget()
     {

@@ -454,7 +454,10 @@ affects only the display; the daemon continues processing audio.
 
 Each meter reads its own channel or mix. Changing the system default
 output never moves a meter, also not the meter of the channel or mix
-that was the default.
+that was the default. If a meter's capture process fails, OpenXLR starts it
+again without rebuilding the channel or changing its routing. Repeated
+failures increase the retry wait from one second to at most thirty seconds;
+five seconds of healthy capture restore the shortest wait.
 
 1. In the MONITOR card, tick every device the monitor mixes should play
    on: your speakers, a headset, or several at once. On the Wave XLR

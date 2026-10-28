@@ -19,11 +19,20 @@ public sealed class MeterReader : IDisposable
 
     private readonly Dictionary<string, Meter> _meters = [];
     private readonly object _gate = new();
+    private readonly Func<long> _clock;
     private bool _disposed;
+
+    public MeterReader() : this(() => Environment.TickCount64) { }
+
+    internal MeterReader(Func<long> clock) => _clock = clock;
 
     private sealed class Meter
     {
-        public required Process Process { get; init; }
+        public required ProcessStartInfo Start { get; init; }
+        public Process? Process;
+        public bool Ended = true;
+        public int Failures;
+        public long StartedAt, RetryAt;
         public double SumL, SumR;    // sums of squares since the last poll
         public long Count;
         public double DispL, DispR;  // smoothed display values
@@ -65,14 +74,22 @@ public sealed class MeterReader : IDisposable
         lock (_gate)
         {
             if (_disposed || _meters.ContainsKey(id)) return;
-
-            Process? p;
-            try { p = Process.Start(psi); }
-            catch (Exception) { return; }
-            if (p is null) return;
-
-            var meter = new Meter { Process = p };
+            var meter = new Meter { Start = psi };
             _meters[id] = meter;
+            Start(id, meter);
+        }
+    }
+
+    // The gate owns every process and both streams, including replacements.
+    private void Start(string id, Meter meter)
+    {
+        Stop(meter);
+        meter.StartedAt = _clock();
+        try
+        {
+            Process p = Process.Start(meter.Start) ?? throw new InvalidOperationException("Could not start the meter.");
+            meter.Process = p;
+            meter.Ended = false;
             // Take both streams here, while the gate still holds the process:
             // Remove and Dispose can retire the meter before either thread is
             // scheduled, and Process.StandardOutput on a disposed process
@@ -81,11 +98,34 @@ public sealed class MeterReader : IDisposable
             // it is caught.
             Stream output = p.StandardOutput.BaseStream;
             Stream errors = p.StandardError.BaseStream;
-            new Thread(() => Pump(meter, output)) { IsBackground = true, Name = $"meter-{id}" }.Start();
+            new Thread(() => Pump(meter, p, output)) { IsBackground = true, Name = $"meter-{id}" }.Start();
             // stderr must be drained: parec blocks once the pipe fills with
             // warnings, which silently freezes its audio output mid-stream.
             new Thread(() => Drain(errors)) { IsBackground = true, Name = $"meter-err-{id}" }.Start();
         }
+        catch (Exception)
+        {
+            Stop(meter);
+            Failed(meter);
+        }
+    }
+
+    private void Failed(Meter meter)
+    {
+        long now = _clock();
+        if (now - meter.StartedAt >= 5000) meter.Failures = 0;
+        meter.Failures = Math.Min(meter.Failures + 1, 6);
+        meter.RetryAt = now + Math.Min(1000L << (meter.Failures - 1), 30_000);
+        meter.Ended = true;
+    }
+
+    private static void Stop(Meter meter)
+    {
+        if (meter.Process is not { } process) return;
+        try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+        catch (Exception) { /* already gone */ }
+        process.Dispose();
+        meter.Process = null;
     }
 
     /// <summary>Stop metering one sink; its process goes with it.</summary>
@@ -94,9 +134,7 @@ public sealed class MeterReader : IDisposable
         lock (_gate)
         {
             if (!_meters.Remove(id, out Meter? meter)) return;
-            try { if (!meter.Process.HasExited) meter.Process.Kill(entireProcessTree: true); }
-            catch (Exception) { /* already gone */ }
-            meter.Process.Dispose();
+            Stop(meter);
         }
     }
 
@@ -134,28 +172,36 @@ public sealed class MeterReader : IDisposable
         catch (Exception) { /* process ended */ }
     }
 
-    private void Pump(Meter meter, Stream stdout)
+    private void Pump(Meter meter, Process process, Stream stdout)
     {
         // A pipe read can end anywhere inside an 8-byte stereo frame; the
         // remainder is carried into the next read so the stream never goes
         // out of alignment (which would turn the meters into noise).
         var buf = new byte[8192];
         int carry = 0;
-        while (!_disposed)
+        try
         {
-            int read;
-            try { read = stdout.Read(buf, carry, buf.Length - carry); }
-            catch (Exception) { return; }
-            if (read <= 0) return;
-
-            (double sumL, double sumR, int frames, carry) = AccumulateFrames(buf, carry + read);
-
-            lock (_gate)
+            while (!_disposed)
             {
-                meter.SumL += sumL;
-                meter.SumR += sumR;
-                meter.Count += frames;
+                int read;
+                try { read = stdout.Read(buf, carry, buf.Length - carry); }
+                catch (Exception) { return; }
+                if (read <= 0) return;
+
+                (double sumL, double sumR, int frames, carry) = AccumulateFrames(buf, carry + read);
+
+                lock (_gate)
+                {
+                    meter.SumL += sumL;
+                    meter.SumR += sumR;
+                    meter.Count += frames;
+                }
             }
+        }
+        finally
+        {
+            lock (_gate)
+                if (ReferenceEquals(meter.Process, process)) Failed(meter);
         }
     }
 
@@ -170,6 +216,7 @@ public sealed class MeterReader : IDisposable
         {
             foreach ((string id, Meter m) in _meters)
             {
+                if (m.Ended && _clock() >= m.RetryAt) Start(id, m);
                 if (m.Count > 0)
                 {
                     double newL = ToDisplay(Math.Sqrt(m.SumL / m.Count));
@@ -209,12 +256,7 @@ public sealed class MeterReader : IDisposable
         lock (_gate)
         {
             _disposed = true;
-            foreach (Meter m in _meters.Values)
-            {
-                try { if (!m.Process.HasExited) m.Process.Kill(entireProcessTree: true); }
-                catch (Exception) { /* already gone */ }
-                m.Process.Dispose();
-            }
+            foreach (Meter m in _meters.Values) Stop(m);
             _meters.Clear();
         }
     }

@@ -1286,8 +1286,10 @@ Two engines do the work, and you choose per microphone:
   default.
 - **DeepFilterNet** is cleaner on noise that changes, such as typing,
   clicks and street sound, and takes out some room echo. It uses more of
-  the processor and adds more delay: 55 ms with PipeWire's usual small
-  buffers, about 70 ms with larger ones. The first time you choose it,
+  the processor and adds more delay: about 50 ms with PipeWire's small
+  buffers, 61 ms with its usual 1024-sample ones and 83 ms with 2048. The
+  delay follows PipeWire's buffer size, so the figure shown can change
+  while it runs. The first time you choose it,
   its model takes a moment to load, and the microphone keeps its sound
   until it is ready.
 

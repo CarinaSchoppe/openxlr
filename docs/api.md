@@ -1730,8 +1730,10 @@ choice of two engines:
   noise such as hiss, hum and fans. It adds 30 ms.
 - `deepfilternet`: DeepFilterNet 3. Cleaner on keyboards, changing noise and
   some room echo, at a higher processor cost. It adds its own 30 ms, plus
-  one audio quantum and 20 ms, because it runs on a thread of its own and
-  never on the audio thread: 55 ms at a quantum of 256, 71 ms at 1024.
+  10 ms, plus one audio quantum or 10 ms, whichever is longer, because it
+  runs on a thread of its own and never on the audio thread. That is 51 ms
+  at a quantum of 256, 61 ms at 1024 and 83 ms at 2048. The figure rises at
+  once when the quantum grows and falls 2 s after it shrinks.
 
 Both run at 48 kHz on mono audio. On a graph running at another rate the
 microphone passes through untouched and `error` says why. Noise removal

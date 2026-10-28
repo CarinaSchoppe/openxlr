@@ -3353,7 +3353,7 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
     <value>DeepFilterNet</value>
   </data>
   <data name="NoiseRemovalDeepFilterNetTip" xml:space="preserve">
-    <value>Cleaner on keyboards, changing noise and some room echo. Uses more of the processor and adds about 55 to 70 ms of delay.</value>
+    <value>Cleaner on keyboards, changing noise and some room echo. Uses more of the processor and adds about 50 to 60 ms of delay.</value>
   </data>
   <data name="NoiseRemovalStrength" xml:space="preserve">
     <value>Strength</value>

@@ -19,6 +19,7 @@ public sealed class MeterReader : IDisposable
 
     private readonly Dictionary<string, Meter> _meters = [];
     private readonly object _gate = new();
+    private readonly Lazy<int> _latencyMs = new(ReadLatencyMs);
     private bool _disposed;
 
     private sealed class Meter
@@ -44,9 +45,9 @@ public sealed class MeterReader : IDisposable
         psi.ArgumentList.Add("--channels=2");
         // Without an explicit latency parec batches its output in ~1 s
         // chunks, which turns a steady signal into a once-a-second spike
-        // followed by decay. 50 ms delivers fragments faster than the
-        // 15 Hz poll, so bars track the signal.
-        psi.ArgumentList.Add("--latency-msec=50");
+        // followed by decay. The latency is also a quantum request to the
+        // graph, so it matches the graph's own default (see LatencyMs).
+        psi.ArgumentList.Add($"--latency-msec={_latencyMs.Value}");
         // A meter reads one sink and must stay on it. The session manager
         // treats a stream that it linked to the default output as following
         // the default (target.node -1 in the default metadata) and moves it
@@ -57,6 +58,37 @@ public sealed class MeterReader : IDisposable
         // yet, and a meter starts right after its sink is created.
         psi.ArgumentList.Add($"--property=node.link-group=openxlr-meter-{sinkName}");
         Add(id, psi);
+    }
+
+    /// <summary>
+    /// The latency a meter asks for, in milliseconds. pipewire-pulse turns it
+    /// into the stream's node.latency, and PipeWire runs a graph at the
+    /// smallest node.latency in it, rounded down to a power of two. Asking
+    /// for the default quantum <paramref name="quantum"/> at
+    /// <paramref name="rate"/>, rounded up to whole milliseconds, rounds back
+    /// down to that quantum, so the meters never move the block size the
+    /// rest of the graph runs at: a fixed 50 ms pushed a graph with no other
+    /// request from 1024 to 2048 frames. At most 50 ms, so fragments still
+    /// arrive faster than the 15 Hz poll. Without settings to read, 1024
+    /// frames at 48 kHz, PipeWire's own default.
+    /// </summary>
+    internal static int LatencyMs(int? quantum, int? rate)
+    {
+        long q = quantum ?? 1024, r = rate ?? 48000;
+        return (int)Math.Clamp((q * 1000 + r - 1) / r, 1, 50);
+    }
+
+    private static int ReadLatencyMs()
+    {
+        try
+        {
+            string settings = ProcessRunner.Run("pw-metadata", ["-n", "settings"], TimeSpan.FromSeconds(2)).StdoutText;
+            int? rate = null;
+            try { rate = PipeWireAdapter.ParseGraphSampleRate(settings); }
+            catch (InvalidOperationException) { /* keep the default */ }
+            return LatencyMs(PipeWireAdapter.ParseGraphQuantum(settings), rate);
+        }
+        catch (Exception) { return LatencyMs(null, null); }
     }
 
     /// <summary>Begin metering with a capture process of the caller's choosing.</summary>

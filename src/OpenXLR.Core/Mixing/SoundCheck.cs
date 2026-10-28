@@ -201,17 +201,22 @@ public sealed partial class Mixer
             _soundCheckStarted = Stopwatch.GetTimestamp();
             _soundCheckError = _soundCheckErrorChannel = null;
             _announcedTake = 0;
+            // The raw path: the helper's tap straight into the channel, past
+            // the chain. It carries silence until the session asks for raw.
+            // Linked first, so the channel stays joined to the microphone
+            // through the helper while its feed moves: a channel cut off for
+            // a moment is a graph of its own, PipeWire picks a quantum for
+            // each half and changes it again when they join, and on
+            // PipeWire 1.0 that change left a loopback source silent.
+            _soundCheckTap = _pw.LinkNodes(filter.SourceName, "tap", input.SinkName, "playback");
+            if (_soundCheckTap.Pairs.Count == 0)
+                throw new InvalidOperationException("Sound Check could not connect its raw path.");
             // A reused direct feed would bypass the loop, so the
             // channel's feed is rebuilt from the helper's output.
             if (_inputFeeds.Remove(channel, out PortLink? previous)) _pw.Unlink(previous);
             WireInputFeedsLocked([channel]);
             if (_soundCheck != filter)
                 throw new InvalidOperationException(_soundCheckError ?? "Sound Check could not connect its audio path.");
-            // The raw path: the helper's tap straight into the channel, past
-            // the chain. It carries silence until the session asks for raw.
-            _soundCheckTap = _pw.LinkNodes(filter.SourceName, "tap", input.SinkName, "playback");
-            if (_soundCheckTap.Pairs.Count == 0)
-                throw new InvalidOperationException("Sound Check could not connect its raw path.");
             _soundCheckProbe = new SoundCheckProbe(channel, filter.NativeHost!, rate);
         }
         catch (Exception failure)
@@ -375,9 +380,8 @@ public sealed partial class Mixer
         _soundCheckError = error;
         _soundCheckErrorChannel = error is null ? null : channel;
         _soundCheckProbe = null;
-        if (_soundCheckTap is not null) _pw.Unlink(_soundCheckTap);
-        if (_soundCheckInput is not null) _pw.Unlink(_soundCheckInput);
-        if (_soundCheck is not null) _pw.StopFilter(_soundCheck);
+        PortLink? tap = _soundCheckTap, input = _soundCheckInput;
+        FilterHandle? helper = _soundCheck;
         _soundCheck = null;
         _soundCheckInput = _soundCheckTap = null;
         _soundCheckChannel = _soundCheckDevice = null;
@@ -390,7 +394,16 @@ public sealed partial class Mixer
         // route is built without a software stage.
         if (restore) SyncDeviceEqLocked();
         if (channel is not null && _inputFeeds.Remove(channel, out PortLink? feed)) _pw.Unlink(feed);
-        if (restore && channel is not null && _built) WireInputFeedsLocked([channel]);
+        // The direct feed comes back while the helper, its input and its tap
+        // still join the channel to the microphone, so the graph never
+        // splits (see the start).
+        try { if (restore && channel is not null && _built) WireInputFeedsLocked([channel]); }
+        finally
+        {
+            if (tap is not null) _pw.Unlink(tap);
+            if (input is not null) _pw.Unlink(input);
+            if (helper is not null) _pw.StopFilter(helper);
+        }
     }
 
     /// <summary>

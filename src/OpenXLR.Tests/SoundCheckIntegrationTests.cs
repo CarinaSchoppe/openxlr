@@ -121,9 +121,14 @@ public sealed partial class SoundCheckIntegrationTests
             if (second is not null) await second;
         }
 
+        // The player asks for the graph's default quantum. Destroying the
+        // helper below cuts the channel off the microphone for a moment, and
+        // PipeWire 1.0 left the test's remap-source microphone silent when
+        // the two halves rejoined at different quanta; a player at pw-cat's
+        // 100 ms default ran its half at 2048 against the meters' 1024.
         static Task<ProcessResult> Play(double value, CancellationToken cancel) => ProcessRunner.RunAsync("python3", ["-c", """
             import subprocess, struct, sys
-            args = ['--format=f32', '--rate=48000', '--channels=2']
+            args = ['--format=f32', '--rate=48000', '--channels=2', '--latency=1024']
             if '--raw' in subprocess.check_output(['pw-cat', '--help'], text=True): args.append('--raw')
             p = subprocess.Popen(['pw-cat', '--playback', *args, '--properties={ node.link-group = openxlr-test-playback }', '--target', 'soundcheck_signal', '-'], stdin=subprocess.PIPE)
             try: p.communicate(struct.pack('<ff', *([float(sys.argv[1])] * 2)) * (48000 * 45), timeout=50)

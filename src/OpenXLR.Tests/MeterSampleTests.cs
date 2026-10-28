@@ -47,6 +47,31 @@ public sealed class MeterSampleTests
         finally { File.Delete(path); }
     }
 
+    [Theory]
+    [InlineData(1024, 48000, 22)]
+    [InlineData(256, 48000, 6)]
+    [InlineData(2048, 48000, 43)]
+    [InlineData(1024, 44100, 24)]
+    [InlineData(8192, 48000, 50)]
+    [InlineData(null, null, 22)]
+    public void MeterLatencyAsksForTheGraphDefault(int? quantum, int? rate, int expected)
+        => Assert.Equal(expected, MeterReader.LatencyMs(quantum, rate));
+
+    [Theory]
+    [InlineData(48000)]
+    [InlineData(44100)]
+    [InlineData(96000)]
+    public void MeterLatencyRoundsBackToTheSameQuantum(int rate)
+    {
+        // PipeWire scales node.latency to the graph rate and rounds down to a
+        // power of two; the meter's request must land on the default itself.
+        for (int quantum = 64; quantum <= 2048; quantum *= 2)
+        {
+            long frames = (long)MeterReader.LatencyMs(quantum, rate) * rate / 1000;
+            Assert.Equal(quantum, 1 << (int)Math.Log2(frames));
+        }
+    }
+
     private static byte[] Bytes(params float[] samples)
         => samples.SelectMany(BitConverter.GetBytes).ToArray();
 }

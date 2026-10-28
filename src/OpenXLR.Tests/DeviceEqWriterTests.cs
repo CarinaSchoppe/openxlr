@@ -105,6 +105,25 @@ public sealed class DeviceEqWriterTests
     private static long Now(ManualTime time) => (long)time.Elapsed.TotalMilliseconds;
 
     [Fact]
+    public void EqWritesContinueAcrossTheLongUptimeTimestampBoundary() => WithConfigDir(() =>
+    {
+        var time = new ManualTime(timestampFrequency: 1_000_000_000);
+        // Linux's nanosecond clock passes long.MaxValue / 1000 after about
+        // 107 days. Put the two writes on opposite sides of that instant.
+        time.Advance(TimeSpan.FromTicks(long.MaxValue / 1000 / 100 - TimeSpan.TicksPerMillisecond * 50));
+        var unit = new EqUnit { Clock = time };
+        using DeviceManager manager = Manager(unit, time);
+        manager.PostEq(1, Eq(true, 1), "XLR 1");
+        manager.SweepOnce();
+        Assert.Single(unit.Writes);
+        time.Advance(DeviceManager.EqWriteSpacing);
+        manager.PostEq(1, Eq(true, 2), "XLR 1");
+        manager.SweepOnce();
+        Assert.Equal([Eq(true, 1), Eq(true, 2)], unit.Writes.Select(w => w.Eq));
+        return 0;
+    });
+
+    [Fact]
     public void ADragGoesOutAtMostTenTimesASecondFirstAtOnceAndEndingOnTheLast() => WithConfigDir(() =>
     {
         var time = new ManualTime();

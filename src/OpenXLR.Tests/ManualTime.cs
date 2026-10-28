@@ -6,19 +6,19 @@ namespace OpenXLR.Tests;
 /// sender and the echo wait do then depends on the steps of the test,
 /// never on how busy the machine is.
 /// </summary>
-internal sealed class ManualTime : TimeProvider
+internal sealed class ManualTime(long timestampFrequency = TimeSpan.TicksPerSecond) : TimeProvider
 {
     private readonly List<ManualTimer> _timers = [];
     private long _now;
 
-    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+    public override long TimestampFrequency => timestampFrequency;
 
-    public override long GetTimestamp() => Interlocked.Read(ref _now);
+    public override long GetTimestamp() => (long)((Int128)Interlocked.Read(ref _now) * TimestampFrequency / TimeSpan.TicksPerSecond);
 
     /// <summary>Wall time moves with the clock, from a fixed start.</summary>
-    public override DateTimeOffset GetUtcNow() => new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero).AddTicks(GetTimestamp());
+    public override DateTimeOffset GetUtcNow() => new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero).AddTicks(Interlocked.Read(ref _now));
 
-    public TimeSpan Elapsed => TimeSpan.FromTicks(GetTimestamp());
+    public TimeSpan Elapsed => TimeSpan.FromTicks(Interlocked.Read(ref _now));
 
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {

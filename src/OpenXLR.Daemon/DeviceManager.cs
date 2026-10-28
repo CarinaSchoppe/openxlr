@@ -20,7 +20,7 @@ public sealed class DeviceManager : BackgroundService
     // The clock for phantom settling and the EQ writer's spacing; tests drive it by hand.
     private readonly TimeProvider _time;
     private DateTime UtcNow => _time.GetUtcNow().UtcDateTime;
-    private long NowMs => _time.GetTimestamp() * 1000 / _time.TimestampFrequency;
+    private long NowMs => (long)((Int128)_time.GetTimestamp() * 1000 / _time.TimestampFrequency);
     private DeviceState? _last;
     // Replaced, never changed in place, so the client-facing readers below
     // can take it without the device lock.

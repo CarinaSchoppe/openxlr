@@ -106,7 +106,7 @@ public sealed partial class Mixer
     /// <summary>The clock for the hand-over's wait; tests drive it by hand.</summary>
     internal TimeProvider Time { get; set; } = TimeProvider.System;
 
-    private long NowMs => Time.GetTimestamp() * 1000 / Time.TimestampFrequency;
+    private long NowMs => (long)((Int128)Time.GetTimestamp() * 1000 / Time.TimestampFrequency);
 
     /// <summary>What a unit input that did not keep a written EQ reports; its channel runs the EQ in software.</summary>
     internal const string EqDeviceFailedReason = "failed";

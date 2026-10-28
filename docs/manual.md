@@ -154,6 +154,8 @@ Every channel has a **send** into every mix: a level and a mute. The
 SUBMIXER card shows them as a grid, channels down, mixes across. Each
 mix also has a **master** level and mute. A typical setup keeps Music
 loud in Monitor A and lower in Stream, and out of Chat entirely.
+The header's actions wrap onto another line when the card is narrow,
+including in skins that place the mixer beside other sections.
 
 <a name="channel-volume"></a>
 Every channel also has a **volume** of its own. It turns every send of

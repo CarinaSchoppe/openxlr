@@ -176,6 +176,136 @@ public sealed class CaptureGainTests
     }
 
     [Fact]
+    public void AFailedHardwareRangeProbeRecoversWithoutAVolumeChange()
+    {
+        using var fake = new FakeAudio();
+        var time = new ManualTime();
+        fake.Mixer.Time = time;
+        fake.FailProbe(true);
+        Assert.True(fake.Mixer.SyncCaptureGains());
+        Assert.Equal(-6, fake.Mixer.Snapshot().Channels.Single(c => c.Id == "brio").CaptureGain!.MinDb);
+        fake.FailProbe(false);
+        fake.Clear();
+        time.Advance(TimeSpan.FromMilliseconds(9999));
+        Assert.False(fake.Mixer.SyncCaptureGains());
+        Assert.Empty(fake.Calls);
+        time.Advance(TimeSpan.FromMilliseconds(1));
+        Assert.True(fake.Mixer.SyncCaptureGains());
+        Assert.Equal(18, fake.Mixer.Snapshot().Channels.Single(c => c.Id == "brio").CaptureGain!.MinDb);
+        Assert.Single(fake.Calls, c => c == "amixer -c 3 contents");
+        Assert.DoesNotContain(fake.Calls, c => c.StartsWith("pactl set-", StringComparison.Ordinal));
+        fake.Clear();
+        time.Advance(TimeSpan.FromMinutes(1));
+        Assert.False(fake.Mixer.SyncCaptureGains());
+        Assert.Empty(fake.Calls);
+    }
+
+    [Fact]
+    public void FailedHardwareProbesAreRateLimitedAndAnAbsentSourceStopsRetrying()
+    {
+        using var fake = new FakeAudio();
+        var time = new ManualTime();
+        fake.Mixer.Time = time;
+        fake.FailProbe(true);
+        fake.Mixer.SyncCaptureGains();
+        fake.Clear();
+        for (int i = 0; i < 9; i++)
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            Assert.False(fake.Mixer.SyncCaptureGains());
+        }
+        Assert.Empty(fake.Calls);
+        time.Advance(TimeSpan.FromSeconds(1));
+        Assert.False(fake.Mixer.SyncCaptureGains());
+        Assert.Single(fake.Calls, c => c == "amixer -c 3 contents");
+        fake.Clear();
+        fake.Gone();
+        time.Advance(TimeSpan.FromSeconds(10));
+        Assert.True(fake.Mixer.SyncCaptureGains());
+        Assert.Null(fake.Mixer.Snapshot().Channels.Single(c => c.Id == "brio").CaptureGain);
+        Assert.DoesNotContain(fake.Calls, c => c.StartsWith("amixer", StringComparison.Ordinal));
+        fake.Clear();
+        time.Advance(TimeSpan.FromSeconds(10));
+        Assert.False(fake.Mixer.SyncCaptureGains());
+        Assert.Empty(fake.Calls);
+    }
+
+    [Fact]
+    public void AProbeThatKeepsFailingIsGivenUpAfterThreeRetries()
+    {
+        using var fake = new FakeAudio();
+        var time = new ManualTime();
+        fake.Mixer.Time = time;
+        fake.FailProbe(true);
+        fake.Mixer.SyncCaptureGains();
+        for (int retry = 1; retry <= 3; retry++)
+        {
+            fake.Clear();
+            time.Advance(TimeSpan.FromSeconds(10));
+            fake.Mixer.SyncCaptureGains();
+            Assert.Single(fake.Calls, c => c == "amixer -c 3 contents");
+        }
+        // Each attempt can hold the mixer lock for amixer's timeout, so the
+        // fallback range is kept from here on.
+        fake.Clear();
+        time.Advance(TimeSpan.FromMinutes(5));
+        Assert.False(fake.Mixer.SyncCaptureGains());
+        Assert.Empty(fake.Calls);
+        Assert.Equal(-6, fake.Mixer.Snapshot().Channels.Single(c => c.Id == "brio").CaptureGain!.MinDb);
+    }
+
+    [Fact]
+    public void AMissingAmixerIsAnAnswerAndIsNotRetried()
+    {
+        using var fake = new FakeAudio();
+        var time = new ManualTime();
+        fake.Mixer.Time = time;
+        fake.NoAmixer();
+        Assert.True(fake.Mixer.SyncCaptureGains());
+        Assert.Equal(-6, fake.Mixer.Snapshot().Channels.Single(c => c.Id == "brio").CaptureGain!.MinDb);
+        fake.Clear();
+        time.Advance(TimeSpan.FromMinutes(1));
+        Assert.False(fake.Mixer.SyncCaptureGains());
+        Assert.Empty(fake.Calls);
+    }
+
+    [Fact]
+    public void ASuccessfulProbeWithoutAMatchingRangeIsStillCached()
+    {
+        using var fake = new FakeAudio();
+        var time = new ManualTime();
+        fake.Mixer.Time = time;
+        fake.Controls("no matching capture volume control");
+        Assert.True(fake.Mixer.SyncCaptureGains());
+        fake.Clear();
+        time.Advance(TimeSpan.FromMinutes(1));
+        Assert.False(fake.Mixer.SyncCaptureGains());
+        Assert.Empty(fake.Calls);
+    }
+
+    [Fact]
+    public void VolumeChangesDoNotBypassOrPostponeTheFailedProbeDelay()
+    {
+        using var fake = new FakeAudio();
+        var time = new ManualTime();
+        fake.Mixer.Time = time;
+        fake.FailProbe(true);
+        fake.Mixer.SyncCaptureGains();
+        fake.MoveBrio(32846);
+        fake.Clear();
+        time.Advance(TimeSpan.FromSeconds(1));
+        Assert.True(fake.Mixer.SyncCaptureGains());
+        Assert.Equal(36, fake.Mixer.Snapshot().Channels.Single(c => c.Id == "brio").CaptureGain!.GainDb, 1);
+        Assert.DoesNotContain(fake.Calls, c => c.StartsWith("amixer", StringComparison.Ordinal));
+        fake.FailProbe(false);
+        fake.Clear();
+        time.Advance(TimeSpan.FromSeconds(9));
+        Assert.True(fake.Mixer.SyncCaptureGains());
+        Assert.Equal(18, fake.Mixer.Snapshot().Channels.Single(c => c.Id == "brio").CaptureGain!.MinDb);
+        Assert.Single(fake.Calls, c => c == "amixer -c 3 contents");
+    }
+
+    [Fact]
     public void AChangeMadeElsewhereIsReportedAndNeverWrittenBack()
     {
         using var fake = new FakeAudio();
@@ -269,6 +399,14 @@ public sealed class CaptureGainTests
         public Mixer Mixer { get; }
         public string[] Calls => File.Exists(Path.Combine(_dir, "calls")) ? File.ReadAllLines(Path.Combine(_dir, "calls")) : [];
         public void Clear() => File.WriteAllText(Path.Combine(_dir, "calls"), "");
+        public void FailProbe(bool fail)
+        {
+            string path = Path.Combine(_dir, "fail-probe");
+            if (fail) File.WriteAllText(path, "");
+            else File.Delete(path);
+        }
+        public void Controls(string controls) => File.WriteAllText(Path.Combine(_dir, "controls"), controls);
+        public void NoAmixer() => File.Delete(Path.Combine(_dir, "amixer"));
 
         public FakeAudio()
         {
@@ -286,6 +424,7 @@ public sealed class CaptureGainTests
             ExecutableScript.Write(Path.Combine(_dir, "amixer"), """
                 dir=${0%/*}
                 echo "amixer $*" >> "$dir/calls"
+                [ -e "$dir/fail-probe" ] && exit 1
                 [ "$*" = '-c 3 contents' ] && /bin/cat "$dir/controls"
                 """);
             File.WriteAllText(Path.Combine(_dir, "sources"), Sources());

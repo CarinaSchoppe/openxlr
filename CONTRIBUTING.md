@@ -255,7 +255,7 @@ skips a change to `README.md` alone.
 - **Allow edits from maintainers** on the pull request; small fixes
   then land on your branch instead of a review round trip.
 
-Merged contributors are listed in the README's Credits and get the
+Merged contributors are credited in the release notes and get the
 Contributor role on Discord, with access to the private `#contributors`
 channel.
 

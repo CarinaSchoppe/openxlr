@@ -13,17 +13,16 @@
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-emaspa-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/emaspa)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/emaspa)
 
-OpenXLR is a Wave Link replacement for Linux, and it works with any
-microphone or audio interface PipeWire can record from. Its mixer runs on
-PipeWire: per-application channels, virtual microphones for calls and
+OpenXLR is a Wave Link replacement for Linux. Its mixer runs on PipeWire
+and works with any microphone or audio interface PipeWire can record
+from: per-application channels, virtual microphones for calls and
 streams, monitor mixes on any output, ducking, a microphone EQ, LV2, CLAP
 and VST3 plugin inserts, and an OpenDeck plugin for Stream Deck control.
-
-On Elgato hardware OpenXLR also controls the device itself, over
+On Elgato hardware it also drives the device itself over
 reverse-engineered USB protocols: gain, mute, phantom power, the onboard
-effects and EQ, the headphone outputs and, on the Wave XLR Pro, the output
-routing, a mix for a second computer on the USB Aux port and ducking on
-the unit's own processor.
+effects and EQ, the headphone outputs and, on the Wave XLR Pro, output
+routing, a second-computer mix on the USB Aux port and ducking on the
+unit's own processor.
 
 ![OpenXLR mixer](docs/screenshot-mixer-0210.png)
 
@@ -31,20 +30,16 @@ the unit's own processor.
 
 The UI from 0.2.1 and the terminal mixer from 0.2.0, both in the Broadcast
 skin. This README and the linked guides describe current `main`; for a
-released build, read the docs at its release tag.
-
-Not affiliated with or endorsed by Elgato. The device protocols were
-decoded from Wave Link USB captures, prior open-source protocol work and
-tests on the author's own hardware.
+released build, read the docs at its release tag. Not affiliated with or
+endorsed by Elgato. The device protocols come from Wave Link USB captures,
+prior open-source protocol work and tests on the author's own hardware.
 
 ## Supported devices
 
-Any microphone, headset, webcam or audio interface that PipeWire lists as
-a capture source works in the mixer. Bound to XLR 1 or XLR 2
-([manual](docs/manual.md#input-bindings)) it gets that strip's sends,
-volume, meter, EQ, insert chain and Mic setup. OpenXLR sends nothing to
-another brand's device, so set its preamp gain and phantom power on the
-device itself.
+Any capture source PipeWire lists works in the mixer. Bound to XLR 1 or
+XLR 2 ([manual](docs/manual.md#input-bindings)) it gets that strip's
+sends, volume, meter, EQ, insert chain and Mic setup; its preamp gain and
+phantom power stay on the device itself.
 
 These Elgato devices also get their hardware controls over USB:
 
@@ -58,76 +53,60 @@ These Elgato devices also get their hardware controls over USB:
 | Wave:3 | 0fd9:0070 | gain, mute, ClipGuard, headphone volume and the monitor balance, each written and read back on the maintainer's unit |
 | Wave:1 | 0fd9:006e | the Wave:3's controls; gain, mute and headphone volume confirmed by an owner |
 
-The per-control state of every device, including what is coded but not
-yet run on hardware, is in [hardware support](docs/hardware-support.md).
-If you own an untested device, open an issue with a diagnostics archive
-(Options, SUPPORT, Collect diagnostics).
+[Hardware support](docs/hardware-support.md) has every control's state,
+including what is coded but not yet run on hardware. If you own an
+untested device, open an issue with a diagnostics archive
+([Community and issues](#community-and-issues)).
 
 ## Features
 
-- **Hardware control** of the devices above. The Pro has the most:
-  gain, mute, low cut, expander, Voice Tune and phantom power per input,
-  ClipGuard, compressor, two headphone volumes, the mic/PC crossfade and
-  the routing of HP1, HP2, Line Out and USB Aux. Where a device has no
-  hardware low cut or ClipGuard, OpenXLR runs them in software.
+- **Hardware control** of the devices above, down to the Pro's per-input
+  effects, both headphone outputs and the routing of HP1, HP2, Line Out
+  and USB Aux. Low cut and ClipGuard run in software where the hardware
+  has none.
 - **Submixer** built from PipeWire nodes, no kernel modules: channels for
   the XLR inputs, Aux In, application groups and any other capture
-  source; monitor mixes on any outputs, alone or summed; virtual
-  microphones other apps record from. Channels and mixes are added,
-  renamed, reordered and removed while audio plays.
+  source, monitor mixes on any outputs, virtual microphones other apps
+  record from. You change all of it while audio plays.
 - **Ducking**: a key microphone lowers chosen channels in chosen mixes
-  while you speak. It runs in software on every device, and on the Pro's
-  own processor when the setup fits what the unit can do.
-- **Microphone processing**: an EQ of one to sixteen bands with Wave
-  Link's band types and steps on XLR 1, XLR 2 and mono capture inputs, up
-  to four of them run on the unit where the hardware has an EQ, and Mic
-  setup, which meters the microphone
-  before any processing and loops a recorded take through the EQ and
-  plugins while you tune them in the same window, raw or processed at a
-  click, with placement tips and three starting EQ presets.
-- **Noise removal** on each microphone, first in its chain: RNNoise for
-  steady hiss and hum, or DeepFilterNet 3 for typing, clicks and some room
-  echo. Both are built into every package.
+  while you speak, in software everywhere and on the Pro's own processor
+  when the setup fits.
+- **Microphone processing**: an EQ of up to sixteen bands with Wave
+  Link's band types (up to four on the unit where it has an EQ), and Mic
+  setup, which loops a recorded take through the EQ and plugins while you
+  tune them.
+- **Noise removal** first in each microphone's chain, RNNoise or
+  DeepFilterNet 3, built into every package.
 - **Plugin inserts**: LV2, CLAP and VST3 chains on each microphone input
   and each mix, with native editors, generated controls and bypass.
-  Windows VST3 and CLAP plugins run through the `openxlr-yabridge`
-  package.
-- **Application routing**: apps are matched to channels by name rules and
-  remembered, Electron and Wine/Proton apps included. An optional
-  Chromium companion routes individual browser tabs
+  Windows VST3 and CLAP plugins run through `openxlr-yabridge`.
+- **Application routing** by name rules, Electron and Wine/Proton apps
+  included; an optional Chromium companion routes single browser tabs
   ([browser routing](docs/browser-routing.md)).
 - **Profiles**: named scenes of hardware settings and the whole submix,
-  recalled from the UI, the API or a Stream Deck key, or on connect.
-- **OpenDeck plugin**: keys and dials for every switch, mute, level,
-  insert, output and profile, drawn with meters and status lamps.
-- **Daemon, UI and APIs**: the daemon owns the device and the graph and
-  keeps running with the UI closed. It serves a WebSocket API and an HTTP
-  API on a private Unix socket authenticated by Linux peer credentials.
-  The UI has a Flow window of signal paths, a tray icon and global
-  shortcuts through the desktop portal.
-- **Terminal mixer**: `openxlr-tui`, the whole mixer over ssh or in a
-  tiling setup ([manual](docs/manual.md#terminal)).
-- **Omarchy bar**: meters, mutes and sends in Omarchy 4's bar
-  ([omarchy.md](docs/omarchy.md)).
-- **Skins**: seventeen built in, among them Broadcast (the default) and
-  Wave, which draw the mixer as a matrix of inputs and mixes. A skin is
-  data, not code ([skins.md](docs/skins.md)).
-- **Languages**: English, German, Spanish, Italian, Tagalog, Cebuano and
-  Serbian (Cyrillic) ([localization](docs/localization.md)).
+  recalled from the UI, the API, a Stream Deck key or on connect.
+- **Daemon and APIs**: the daemon owns the device and the graph and keeps
+  running with the UI closed; WebSocket and HTTP APIs on a private Unix
+  socket authenticated by peer credentials.
+- **Terminal mixer** `openxlr-tui` ([manual](docs/manual.md#terminal)),
+  an **Omarchy bar** plugin ([omarchy.md](docs/omarchy.md)), seventeen
+  **skins** as data ([skins.md](docs/skins.md)) and seven **languages**
+  ([localization](docs/localization.md)).
 
 Every control, area by area: [docs/features.md](docs/features.md).
 
 ### OpenDeck plugin
 
+Keys and dials for every switch, mute, level, insert, output and profile.
 Dials get a touch panel with a knob, a level meter, the value and a mute
 overlay; one dial can hold several targets.
 
-![Dial panels](docs/plugin-dials.png)
+<img src="docs/plugin-dials.png" alt="Dial panels" width="416">
 
 Keys show an icon and a status lamp: red for a mute, green for an engaged
 feature or the active monitor output.
 
-![Keys](docs/plugin-keys.png)
+<img src="docs/plugin-keys.png" alt="Keys" width="432">
 
 ## Install
 
@@ -185,16 +164,15 @@ ClipGuard and the Windows bridge.
 
 **After installing**, replug an Elgato device once so the udev rule
 applies. For the Stream Deck, install `com.emaspa.openxlr.sdPlugin.zip`
-from the release with OpenDeck's install-from-file. Plugin inserts list
-the LV2, CLAP and VST3 plugins you have installed (`lsp-plugins-lv2` is a
-good start). The software ClipGuard needs `swh-plugins`. Windows plugins
-need `openxlr-yabridge` from the same place you got OpenXLR
+from the release with OpenDeck's install-from-file. Inserts list the LV2,
+CLAP and VST3 plugins you have installed (`lsp-plugins-lv2` is a good
+start); the software ClipGuard needs `swh-plugins`; Windows plugins need
+`openxlr-yabridge` from the same place you got OpenXLR
 ([manual](docs/manual.md#windows-plugins)).
 
-**Upgrading**: a package upgrade takes effect once the programs restart.
-Reboot, or run `systemctl --user restart openxlr-daemon` and reopen the
-UI. Replug the interface only when the release says the udev rule
-changed.
+**Upgrading**: reboot, or run `systemctl --user restart openxlr-daemon`
+and reopen the UI. Replug the interface only when the release says the
+udev rule changed.
 
 **From source**: [the source guide](docs/install-from-source.md) lists the
 prerequisites, then:
@@ -225,13 +203,8 @@ AI-assisted development.
 - Windows plugins depend on Wine and yabridge. An editor that misbehaves
   there can be swapped for OpenXLR's generated controls.
 
-## What's next
-
-The [roadmap](docs/roadmap.md) has the order. In short: user reports
-and hardware checks of the 0.2 features first, then the microphone EQ in
-the terminal mixer and on the Stream Deck, then a hardware mixing mode on
-the Wave XLR Pro, which builds the mixes in the unit for Wave Link's
-per-channel ducking.
+The [roadmap](docs/roadmap.md) has what comes next, starting with user
+reports and hardware checks of the 0.2 features.
 
 ## Documentation
 
@@ -245,53 +218,36 @@ ones: the [manual](docs/manual.md), [features](docs/features.md),
 ## Community and issues
 
 Support, hardware reports and release news are on
-[Discord](https://discord.gg/4bswtnGPW4), on
-[r/OpenXLR](https://www.reddit.com/r/OpenXLR/) and in GitHub issues. To
-report an issue, open Options, SUPPORT, Collect diagnostics: it writes
+[Discord](https://discord.gg/4bswtnGPW4),
+[r/OpenXLR](https://www.reddit.com/r/OpenXLR/) and GitHub issues. To
+report one, open Options, SUPPORT, Collect diagnostics: it writes
 `~/openxlr-diagnostics-<timestamp>.tar.gz` with the device state, the
 PipeWire graph, logs and configs. Nothing is uploaded; attach it yourself.
 To contribute, read [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Credits
-
-- [Emanuele Sparvoli](https://github.com/emaspa): author, maintainer and code.
-- [Carina Schoppe](https://github.com/CarinaSchoppe): maintainer and code.
-- [Michael Brooks](https://github.com/Michael-Brooks): code and hardware testing.
-- [BenjyEX3](https://github.com/BenjyEX3): hardware testing.
-- [chromacurse](https://github.com/chromacurse): hardware testing.
-- [Astros52](https://github.com/Astros52): hardware testing.
-- [marv4u](https://github.com/marv4u): hardware testing and protocol research.
-- [rikkichy](https://github.com/rikkichy): prior protocol research.
-- [nekename](https://github.com/nekename): upstream software.
-- [FrostyCoolSlug](https://github.com/FrostyCoolSlug): technical guidance.
-- All the various community testers (thank you!): hardware and packaging testing.
-
 ## Status
 
 Developed and used daily by the author with a Wave XLR Pro, an XLR Dock,
-an XLR Dock MK.2, a Wave:3 and a Stream Deck + XL. Community testers
-verified the Wave XLR and Wave XLR MK.2. Setups without Elgato hardware
-are covered by tests against a private PipeWire server with simulated
-sources.
-
-The code is written by the two maintainers, with AI tooling (Anthropic's
-Claude and OpenAI's Codex) assisting with capture analysis, UI design and
-parts of the coding. The person who opens a pull request is its author and
-answers for every line of it ([AGENTS.md](AGENTS.md)). Every hardware
-finding was verified on a real device.
+an XLR Dock MK.2, a Wave:3 and a Stream Deck + XL; community testers
+verified the Wave XLR and Wave XLR MK.2. Tests against a private PipeWire
+server cover setups without Elgato hardware. The two maintainers write
+the code, with AI tooling (Anthropic's Claude and OpenAI's Codex)
+assisting with capture analysis, UI design and parts of the coding; the
+person who opens a pull request is its author and answers for every line
+of it ([AGENTS.md](AGENTS.md)). Every hardware finding was verified on a
+real device.
 
 ## License
 
 [GPL-3.0](LICENSE). The native plugin host carries third-party code under
 its own licences, each kept beside it: the CLAP headers in `native/clap`
-and the VST3 interface headers in `native/vst3` (both MIT), RNNoise 0.2 in
+and the VST3 interface headers in `native/vst3` (MIT), RNNoise 0.2 in
 `native/rnnoise` (BSD-3-Clause), libDF from DeepFilterNet 0.5.6 in
-`native/deepfilter/libdf` and the DeepFilterNet3 model it embeds (MIT or
-Apache-2.0), and the Rust crates DeepFilterNet builds on, listed with their
-versions in `native/deepfilter/Cargo.lock`, each under the licence its own
-package states: MIT, Apache-2.0 or a choice that includes one of them, with
-Unicode-DFS-2016 beside MIT or Apache-2.0 for one and CC0-1.0 for
-tiny-keccak.
+`native/deepfilter/libdf` with the DeepFilterNet3 model it embeds (MIT or
+Apache-2.0), and the Rust crates DeepFilterNet builds on, listed in
+`native/deepfilter/Cargo.lock`, each under its own package's licence (MIT,
+Apache-2.0 or a choice including one of them, Unicode-DFS-2016 beside
+those for one crate, CC0-1.0 for tiny-keccak).
 
 If you find OpenXLR useful, consider
 [buying me a coffee](https://buymeacoffee.com/emaspa) or supporting it on

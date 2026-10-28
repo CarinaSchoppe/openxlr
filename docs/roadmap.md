@@ -202,9 +202,8 @@ features wait until the sections above are done.
 - Versions, tags, releases, distribution changelogs and package identity
   are set by the maintainer at release time. A pull request does not bump
   them.
-- Contributors are credited in the README once their work is merged, in
-  a Credits section the maintainer writes, and in the release notes. A
-  pull request does not add its own credit paragraph.
+- Contributors are credited in the release notes once their work is
+  merged. A pull request does not add its own credit paragraph.
 - The .NET build stays usable without a native compiler. The plugin host
   is optional at source-build time and included in distribution packages.
   The Windows bridge is a separate optional companion.

@@ -36,6 +36,9 @@ install -Dm755 packaging/flatpak/openxlr-flatpak-service /app/share/openxlr/open
 install -Dm644 docs/flatpak-build.md /app/share/doc/openxlr/flatpak-build.md
 if [ -f docs/flatpak.md ]; then install -Dm644 docs/flatpak.md /app/share/doc/openxlr/flatpak.md; fi
 mkdir -p /app/extensions/Plugins
+for file in metadata.json extension.js focus.mjs; do
+    install -Dm644 "packaging/gnome/openxlr-focus@emaspa.github.com/$file" "/app/share/gnome-shell/extensions/openxlr-focus@emaspa.github.com/$file"
+done
 
 install -Dm644 LICENSE /app/share/licenses/openxlr/LICENSE
 # The notices of the code the native helper carries.

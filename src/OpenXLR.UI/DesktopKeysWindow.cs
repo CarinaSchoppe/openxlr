@@ -48,7 +48,7 @@ internal sealed class DesktopKeysWindow : Window
         content.Children.Add(enabled);
         content.Children.Add(new TextBlock
         {
-            Text = Localizer.Text("DesktopKeysIntro"),
+            Text = Localizer.Text("DesktopFocusIntro"),
             TextWrapping = TextWrapping.Wrap,
         });
         foreach (var choice in choices) content.Children.Add(choice.Box);

@@ -73,6 +73,18 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(app, metadata.findtext('id'))
         self.assertEqual(app + '.desktop', metadata.findtext('launchable'))
 
+    def test_focus_extension_is_packaged_without_enabling_host_execution(self):
+        build = (HERE / "build.sh").read_text()
+        extension = ROOT / "packaging/gnome/openxlr-focus@emaspa.github.com"
+        metadata = json.loads((extension / "metadata.json").read_text())
+        self.assertEqual("openxlr-focus@emaspa.github.com", metadata["uuid"])
+        for name in ("metadata.json", "extension.js", "focus.mjs"):
+            self.assertTrue((extension / name).is_file())
+            self.assertIn(name, build)
+        self.assertIn("/app/share/gnome-shell/extensions/openxlr-focus@emaspa.github.com/$file", build)
+        permissions = json.loads((HERE / "io.github.emaspa.openxlr.json").read_text())["finish-args"]
+        self.assertNotIn("--env=OPENXLR_FOCUS_HOST=1", permissions)
+
     def test_service_script_is_packaged(self):
         build = (HERE / 'build.sh').read_text()
         self.assertIn('install -Dm755 packaging/flatpak/openxlr-flatpak-service /app/share/openxlr/openxlr-flatpak-service', build)

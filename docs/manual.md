@@ -3871,19 +3871,17 @@ The GlobalShortcuts portal registers keys on Wayland. It does not expose the
 focused application's identity, so OpenXLR asks the compositor each time
 routing is requested:
 
-- KDE Plasma: a short-lived KWin script reads the active process id and is
-  removed after the query.
-- Sway: `swaymsg get_tree`, which needs `SWAYSOCK` from the session.
-- Hyprland: `hyprctl activewindow`, which needs
-  `HYPRLAND_INSTANCE_SIGNATURE` from the session.
+- KDE Plasma: a short-lived KWin script reads the active process id.
+- GNOME Wayland: the OpenXLR Focus Shell extension reports the focused process.
+- Sway, Hyprland and Niri: the compositor's own IPC command reports focus.
+- X11 desktops: EWMH properties identify a process on this computer.
 
-Hyprland routing has been run on a live session; Sway has not yet.
-Launch the UI from the desktop session so it gets these variables, and
-have `swaymsg` or `hyprctl` installed, as the compositors ship them. No window titles are
-read. The daemon uses `gdbus`, supplied by the GLib command-line tools, to
-ask the UI. GNOME and other compositors have no focus source yet, and
-routing reports an error there, when the UI is closed, and inside the
-Flatpak, which has no access to the compositor.
+Launch the UI from the desktop session so it gets the compositor's IPC
+variables. Install `swaymsg`, `hyprctl`, `niri` or `xprop` for the source in
+use. GNOME needs its extension enabled. The daemon uses `gdbus` to ask the
+UI. No window titles are read. The Flatpak needs its optional host bridge;
+it is disabled by default. See [focused routing setup](focused-routing.md)
+for the desktop matrix, extension installation and Flatpak opt-in.
 
 PC shortcuts need the GlobalShortcuts portal; Deck routing does not. On a
 desktop without the portal, Desktop keys says so and routing

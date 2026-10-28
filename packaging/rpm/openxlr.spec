@@ -64,6 +64,7 @@ Requires:       glib2
 Recommends:     alsa-utils
 Recommends:     pulseaudio-utils
 Recommends:     xdg-utils
+Recommends:     /usr/bin/xprop
 # SVG application icons in the window are drawn through GdkPixbuf and its
 # librsvg loader; without them the window falls back to PNG icons.
 Recommends:     gdk-pixbuf2
@@ -172,6 +173,9 @@ install -Dm644 src/OpenXLR.UI/Assets/icon.svg \
 # OpenDeck loads plugins from the user's config dir; ship it for copying.
 install -dm755 %{buildroot}%{_datadir}/openxlr
 cp -r plugin/com.emaspa.openxlr.sdPlugin %{buildroot}%{_datadir}/openxlr/
+install -dm755 %{buildroot}%{_datadir}/gnome-shell/extensions/openxlr-focus@emaspa.github.com
+install -m644 packaging/gnome/openxlr-focus@emaspa.github.com/* \
+    %{buildroot}%{_datadir}/gnome-shell/extensions/openxlr-focus@emaspa.github.com/
 find %{buildroot}%{_datadir}/openxlr -type f -exec chmod 644 {} +
 find %{buildroot}%{_datadir}/openxlr -type d -exec chmod 755 {} +
 
@@ -222,6 +226,7 @@ MSG
 %{_datadir}/applications/openxlr.desktop
 %{_datadir}/icons/hicolor/*/apps/openxlr.*
 %{_datadir}/openxlr/
+%{_datadir}/gnome-shell/extensions/openxlr-focus@emaspa.github.com/
 
 %changelog
 * Tue Oct 27 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.3.0-1

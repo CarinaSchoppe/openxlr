@@ -1,0 +1,4 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gnome-shell mutter sway xwayland openbox xterm x11-utils dbus-x11 gjs gir1.2-gtk-3.0 xvfb mesa-utils libgl1-mesa-dri fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
+RUN useradd -m -u 1001 tester
+ENV LIBGL_ALWAYS_SOFTWARE=1

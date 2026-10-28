@@ -145,10 +145,11 @@ them for a while before more is built on top.
 
 - [x] The control API on a Unix socket with peer credentials instead of
   a loopback port, so no token file is needed.
-- [ ] Routing the focused application on compositors other than KWin,
-  each with a focus source of its own. Hyprland has one, run on a
-  live session; Sway has one not yet run live; GNOME and the others have
-  none.
+- [x] Routing the focused application beyond KWin: GNOME through its Shell
+  extension, Sway, Hyprland and Niri through their own IPC, and X11 through
+  EWMH. GNOME, Sway, Niri and X11 have run in isolated live sessions;
+  Hyprland has run in a live session. The Flatpak has an optional host
+  bridge. [Setup and acceptance](focused-routing.md).
 
 ### Distribution
 

@@ -122,6 +122,12 @@ jobs:
           node --test packaging/omarchy/tests/*.test.mjs
           python3 -m json.tool packaging/omarchy/openxlr.mixer/manifest.json >/dev/null
 
+      - name: Validate the GNOME focus extension
+        run: |
+          node --check packaging/gnome/openxlr-focus@emaspa.github.com/extension.js
+          node --test packaging/gnome/tests/*.test.mjs
+          python3 -m json.tool packaging/gnome/openxlr-focus@emaspa.github.com/metadata.json >/dev/null
+
       - name: HTTP API description
         run: python3 tools/check-openapi.py docs/openapi-v1.json
 

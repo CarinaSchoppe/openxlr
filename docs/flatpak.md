@@ -188,3 +188,12 @@ Desktop-specific helper features, such as Plasma's shared maximum-volume
 preference, require helpers not included in the Freedesktop runtime. The
 normal mixer volume controls still work. The installation doctor does not
 yet inventory the manual Flatpak host setup; use the exact paths above.
+
+## Focused application routing
+
+Focused routing needs the optional host bridge. It is disabled by default
+and requires an explicit host execution permission. The bridge queries the
+host compositor and resolves audio client parent processes outside the
+sandbox. GNOME needs the bundled Shell extension installed and enabled on
+the host. See [focused routing setup](focused-routing.md#optional-flatpak-host-bridge)
+for opt-in, removal and supported desktop sessions.

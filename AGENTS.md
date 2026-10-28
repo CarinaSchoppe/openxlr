@@ -45,6 +45,7 @@ python3 tools/deck-icons.py --check  # regenerate with no flag after changing La
 node --check plugin/com.emaspa.openxlr.sdPlugin/plugin.mjs
 node --test plugin/tests/*.test.mjs
 node --test browser/tests/*.test.mjs
+node --test packaging/gnome/tests/*.test.mjs
 node --check browser/tests/chromium-integration.mjs
 python3 -I tools/browser-extension.py --check  # the Store zip (no manifest key) and the release tar.gz (the key), every referenced file present
 python3 tools/test-browser-extension.py

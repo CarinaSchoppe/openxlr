@@ -164,7 +164,7 @@
     <Border Classes="card">
       <StackPanel Spacing="6">
         <TextBlock Text="{loc:Text Key=DESKTOP}" Classes="h"/>
-        <TextBlock Text="{loc:Text Key=DesktopKeysNote}"
+        <TextBlock Text="{loc:Text Key=DesktopFocusNote}"
                    FontSize="11" Foreground="{DynamicResource Ox.Text.Muted}" TextWrapping="Wrap"/>
         <Button Name="DesktopKeysButton" Content="{loc:Text Key=DesktopKeys}" Padding="14,5" HorizontalAlignment="Left"
                 Click="OnDesktopKeys"/>

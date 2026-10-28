@@ -1,0 +1,4 @@
+FROM fedora:latest
+RUN dnf install -y niri mesa-dri-drivers dbus-daemon gtk3 gjs xorg-x11-server-Xvfb xprop dotnet-sdk-10.0 && dnf clean all
+RUN useradd -m -u 1001 tester
+ENV LIBGL_ALWAYS_SOFTWARE=1

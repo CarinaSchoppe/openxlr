@@ -2187,6 +2187,7 @@ public sealed class PipeWireAdapter
             found.Add(new AudioStream(0, appName, binary, null)
             {
                 ProcessId = ProcessId(props),
+                FlatpakInstanceId = FlatpakInstance(props),
                 IconName = Text(props, "application.icon_name"),
                 AppId = Text(props, "pipewire.access.portal.app_id") ?? Text(props, "application.id"),
             });
@@ -2267,6 +2268,7 @@ public sealed class PipeWireAdapter
             {
                 Serial = serial,
                 ProcessId = ProcessId(client) is > 0 and var pid ? pid : ProcessId(props),
+                FlatpakInstanceId = FlatpakInstance(client),
                 IconName = AppProperty("application.icon_name"),
                 // The portal's id is set by PipeWire on the client and cannot
                 // be forged by a sandboxed application, so it comes first.
@@ -2285,6 +2287,14 @@ public sealed class PipeWireAdapter
         => props.ValueKind == JsonValueKind.Object && props.TryGetProperty(key, out JsonElement v) &&
            v.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(v.GetString())
             ? v.GetString() : null;
+
+    private static string? FlatpakInstance(JsonElement props)
+    {
+        if (props.ValueKind != JsonValueKind.Object || !props.TryGetProperty("pipewire.access.portal.instance_id", out var value)) return null;
+        string text = value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : value.GetRawText();
+        return ulong.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out ulong id) && id > 0
+            ? id.ToString(System.Globalization.CultureInfo.InvariantCulture) : "invalid";
+    }
 
     private static int ProcessId(JsonElement props)
     {

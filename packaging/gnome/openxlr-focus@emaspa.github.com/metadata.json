@@ -1,0 +1,7 @@
+{
+  "uuid": "openxlr-focus@emaspa.github.com",
+  "name": "OpenXLR Focus",
+  "description": "Report the focused application's process to OpenXLR when a routing key is pressed.",
+  "shell-version": ["45", "46", "47", "48", "49", "50", "51"],
+  "url": "https://github.com/emaspa/openxlr"
+}

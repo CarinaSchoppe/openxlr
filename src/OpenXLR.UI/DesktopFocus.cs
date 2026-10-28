@@ -25,6 +25,7 @@ internal sealed class DesktopFocus(DesktopBus bus) : IPathMethodHandler
             context.ReplyIntrospectXml(["""
                 <interface name="org.openxlr.Desktop">
                   <method name="GetFocusedProcess"><arg type="u" direction="out"/></method>
+                  <method name="GetFocusedAudioProcesses"><arg type="s" direction="in"/><arg type="s" direction="out"/></method>
                   <method name="ReportFocus"><arg type="s" direction="in"/><arg type="s" direction="in"/></method>
                 </interface>
                 """u8.ToArray()]);
@@ -36,6 +37,14 @@ internal sealed class DesktopFocus(DesktopBus bus) : IPathMethodHandler
             // message reader while waiting for that callback.
             context.DisposesAsynchronously = true;
             _ = ReplyFocusAsync(context);
+        }
+        else if (context.Request.InterfaceAsString == Service && context.Request.MemberAsString == "GetFocusedAudioProcesses"
+            && context.Request.SignatureAsString == "s")
+        {
+            var reader = context.Request.GetBodyReader();
+            string candidates = reader.ReadString();
+            context.DisposesAsynchronously = true;
+            _ = ReplyFocusAsync(context, candidates);
         }
         else if (context.Request.InterfaceAsString == Service && context.Request.MemberAsString == "ReportFocus"
             && context.Request.SignatureAsString == "ss")
@@ -52,13 +61,33 @@ internal sealed class DesktopFocus(DesktopBus bus) : IPathMethodHandler
         return ValueTask.CompletedTask;
     }
 
-    private async Task ReplyFocusAsync(MethodContext context)
+    private async Task ReplyFocusAsync(MethodContext context, string? candidates = null)
     {
         try
         {
-            uint pid = await ReadAsync(context.RequestAborted);
-            using var reply = context.CreateReplyWriter("u");
-            reply.WriteUInt32(pid);
+            string? matches = null;
+            uint pid = 0;
+            if (candidates is null) pid = await ReadAsync(context.RequestAborted);
+            else
+            {
+                var requested = FocusProcesses.ParseKeys(candidates);
+                if (FlatpakEnvironment.IsFlatpak)
+                {
+                    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    if (!await _oneRequest.WaitAsync(0, deadline.Token)) throw new InvalidOperationException("a focus query is already running");
+                    try { matches = await FocusHost.ReadAsync(candidates, deadline.Token); }
+                    finally { _oneRequest.Release(); }
+                }
+                else
+                {
+                    using var deadline = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+                    deadline.CancelAfter(TimeSpan.FromSeconds(4));
+                    matches = await FocusProcesses.MatchKeysAsync(checked((int)await ReadAsync(deadline.Token)), requested, deadline.Token);
+                }
+            }
+            using var reply = context.CreateReplyWriter(matches is null ? "u" : "s");
+            if (matches is null) reply.WriteUInt32(pid);
+            else reply.WriteString(matches);
             context.Reply(reply.CreateMessage());
         }
         catch (Exception ex)

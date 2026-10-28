@@ -554,12 +554,6 @@
   <data name="DesktopKeysFocusOnly" xml:space="preserve">
     <value>Naka-on ang focus routing sa OpenDeck. Pagpili og mga channel sa ubos aron magtakda og PC shortcut.</value>
   </data>
-  <data name="DesktopKeysIntro" xml:space="preserve">
-    <value>Naggamit og KDE Plasma, Sway o Hyprland ang routing sa naka-focus nga app. I-enable kini alang sa mga OpenDeck key, dayon pagpili og mga channel sa ubos aron magtakda og PC shortcut pinaagi sa dialog sa pagtugot sa desktop. Padagana ang OpenXLR, bisan anaa sa tray.</value>
-  </data>
-  <data name="DesktopKeysNote" xml:space="preserve">
-    <value>Mga shortcut alang sa channel sa app, volume ug system output, ug focus routing sa OpenDeck nga nagkinahanglan og KDE Plasma, Sway o Hyprland.</value>
-  </data>
   <data name="DesktopKeysTitle" xml:space="preserve">
     <value>Mga desktop key sa OpenXLR</value>
   </data>

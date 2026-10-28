@@ -17,6 +17,7 @@
 , pulseaudio
 , xdg-utils
 , glib
+, xorg
 , gdk-pixbuf
 , librsvg
 , python3
@@ -124,7 +125,7 @@ buildDotnetModule {
   # The daemon shells out to amixer, parec, pw-cli, pw-loopback and gdbus
   # (focused-application routing); the UI opens links with xdg-open.
   makeWrapperArgs = [
-    "--prefix PATH : ${lib.makeBinPath [ alsa-utils pipewire pulseaudio xdg-utils glib ]}"
+    "--prefix PATH : ${lib.makeBinPath [ alsa-utils pipewire pulseaudio xdg-utils glib xorg.xprop ]}"
     # GdkPixbuf finds its SVG loader only through a loaders cache; librsvg's
     # lists its own loader beside GdkPixbuf's, as wrapGAppsHook would set it.
     "--set GDK_PIXBUF_MODULE_FILE ${librsvg.out}/${gdk-pixbuf.binaryDir}/loaders.cache"
@@ -167,6 +168,9 @@ buildDotnetModule {
 
     mkdir -p $out/share/openxlr
     cp -r plugin/com.emaspa.openxlr.sdPlugin $out/share/openxlr/
+    mkdir -p $out/share/gnome-shell/extensions/openxlr-focus@emaspa.github.com
+    cp packaging/gnome/openxlr-focus@emaspa.github.com/* \
+      $out/share/gnome-shell/extensions/openxlr-focus@emaspa.github.com/
   '';
 
   passthru = { inherit deepfilter deepfilterModel; };

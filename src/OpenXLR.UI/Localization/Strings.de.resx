@@ -562,12 +562,6 @@
   <data name="DesktopKeysFocusOnly" xml:space="preserve">
     <value>Das Routing der fokussierten Anwendung über OpenDeck ist aktiviert. Wähle unten Kanäle aus, um PC-Tastenkürzel zuzuweisen.</value>
   </data>
-  <data name="DesktopKeysIntro" xml:space="preserve">
-    <value>Das Routing der fokussierten Anwendung verwendet KDE Plasma, Sway oder Hyprland. Aktiviere es für OpenDeck-Tasten und wähle unten Kanäle für PC-Tastenkürzel über den Berechtigungsdialog des Desktops. OpenXLR muss weiterlaufen, auch im Tray.</value>
-  </data>
-  <data name="DesktopKeysNote" xml:space="preserve">
-    <value>Tastenkürzel für Anwendungskanäle, Lautstärke und Systemausgang sowie das Routing der fokussierten Anwendung über OpenDeck. Letzteres benötigt KDE Plasma, Sway oder Hyprland.</value>
-  </data>
   <data name="DesktopKeysShortcutsUnavailable" xml:space="preserve">
     <value>Dieser Desktop bietet keine globalen Tastenkürzel über das Portal an. Das Routing der fokussierten Anwendung über OpenDeck bleibt verfügbar.</value>
   </data>
@@ -3072,5 +3066,11 @@ Von OpenXLR gesteuertes Interface wählen</value>
   </data>
   <data name="NoiseButtonNameUnavailable" xml:space="preserve">
     <value>Rauschentfernung für {0}, nicht verfügbar</value>
+  </data>
+  <data name="DesktopFocusIntro" xml:space="preserve">
+    <value>Das Routing der fokussierten Anwendung unterstützt KDE Plasma, GNOME, Sway, Hyprland, Niri und X11-Desktops. GNOME unter Wayland benötigt die Erweiterung OpenXLR Focus. Aktiviere die Desktop-Integration für OpenDeck-Tasten und wähle unten PC-Tastenkürzel. OpenXLR muss weiterlaufen, auch im Systembereich.</value>
+  </data>
+  <data name="DesktopFocusNote" xml:space="preserve">
+    <value>Tastenkürzel für Anwendungskanäle, Lautstärke und Systemausgabe sowie das Routing der fokussierten Anwendung unter KDE Plasma, GNOME, Sway, Hyprland, Niri und X11-Desktops.</value>
   </data>
 </root>

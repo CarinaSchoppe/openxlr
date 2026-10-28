@@ -56,6 +56,17 @@ public sealed class FocusedApplicationTests
     }
 
     [Fact]
+    public void PipeWirePortalInstancePreservesTheProcessNamespace()
+    {
+        byte[] json = Encoding.UTF8.GetBytes("""
+            [{"id":1,"type":"PipeWire:Interface:Client","info":{"props":{"application.name":"Browser","application.process.binary":"browser","application.process.id":"2","pipewire.access.portal.instance_id":123}}},
+             {"id":2,"type":"PipeWire:Interface:Node","info":{"props":{"client.id":1,"media.class":"Stream/Output/Audio","application.process.id":999,"pipewire.access.portal.instance_id":"untrusted"}}}]
+            """);
+        Assert.Equal("2@123", Assert.Single(PipeWireAdapter.ListClients(json)).FocusProcessKey);
+        Assert.Equal("2@123", Assert.Single(PipeWireAdapter.ListStreams(json)).FocusProcessKey);
+    }
+
+    [Fact]
     public void ShortcutSettingsDropInvalidAndDuplicateIdsAndBoundTheirCount()
     {
         var settings = new DesktopKeySettings { Enabled = true, FocusChannels = [null!, "", "a/b", "valid", "valid", .. Enumerable.Range(0, 40).Select(i => "channel" + i)] }.Normalize();

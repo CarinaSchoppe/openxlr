@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using System;
 
 namespace OpenXLR.UI;
@@ -14,6 +14,7 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (FocusHost.TryRun(args)) return;
         if (BrowserNativeHost.TryRun(args)) return;
         if (InstallationCommands.TryRun(args)) return;
         // A window is already open: it shows itself, this process is done.

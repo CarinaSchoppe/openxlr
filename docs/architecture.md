@@ -39,8 +39,9 @@ flowchart TD
   a private session-bus connection and turns a press into a daemon
   command, while hidden in the tray as well. For focused-application
   routing it serves `org.openxlr.Desktop` on that bus. KWin's read-only
-  script, Sway's tree or Hyprland's active window supplies the process id
-  on demand. The daemon asks the UI for it with `gdbus`, one request at a time.
+  script, GNOME's OpenXLR Focus Shell extension, Sway's tree, Hyprland's
+  active window, Niri's focused window or X11 EWMH properties supplies the
+  process id on demand. The daemon asks the UI for it with `gdbus`, one request at a time.
 - The OpenDeck plugin is an OpenAction plugin in OpenDeck's Node runtime,
   using the same authenticated API and live choices as the UI.
 - `OpenXLR.Tui` is the terminal mixer, `openxlr-tui`. It speaks the same
@@ -206,7 +207,13 @@ application reports a different identity. A focused-application request
 carries a process id, resolved against the daemon's live audio clients,
 directly or through a client's parent chain, and never guessed from a
 window title; an id that matches no client, or several identities, is
-refused.
+refused. The optional Flatpak host bridge resolves a bounded list of audio
+process IDs outside the sandbox. The internal desktop method
+`GetFocusedAudioProcesses(s) -> s` carries comma-separated positive process IDs,
+with an `@instance` suffix for Flatpak clients, up to 1024 candidates. Exact focus takes precedence over descendants. The
+daemon validates that every returned ID was requested and rechecks the
+current audio identities before assigning. The package does not grant host
+execution permission; see [focused routing setup](focused-routing.md).
 
 ## The device protocols
 

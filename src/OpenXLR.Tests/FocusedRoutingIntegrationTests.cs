@@ -49,6 +49,13 @@ public sealed partial class MonitorVolumeIntegrationTests
             mixer.RouteFocusedApplication(stream.ProcessId, "system");
             WaitForChannel("system");
             Assert.Equal("system", mixer.Matcher.Overrides["focus-test"]);
+            Assert.Contains(stream.ProcessId.ToString(), mixer.FocusedAudioCandidates());
+            mixer.RouteFocusedAudioProcesses([stream.ProcessId.ToString()], "music");
+            WaitForChannel("music");
+            Assert.Equal("music", mixer.Matcher.Overrides["focus-test"]);
+            Assert.Throws<InvalidOperationException>(() => mixer.RouteFocusedAudioProcesses([int.MaxValue.ToString()], "system"));
+            mixer.RouteFocusedAudioProcesses([stream.ProcessId.ToString()], "system");
+            WaitForChannel("system");
             Assert.Throws<InvalidOperationException>(() => mixer.RouteFocusedApplication(stream.ProcessId, "missing"));
             Assert.Throws<InvalidOperationException>(() => mixer.RouteFocusedApplication(int.MaxValue, "system"));
             Assert.Equal("OpenXLR_ch_system", pw.StreamSinkName(stream.Serial));

@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace OpenXLR.UI;
 
-internal enum FocusCompositor { KWin, Sway, Hyprland, Unavailable }
+internal enum FocusCompositor { KWin, Sway, Hyprland, Unavailable, Gnome, Niri, X11 }
 
 /// <summary>One read on demand, from the compositor that owns this desktop session.</summary>
 internal static class CompositorFocus
@@ -23,19 +23,27 @@ internal static class CompositorFocus
         string[] names = desktop.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         bool Has(string name) => names.Contains(name, StringComparer.OrdinalIgnoreCase);
         bool kde = Has("KDE") || Has("Plasma") || Has("plasmawayland") || Has("plasmax11");
-        bool sway = Has("sway"), hyprland = Has("Hyprland");
-        if ((kde ? 1 : 0) + (sway ? 1 : 0) + (hyprland ? 1 : 0) > 1) return FocusCompositor.Unavailable;
+        bool sway = Has("sway"), hyprland = Has("Hyprland"), gnome = Has("GNOME") || Has("gnome-classic"), niri = Has("niri");
+        bool x11 = env("XDG_SESSION_TYPE") == "x11" || (string.IsNullOrWhiteSpace(env("XDG_SESSION_TYPE"))
+            && string.IsNullOrWhiteSpace(env("WAYLAND_DISPLAY")) && !string.IsNullOrWhiteSpace(env("DISPLAY")));
+        if ((kde ? 1 : 0) + (sway ? 1 : 0) + (hyprland ? 1 : 0) + (gnome ? 1 : 0) + (niri ? 1 : 0) > 1)
+            return FocusCompositor.Unavailable;
         if (kde) return FocusCompositor.KWin;
         if (sway) return FocusCompositor.Sway;
         if (hyprland) return FocusCompositor.Hyprland;
+        if (gnome) return x11 ? FocusCompositor.X11 : FocusCompositor.Gnome;
+        if (niri) return FocusCompositor.Niri;
         // Never let stale IPC variables select a different compositor on an
         // explicitly named desktop, such as GNOME.
-        if (names.Length != 0) return FocusCompositor.Unavailable;
+        if (names.Length != 0) return x11 ? FocusCompositor.X11 : FocusCompositor.Unavailable;
         sway = !string.IsNullOrWhiteSpace(env("SWAYSOCK"));
         hyprland = !string.IsNullOrWhiteSpace(env("HYPRLAND_INSTANCE_SIGNATURE"));
-        if (sway && hyprland) return FocusCompositor.Unavailable;
+        niri = !string.IsNullOrWhiteSpace(env("NIRI_SOCKET"));
+        if ((sway ? 1 : 0) + (hyprland ? 1 : 0) + (niri ? 1 : 0) > 1) return FocusCompositor.Unavailable;
         if (sway) return FocusCompositor.Sway;
         if (hyprland) return FocusCompositor.Hyprland;
+        if (niri) return FocusCompositor.Niri;
+        if (x11) return FocusCompositor.X11;
         // Source launches on Plasma did not always carry a desktop marker.
         // KWin still has to own its bus name before its script can run.
         return FocusCompositor.KWin;
@@ -45,6 +53,8 @@ internal static class CompositorFocus
         Func<string, string?>? environment = null)
     {
         var env = environment ?? Environment.GetEnvironmentVariable;
+        if (source == FocusCompositor.Gnome) return await GnomeFocus.ReadAsync(cancel);
+        if (source == FocusCompositor.X11) return await X11Focus.ReadAsync(cancel, env);
         string program;
         string[] arguments;
         int limit;
@@ -69,10 +79,20 @@ internal static class CompositorFocus
             arguments = ["-j", "-i", instance, "activewindow"];
             limit = 64 * 1024;
         }
-        else throw new InvalidOperationException("Focused routing supports KDE Plasma, Sway and Hyprland outside Flatpak.");
+        else if (source == FocusCompositor.Niri)
+        {
+            string path = env("NIRI_SOCKET") ?? "";
+            if (!Path.IsPathFullyQualified(path) || Encoding.UTF8.GetByteCount(path) > 107 || path.Any(char.IsControl))
+                throw new InvalidOperationException("Niri focused routing needs this session's absolute NIRI_SOCKET path.");
+            program = "niri";
+            arguments = ["msg", "--json", "focused-window"];
+            limit = 64 * 1024;
+        }
+        else throw new InvalidOperationException("This desktop has no focused-process source.");
 
         ProcessResult result;
-        try { result = await ProcessRunner.RunAsync(program, arguments, TimeSpan.FromSeconds(2), limit, 4096, cancel: cancel); }
+        try { result = await ProcessRunner.RunAsync(program, arguments, TimeSpan.FromSeconds(2), limit, 4096, cancel: cancel,
+            environment: source == FocusCompositor.Niri ? new System.Collections.Generic.Dictionary<string, string> { ["NIRI_SOCKET"] = env("NIRI_SOCKET")! } : null); }
         catch (Win32Exception ex) { throw new InvalidOperationException($"Focused routing needs the {program} command installed.", ex); }
         cancel.ThrowIfCancellationRequested();
         if (!result.Ok) throw new InvalidOperationException($"{program} did not return a complete focus reply within its time and size limits.");
@@ -91,6 +111,12 @@ internal static class CompositorFocus
                 if (root.TryGetProperty("mapped", out var mapped) && mapped.ValueKind != JsonValueKind.True
                     || root.TryGetProperty("hidden", out var hidden) && hidden.ValueKind != JsonValueKind.False)
                     throw new InvalidOperationException("Hyprland has no focused application window.");
+                return Process(root);
+            }
+            if (source == FocusCompositor.Niri)
+            {
+                if (!root.TryGetProperty("is_focused", out var focusedWindow) || focusedWindow.ValueKind != JsonValueKind.True)
+                    throw new InvalidOperationException("Niri has no focused application window.");
                 return Process(root);
             }
             if (source != FocusCompositor.Sway) throw new InvalidOperationException("This compositor has no JSON focus source.");

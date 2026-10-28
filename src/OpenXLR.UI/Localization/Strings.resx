@@ -2988,12 +2988,6 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   <data name="DesktopKeysConfigureUnsupported" xml:space="preserve">
     <value>This desktop cannot reopen the shortcut editor. Change bindings in the desktop's shortcut settings.</value>
   </data>
-  <data name="DesktopKeysIntro" xml:space="preserve">
-    <value>Focused application routing uses KDE Plasma, Sway or Hyprland. Enable it for OpenDeck keys, then select channels below to request PC shortcuts from the desktop portal. Keep OpenXLR running, including in the tray.</value>
-  </data>
-  <data name="DesktopKeysNote" xml:space="preserve">
-    <value>Keyboard shortcuts for application channels, volume and the system output, plus focused application routing from OpenDeck on KDE Plasma, Sway and Hyprland.</value>
-  </data>
   <data name="DesktopKeysShortcutsUnavailable" xml:space="preserve">
     <value>This desktop does not offer global shortcuts through the portal. OpenDeck focus routing remains available.</value>
   </data>
@@ -3399,5 +3393,11 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   </data>
   <data name="NoiseButtonNameUnavailable" xml:space="preserve">
     <value>{0} noise removal, unavailable</value>
+  </data>
+  <data name="DesktopFocusIntro" xml:space="preserve">
+    <value>Focused application routing supports KDE Plasma, GNOME, Sway, Hyprland, Niri and X11 desktops. GNOME on Wayland needs the OpenXLR Focus extension. Enable desktop integration for OpenDeck keys, then choose PC shortcuts below. Keep OpenXLR running, including in the tray.</value>
+  </data>
+  <data name="DesktopFocusNote" xml:space="preserve">
+    <value>Keyboard shortcuts for application channels, volume and the system output, plus focused application routing on KDE Plasma, GNOME, Sway, Hyprland, Niri and X11 desktops.</value>
   </data>
 </root>

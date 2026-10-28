@@ -14,7 +14,8 @@ internal sealed class SocketTestServer(WebApplication app) : IAsyncDisposable
 {
     public string Url => app.Urls.Single().Replace("http:", "ws:", StringComparison.Ordinal) + "/ws";
 
-    public static async Task<SocketTestServer> Start(Func<WebSocket, CancellationToken, Task> handler)
+    public static async Task<SocketTestServer> Start(Func<WebSocket, CancellationToken, Task> handler,
+        Func<HttpContext, Task>? beforeAccept = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
@@ -23,6 +24,7 @@ internal sealed class SocketTestServer(WebApplication app) : IAsyncDisposable
         app.UseWebSockets();
         app.Map("/ws", async (HttpContext context) =>
         {
+            if (beforeAccept is not null) await beforeAccept(context);
             using var socket = await context.WebSockets.AcceptWebSocketAsync();
             try { await handler(socket, app.Lifetime.ApplicationStopping); }
             catch (Exception ex) when (ex is OperationCanceledException or WebSocketException) { }

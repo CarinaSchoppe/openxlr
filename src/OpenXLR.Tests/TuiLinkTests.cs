@@ -70,6 +70,32 @@ public sealed class TuiLinkTests : IDisposable
         Assert.Equal(2, connections);
     }
 
+    [Fact]
+    public async Task AStalledHandshakeTimesOutAndTheNextConnectionReceivesMessages()
+    {
+        int attempts = 0;
+        var restored = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            await SocketTestServer.Receive(socket, stop);
+            await SocketTestServer.Send(socket, new { type = "error", message = "Restored after stalled handshake" }, stop);
+            await SocketTestServer.Receive(socket, stop);
+        }, async context =>
+        {
+            if (Interlocked.Increment(ref attempts) != 1) return;
+            // TCP connected, but no WebSocket response. Only the client's
+            // connection deadline can end this attempt and permit a retry.
+            try { await Task.Delay(Timeout.InfiniteTimeSpan, context.RequestAborted); }
+            catch (OperationCanceledException) { }
+        });
+        await using DaemonLink link = new(server.Url);
+        link.Changed += () => { if (link.LastError == "Restored after stalled handshake") restored.TrySetResult(); };
+        link.Start();
+        await restored.Task.WaitAsync(TimeSpan.FromSeconds(12));
+        Assert.Equal(2, attempts);
+        Assert.True(link.Connected);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("selection refused")]

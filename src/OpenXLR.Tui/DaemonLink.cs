@@ -226,8 +226,8 @@ internal sealed class DaemonLink : IAsyncDisposable
                 await SessionAsync().ConfigureAwait(false);
                 backoffSeconds = 1;
             }
-            catch (OperationCanceledException) { return; }
-            catch (Exception error) when (error is WebSocketException or IOException or HttpRequestException)
+            catch (OperationCanceledException) when (_stopping.IsCancellationRequested) { return; }
+            catch (Exception error) when (error is WebSocketException or IOException or HttpRequestException or OperationCanceledException)
             {
                 Status = "daemon not reachable";
                 // A failed connect, not a dropped session: say why if a reason is known.
@@ -279,7 +279,11 @@ internal sealed class DaemonLink : IAsyncDisposable
         _socket = socket;
         Status = "connecting";
         Changed?.Invoke();
-        await link.ConnectAsync(_stopping.Token).ConfigureAwait(false);
+        using (var connect = CancellationTokenSource.CreateLinkedTokenSource(_stopping.Token))
+        {
+            connect.CancelAfter(TimeSpan.FromSeconds(5));
+            await link.ConnectAsync(connect.Token).ConfigureAwait(false);
+        }
 
         Connected = true;
         Status = "connected";

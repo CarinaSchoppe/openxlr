@@ -1753,7 +1753,11 @@ A channel's `noise` in the mixer state is
   100.
 - `engines`: the engines this installation's native plugin host carries,
   from its `engines` command. Every package carries both; a build from
-  source without Rust carries only `rnnoise`. Empty without the host.
+  source without Rust carries only `rnnoise`. Empty without the host or
+  while its query fails. A failed launch, nonzero exit, timeout,
+  output-limit breach or invalid report is retried on the next query after
+  five seconds. A complete report, including an empty engine list, stays
+  cached until the helper build changes.
 - `active`: the engine heard now, or null. It lags `engine` while a change
   fades over, and while DeepFilterNet loads its model, which takes a moment
   the first time; the engine that played keeps playing meanwhile.

@@ -1025,14 +1025,19 @@ public sealed class PipeWireAdapter
     /// <summary>Whether the microphone EQ's helper is there to start.</summary>
     internal bool EqHostInstalled => File.Exists(EqHost ?? NativePluginHost.Executable);
 
-    // The engines each helper build said it carries, by its path and time.
-    private readonly Dictionary<string, IReadOnlyList<string>> _noiseEngines = new(StringComparer.Ordinal);
+    // Successful reports stay with the build. A failed probe waits before
+    // retrying, so a state snapshot neither freezes a transient failure nor
+    // starts a helper on every poll.
+    private readonly Dictionary<string, (IReadOnlyList<string> Engines, bool Complete, long At)> _noiseEngines = new(StringComparer.Ordinal);
+    private static readonly TimeSpan NoiseProbeRetryWait = TimeSpan.FromSeconds(5);
+
+    internal TimeProvider NoiseProbeTime { get; set; } = TimeProvider.System;
 
     /// <summary>
     /// The noise removal engines the microphone stage's helper carries, as its
     /// <c>engines</c> command reports them, in <see cref="MicNoise.Engines"/>
-    /// order. Asked once per build of the helper; empty without a helper and
-    /// from one that does not answer.
+    /// order. A complete report is kept per build; a failed query is retried
+    /// after five seconds. Empty without a helper and while a query fails.
     /// </summary>
     internal IReadOnlyList<string> NoiseEngines
     {
@@ -1049,15 +1054,18 @@ public sealed class PipeWireAdapter
             string key = executable + "\n" + built.Ticks.ToString(CultureInfo.InvariantCulture);
             lock (_noiseEngines)
             {
-                if (_noiseEngines.TryGetValue(key, out IReadOnlyList<string>? known)) return known;
+                if (_noiseEngines.TryGetValue(key, out var known)
+                    && (known.Complete || NoiseProbeTime.GetElapsedTime(known.At) < NoiseProbeRetryWait))
+                    return known.Engines;
                 IReadOnlyList<string> engines = [];
+                bool complete = false;
                 try
                 {
                     ProcessResult result = ProcessRunner.Run(executable, ["engines"], TimeSpan.FromSeconds(3), stdoutCap: 4096);
-                    if (result.ExitCode == 0) engines = ParseNoiseEngines(System.Text.Encoding.UTF8.GetString(result.Stdout));
+                    if (result.Ok) complete = TryParseNoiseEngines(result.StdoutText, out engines);
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or IOException or System.ComponentModel.Win32Exception) { }
-                _noiseEngines[key] = engines;
+                _noiseEngines[key] = (engines, complete, NoiseProbeTime.GetTimestamp());
                 return engines;
             }
         }
@@ -1066,21 +1074,24 @@ public sealed class PipeWireAdapter
     /// <summary>
     /// The engines in the helper's <c>engines</c> line, a JSON object whose
     /// <c>denoise</c> array names them; names this daemon does not know are
-    /// left out, and anything unreadable is no engine at all.
+    /// left out. An invalid report returns false with an empty list,
+    /// distinct from a valid report that declares no known engines.
     /// </summary>
-    internal static IReadOnlyList<string> ParseNoiseEngines(string? output)
+    internal static bool TryParseNoiseEngines(string? output, out IReadOnlyList<string> engines)
     {
+        engines = [];
         try
         {
             using var document = System.Text.Json.JsonDocument.Parse(output ?? "");
             if (document.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object
                 || !document.RootElement.TryGetProperty("denoise", out var list)
-                || list.ValueKind != System.Text.Json.JsonValueKind.Array) return [];
+                || list.ValueKind != System.Text.Json.JsonValueKind.Array) return false;
             var named = list.EnumerateArray().Where(e => e.ValueKind == System.Text.Json.JsonValueKind.String)
                 .Select(e => e.GetString()).ToHashSet(StringComparer.Ordinal);
-            return [.. MicNoise.Engines.Where(named.Contains)];
+            engines = [.. MicNoise.Engines.Where(named.Contains)];
+            return true;
         }
-        catch (System.Text.Json.JsonException) { return []; }
+        catch (System.Text.Json.JsonException) { return false; }
     }
 
     /// <summary>The duck stage's helper; null uses the installed helper beside the daemon.</summary>

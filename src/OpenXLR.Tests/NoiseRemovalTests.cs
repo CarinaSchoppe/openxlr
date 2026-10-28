@@ -115,12 +115,94 @@ public sealed class NoiseRemovalTests
     [Fact]
     public void TheEngineListIsReadFromTheHelpersOwnReport()
     {
-        Assert.Equal(["rnnoise", "deepfilternet"], PipeWireAdapter.ParseNoiseEngines("""{"denoise":["deepfilternet","rnnoise"],"rate":48000}"""));
-        Assert.Equal(["rnnoise"], PipeWireAdapter.ParseNoiseEngines("""{"denoise":["rnnoise","future"],"rate":48000}"""));
-        Assert.Empty(PipeWireAdapter.ParseNoiseEngines("usage: openxlr-lv2-host lv2 URI"));
-        Assert.Empty(PipeWireAdapter.ParseNoiseEngines(""));
-        Assert.Empty(PipeWireAdapter.ParseNoiseEngines("""{"denoise":"rnnoise"}"""));
-        Assert.Empty(PipeWireAdapter.ParseNoiseEngines(null));
+        Assert.True(PipeWireAdapter.TryParseNoiseEngines("""{"denoise":["deepfilternet","rnnoise"],"rate":48000}""", out var engines));
+        Assert.Equal(["rnnoise", "deepfilternet"], engines);
+        Assert.True(PipeWireAdapter.TryParseNoiseEngines("""{"denoise":["rnnoise","future"],"rate":48000}""", out engines));
+        Assert.Equal(["rnnoise"], engines);
+        Assert.True(PipeWireAdapter.TryParseNoiseEngines("""{"denoise":[]}""", out engines));
+        Assert.Empty(engines);
+        foreach (string? output in new[] { "usage: openxlr-lv2-host lv2 URI", "", """{"denoise":"rnnoise"}""", null })
+        {
+            Assert.False(PipeWireAdapter.TryParseNoiseEngines(output, out engines));
+            Assert.Empty(engines);
+        }
+    }
+
+    [Theory]
+    [InlineData("exit 1")]
+    [InlineData("echo broken")]
+    [InlineData("echo '{\"denoise\":{}}'")]
+    [InlineData("printf '%s' '{\"denoise\":[\"rnnoise\"]}'; printf '%5000s' ''")]
+    public void AFailedEngineProbeRetriesWithoutChangingTheHelperAndThenStaysCached(string failure)
+    {
+        string dir = Directory.CreateTempSubdirectory("openxlr-noise-probe-").FullName;
+        try
+        {
+            string helper = Path.Combine(dir, "host");
+            ExecutableScript.Write(helper, $$"""
+                probe_dir=$(dirname "$0")
+                printf 'probe\n' >> "$probe_dir/probes"
+                if [ ! -e "$probe_dir/ready" ]; then
+                    {{failure}}
+                    exit
+                fi
+                echo '{"denoise":["rnnoise","deepfilternet"],"rate":48000}'
+                """);
+            var time = new ManualTime();
+            var pw = new PipeWireAdapter { EqHost = helper, NoiseProbeTime = time };
+            Assert.Empty(pw.NoiseEngines);
+            File.WriteAllText(Path.Combine(dir, "ready"), "ready");
+            Assert.Empty(pw.NoiseEngines);
+            time.Advance(TimeSpan.FromSeconds(4));
+            Assert.Empty(pw.NoiseEngines);
+            Assert.Single(File.ReadAllLines(Path.Combine(dir, "probes")));
+
+            time.Advance(TimeSpan.FromSeconds(1));
+            Assert.Equal(["rnnoise", "deepfilternet"], pw.NoiseEngines);
+            time.Advance(TimeSpan.FromDays(1));
+            for (int i = 0; i < 10; i++) Assert.Equal(["rnnoise", "deepfilternet"], pw.NoiseEngines);
+            Assert.Equal(2, File.ReadAllLines(Path.Combine(dir, "probes")).Length);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public void ANewHelperBuildDoesNotWaitForTheFailedBuildsRetry()
+    {
+        string dir = Directory.CreateTempSubdirectory("openxlr-noise-probe-").FullName;
+        try
+        {
+            string helper = Path.Combine(dir, "host");
+            ExecutableScript.Write(helper, "exit 1");
+            var pw = new PipeWireAdapter { EqHost = helper, NoiseProbeTime = new ManualTime() };
+            Assert.Empty(pw.NoiseEngines);
+            DateTime before = File.GetLastWriteTimeUtc(helper);
+            ExecutableScript.Write(helper, """echo '{"denoise":["rnnoise","deepfilternet"],"rate":48000}'""");
+            Assert.NotEqual(before, File.GetLastWriteTimeUtc(helper));
+            Assert.Equal(["rnnoise", "deepfilternet"], pw.NoiseEngines);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public void AValidEmptyEngineReportIsCachedToo()
+    {
+        string dir = Directory.CreateTempSubdirectory("openxlr-noise-probe-").FullName;
+        try
+        {
+            string helper = Path.Combine(dir, "host");
+            ExecutableScript.Write(helper, """
+                printf 'probe\n' >> "$(dirname "$0")/probes"
+                echo '{"denoise":[]}'
+                """);
+            var time = new ManualTime();
+            var pw = new PipeWireAdapter { EqHost = helper, NoiseProbeTime = time };
+            Assert.Empty(pw.NoiseEngines);
+            time.Advance(TimeSpan.FromDays(1));
+            Assert.Empty(pw.NoiseEngines);
+            Assert.Single(File.ReadAllLines(Path.Combine(dir, "probes")));
+        }
+        finally { Directory.Delete(dir, true); }
     }
 
     [Fact]

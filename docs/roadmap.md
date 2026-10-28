@@ -167,6 +167,12 @@ features wait until the sections above are done.
   API and the Stream Deck plugin look feasible without an audio graph;
   the mixer itself would need its own audio engine and a signed driver.
   Not started.
+- NVIDIA's GPU noise removal (the Audio Effects SDK, once Maxine) as a
+  third engine. A nice to have if its licence opens up. On Linux the SDK
+  runs only on data-centre GPUs, has no aarch64 build, and its licence
+  forbids redistribution and use under an open source licence, so no
+  package could carry it. It would fit technically: 48 kHz, 10 ms frames,
+  on a worker like DeepFilterNet's.
 
 ## Not planned
 

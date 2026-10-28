@@ -89,20 +89,19 @@ public static class Localizer
         => Canonical(locale).ToUpperInvariant() is "C" or "POSIX";
 
     /// <summary>
-    /// The shipped tag for one locale name, trying the full tag and then each
-    /// shorter one: <c>de_AT.UTF-8</c> reads <c>de-AT</c>, then <c>de</c>.
+    /// The most specific shipped prefix of a locale name, on a subtag boundary:
+    /// <c>de_AT.UTF-8</c> prefers <c>de-AT</c> over <c>de</c>.
     /// </summary>
     internal static string? Match(string name, IReadOnlyList<string> shipped)
     {
         string tag = Canonical(name);
-        while (tag.Length > 0)
-        {
-            string? found = shipped.FirstOrDefault(s => string.Equals(s, tag, StringComparison.OrdinalIgnoreCase));
-            if (found is not null) return found;
-            int cut = tag.LastIndexOf('-');
-            tag = cut < 0 ? "" : tag[..cut];
-        }
-        return null;
+        string? match = null;
+        foreach (string candidate in shipped)
+            if (candidate.Length > 0 && (match is null || candidate.Length > match.Length)
+                && tag.StartsWith(candidate, StringComparison.OrdinalIgnoreCase)
+                && (tag.Length == candidate.Length || tag[candidate.Length] == '-'))
+                match = candidate;
+        return match;
     }
 
     /// <summary>

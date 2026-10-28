@@ -116,8 +116,12 @@ Chrome has no Cebuano. Keep each `$1` as written.
    dialogs. A longer caption should wrap, not clip.
 
    ```sh
-   LANG=en_US.UTF-8 LANGUAGE=<tag> dotnet run --project src/OpenXLR.UI -c Release
+   LC_ALL=en_US.UTF-8 LANGUAGE=<tag> dotnet run --project src/OpenXLR.UI -c Release
    ```
+
+   Use a non-C UTF-8 locale installed on your machine for `LC_ALL`.
+   Setting only `LANG` does not override an inherited `LC_ALL=C.UTF-8`,
+   which intentionally ignores `LANGUAGE`.
 
 6. Open a pull request with the one language. Say which windows you
    looked at, and whether a second speaker has read it.
@@ -141,8 +145,9 @@ The UI chooses its language once, when it starts:
 3. Filipino desktop locales (`fil`, including `fil_PH.UTF-8`) select
    the Tagalog catalogue (`tl`). Cebuano (`ceb`, including `ceb_PH.UTF-8`)
    is listed as Bisaya (Cebuano), distinguishing it from other Visayan languages.
-4. A regional tag the UI does not ship reads its base language, so
-   `de_AT.UTF-8` gets `de`. Chinese is matched by script: `zh_TW`,
+4. A regional or private-use tag reads the most specific shipped prefix,
+   so `de_AT.UTF-8` and `de-AT-x-personal` get `de`. Only whole subtags
+   match; a suffix does not need its own catalogue. Chinese is matched by script: `zh_TW`,
    `zh_HK` and `zh_MO` mean Traditional (`zh-Hant`), other regions mean
    Simplified (`zh-Hans`), and the old .NET names `zh-CHT` and `zh-CHS`
    map to the same two.

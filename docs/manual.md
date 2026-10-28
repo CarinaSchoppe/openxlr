@@ -3610,6 +3610,12 @@ and private copies retained across upgrades are separate from your mixer
 settings. See
 [Installation receipts and doctor](installation.md) for removal and repair.
 
+`gainlock.json`, `wave-interfaces.json` and `desktop-keys.json` must resolve
+to regular files of at most 4 MiB. An oversized file or a special file,
+including a pipe reached through a symbolic link, is ignored on load and
+left in place. Those choices start from their defaults; additional
+interface choices also report a warning.
+
 | Path | What it is |
 |---|---|
 | `~/.config/openxlr/installation.json` | startup ownership and replaced-file metadata |

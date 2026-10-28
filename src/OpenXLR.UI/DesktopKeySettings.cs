@@ -32,7 +32,7 @@ internal sealed record DesktopKeySettings
     };
     internal static DesktopKeySettings Load()
     {
-        try { return (JsonSerializer.Deserialize<DesktopKeySettings>(File.ReadAllText(FilePath), Json) ?? new()).Normalize(); }
+        try { return (JsonSerializer.Deserialize<DesktopKeySettings>(RegularFile.ReadText(FilePath, OpenXlrPaths.MaxPreferenceBytes), Json) ?? new()).Normalize(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { return new(); }
     }
     internal void Save() => OpenXlrPaths.WriteAtomicJson(FilePath, Normalize(), Json);

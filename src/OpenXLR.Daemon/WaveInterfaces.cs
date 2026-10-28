@@ -64,7 +64,7 @@ public sealed class WaveInterfaces : BackgroundService
         {
             if (File.Exists(PathName))
             {
-                string[] ids = JsonSerializer.Deserialize<string[]>(File.ReadAllText(PathName))
+                string[] ids = JsonSerializer.Deserialize<string[]>(RegularFile.ReadText(PathName, OpenXlrPaths.MaxPreferenceBytes))
                     ?? throw new JsonException("not a list of ids");
                 if (ids.Length > MaximumAdditional || ids.Any(id => !ValidId(id)) || ids.Distinct().Count() != ids.Length)
                     throw new JsonException("not a list of at most four distinct instance ids");

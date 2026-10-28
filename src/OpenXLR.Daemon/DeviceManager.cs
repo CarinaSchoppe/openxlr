@@ -210,7 +210,7 @@ public sealed class DeviceManager : BackgroundService
 
     private static HashSet<string> LoadGainLocks()
     {
-        try { return JsonSerializer.Deserialize<HashSet<string>>(File.ReadAllText(GainLockPath)) ?? []; }
+        try { return JsonSerializer.Deserialize<HashSet<string>>(RegularFile.ReadText(GainLockPath, OpenXlrPaths.MaxPreferenceBytes)) ?? []; }
         catch (Exception) { return []; }
     }
 

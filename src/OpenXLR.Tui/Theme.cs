@@ -352,6 +352,7 @@ internal static class SkinCatalog
             // The catalogue holds a reader, not a snapshot. Bound the opened
             // file again and refuse growth while reading instead of allocating
             // for whatever replaced it since the catalogue was built.
+            RegularFile.Require(path);
             using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 1);
             long length = file.Length;
             if (length > MaxFileBytes) return null;

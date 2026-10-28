@@ -147,7 +147,7 @@ public static class SkinCatalog
             if (!file.Exists) return null;
             if (file.Length > SkinFormat.MaxDocumentBytes)
                 return Broken(id, origin, folder, $"skin.json is larger than the {SkinFormat.MaxDocumentBytes / 1024} KB limit.");
-            json = File.ReadAllText(path);
+            json = RegularFile.ReadText(path, SkinFormat.MaxDocumentBytes);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

@@ -77,7 +77,10 @@ control-free text in the skin picker and the loaded palette.
 The terminal checks the 256 KiB document limit each time it reads a file,
 including after the picker has listed it. A file that exceeds the limit or
 grows during that read keeps the default palette; repairing it allows the
-next load to use it again.
+next load to use it again. Both the window and terminal refuse named pipes,
+sockets and device files before reading a skin, including when a symbolic
+link points to one. Links to ordinary files remain supported, with the byte
+limit applied to their contents.
 
 The choice is saved in
 `~/.config/openxlr/ui.json` as `"skin": "<id>"` and nowhere else: it is not
@@ -327,8 +330,8 @@ ever sent anywhere.
 The whole file is refused, and the previous appearance stays on, when:
 
 - the folder name is not a usable id;
-- `skin.json` is larger than 256 KB, or is not valid JSON, or is not a
-  JSON object;
+- `skin.json` is not a regular file, is larger than 256 KB, is not valid
+  JSON, or is not a JSON object;
 - `schema` is missing, is not a number, or is below 1;
 - `schema` is above the version this OpenXLR reads, which is `1`. The
   message says to update OpenXLR. A newer OpenXLR keeps reading schema 1

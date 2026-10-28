@@ -9,9 +9,12 @@
 //   DeepFilterNet 3 (MIT or Apache-2.0, deepfilter/): 480-sample hops through
 //   an ONNX model. Inference allocates, so it never runs on the audio thread:
 //   a worker thread of its own takes the input from one ring and puts the
-//   output in another, and the audio thread reads the output a fixed number
-//   of samples behind what it wrote. It is built in only when the helper was
-//   built with it (OPENXLR_DEEPFILTER); the `engines` command says which.
+//   output in another, and the audio thread reads the output a lag behind
+//   what it wrote. The lag follows the block size: it grows at once with a
+//   larger block and shrinks once smaller blocks have held for 2 s, moving
+//   by a 5 ms crossfade between the two read positions. It is built in only
+//   when the helper was built with it (OPENXLR_DEEPFILTER); the `engines`
+//   command says which.
 //
 // Strength is the most the noise is turned down, in dB, 0 to 100, where 100
 // leaves the engine unlimited. DeepFilterNet takes it as its attenuation
@@ -65,6 +68,7 @@ enum {
   DRY_SIZE = 1 << 15,  // the delayed input; longer than any delay here
   DF_RING = 1 << 15,   // each DeepFilterNet ring, in samples
   DF_MAX_HOP = 2048,
+  DF_SETTLE = 2 * 48000,  // how long smaller blocks hold before the lag shrinks
 };
 
 // RNNoise works on 16-bit sample values held in floats.
@@ -109,6 +113,10 @@ struct Denoise {
   DfWorker *df;          // held while it runs, or while a switch to it waits
   uint64_t df_base;      // the ring position the session started at
   uint32_t df_lag;       // ring samples between input written and output read
+  uint32_t df_from;      // the lag a move left, while df_moving counts down
+  uint32_t df_moving;    // samples left of a move between two lags
+  uint32_t df_peak;      // the most lag any block since df_window began needed
+  uint32_t df_window;    // samples since df_peak was reset
   uint64_t late;         // blocks DeepFilterNet answered late
 
   // Between the threads.
@@ -307,7 +315,7 @@ static void begin(Denoise *d, int engine) {
     d->mix = strength_mix(d);
   } else if (engine == DENOISE_DEEPFILTER) {
     d->df_base = atomic_load_explicit(&d->df->written, memory_order_relaxed);
-    d->df_lag = 0;
+    d->df_lag = d->df_moving = d->df_peak = d->df_window = 0;
   }
   atomic_store(&d->active_meter->observed, (float)engine);
   publish_latency(d);
@@ -409,19 +417,57 @@ static void run_rnnoise(Denoise *d, const float *in, float *out, uint32_t frames
   d->session += frames;
 }
 
+// The lag a block of `block` samples needs. The worker hears a hop only once
+// the block that completes it has arrived, and that block may complete it
+// with its first sample, so the lag covers the hop it collects (hop - 1) and
+// then the worker's time to answer, which comes in whole blocks: one block,
+// or as many as make up a hop when blocks are smaller, so it never has less
+// than 10 ms.
+static uint32_t df_need(uint32_t block, uint32_t hop) {
+  return hop + (hop + block - 1) / block * block;
+}
+
+// The lag the next segment reads at: at once the most a block needs, and
+// after DF_SETTLE of smaller blocks the most they needed. A change starts a
+// move from the old lag.
+static void df_follow(Denoise *d, uint32_t need, uint32_t frames) {
+  if (need > d->df_peak) d->df_peak = need;
+  d->df_window += frames;
+  uint32_t lag = d->df_lag;
+  if (need > lag) lag = need;
+  else if (d->df_window >= DF_SETTLE) {
+    if (d->df_peak < lag) lag = d->df_peak;
+    d->df_peak = need;
+    d->df_window = 0;
+  }
+  if (lag == d->df_lag) return;
+  // The session's first lag plays from the start; nothing came before it.
+  d->df_from = d->df_lag;
+  d->df_moving = d->df_lag ? FADE : 0;
+  d->df_lag = lag;
+  publish_latency(d);
+}
+
+// The worker's answer for session sample `k` read `lag` behind, or the input
+// delayed to match when there is none yet or it is late.
+static float df_read(const Denoise *d, uint64_t k, uint64_t t, uint32_t lag, uint64_t done, bool usable,
+                     bool *late) {
+  const DfWorker *w = d->df;
+  uint32_t delay = lag + w->delay;
+  float dry = dry_at(d, t, delay);
+  if (!usable || k < delay) return dry;  // nothing of this session's to answer yet
+  uint64_t j = d->df_base + k - lag;
+  if (j < done) return w->out[j & (DF_RING - 1)];
+  *late = true;
+  return dry;
+}
+
 // One segment through DeepFilterNet's worker. `block` is the size of the
 // whole block this segment belongs to, which the lag has to cover.
 static void run_deepfilter(Denoise *d, const float *in, float *out, uint32_t frames,
                            uint32_t block, uint64_t t) {
   DfWorker *w = d->df;
-  // The worker answers input from an earlier block: the lag covers this
-  // block, one hop it may be collecting and one more of slack.
-  uint32_t need = block + 2 * w->hop;
-  if (d->df_lag < need) {
-    d->df_lag = need;
-    publish_latency(d);
-  }
-  uint32_t delay = d->df_lag + w->delay;
+  df_follow(d, df_need(block, w->hop), frames);
   uint64_t written = atomic_load_explicit(&w->written, memory_order_relaxed);
   uint64_t done = atomic_load_explicit(&w->done, memory_order_acquire);
   bool usable = !atomic_load(&w->failed) && written + frames - done <= DF_RING;
@@ -433,18 +479,19 @@ static void run_deepfilter(Denoise *d, const float *in, float *out, uint32_t fra
     atomic_store(&d->df_broken, DENOISE_FELL_BEHIND);
   bool late = false;
   for (uint32_t n = 0; n < frames; n++) {
-    float dry = dry_at(d, t + n, delay);
     uint64_t k = d->session + n;
-    if (!usable || k < delay) {
-      out[n] = dry;  // nothing of this session's to answer yet
-      continue;
+    float now = df_read(d, k, t + n, d->df_lag, done, usable, &late);
+    if (d->df_moving) {
+      // Both read positions are the engine's own output, the same sound at
+      // two offsets, so they crossfade where engine and input cannot. The
+      // old one is not counted late: a shorter lag is left because the
+      // worker could not keep it.
+      bool ignored = false;
+      float a = (float)d->df_moving / FADE;
+      now += a * (df_read(d, k, t + n, d->df_from, done, usable, &ignored) - now);
+      d->df_moving--;
     }
-    uint64_t j = d->df_base + k - d->df_lag;
-    if (j < done) out[n] = w->out[j & (DF_RING - 1)];
-    else {
-      out[n] = dry;
-      late = true;
-    }
+    out[n] = now;
   }
   if (late) atomic_store(&d->late_meter->observed, (float)++d->late);
   d->session += frames;

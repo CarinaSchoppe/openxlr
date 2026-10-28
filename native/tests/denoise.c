@@ -313,6 +313,10 @@ static void check_rate(void) {
 }
 
 #if OPENXLR_DEEPFILTER
+// What DeepFilterNet's worker lag should be behind blocks of `block`: the hop
+// it collects, then whole blocks making up at least a hop for its answer.
+static size_t worker_lag(uint32_t block, uint32_t hop) { return hop + (hop + block - 1) / block * block; }
+
 static void check_deepfilter_blocks(void) {
   static const uint32_t sizes[] = {64, 1024, 4096};
   size_t model = 0;  // the model's own delay, the same whatever the blocks
@@ -320,13 +324,45 @@ static void check_deepfilter_blocks(void) {
     Host *h = stage(RATE, DENOISE_DEEPFILTER, 0);
     run(h, input, output, 3 * RATE, sizes[i]);
     size_t latency = eq_latency(h);
-    if (!model) model = latency - sizes[i] - 2 * 480;
-    assert(latency == sizes[i] + 2 * 480 + model);
+    if (!model) model = latency - worker_lag(sizes[i], 480);
+    assert(latency == worker_lag(sizes[i], 480) + model);
     size_t lag = best_lag(output, RATE, 2 * RATE, latency + 200);
     printf("DeepFilterNet in blocks of %u: latency %zu, lines up at %zu\n", sizes[i], latency, lag);
     assert(lag + 8 >= latency && lag <= latency + 8);
     release(h);
   }
+}
+
+// The lag follows the block size: up at once with larger blocks, down once
+// smaller ones have held for DF_SETTLE, and the output lines up with the
+// voice at each figure with no hop answered late.
+static void check_deepfilter_follows(void) {
+  static const struct { uint32_t block; double seconds; } parts[] = {{2048, 1.5}, {256, 3}, {1024, 1.5}};
+  Host *h = stage(RATE, DENOISE_DEEPFILTER, 0);
+  size_t model = 0, at = 0;
+  for (size_t p = 0; p < sizeof(parts) / sizeof(parts[0]); p++) {
+    size_t end = at + (size_t)(parts[p].seconds * RATE);
+    uint32_t first = 0;
+    while (at < end) {
+      block(h, input + at, output + at, parts[p].block);
+      at += parts[p].block;
+      if (!first) first = eq_latency(h);
+    }
+    size_t latency = eq_latency(h);
+    if (!model) model = latency - worker_lag(parts[p].block, 480);
+    assert(latency == worker_lag(parts[p].block, 480) + model);
+    // A larger block raises the lag from its first block on; a smaller one
+    // lowers it only after DF_SETTLE.
+    if (p > 0 && parts[p].block > parts[p - 1].block) assert(first == latency);
+    if (p > 0 && parts[p].block < parts[p - 1].block) assert(first > latency);
+    size_t from = end - RATE / 2 - latency, lag = best_lag(output, from, from + RATE / 4, latency + 200);
+    printf("DeepFilterNet from blocks of %u: latency %zu (%.1f ms), lines up at %zu\n", parts[p].block, latency,
+           latency * 1000.0 / RATE, lag);
+    assert(lag + 8 >= latency && lag <= latency + 8);
+  }
+  for (size_t n = 0; n < at; n++) assert(fabsf(output[n]) < 1.0f);
+  assert(meter(h, "denoise_late") == 0);
+  release(h);
 }
 
 // The same voice in quieter rooms. At -50 dBFS of noise the model rates the
@@ -393,6 +429,7 @@ int main(int argc, char **argv) {
   check_engine(DENOISE_DEEPFILTER, "DeepFilterNet", 15);
   check_strength(DENOISE_DEEPFILTER, "DeepFilterNet");
   check_deepfilter_blocks();
+  check_deepfilter_follows();
   check_deepfilter_quiet_rooms();
 #else
   // Asked for anyway, it passes the input through and says why.

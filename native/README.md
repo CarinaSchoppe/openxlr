@@ -451,9 +451,15 @@ passes the microphone through untouched and says so.
   minute or two much of it landed there.
   Its inference allocates, so it runs on a worker thread of its own: the
   audio thread writes into one ring, wakes the worker with a semaphore and
-  reads the other ring one block and two hops (960 samples) behind what it
-  wrote, plus the model's own 1440 samples. That is 55 ms at a quantum of
-  256 and 71 ms at 1024; a larger quantum later raises it once. Strength is
+  reads the other ring a lag behind what it wrote, on top of the model's
+  own 1440 samples. The worker hears a hop only when the block that
+  completes it arrives, so the lag is the 480 samples of the hop it collects
+  plus answering time in whole blocks. That is one block, or enough blocks
+  to make up a hop when blocks are smaller. The total is 51 ms at a quantum
+  of 256, 61 ms at 1024 and 83 ms at 2048. The lag grows at once with a
+  larger block and shrinks once smaller blocks have held for 2 s, with a
+  5 ms crossfade between the two read positions. The latency it reports
+  follows it. Strength is
   the model's attenuation limit; below 0.01 dB the library would hand the
   input back without its delay, so the wrapper never goes lower. A hop the
   worker has not answered in time plays the delayed input instead and counts

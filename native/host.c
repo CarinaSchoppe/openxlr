@@ -229,6 +229,26 @@ void host_processing_result(Host *h, bool ok, uint32_t frames) {
   atomic_store(&h->audio_error, true);
 }
 
+// Some plugins put out NaN or infinity on pure digital silence, a denoiser
+// whose noise estimate decays to zero for one, and recover once sound comes
+// back (Alt Denoiser, issue 577, within a tenth of a second). A muted
+// interface sends exactly that silence for minutes. Retiring the instance
+// there spends the restart budget on audio nobody hears and leaves the chain
+// off when the microphone is unmuted, so invalid output on silent input does
+// not count, and on sound only a run of half a second does, as with refused
+// blocks. The block itself is always silenced.
+void host_output_result(Host *h, bool finite, bool silent_input, uint32_t frames) {
+  if (finite) {
+    h->invalid_frames = 0;
+    return;
+  }
+  if (silent_input) return;
+  h->invalid_frames += frames;
+  if (h->invalid_frames < h->rate / 2) return;
+  atomic_store(&h->invalid_audio, AUDIO_INVALID_OUTPUT);
+  atomic_store(&h->audio_error, true);
+}
+
 struct pw_loop *host_loop(Host *h) { return pw_main_loop_get_loop(h->loop); }
 
 bool host_on_main_thread(Host *h) {
@@ -275,6 +295,14 @@ static bool finite_audio(float *const *buffers, unsigned channels,
   for (unsigned c = 0; c < channels; ++c)
     for (uint32_t n = 0; n < frames; ++n)
       if (!isfinite(buffers[c][n])) return false;
+  return true;
+}
+
+static bool silent_audio(float *const *buffers, unsigned channels,
+                         uint32_t frames) {
+  for (unsigned c = 0; c < channels; ++c)
+    for (uint32_t n = 0; n < frames; ++n)
+      if (buffers[c][n] != 0) return false;
   return true;
 }
 
@@ -332,20 +360,22 @@ static void process_audio(void *data, struct spa_io_position *position) {
     atomic_store(&h->invalid_audio, AUDIO_INVALID_INPUT);
     atomic_store(&h->audio_error, true);
   }
+  bool invalid_output = false;
   if (!atomic_load(&h->audio_error)) {
+    // Read before the call: a plugin may process in place.
+    bool silent = silent_audio(in, h->channels, frames);
     // Bracket the plugin's callback so the process monitor can tell a stuck
     // one from an idle node: entered and left differ only while a call is
     // outstanding, and a stuck call keeps the same entered value.
     atomic_fetch_add(&h->audio_entered, 1);
     h->backend->process(h, frames, in, out);
     atomic_fetch_add(&h->audio_left, 1);
-    if (!finite_audio(out, h->channels, frames)) {
-      atomic_store(&h->invalid_audio, AUDIO_INVALID_OUTPUT);
-      atomic_store(&h->audio_error, true);
-    }
+    invalid_output = !finite_audio(out, h->channels, frames);
+    host_output_result(h, !invalid_output, silent, frames);
   }
-  // A failed instance stays silent until the next main-loop tick stops it.
-  if (atomic_load(&h->audio_error)) {
+  // A failed instance stays silent until the next main-loop tick stops it,
+  // and an invalid block never reaches another node.
+  if (invalid_output || atomic_load(&h->audio_error)) {
     for (unsigned c = 0; c < h->channels; ++c)
       memset(out[c], 0, sizeof(float) * frames);
     if (h->tap)

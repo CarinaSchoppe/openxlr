@@ -3072,12 +3072,17 @@ why it stopped, its last message is shown after that reason and written to
 the daemon's log each time the chain stops.
 
 Native LV2, CLAP and VST3 hosts also reject non-finite audio samples (NaN or
-infinity). An invalid input never reaches the processor; an invalid output
-silences the whole block before it reaches another node. The host exits
-with the input or output named in its message, and the affected chain is
-replaced under the same restart limit. This handles a processor whose
-internal state would otherwise stay invalid until a daemon restart. Finite
-levels above unity remain unchanged; this check is not a limiter.
+infinity). An invalid input never reaches the processor: the host exits at
+once with the input named in its message. An invalid output silences the
+whole block before it reaches another node. While the plugin is getting
+pure digital silence, such as a microphone muted on the device, those
+blocks are only silenced: some plugins put out NaN after a minute of
+silence and recover on their own once sound returns. With sound coming in,
+half a second of invalid output in a row makes the host exit with the
+output named in its message. Either way the affected chain is replaced
+under the same restart limit. This handles a processor whose internal
+state would otherwise stay invalid until a daemon restart. Finite levels
+above unity remain unchanged; this check is not a limiter.
 
 A VST3 or CLAP plugin that fails to process a block of audio leaves that
 block silent, and the next block is tried. If it keeps failing for half a

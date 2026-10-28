@@ -660,8 +660,11 @@ changed, so the next build of the chain tries the filter chain again. When the
 helper is missing, or cannot run the plugin either, the insert's `error` carries
 the filter chain's reason, followed by the helper's when it was tried.
 
-Non-finite samples at a native helper's audio input or output stop that
-helper under the existing chain restart budget. Its last message names the
+Non-finite samples at a native helper's audio input stop that helper under
+the existing chain restart budget. Non-finite output silences its block. It
+counts only while the input carries sound: half a second of such blocks in
+a row stops the helper under the same budget, and blocks on an input of
+exact zeros are silenced without counting. The last message names the
 input or output in the journal and, if retries are exhausted, in the
 insert's `error`. Finite audio above unity is not rejected.
 A VST3 or CLAP processing error, including a refused CLAP processing start,

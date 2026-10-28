@@ -12,7 +12,7 @@ internal sealed class OutputsView : View
     private Task<string?>? _selectionRequest;
     private long _selectionSession;
     private readonly Dictionary<string, (string Mix, Task<string?> Request, long Session)> _pendingFeeds = [];
-    private (string Output, string Feed, int By, long Session, DateTime Until)? _sumWarning;
+    private (string Output, string Feed, int By, long Session, long Since, long KeyRevision)? _sumWarning;
 
     private List<string> SelectedOutputs(App app, Snapshot state)
     {
@@ -91,11 +91,12 @@ internal sealed class OutputsView : View
         string[] summed = feed.Split('+');
         if (summed.Length > 1)
         {
-            DateTime now = DateTime.UtcNow;
+            long now = app.Time.GetTimestamp();
             if (_sumWarning is not { } warned || warned.Output != output || warned.Feed != feed || warned.By != by
-                || warned.Session != session || now > warned.Until)
+                || warned.Session != session || warned.KeyRevision != app.KeyRevision - 1
+                || app.Time.GetElapsedTime(warned.Since, now) >= TimeSpan.FromSeconds(4))
             {
-                _sumWarning = (output, feed, by, session, now.AddSeconds(4));
+                _sumWarning = (output, feed, by, session, now, app.KeyRevision);
                 string name = state.Mixer.Mixes.FirstOrDefault(mix => mix.Id == next)?.Name ?? next;
                 app.Say($"{label} hears {summed.Length} mixes summed. Press {(by > 0 ? "Right" : "Left")} again to feed it {name} alone.");
                 return;
@@ -127,8 +128,6 @@ internal sealed class OutputsView : View
 
     public override bool Handle(KeyPress key, App app)
     {
-        // Any other key withdraws the offer to replace a summed feed.
-        if (key.Key is not (Key.Left or Key.Right)) _sumWarning = null;
         Snapshot? state = State(app);
         return state is not null && _list.Handle(key, Build(app, state));
     }

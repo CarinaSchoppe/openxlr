@@ -38,7 +38,7 @@ internal sealed class App
     private readonly List<View> _views;
     private int _helpScroll;
     private string _message = string.Empty;
-    private DateTime _messageUntil = DateTime.MinValue;
+    private long? _messageAt;
     private bool _help;
     private string? _promptTitle;
     private string _promptText = string.Empty;
@@ -51,8 +51,10 @@ internal sealed class App
     /// <param name="theme">The skin chosen for this run, saved or given at launch.</param>
     /// <param name="appearanceMode">Material's saved mode.</param>
     /// <param name="skinOverride">True when <c>--skin</c> or <c>OPENXLR_SKIN</c> chose the skin, which holds Material dark.</param>
-    public App(DaemonLink link, Theme theme, string appearanceMode = AppearanceModes.System, bool skinOverride = false)
+    /// <param name="time">The clock for temporary notices and feed confirmations.</param>
+    public App(DaemonLink link, Theme theme, string appearanceMode = AppearanceModes.System, bool skinOverride = false, TimeProvider? time = null)
     {
+        Time = time ?? TimeProvider.System;
         Link = link;
         Theme = _chosenTheme = theme;
         AppearanceMode = AppearanceModes.Normalize(appearanceMode);
@@ -66,6 +68,8 @@ internal sealed class App
     }
 
     public DaemonLink Link { get; }
+    internal TimeProvider Time { get; }
+    internal long KeyRevision { get; private set; }
 
     /// <summary>The palette being drawn with: the chosen skin, or Material's light palette in its place.</summary>
     public Theme Theme { get; private set; }
@@ -93,7 +97,7 @@ internal sealed class App
     public void Say(string message)
     {
         _message = message;
-        _messageUntil = DateTime.UtcNow.AddSeconds(4);
+        _messageAt = Time.GetTimestamp();
     }
 
     /// <summary>Asks for a line of text, and calls back when it is typed rather than cancelled.</summary>
@@ -143,6 +147,8 @@ internal sealed class App
     public void Handle(KeyPress key)
     {
         if (key.Key == Key.None) return;
+        // Global keys do not reach the current view, but withdraw its confirmations too.
+        KeyRevision++;
         Link.ClearError();
 
         if (key.Ctrl && key.Is('c')) { Stop(); return; }
@@ -357,7 +363,7 @@ internal sealed class App
             return;
         }
 
-        if (DateTime.UtcNow < _messageUntil)
+        if (_messageAt is long at && Time.GetElapsedTime(at) < TimeSpan.FromSeconds(4))
         {
             screen.TextPad(0, y, $" {_message}", screen.Width, theme.TextPrimary, theme.Card);
             return;

@@ -4157,14 +4157,17 @@ The arrows choose one mix at a time. On an output that sums two or more mixes,
 ticked in the desktop UI's feed picker, the first Left or Right sends nothing:
 the bottom line says how many mixes the output hears and which one the same
 arrow, pressed again, feeds alone. Only that second press, made while the line
-shows and before any other key, replaces the sum.
+shows and before any other key, replaces the sum. It expires after four
+seconds of elapsed time, even when the system clock changes. Switching
+sections or opening help withdraws it too.
 A refused edit returns to the reported setting and shows the error; reconnecting
 discards any unconfirmed choice. The terminal, Stream
 Deck and Omarchy clients use the daemon's reported default monitor mix, or the
 first reported monitor with an older daemon that does not report that field.
 
 The bottom line shows the current section's keys, with help and quit at
-its right end when there is room.
+its right end when there is room. Temporary messages stay there for four
+seconds; system clock corrections do not shorten or extend that time.
 `F1` or `?` opens a key table. Up and down scroll that table if
 it does not fit. An unadvertised hardware control is marked unavailable.
 Controls below the visible hardware cards appear as the selection moves.

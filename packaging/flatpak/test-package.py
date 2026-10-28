@@ -5,6 +5,10 @@ import json
 import re
 from pathlib import Path
 import base64
+import os
+import shlex
+import shutil
+import subprocess
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -79,6 +83,39 @@ class PackageTests(unittest.TestCase):
         script = (HERE / 'openxlr-flatpak-service').read_text()
         self.assertIn('--command=/app/lib/openxlr/daemon/OpenXLR.Daemon', script)
         self.assertIn('Restart=on-failure', script)
+
+    @unittest.skipUnless(shutil.which('systemd-analyze'), 'needs systemd unit parsing')
+    def test_service_paths_survive_systemd_parsing(self):
+        for suffix in ('with spaces', 'with "quotes" and back\\slash', 'with 100%q'):
+            with self.subTest(path=suffix), tempfile.TemporaryDirectory(prefix='openxlr-service-') as root:
+                base = Path(root)
+                binary = base / 'bin with spaces 100%q'
+                binary.mkdir(parents=True)
+                for name, body in (
+                    ('flatpak', 'exit 0'),
+                    ('systemctl', 'if [ "$2" = is-enabled ]; then exit 1; fi\nexit 0'),
+                ):
+                    program = binary / name
+                    program.write_text('#!/bin/sh\n' + body + '\n')
+                    program.chmod(0o755)
+                config = base / 'config'
+                data = base / suffix
+                environment = {**os.environ, 'PATH': str(binary) + os.pathsep + os.environ['PATH'],
+                               'XDG_CONFIG_HOME': str(config), 'XDG_DATA_HOME': str(data)}
+                subprocess.run(['sh', str(HERE / 'openxlr-flatpak-service')], env=environment,
+                               check=True, capture_output=True, text=True, timeout=10)
+                unit = config / 'systemd/user/openxlr-flatpak.service'
+                parsed = subprocess.run(['systemd-analyze', '--user', '--generators=no', 'verify', str(unit)],
+                                        env={**environment, 'SYSTEMD_LOG_LEVEL': 'debug',
+                                             'SYSTEMD_ENVIRONMENT_GENERATORS_PATH': str(base / 'no-generators')},
+                                        capture_output=True, text=True, timeout=15)
+                self.assertEqual(0, parsed.returncode, parsed.stderr)
+                stop = parsed.stdout.split('ExecStop:', 1)[1].split('Command Line:', 1)[1].splitlines()[0]
+                arguments = shlex.split(stop)
+                self.assertEqual(['/bin/sh', str(data / 'openxlr/openxlr-flatpak-service'), 'stop'], arguments[:3])
+                start = parsed.stdout.split('ExecStart:', 1)[1].split('Command Line:', 1)[1].splitlines()[0]
+                self.assertEqual([str(binary / 'flatpak'), 'run', '--command=/app/lib/openxlr/daemon/OpenXLR.Daemon',
+                                  'io.github.emaspa.openxlr'], shlex.split(start))
 
     def test_imports_are_private_and_do_not_grant_host_plugin_folders(self):
         permissions = json.loads((HERE / 'io.github.emaspa.openxlr.json').read_text())['finish-args']

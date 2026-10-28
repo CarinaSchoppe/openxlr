@@ -83,6 +83,9 @@ The script writes `~/.config/systemd/user/openxlr-flatpak.service`, which
 runs the Flatpak's daemon without the UI, and enables it. It refuses to
 replace a unit it did not write, or to run beside an enabled packaged
 `openxlr-daemon.service`. Run it again with `remove` to undo it.
+It honours `XDG_CONFIG_HOME` and `XDG_DATA_HOME`; spaces, quotes and percent
+signs in those paths remain part of the path when systemd starts or stops
+the service.
 
 With the service running, the UI finds the daemon already there and
 connects to it instead of starting its own. Quit then closes only the UI;

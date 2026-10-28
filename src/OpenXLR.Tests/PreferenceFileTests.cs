@@ -33,6 +33,36 @@ public sealed class PreferenceFileTests : IDisposable
     private static string UiJson => Path.Combine(UiSettings.ConfigDir, "ui.json");
     private static string DaemonJson => Path.Combine(UiSettings.ConfigDir, "daemon.json");
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DismissingAnUpdateWhileCheckingKeepsOnlyThatReleaseHidden(bool newerRelease)
+    {
+        var pending = new TaskCompletionSource<UpdateResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int checks = 0;
+        const string dismissed = "v9.9.9";
+        var updates = new UpdatesViewModel(_ => ++checks == 1
+            ? Task.FromResult(new UpdateResult(true, dismissed, "Update available", "", null))
+            : pending.Task);
+        await updates.CheckAsync(manual: true);
+        Assert.True(updates.BannerVisible);
+
+        Task checking = updates.CheckAsync(manual: true);
+        Assert.True(updates.Busy);
+        updates.DismissBanner();
+        Assert.False(updates.BannerVisible);
+        Assert.Null((UiSettings.Load() with { StartMinimized = true }).Save());
+        string reported = newerRelease ? "v9.9.10" : dismissed;
+        pending.SetResult(new UpdateResult(true, reported, "Update available", "", null));
+        await checking.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(updates.Busy);
+        Assert.Equal(newerRelease, updates.BannerVisible);
+        UiSettings saved = UiSettings.Load();
+        Assert.Equal(dismissed, saved.DismissedUpdate);
+        Assert.True(saved.StartMinimized);
+    }
+
     private static OptionsViewModel Options()
     {
         var client = new DaemonClient();

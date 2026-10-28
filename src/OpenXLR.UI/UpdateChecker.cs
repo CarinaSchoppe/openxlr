@@ -127,8 +127,7 @@ public sealed class UpdatesViewModel : ViewModelBase
     public async Task CheckAsync(bool manual, CancellationToken cancellation = default)
     {
         if (Busy) return;
-        UiSettings settings = UiSettings.Load();
-        if (!manual && !AutomaticCheckDue(settings, _clock())) return;
+        if (!manual && !AutomaticCheckDue(UiSettings.Load(), _clock())) return;
         Busy = true;
         try
         {
@@ -138,7 +137,8 @@ public sealed class UpdatesViewModel : ViewModelBase
             Title = result.Title;
             Details = result.Details;
             Url = result.Url;
-            BannerVisible = result.Available && settings.DismissedUpdate != result.Tag;
+            // The user may dismiss the notice while this request is pending.
+            BannerVisible = result.Available && UiSettings.Load().DismissedUpdate != result.Tag;
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception)

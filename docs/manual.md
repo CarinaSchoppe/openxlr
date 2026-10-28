@@ -3087,6 +3087,11 @@ hand over; unmute a member first.
 The key's LED is green for an engaged feature, red for a mute, and grey
 when the daemon is offline or the target does not exist on the
 connected interface.
+Pending dial edits are discarded when their action disappears or its
+targets or insert binding change. A cosmetic setting change keeps the
+edit, and another dial's latest edit of the same value stays pending.
+Disconnecting from the daemon clears the pending edits and local dial
+values, so a new connection starts from its own state.
 Keys and dials for an interface input, such as its mute, gain, phantom
 power and processing toggles, act on the interface whatever feeds the
 strips. Their

@@ -665,6 +665,10 @@ bottom says what runs ducking and where it sits in the signal, or why
 nothing runs it. While this computer runs it, **Reduction** shows how far
 the chosen channels are lowered now, the deepest of the ducked mixes. If
 the daemon refuses a change, the Ducking window shows why and puts its setup back.
+A delayed refusal only affects fields that have not been edited again;
+it cannot undo a newer choice, even if that choice repeats an earlier value.
+Losing the daemon connection disables the editor until a new setup arrives
+and discards replies from the old connection.
 
 On any device the [terminal mixer](#terminal-ducking) also sets the whole
 setup on its Inputs tab, a [Stream Deck key](#stream-deck) switches it on

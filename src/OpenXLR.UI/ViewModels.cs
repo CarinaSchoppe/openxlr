@@ -66,6 +66,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 ResetWaveInterfaces();
                 ResetBrowserTabs();
                 ResetAppRouting();
+                Ducking.ResetForNewConnection();
                 Inserts.ResetForNewConnection(); Inserts2.ResetForNewConnection();
                 foreach (MixViewModel mv in Mixes) mv.Inserts.ResetForNewConnection();
                 foreach (ChannelViewModel channel in Channels) channel.Inserts?.ResetForNewConnection();

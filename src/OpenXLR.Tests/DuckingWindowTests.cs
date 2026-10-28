@@ -96,9 +96,12 @@ internal static class DuckingWindowTests
         var commands = new ConcurrentQueue<JsonNode>();
         var daemon = new Daemon();
         FakeSocket? live = null;
+        int connections = 0;
+        var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var server = await SocketTestServer.Start(async (socket, stop) =>
         {
             var holder = new FakeSocket(socket, stop);
+            if (Interlocked.Increment(ref connections) > 1) await resume.Task.WaitAsync(stop);
             await holder.Push(daemon.State());
             live = holder;
             while (!stop.IsCancellationRequested)
@@ -298,9 +301,17 @@ internal static class DuckingWindowTests
             await Until(() => status.Text == Localizer.Format("DuckingStatusOnComputer", "XLR 1"));
             Layout(ducking, 640, 1000);
             AssertFits(ducking, "without a unit");
+
+            live.Abort();
+            await Until(() => !main.Ducking.IsReported && !main.Ducking.CanEdit);
+            Assert.False(Find<StackPanel>(ducking, "DuckingSetup").IsEffectivelyEnabled);
+            resume.TrySetResult();
+            await Until(() => main.DaemonConnected && main.Ducking.CanEdit);
+            Assert.True(Find<StackPanel>(ducking, "DuckingSetup").IsEffectivelyEnabled);
         }
         finally
         {
+            resume.TrySetResult();
             ducking?.Close();
             layout.Close();
             options.Close();
@@ -332,6 +343,7 @@ internal static class DuckingWindowTests
     /// <summary>The fake daemon's socket: one send at a time, from its loop or from the test.</summary>
     private sealed class FakeSocket(System.Net.WebSockets.WebSocket socket, CancellationToken stop)
     {
+        public void Abort() => socket.Abort();
         private readonly SemaphoreSlim _gate = new(1, 1);
 
         public async Task Push(JsonNode message)

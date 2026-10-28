@@ -84,6 +84,8 @@ public sealed class DuckingViewModel : ViewModelBase
     private readonly IDuckingCommands _commands;
     private readonly TimeProvider _time;
     private readonly Dictionary<string, (string Json, long Since)> _awaiting = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, long> _requests = new(StringComparer.Ordinal);
+    private long _requestRevision;
     private JsonNode? _reportedNode;
     private bool _applying;
 
@@ -272,9 +274,7 @@ public sealed class DuckingViewModel : ViewModelBase
             return;
         }
         _processing = value;
-        Expect("processing", value);
-        Refusal = null;
-        _ = Run(_commands.SetDuckingProcessingAsync(value), new() { ["processing"] = value });
+        Send(new() { ["processing"] = value }, () => _commands.SetDuckingProcessingAsync(value));
         RaiseState();
     }
 
@@ -380,12 +380,17 @@ public sealed class DuckingViewModel : ViewModelBase
     public void Apply(JsonNode? ducking, JsonNode? mixer)
     {
         _mixerRunning = mixer is JsonObject;
+        if (!_mixerRunning || ducking is not JsonObject)
+        {
+            _awaiting.Clear();
+            _requests.Clear();
+            Refusal = null;
+        }
         ReadLayout(mixer);
         if (ducking is not JsonObject)
         {
             _reported = false;
             _reportedNode = null;
-            _awaiting.Clear();
             RefreshLists();
             RaiseState();
             return;
@@ -396,6 +401,9 @@ public sealed class DuckingViewModel : ViewModelBase
         RefreshLists();
         RaiseState();
     }
+
+    /// <summary>Disable the editor and retire replies from the disconnected daemon.</summary>
+    public void ResetForNewConnection() => Apply(null, null);
 
     private void ReadLayout(JsonNode? mixer)
     {
@@ -458,28 +466,38 @@ public sealed class DuckingViewModel : ViewModelBase
 
     private static string Json(JsonNode? node) => node?.ToJsonString() ?? "null";
 
-    private void Send(Dictionary<string, object> fields)
+    private void Send(Dictionary<string, object> fields, Func<Task<string?>>? request = null)
     {
-        foreach ((string field, object value) in fields) Expect(field, value);
+        long revision = ++_requestRevision;
+        foreach ((string field, object value) in fields)
+        {
+            Expect(field, value);
+            _requests[field] = revision;
+        }
         Refusal = null;
-        _ = Run(_commands.SetDuckingAsync(fields), fields);
+        _ = Run(request ?? (() => _commands.SetDuckingAsync(fields)), fields, revision);
     }
 
     /// <summary>
-    /// Send one command. A refusal gives the fields it carried back to the
-    /// daemon's last report; an edit to another field still waiting for its
-    /// echo keeps its wait, so a report older than that edit cannot undo it.
+    /// A refusal restores only fields for which this is still the latest
+    /// command. Other edits keep their echo wait, so an older report cannot
+    /// undo them.
     /// </summary>
-    private async Task Run(Task<string?> command, Dictionary<string, object> fields)
+    private async Task Run(Func<Task<string?>> command, Dictionary<string, object> fields, long revision)
     {
         string? error;
-        try { error = await command; }
+        try { error = await command(); }
         catch (Exception ex) when (ex is InvalidOperationException or System.Net.WebSockets.WebSocketException or TimeoutException) { error = ex.Message; }
-        if (error is null) return;
+        bool current = false;
+        foreach (string field in fields.Keys)
+            if (_requests.TryGetValue(field, out long owner) && owner == revision)
+            {
+                current = true;
+                _requests.Remove(field);
+                if (error is not null) _awaiting.Remove(field);
+            }
+        if (error is null || !current) return;
         // The daemon kept its setup for these fields: show it again, and why.
-        foreach ((string field, object value) in fields)
-            if (_awaiting.TryGetValue(field, out (string Json, long Since) awaited) && awaited.Json == Json(JsonSerializer.SerializeToNode(value)))
-                _awaiting.Remove(field);
         Refusal = error;
         if (_reportedNode is { } reported) Take(reported);
         RefreshLists();

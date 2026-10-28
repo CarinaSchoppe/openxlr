@@ -28,7 +28,7 @@ public sealed class MicNoiseViewModel : ViewModelBase
 
     private readonly INoiseCommands _commands;
     private readonly TimeProvider _time;
-    private bool _enabled, _available;
+    private bool _enabled, _available, _detached;
     private string _engine = MicNoise.RnNoise;
     private double _strength = MicNoise.DefaultStrength;
     private IReadOnlyList<string> _engines = [];
@@ -69,7 +69,7 @@ public sealed class MicNoiseViewModel : ViewModelBase
         get => _enabled;
         set
         {
-            if (!Set(ref _enabled, value)) return;
+            if (_detached || !Set(ref _enabled, value)) return;
             _enabledAt = _time.GetTimestamp();
             _ = _commands.SetNoiseRemovalAsync(Channel, enabled: value);
             RaiseStatus();
@@ -91,6 +91,7 @@ public sealed class MicNoiseViewModel : ViewModelBase
     /// <summary>Choose an engine the helper carries; any other is ignored.</summary>
     public void ChooseEngine(string engine)
     {
+        if (_detached) return;
         if (engine == _engine || MicNoise.EngineIndex(engine) < 0 || !_engines.Contains(engine))
         {
             RaiseEngine();   // a press on the lit side leaves it lit
@@ -109,6 +110,7 @@ public sealed class MicNoiseViewModel : ViewModelBase
         get => _strength;
         set
         {
+            if (_detached) return;
             double snapped = Math.Clamp(MicNoise.SnapStrength(value), MicNoise.MinStrength, MicNoise.MaxStrength);
             if (!Set(ref _strength, snapped)) return;
             _strengthAt = _time.GetTimestamp();
@@ -170,7 +172,7 @@ public sealed class MicNoiseViewModel : ViewModelBase
     /// <summary>Take the channel's <c>noise</c> from a state push.</summary>
     internal void Apply(JsonNode? noise)
     {
-        if (noise is not JsonObject n) return;
+        if (_detached || noise is not JsonObject n) return;
         _engines = n["engines"] is JsonArray list
             ? [.. list.Select(e => e?.GetValue<string>()).OfType<string>()]
             : [];
@@ -218,5 +220,10 @@ public sealed class MicNoiseViewModel : ViewModelBase
     }
 
     /// <summary>The channel left: nothing more is sent.</summary>
-    internal void Detach() => SliderSync.Forget($"noise:{Channel}");
+    internal void Detach()
+    {
+        if (_detached) return;
+        _detached = true;
+        SliderSync.Forget($"noise:{Channel}");
+    }
 }

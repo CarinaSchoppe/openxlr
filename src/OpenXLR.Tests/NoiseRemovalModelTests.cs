@@ -89,6 +89,57 @@ public sealed class NoiseRemovalModelTests
     });
 
     [Fact]
+    public void ARemovedInputCannotSendEdits() => TestUi.Run(() =>
+    {
+        var sent = new Recorder();
+        var noise = new MicNoiseViewModel(sent, "guest", "Guest", new ManualTime());
+        noise.Apply(State());
+        noise.Strength = 24;
+        noise.Detach();
+
+        noise.Enabled = true;
+        noise.ChooseEngine("deepfilternet");
+        noise.Strength = 20;
+        SliderSync.FlushPending();
+        Assert.Empty(sent.Sent);
+    });
+
+    [Fact]
+    public void ARemovedInputsLateStateDoesNotChangeItsControls() => TestUi.Run(() =>
+    {
+        var sent = new Recorder();
+        var noise = new MicNoiseViewModel(sent, "guest", "Guest", new ManualTime());
+        noise.Apply(State(strength: 24));
+        noise.Detach();
+        noise.Apply(State(enabled: true, engine: "deepfilternet", strength: 50));
+        Assert.False(noise.Enabled);
+        Assert.True(noise.IsRnNoise);
+        Assert.Equal(24, noise.Strength);
+        Assert.Empty(sent.Sent);
+    });
+
+    [Fact]
+    public void DetachingAnOldInputAgainKeepsItsReplacementsPendingEdit() => TestUi.Run(() =>
+    {
+        var sent = new Recorder();
+        var old = new MicNoiseViewModel(sent, "guest", "Guest", new ManualTime());
+        old.Apply(State());
+        old.Detach();
+        var replacement = new MicNoiseViewModel(sent, "guest", "New guest", new ManualTime());
+        replacement.Apply(State());
+        replacement.Strength = 30;
+        old.Detach();
+        SliderSync.FlushPending();
+        Assert.True(sent.Sent.TryDequeue(out var change));
+        Assert.Equal(("guest", (bool?)null, (string?)null, (double?)30), change);
+        replacement.Enabled = true;
+        Assert.True(sent.Sent.TryDequeue(out change));
+        Assert.Equal(("guest", (bool?)true, (string?)null, (double?)null), change);
+        Assert.Empty(sent.Sent);
+        replacement.Detach();
+    });
+
+    [Fact]
     public void DeepFilterNetIsOfferedOnlyWhenTheHelperCarriesIt() => TestUi.Run(() =>
     {
         var sent = new Recorder();

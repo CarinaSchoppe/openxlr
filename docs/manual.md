@@ -1316,7 +1316,9 @@ engines. A build from source without Rust offers RNNoise only, and the
 Shape step says so.
 
 The setting is saved with the mixer and in profiles. A profile saved
-before noise removal leaves it as it is.
+before noise removal leaves it as it is. Removing an input discards its
+pending strength edit and stops its old noise controls from changing a
+replacement input.
 
 <a name="microphone-eq"></a>
 **Microphone EQ.** XLR 1, XLR 2 and every capture input on one mono port

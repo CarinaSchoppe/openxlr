@@ -994,7 +994,9 @@ the chain's own window:
   replaces this chain with the selected preset; a preset saved from one
   chain loads on any other.
   **Import preset** and **Export preset** move one preset in or out as a
-  file; importing only adds it to the list.
+  file; importing only adds it to the list. A local export replaces the
+  chosen file atomically with user-only read and write access and keeps
+  the export folder's permissions.
 
 The controls window of an effect has **Presets** too, for presets of that
 one plugin: loading one changes only that effect and leaves the rest of

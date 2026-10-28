@@ -15,6 +15,51 @@ public sealed class EffectPresetFileTests : IDisposable
         [{"id":"one","kind":"lv2","plugin":"urn:test","label":"Speech","bypass":true,"nativeHost":false,"params":{"gain":0.5}}]
         """)!.AsArray());
 
+    private const UnixFileMode ReadableDirectory = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+        | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute;
+    private const UnixFileMode SharedDirectory = ReadableDirectory | UnixFileMode.GroupWrite;
+    private const UnixFileMode StickyDirectory = SharedDirectory | UnixFileMode.OtherWrite | UnixFileMode.StickyBit;
+
+    [Theory]
+    [InlineData(ReadableDirectory)]
+    [InlineData(SharedDirectory)]
+    [InlineData(StickyDirectory)]
+    public async Task ALocalExportKeepsItsChosenDirectoryPermissions(UnixFileMode mode)
+    {
+        if (OperatingSystem.IsWindows()) return;
+        string directory = Directory.CreateDirectory(Path.Combine(_directory, "exports")).FullName;
+        File.SetUnixFileMode(directory, mode);
+        string path = Path.Combine(directory, "speech.openxlr-effects.json");
+        var preset = new EffectChainPreset("Speech", Chain());
+
+        EffectPresetFiles.WriteLocal(path, EffectPresetFiles.Encode(preset));
+
+        Assert.Equal(mode, File.GetUnixFileMode(directory));
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(path));
+        await using var input = File.OpenRead(path);
+        EffectChainPreset restored = await EffectPresetFiles.DecodeAsync(input);
+        Assert.Equal(preset.Name, restored.Name);
+        Assert.True(JsonNode.DeepEquals(preset.Chain.Inserts, restored.Chain.Inserts));
+        Assert.Equal([path], Directory.GetFiles(directory));
+    }
+
+    [Fact]
+    public void AFailedLocalExportKeepsTheDirectoryAndItsOtherFiles()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        string directory = Directory.CreateDirectory(Path.Combine(_directory, "exports")).FullName;
+        File.SetUnixFileMode(directory, SharedDirectory);
+        string neighbor = Path.Combine(directory, "previous.json");
+        File.WriteAllText(neighbor, "previous preset");
+        string blocked = Directory.CreateDirectory(Path.Combine(directory, "speech.openxlr-effects.json")).FullName;
+
+        Assert.ThrowsAny<IOException>(() => EffectPresetFiles.WriteLocal(blocked, EffectPresetFiles.Encode(new("Speech", Chain()))));
+
+        Assert.Equal(SharedDirectory, File.GetUnixFileMode(directory));
+        Assert.Equal("previous preset", File.ReadAllText(neighbor));
+        Assert.Equal([neighbor], Directory.GetFiles(directory));
+    }
+
     [Fact]
     public async Task PortablePresetsRoundTripAndImportDoesNotChangeStoredOrLiveChains()
     {

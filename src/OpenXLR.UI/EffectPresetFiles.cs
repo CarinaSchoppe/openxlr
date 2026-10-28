@@ -71,7 +71,7 @@ internal static class EffectPresetFiles
         // replacement must not leave half of an existing preset behind.
         if (file.TryGetLocalPath() is { } path)
         {
-            OpenXlrPaths.WriteAtomic(path, System.Text.Encoding.UTF8.GetString(bytes));
+            WriteLocal(path, bytes);
             return;
         }
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -81,4 +81,10 @@ internal static class EffectPresetFiles
         await stream.WriteAsync(bytes, limit.Token);
         await stream.FlushAsync(limit.Token);
     }
+
+    /// <summary>Publish an encoded preset atomically at the user's chosen local path.</summary>
+    internal static void WriteLocal(string path, byte[] bytes)
+        // The export directory belongs to the user; only the preset is private.
+        => OpenXlrPaths.WriteAtomic(path, bytes, privatePermissions: false,
+            fileMode: UnixFileMode.UserRead | UnixFileMode.UserWrite);
 }

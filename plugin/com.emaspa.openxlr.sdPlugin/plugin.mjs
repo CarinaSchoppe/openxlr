@@ -686,6 +686,16 @@ function dialTurn(key, value, send) {
   send();
 }
 
+// A recalled profile must follow earlier turns on this connection, and its
+// values must replace the dial's warm local value as soon as state arrives.
+function flushDialTurns() {
+  const pending = [...dialSends.values()].filter(entry => entry.timer);
+  for (const entry of pending) clearTimeout(entry.timer);
+  dialSends.clear();
+  dialTurns.clear();
+  for (const entry of pending) entry.send();
+}
+
 // A capture input's own gain on a gain dial: its source's volume in dB over
 // the range the daemon reports. The source has no mute OpenXLR writes, so the
 // dial shows the channel muted when every one of its sends is, as Line In's does.
@@ -859,7 +869,10 @@ function onKeyDown(context, inst) {
       cmd({ cmd: "setInsertBypass", channel: ch, insertId: ins.id, value: cur });
   }
   else if (t === "auxPort") cmd({ cmd: "setAuxPortEnabled", value: !cur });
-  else if (isProfileTarget(t)) cmd({ cmd: "loadProfile", name: t.slice(8) });   // re-applies when already lit
+  else if (isProfileTarget(t)) {
+    flushDialTurns();
+    cmd({ cmd: "loadProfile", name: t.slice(8) });   // re-applies when already lit
+  }
   else if (t === "softLowCut") {
     const hz = mixer()?.lowCutHz ?? 0;
     cmd({ cmd: "setLowCutHz", value: hz === 0 ? 80 : hz === 80 ? 120 : 0 });

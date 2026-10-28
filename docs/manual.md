@@ -3087,6 +3087,9 @@ hand over; unmute a member first.
 The key's LED is green for an engaged feature, red for a mute, and grey
 when the daemon is offline or the target does not exist on the
 connected interface.
+Recalling a profile from a key sends any pending dial turns first, so a
+delayed turn cannot overwrite the recalled values. The dials then show and
+step from the profile's values as soon as its state arrives.
 Keys and dials for an interface input, such as its mute, gain, phantom
 power and processing toggles, act on the interface whatever feeds the
 strips. Their

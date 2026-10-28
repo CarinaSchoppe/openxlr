@@ -4,8 +4,12 @@ namespace OpenXLR.Core.Mixing;
 /// How often one insert chain may be rebuilt for dying on its own. A plugin
 /// that crashes the moment it starts would otherwise be started again on
 /// every sweep, and rebuilding an input chain interrupts the microphone, so a
-/// chain that keeps failing is left off with an error until it is changed or
-/// the window passes.
+/// chain that keeps failing is left off with an error until it is changed.
+/// Nothing retries it when the window passes, so a plugin that always crashes
+/// cannot keep cutting the microphone out; the window only decides whether a
+/// later rebuild of the route, such as a recall, includes the chain again.
+/// The EQ, ducking and delay stages share this policy, and their own sweeps
+/// do start them again once the window has passed.
 /// </summary>
 internal sealed class RestartPolicy(Func<long> clock, int limit = 3, long windowMs = 300_000)
 {

@@ -122,6 +122,11 @@ The idle graph allocation check measures reads on a dedicated warmed thread,
 so test-runner diagnostic allocations are outside the measured interval. It
 still requires zero bytes and the same cached snapshot across 10,000 reads.
 
+The application icon cache tests keep weak references to changing metadata,
+then collect garbage to check that old hints can be released. Positive and
+negative lookups share a fixed entry budget, and a hint longer than the
+resolver accepts must not be kept just because another hint found an icon.
+
 Tests of retries, cancellation and shutdown wait on a handshake with a
 deadline, not on timer scheduling or on which thread wins a race. A test
 that waits for a helper process to exit also waits for the output it

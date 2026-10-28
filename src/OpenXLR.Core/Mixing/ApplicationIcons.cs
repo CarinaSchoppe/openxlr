@@ -219,16 +219,25 @@ public sealed class DesktopEntryIndex
 /// desktop entry's icon by application id, by process binary and by name,
 /// or the binary itself as a name. The result is a freedesktop icon name or
 /// an absolute image path, as a desktop entry's Icon key holds it; a client
-/// finds the file through its icon theme. Lookups are kept, and the entries
+/// finds the file through its icon theme. Recent lookups are kept within a
+/// fixed entry and hint-length budget, and the entries
 /// are read again only when one of the directories changed.
 /// </summary>
 public sealed class ApplicationIconResolver
 {
+    private const int MaxCachedHints = 1024, MaxHintLength = 256;
+
+    private sealed class Snapshot(DesktopEntryIndex index)
+    {
+        public DesktopEntryIndex Index { get; } = index;
+        public ConcurrentDictionary<ApplicationIconHints, IconMatch?> Cache { get; } = new();
+    }
+
     private readonly Func<IReadOnlyList<string>> _directories;
     private readonly TimeSpan _checkInterval;
     private readonly Lock _refresh = new();
-    private readonly ConcurrentDictionary<ApplicationIconHints, IconMatch?> _cache = new();
-    private DesktopEntryIndex _index = DesktopEntryIndex.Empty;
+    private readonly Lock _cacheGate = new();
+    private Snapshot _current = new(DesktopEntryIndex.Empty);
     private string? _stamp;
     private long _checkedAt;
     private volatile bool _read;
@@ -240,7 +249,7 @@ public sealed class ApplicationIconResolver
     }
 
     /// <summary>The entries the last refresh read.</summary>
-    public DesktopEntryIndex Index => Volatile.Read(ref _index);
+    public DesktopEntryIndex Index => Volatile.Read(ref _current).Index;
 
     /// <summary>
     /// Read the entries again when a directory changed since the last read.
@@ -262,8 +271,7 @@ public sealed class ApplicationIconResolver
             }));
             if (stamp != _stamp)
             {
-                Volatile.Write(ref _index, DesktopEntryIndex.Scan(dirs));
-                _cache.Clear();
+                Volatile.Write(ref _current, new Snapshot(DesktopEntryIndex.Scan(dirs)));
                 _stamp = stamp;
             }
             Interlocked.Exchange(ref _checkedAt, Environment.TickCount64);
@@ -272,7 +280,24 @@ public sealed class ApplicationIconResolver
     }
 
     /// <summary>The icon for these hints from the entries already read, or null. Never touches the disk.</summary>
-    public IconMatch? Resolve(ApplicationIconHints hints) => _cache.GetOrAdd(hints, h => Resolve(Index, h));
+    public IconMatch? Resolve(ApplicationIconHints hints)
+    {
+        Snapshot snapshot = Volatile.Read(ref _current);
+        // A hint too long to use still need not suppress the other hints,
+        // but must not keep an arbitrarily large string in the cache key.
+        if (hints.IconName is { Length: > MaxHintLength } || hints.AppId is { Length: > MaxHintLength }
+            || hints.Binary is { Length: > MaxHintLength } || hints.AppName is { Length: > MaxHintLength })
+            return Resolve(snapshot.Index, hints);
+        if (snapshot.Cache.TryGetValue(hints, out IconMatch? cached)) return cached;
+        IconMatch? match = Resolve(snapshot.Index, hints);
+        lock (_cacheGate)
+        {
+            if (snapshot.Cache.TryGetValue(hints, out cached)) return cached;
+            if (snapshot.Cache.Count >= MaxCachedHints) snapshot.Cache.Clear();
+            snapshot.Cache[hints] = match;
+        }
+        return match;
+    }
 
     internal static IconMatch? Resolve(DesktopEntryIndex index, ApplicationIconHints hints)
     {
@@ -309,6 +334,6 @@ public sealed class ApplicationIconResolver
         if (string.IsNullOrWhiteSpace(value)) return null;
         value = value.Trim();
         if (value.EndsWith(" (deleted)", StringComparison.Ordinal)) value = value[..^10];
-        return value.Length > 256 || value.Any(char.IsControl) ? null : value;
+        return value.Length > MaxHintLength || value.Any(char.IsControl) ? null : value;
     }
 }

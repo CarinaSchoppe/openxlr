@@ -12,7 +12,7 @@
 %global deepfilter_version 0.5.6
 
 Name:           openxlr
-Version: 0.3.0
+Version: 0.3.1
 Release:        1%{?dist}
 Summary:        Linux Wave Link replacement for Elgato XLR interfaces and Wave microphones
 # OpenXLR is GPL-3.0-only. The native helper links RNNoise (BSD-3-Clause),
@@ -224,6 +224,17 @@ MSG
 %{_datadir}/openxlr/
 
 %changelog
+* Wed Oct 28 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.3.1-1
+- Block size option in Options sets PipeWire's block for OpenXLR's graph
+- Level meters ask for PipeWire's default block instead of 50 ms
+- DeepFilterNet's delay follows the audio block
+- A plugin putting out NaN on pure silence keeps running
+- Capture gain range lookups retry after a failure
+- Mic setup keeps the microphone on the channel while it starts and stops
+- Fixes for the hardware EQ after long uptimes and for DeepFilterNet workers
+- Fixes for noise controls, update notices, preset export and Deck dials
+- Terminal mixer and browser companion fixes
+
 * Tue Oct 27 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.3.0-1
 - Mixer: noise removal per microphone with RNNoise or DeepFilterNet 3, built into every package.
 - Mic setup: a guided window for position, level, listening and shape, replacing Sound Check, with a gain suggestion.

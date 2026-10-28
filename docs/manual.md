@@ -1478,7 +1478,10 @@ the input's route, and the plugin host is not needed.
   EQ while OpenXLR runs, OpenXLR writes its own back.
 - Moving the EQ between the unit and this computer switches the old place
   off before the new one comes on, so your voice is never equalised twice;
-  you may hear a moment without the EQ.
+  you may hear a moment without the EQ. The wait for the unit to confirm
+  the switch is bounded to one second, even after a long computer uptime.
+  Hardware EQ edits are sent at most ten times per second, with the first
+  edit sent at once and the final value kept for the next write.
 - When OpenXLR stops, or you unplug the unit, the unit keeps running the
   EQ it last held, as it keeps its gain and low cut. So does an
   additional interface no microphone carries, and every unit while the

@@ -240,6 +240,23 @@ public sealed class DeviceEqMixerTests
     }
 
     [Fact]
+    public void EqReleaseStillExpiresAcrossTheLongUptimeTimestampBoundary()
+    {
+        var time = new ManualTime(timestampFrequency: 1_000_000_000);
+        // The one-second release straddles the timestamp-to-ms overflow.
+        time.Advance(TimeSpan.FromTicks(long.MaxValue / 1000 / 100 - TimeSpan.TicksPerSecond / 2));
+        var port = new Port();
+        using Mixer mixer = Dock1(port, time: time);
+        mixer.SetEqProcessing("xlr1", "software");
+        time.Advance(Mixer.EqReleaseWait - TimeSpan.FromMilliseconds(1));
+        mixer.SyncDeviceEq();
+        Assert.False(mixer.EqWantsSoftwareStage("xlr1"));
+        time.Advance(TimeSpan.FromMilliseconds(1));
+        mixer.SyncDeviceEq();
+        Assert.True(mixer.EqWantsSoftwareStage("xlr1"));
+    }
+
+    [Fact]
     public async Task SoundCheckWaitsForTheUnitsOffBeforeRecordingAndAtMostTheWait()
     {
         // A unit that confirms at once: the record goes ahead without the clock moving.

@@ -13,7 +13,10 @@ public sealed partial class Mixer
 {
     private readonly Dictionary<string, CaptureGainStatus> _captureGains = new(StringComparer.Ordinal);
     private static readonly TimeSpan HardwareMinimumRetry = TimeSpan.FromSeconds(10);
-    private readonly Dictionary<string, (double? Value, long? FailedAt)> _hardwareMinimums = new(StringComparer.Ordinal);
+    // Each retry runs amixer under the mixer lock, up to its timeout, so a
+    // card that keeps failing is given up on and keeps the fallback range.
+    private const int HardwareMinimumRetries = 3;
+    private readonly Dictionary<string, (double? Value, long? FailedAt, int Failures)> _hardwareMinimums = new(StringComparer.Ordinal);
     private string? _captureGainKey;
     private long? _captureGainRetrySince;
 
@@ -107,8 +110,10 @@ public sealed partial class Mixer
     /// <summary>
     /// The device's lowest hardware gain, read once per source from the ALSA
     /// capture control whose highest gain the base volume stands for; null
-    /// for a software level, without a card or a matching control. Failed
-    /// helper calls are retried after a bounded delay, even at unchanged volume.
+    /// for a software level, without a card or a matching control. A failed
+    /// helper call is retried after a delay, even at unchanged volume, up to
+    /// <see cref="HardwareMinimumRetries"/> times; a missing amixer is an
+    /// answer like a missing control and is not retried.
     /// </summary>
     private double? HardwareMinimumLocked(SourceVolume volume, out long? failedAt)
     {
@@ -121,11 +126,12 @@ public sealed partial class Mixer
             failedAt = known.FailedAt;
             return known.Value;
         }
-        string? controls = PipeWireAdapter.AlsaControls(card);
+        string? controls = PipeWireAdapter.AlsaControls(card, out bool noAmixer);
         double? found = controls is not null ? CaptureGain.HardwareMinimum(controls, -CaptureGain.VolumeDb(volume.BaseVolume)) : null;
-        if (controls is null) failedAt = Time.GetTimestamp();
+        int failures = controls is null && !noAmixer ? known.Failures + 1 : 0;
+        if (failures is > 0 and <= HardwareMinimumRetries) failedAt = Time.GetTimestamp();
         if (_hardwareMinimums.Count >= 64) _hardwareMinimums.Clear();
-        _hardwareMinimums[key] = (found, failedAt);
+        _hardwareMinimums[key] = (found, failedAt, failures);
         return found;
     }
 }

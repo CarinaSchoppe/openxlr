@@ -231,6 +231,45 @@ public sealed class CaptureGainTests
     }
 
     [Fact]
+    public void AProbeThatKeepsFailingIsGivenUpAfterThreeRetries()
+    {
+        using var fake = new FakeAudio();
+        var time = new ManualTime();
+        fake.Mixer.Time = time;
+        fake.FailProbe(true);
+        fake.Mixer.SyncCaptureGains();
+        for (int retry = 1; retry <= 3; retry++)
+        {
+            fake.Clear();
+            time.Advance(TimeSpan.FromSeconds(10));
+            fake.Mixer.SyncCaptureGains();
+            Assert.Single(fake.Calls, c => c == "amixer -c 3 contents");
+        }
+        // Each attempt can hold the mixer lock for amixer's timeout, so the
+        // fallback range is kept from here on.
+        fake.Clear();
+        time.Advance(TimeSpan.FromMinutes(5));
+        Assert.False(fake.Mixer.SyncCaptureGains());
+        Assert.Empty(fake.Calls);
+        Assert.Equal(-6, fake.Mixer.Snapshot().Channels.Single(c => c.Id == "brio").CaptureGain!.MinDb);
+    }
+
+    [Fact]
+    public void AMissingAmixerIsAnAnswerAndIsNotRetried()
+    {
+        using var fake = new FakeAudio();
+        var time = new ManualTime();
+        fake.Mixer.Time = time;
+        fake.NoAmixer();
+        Assert.True(fake.Mixer.SyncCaptureGains());
+        Assert.Equal(-6, fake.Mixer.Snapshot().Channels.Single(c => c.Id == "brio").CaptureGain!.MinDb);
+        fake.Clear();
+        time.Advance(TimeSpan.FromMinutes(1));
+        Assert.False(fake.Mixer.SyncCaptureGains());
+        Assert.Empty(fake.Calls);
+    }
+
+    [Fact]
     public void ASuccessfulProbeWithoutAMatchingRangeIsStillCached()
     {
         using var fake = new FakeAudio();
@@ -367,6 +406,7 @@ public sealed class CaptureGainTests
             else File.Delete(path);
         }
         public void Controls(string controls) => File.WriteAllText(Path.Combine(_dir, "controls"), controls);
+        public void NoAmixer() => File.Delete(Path.Combine(_dir, "amixer"));
 
         public FakeAudio()
         {

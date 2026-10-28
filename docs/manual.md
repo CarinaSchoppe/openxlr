@@ -3741,10 +3741,12 @@ control does in alsamixer. Its range is the device's own: a Logitech BRIO
 goes from +18 to +54 dB. A source without a hardware control has a
 software level instead, from -60 to +10 dB. At 0 dB the sound passes as it
 arrives.
-If the hardware-range lookup fails, OpenXLR temporarily uses a range
-extending 60 dB below the maximum and retries after ten seconds, even if
-the source volume has not changed. Successful lookups, including those
-with no matching control, remain cached.
+If the hardware-range lookup fails, OpenXLR uses a range extending 60 dB
+below the maximum and tries again after ten seconds, even if the source
+volume has not changed. After three more failures it keeps that range
+until the daemon restarts. Without `amixer` (the `alsa-utils` package)
+there is no lookup to retry, so the range stays at that fallback, as it
+does when the card has no matching control. Successful lookups are cached.
 The gain sits over the channel's volume in an input rack, as a fader over
 the volume in a mix matrix row, and as a Gain row above Volume in the
 classic INPUTS block. Its readout shows the volume while you move the

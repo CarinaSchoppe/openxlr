@@ -813,15 +813,26 @@ public sealed class PipeWireAdapter
     }
 
     /// <summary>The controls of one ALSA card as <c>amixer -c N contents</c> prints them, or null.</summary>
-    public static string? AlsaControls(string card)
+    public static string? AlsaControls(string card) => AlsaControls(card, out _);
+
+    /// <summary>
+    /// The same, saying whether amixer is missing altogether: that answer
+    /// stays true until the user installs it, unlike a failed run.
+    /// </summary>
+    public static string? AlsaControls(string card, out bool noAmixer)
     {
+        noAmixer = false;
         try
         {
             ProcessResult result = ProcessRunner.Run("amixer", ["-c", card, "contents"], TimeSpan.FromSeconds(2),
                 stdoutCap: 1024 * 1024, stderrCap: 64 * 1024);
             return result is { TimedOut: false, Truncated: false, Incomplete: false, ExitCode: 0 } ? result.StdoutText : null;
         }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { return null; }   // no amixer
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            noAmixer = true;
+            return null;
+        }
     }
 
     private string? TryRun(string exe, params string[] args)

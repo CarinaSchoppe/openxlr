@@ -71,6 +71,13 @@ internal static class ApplicationIconWindowTests
         // GdkPixbuf and its SVG module are a desktop's, not a test runner's.
         _svg = SvgRaster.Render(svg, 18) is not null;
         ApplicationIconImages.Lookup = new IconThemeLookup([Path.Combine(_root, "icons")], [Path.Combine(_root, "pixmaps")], null);
+        // A row keeps using its image when newer lookups exhaust the cache.
+        Bitmap retained = Assert.IsAssignableFrom<Bitmap>(ApplicationIconImages.Load(Path.Combine(_root, "karere.png"), 18).GetAwaiter().GetResult());
+        for (int i = 0; i < 128; i++)
+            Assert.Null(ApplicationIconImages.Load($"not-installed-{i}", 18).GetAwaiter().GetResult());
+        using var encoded = new MemoryStream();
+        retained.Save(encoded, PngBitmapEncoderOptions.Default);
+        Assert.True(encoded.Length > 0);
     }
 
     private static void Png(string file, Color colour)

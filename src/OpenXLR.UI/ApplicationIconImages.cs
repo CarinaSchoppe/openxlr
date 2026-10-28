@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -13,24 +13,46 @@ namespace OpenXLR.UI;
 /// <summary>
 /// Application icons as pictures: the daemon's icon name found through the
 /// desktop's icon theme and decoded at the size it is drawn, on a worker
-/// thread. A result is kept, a missing icon included, so each name is looked
-/// up and decoded once per size.
+/// thread. Recent results, missing icons included, share their lookup and
+/// decoding task within a fixed cache budget.
 /// </summary>
 public static class ApplicationIconImages
 {
-    private static readonly ConcurrentDictionary<(string Icon, int Size), Task<Bitmap?>> Cache = new();
-    private static IconThemeLookup? _lookup;
+    private const int MaxCachedImages = 128;
+    private sealed class ImageCache(IconThemeLookup lookup)
+    {
+        public IconThemeLookup Lookup { get; } = lookup;
+        public Dictionary<(string Icon, int Size), Task<Bitmap?>> Images { get; } = new();
+    }
+    private static readonly Lock Gate = new();
+    private static ImageCache? _current;
+    private static ImageCache Current => LazyInitializer.EnsureInitialized(ref _current, () => new(IconThemeLookup.ForDesktop()));
 
     /// <summary>The lookup in use; built for the desktop the first time an icon is wanted.</summary>
     internal static IconThemeLookup Lookup
     {
-        get => LazyInitializer.EnsureInitialized(ref _lookup, IconThemeLookup.ForDesktop);
-        set { _lookup = value; Cache.Clear(); }
+        get => Current.Lookup;
+        set => Volatile.Write(ref _current, new ImageCache(value));
     }
 
     /// <summary>The picture for this icon at this many pixels square, or null when nothing draws it.</summary>
     public static Task<Bitmap?> Load(string icon, int pixels)
-        => Cache.GetOrAdd((icon, Math.Clamp(pixels, 8, 512)), key => Task.Run(() => LoadNow(Lookup, key.Icon, key.Size)));
+    {
+        icon = icon.Trim();
+        if (icon.Length is 0 or > IconThemeLookup.MaxIconLength) return Task.FromResult<Bitmap?>(null);
+        ImageCache cache = Current;
+        var key = (Icon: icon, Size: Math.Clamp(pixels, 8, 512));
+        lock (Gate)
+        {
+            if (cache.Images.TryGetValue(key, out Task<Bitmap?>? known)) return known;
+            // Drop only the cache's reference. Do not dispose a bitmap that
+            // a row can still be drawing.
+            if (cache.Images.Count >= MaxCachedImages) cache.Images.Clear();
+            Task<Bitmap?> load = Task.Run(() => LoadNow(cache.Lookup, key.Icon, key.Size));
+            cache.Images[key] = load;
+            return load;
+        }
+    }
 
     /// <summary>The first of the lookup's files that decodes; this touches the disk.</summary>
     internal static Bitmap? LoadNow(IconThemeLookup lookup, string icon, int pixels)

@@ -14,11 +14,13 @@ namespace OpenXLR.UI;
 /// Within a theme, a directory made for the requested size comes first, then
 /// the nearest sizes, a larger one preferred since it scales down cleanly.
 /// PNG and SVG are the formats returned. Every lookup touches the disk, so
-/// the window calls it off the UI thread; themes and results are kept once
-/// read.
+/// the window calls it off the UI thread. Themes and a bounded window of
+/// recent lookup results are kept once read.
 /// </summary>
 public sealed class IconThemeLookup
 {
+    internal const int MaxIconLength = 4096;
+    private const int MaxCachedLookups = 1024;
     private static readonly string[] Extensions = [".png", ".svg"];
 
     private readonly IReadOnlyList<string> _baseDirs;
@@ -27,6 +29,7 @@ public sealed class IconThemeLookup
     private readonly Lock _gate = new();
     private readonly Dictionary<string, Theme?> _themes = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<(string Name, int Size), IReadOnlyList<string>> _found = new();
+    private readonly Lock _foundGate = new();
     private IReadOnlyList<Theme>? _chain;
 
     /// <param name="baseDirs">The directories themes live in, searched in order.</param>
@@ -134,8 +137,18 @@ public sealed class IconThemeLookup
     {
         if (string.IsNullOrWhiteSpace(icon)) return [];
         icon = icon.Trim();
+        if (icon.Length > MaxIconLength) return [];
         size = Math.Clamp(size, 1, 1024);
-        return _found.GetOrAdd((icon, size), key => Search(key.Name, key.Size));
+        var key = (icon, size);
+        if (_found.TryGetValue(key, out IReadOnlyList<string>? known)) return known;
+        IReadOnlyList<string> found = Search(icon, size);
+        lock (_foundGate)
+        {
+            if (_found.TryGetValue(key, out known)) return known;
+            if (_found.Count >= MaxCachedLookups) _found.Clear();
+            _found[key] = found;
+        }
+        return found;
     }
 
     private IReadOnlyList<string> Search(string icon, int size)

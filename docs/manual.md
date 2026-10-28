@@ -799,6 +799,10 @@ so the names stay lined up. An app keeps its icon in the list after it
 quits. SVG icons need GdkPixbuf and its librsvg loader, which GTK desktops
 already have. Without them the UI uses a PNG of the same icon if the
 theme has one, and the letter if not.
+The UI keeps only a bounded window of recent image and icon-file lookups,
+including missing icons, so changing application icons do not accumulate
+cached entries for the lifetime of the window. A displayed icon stays valid
+when its cache entry is replaced.
 
 Opening the UI or receiving an updated app list only displays the current
 routing. A remembered routing change is sent when you choose a different

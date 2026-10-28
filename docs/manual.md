@@ -3163,6 +3163,11 @@ profile persistence.
 
 Capture chains also appear in the insert key and dial choices, named by
 their channel. Saved insert targets keep the channel id through a rename.
+Insert names and parameter ranges follow both the plugin's format and id.
+If a profile rebuilds a chain with new insert ids, a saved target follows
+the same plugin and format, preferring its previous slot. Older targets
+without a saved format keep working when the match is unambiguous; if the
+same id appears in several formats, choose the target again in its settings.
 Mic setup is not offered on the Deck.
 
 **Dial** (an encoder) changes a level: the monitor output volume, a

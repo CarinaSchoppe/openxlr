@@ -131,6 +131,11 @@ Messages from the daemon, each a JSON object with a `type` field:
 | `error` | when a command without a `requestId` is rejected | `message`; for the mixer commands a `state` follows, so an optimistic edit can be reverted |
 | `commandResult` | in answer to a command that carried a `requestId` | `requestId`, `error` (null on success); preceded by the state the result refers to |
 
+Plugin catalogue entries are identified by the pair `kind` and `plugin`.
+The same plugin id can occur in different formats; keep their names,
+parameter symbols and ranges separate. `setInsertParam` addresses an
+instance by its chain and `insertId`, which determines that pair.
+
 `daemonBuildId` is the running assembly's module identity (a GUID). Doctor
 compares it with the installed assembly to detect a daemon left running
 across an upgrade, including two builds with the same version. Older

@@ -65,7 +65,9 @@ let daemonUp = false;
 let daemonNotice = null;
 let daemonNoticeMessage = "";
 let meterLevels = null;   // last {"type":"meters"} levels, keyed ch:/mix:
-let catalog = new Map();  // LV2 plugin URI -> PluginInfo (names and ranges of the params)
+let catalog = new Map();  // format -> plugin id -> PluginInfo (names and parameter ranges)
+const pluginKind = plugin => plugin.kind ?? "lv2";
+const pluginInfo = plugin => plugin ? catalog.get(pluginKind(plugin))?.get(plugin.plugin) : null;
 let reconnectTimer = null;
 let reconnectDelayMs = 500;
 let connectionGeneration = 0;
@@ -100,7 +102,14 @@ function connectDaemon() {
     if (m.type === "state") { daemonState = m; pruneEqTurns(); refreshAll(); refreshMeters(); publishLayout(); }
     else if (m.type === "meters") { meterLevels = m.levels; refreshMeters(); }
     else if (m.type === "plugins") {
-      catalog = new Map((m.plugins ?? []).map((p) => [p.plugin, p]));
+      const next = new Map();
+      for (const plugin of m.plugins ?? []) {
+        const kind = pluginKind(plugin);
+        let entries = next.get(kind);
+        if (!entries) { entries = new Map(); next.set(kind, entries); }
+        entries.set(plugin.plugin, plugin);
+      }
+      catalog = next;
       refreshAll();
     }
     else if (m.type === "commandResult") keyCommands.finish(m.requestId, !!m.error);
@@ -179,29 +188,32 @@ const insertsOf = (ch) => (mixer()?.inserts?.[ch] ?? []).map((s) => s.insert ?? 
 
 // A short plugin name for a key face: drop the vendor prefix and the
 // channel-count suffix ("LSP Compressor Mono" -> "Compressor").
-function pluginShort(label, uri) {
-  let s = label || catalog.get(uri)?.name || uri?.split("/").pop() || "Plugin";
+function pluginShort(plugin) {
+  let s = plugin?.label || pluginInfo(plugin)?.name || plugin?.plugin?.split("/").pop() || "Plugin";
   s = s.replace(/^LSP\s+/i, "").replace(/\s+(Mono|Stereo|MidSide|LR|MS|x\d)$/i, "");
   return s;
 }
 
 // Find an insert by id; when the id is gone (chain rebuilt by a profile
 // recall) fall back to the same plugin in the same chain, preferring the
-// slot the key was made for. meta = {plugin, index} saved by the PI.
+// slot the key was made for. meta = {kind, plugin, index} saved by the PI.
 function resolveInsert(ch, id, meta) {
   const list = insertsOf(ch);
   const byId = list.find((i) => i.id === id);
   if (byId) return byId;
   if (!meta?.plugin) return null;
-  const same = list.filter((i) => i.plugin === meta.plugin);
+  const same = list.filter((i) => i.plugin === meta.plugin && (!meta.kind || pluginKind(i) === meta.kind));
   if (!same.length) return null;
-  return list[meta.index]?.plugin === meta.plugin ? list[meta.index] : same[0];
+  // An older key has no format. Keep it working when its fallback is
+  // unambiguous, rather than guessing which format its plugin id meant.
+  if (!meta.kind && same.some(i => pluginKind(i) !== pluginKind(same[0]))) return null;
+  return same.includes(list[meta.index]) ? list[meta.index] : same[0];
 }
 const metaOf = (inst, t) => inst?.settings?.meta?.[t];
 
 // The catalog's description of one control, or null before the catalog
 // arrived (or when the plugin is not installed any more).
-const paramInfo = (uri, symbol) => catalog.get(uri)?.params?.find((p) => p.symbol === symbol) ?? null;
+const paramInfo = (plugin, symbol) => pluginInfo(plugin)?.params?.find((p) => p.symbol === symbol) ?? null;
 
 // Value to 0..100 along the control's own scale.
 function paramPct(p, v) {
@@ -244,10 +256,10 @@ function insertChoices() {
     if (list.length)
       chains.push({ target: `inschain|${ch}`, label: `${chainName(ch)}: whole chain` });
     list.forEach((ins, index) => {
-      const name = pluginShort(ins.label, ins.plugin);
-      const meta = { plugin: ins.plugin, index };
+      const name = pluginShort(ins);
+      const meta = { kind: pluginKind(ins), plugin: ins.plugin, index };
       inserts.push({ target: `insert|${ch}|${ins.id}`, label: `${chainName(ch)}: ${name}`, meta });
-      for (const p of catalog.get(ins.plugin)?.params ?? [])
+      for (const p of pluginInfo(ins)?.params ?? [])
         params.push({ target: `insparam|${ch}|${ins.id}|${p.symbol}`,
                       label: `${chainName(ch)}: ${name}: ${p.name}`, meta });
     });
@@ -563,7 +575,7 @@ function toggleLabel(target, inst) {
   if (target.startsWith("insert|")) {
     const [, ch, id] = target.split("|");
     const ins = resolveInsert(ch, id, metaOf(inst, target));
-    const name = ins ? pluginShort(ins.label, ins.plugin) : (metaOf(inst, target)?.plugin ? pluginShort(null, metaOf(inst, target).plugin) : "Insert");
+    const name = ins ? pluginShort(ins) : (metaOf(inst, target)?.plugin ? pluginShort(metaOf(inst, target)) : "Insert");
     return `${chainShort(ch)}\n${name}`;
   }
   if (target.startsWith("focus:")) return `Focus\n${channelName(mixer(), target.slice(6))}`;
@@ -719,10 +731,10 @@ function dialValue(target, inst) {
   if (target.startsWith("insparam|")) {
     const [, ch, id, symbol] = target.split("|");
     const ins = resolveInsert(ch, id, metaOf(inst, target));
-    const p = ins ? paramInfo(ins.plugin, symbol) : null;
+    const p = ins ? paramInfo(ins, symbol) : null;
     if (!ins || !p) return null;
     const v = dialNow(`insparam|${ch}|${ins.id}|${symbol}`, ins.params?.[symbol] ?? p.default);
-    return { pin: pluginShort(ins.label, ins.plugin), scroll: p.name,
+    return { pin: pluginShort(ins), scroll: p.name,
              pct: paramPct(p, v), text: ins.bypass ? "BYPASS" : paramText(p, v), muted: !!ins.bypass };
   }
   if (target.startsWith("send:")) {
@@ -918,7 +930,7 @@ function onDialRotate(context, inst, ticks) {
   } else if (t.startsWith("insparam|")) {
     const [, ch, id, symbol] = t.split("|");
     const ins = resolveInsert(ch, id, metaOf(inst, t));
-    const p = ins ? paramInfo(ins.plugin, symbol) : null;
+    const p = ins ? paramInfo(ins, symbol) : null;
     if (!ins || !p) return;
     const key = `insparam|${ch}|${ins.id}|${symbol}`;
     const value = paramStep(p, dialNow(key, ins.params?.[symbol] ?? p.default), ticks);

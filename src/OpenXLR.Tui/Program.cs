@@ -77,7 +77,7 @@ internal static class Program
 
         try
         {
-            DateTime nextFrame = DateTime.UtcNow;
+            long? previousFrame = null;
             while (app.Running)
             {
                 KeyPress key = terminal.ReadKey();
@@ -101,9 +101,7 @@ internal static class Program
 
                 // Tick the hold markers and message expiry even between packets.
                 // The diff renderer emits nothing for an unchanged frame.
-                DateTime now = DateTime.UtcNow;
-                if (now < nextFrame) continue;
-                nextFrame = now.AddMilliseconds(66);
+                if (!FrameDue(TimeProvider.System, ref previousFrame)) continue;
 
                 // The portal is watched only while Material follows the
                 // desktop; a frame reads the value it last reported.
@@ -120,6 +118,15 @@ internal static class Program
         }
 
         return 0;
+    }
+
+    /// <summary>Draw one frame when its interval has elapsed, with no catch-up burst after a delay.</summary>
+    internal static bool FrameDue(TimeProvider time, ref long? previous)
+    {
+        long now = time.GetTimestamp();
+        if (previous is long last && time.GetElapsedTime(last, now) < TimeSpan.FromMilliseconds(66)) return false;
+        previous = now;
+        return true;
     }
 
     /// <summary>The app with the saved skin and mode, or the skin given at launch, which holds Material dark.</summary>

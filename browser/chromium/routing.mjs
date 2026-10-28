@@ -69,7 +69,7 @@ export class TabAudio {
   async start(id, streamId, deviceId) {
     const previous = this.sessions.get(id);
     if (!previous && this.sessions.size >= MAX_CAPTURES) throw new Error(t('tooManyCaptures', MAX_CAPTURES));
-    const session = { id, context: null, stream: null, source: null, closed: false, capturing: false, deviceId, routeVersion: 0 };
+    const session = { id, context: null, stream: null, source: null, closed: false, capturing: false, deviceId, routeVersion: 0, routing: 0, checkAfterRoute: false };
     this.sessions.set(id, session);
     let timer;
     try {
@@ -110,12 +110,19 @@ export class TabAudio {
   async route(id, deviceId) {
     const session = this.sessions.get(id);
     if (!session || session.closed || session.deviceId === deviceId) return;
+    session.routing++;
     try {
       await session.context.setSinkId(deviceId);
       if (this.sessions.get(id) === session) { session.deviceId = deviceId; session.routeVersion++; }
     } catch (error) {
       if (this.sessions.get(id) === session) await this.stop(id, errorText(error));
       throw error;
+    } finally {
+      session.routing--;
+      if (!session.routing && session.checkAfterRoute && this.sessions.get(id) === session) {
+        session.checkAfterRoute = false;
+        await this.checkDevices();
+      }
     }
   }
 
@@ -147,14 +154,20 @@ export class TabAudio {
   async checkDevices() {
     const check = this.deviceCheck = Symbol();
     const checking = [...this.sessions].map(([id, session]) => ({ id, session, deviceId: session.deviceId, version: session.routeVersion }));
+    for (const { session } of checking)
+      if (session.routing) session.checkAfterRoute = true;
     let devices = [], error = null;
     try { devices = await this.mediaDevices.enumerateDevices(); }
     catch (failure) { error = errorText(failure); }
     if (this.deviceCheck !== check) return;
     const present = new Set(devices.filter(device => device.kind === 'audiooutput').map(device => device.deviceId));
     // Another check or reroute can also finish while a context closes below.
-    for (const { id, session, deviceId, version } of checking)
-      if (this.deviceCheck === check && this.sessions.get(id) === session && session.routeVersion === version && !present.has(deviceId))
+    for (const { id, session, deviceId, version } of checking) {
+      if (this.deviceCheck !== check || this.sessions.get(id) !== session) continue;
+      // A pending sink change still exposes its old device id. Check its final output afterwards.
+      if (session.routing) { session.checkAfterRoute = true; continue; }
+      if (session.routeVersion === version && !present.has(deviceId))
         await this.stop(id, error ?? t('outputGone'));
+    }
   }
 }

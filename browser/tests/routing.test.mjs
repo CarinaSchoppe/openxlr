@@ -180,6 +180,89 @@ test('a delayed device snapshot cannot stop a new or rerouted session', async ()
   await f.audio.stopAll();
 });
 
+for (const beforeRoute of [false, true]) {
+  for (const failed of [false, true]) {
+    test(`a ${failed ? 'failed' : 'missing-old-output'} check started ${beforeRoute ? 'before' : 'during'} a pending reroute preserves capture`, async () => {
+      const entered = deferred(), release = deferred(), devices = deferred();
+      const f = fixture({ sink: async id => { if (id === 'music') { entered.resolve(); await release.promise; } } });
+      await f.audio.start(1, 'one', 'chat');
+      const enumerate = f.mediaDevices.enumerateDevices;
+      let calls = 0;
+      f.mediaDevices.enumerateDevices = () => ++calls === 1 ? devices.promise : enumerate();
+      let checking;
+      if (beforeRoute) checking = f.audio.checkDevices();
+      const routing = f.audio.route(1, 'music');
+      await entered.promise;
+      if (!beforeRoute) checking = f.audio.checkDevices();
+      if (failed) devices.reject(new Error('old output lookup failed'));
+      else devices.resolve([{ kind: 'audiooutput', deviceId: 'music' }]);
+      await checking;
+      release.resolve();
+      await routing;
+      assert.deepEqual(f.audio.snapshot().map(tab => [tab.id, tab.deviceId]), [[1, 'music']]);
+      assert.equal(f.streams[0].track.stopped, false);
+      assert.equal(f.contexts[0].closed, false);
+      await f.audio.stopAll();
+    });
+  }
+}
+
+test('an output check overlapping a reroute checks the completed destination again', async () => {
+  const entered = deferred(), release = deferred();
+  const f = fixture({ sink: async id => { if (id === 'music') { entered.resolve(); await release.promise; } } });
+  await f.audio.start(1, 'one', 'chat');
+  let calls = 0;
+  f.mediaDevices.enumerateDevices = async () => [{ kind: 'audiooutput', deviceId: ++calls === 1 ? 'music' : 'chat' }];
+  const routing = f.audio.route(1, 'music');
+  await entered.promise;
+  await f.audio.checkDevices();
+  release.resolve();
+  await routing;
+  assert.equal(calls, 2);
+  assert.deepEqual(f.audio.snapshot(), []);
+  assert(f.streams[0].track.stopped && f.contexts[0].closed);
+  await f.audio.stopAll();
+});
+
+test('a deferred reroute check cannot release a replacement capture', async () => {
+  const entered = deferred(), release = deferred();
+  const f = fixture({ sink: async id => { if (id === 'music') { entered.resolve(); await release.promise; } } });
+  await f.audio.start(1, 'old', 'chat');
+  let calls = 0;
+  f.mediaDevices.enumerateDevices = async () => { calls++; return []; };
+  const routing = f.audio.route(1, 'music');
+  await entered.promise;
+  await f.audio.checkDevices();
+  await f.audio.start(1, 'replacement', 'chat');
+  release.resolve();
+  await routing;
+  assert.equal(calls, 1);
+  assert.deepEqual(f.audio.snapshot().map(tab => [tab.id, tab.deviceId]), [[1, 'chat']]);
+  assert.equal(f.streams[1].track.stopped, false);
+  assert.equal(f.contexts[1].closed, false);
+  await f.audio.stopAll();
+});
+
+test('a lookup still pending when rerouting completes cannot suppress a fresh destination check', async () => {
+  const entered = deferred(), release = deferred(), devices = deferred();
+  const f = fixture({ sink: async id => { if (id === 'music') { entered.resolve(); await release.promise; } } });
+  await f.audio.start(1, 'one', 'chat');
+  let calls = 0;
+  f.mediaDevices.enumerateDevices = () => ++calls === 1 ? devices.promise
+    : Promise.resolve([{ kind: 'audiooutput', deviceId: 'chat' }]);
+  const routing = f.audio.route(1, 'music');
+  await entered.promise;
+  const checking = f.audio.checkDevices();
+  release.resolve();
+  await routing;
+  devices.resolve([{ kind: 'audiooutput', deviceId: 'music' }]);
+  await checking;
+  assert.equal(calls, 2);
+  assert.deepEqual(f.audio.snapshot(), []);
+  assert(f.streams[0].track.stopped && f.contexts[0].closed);
+  await f.audio.stopAll();
+});
+
 test('capture count is bounded without touching the rejected tab', async () => {
   const f = fixture();
   for (let id = 0; id < MAX_CAPTURES; id++) await f.audio.start(id, String(id), 'chat');

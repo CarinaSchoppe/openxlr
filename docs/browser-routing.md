@@ -202,7 +202,10 @@ If outputs cannot be enumerated, a channel is missing or an output label
 is ambiguous, activation is refused without taking over audio. Renaming
 an already matched channel preserves its output-device binding. A removed
 output, a failed reroute or a failed output lookup stops only the tabs it
-affects. A damaged saved output choice is reset the next time that channel
+affects. When a device change overlaps a switch to another output, the
+companion waits for the switch and checks the resulting output again.
+Losing the previous output does not stop a tab whose new output is available.
+A damaged saved output choice is reset the next time that channel
 picks an output. The companion does not keep retrying a failed capture or
 native host in the background; correct the problem and activate or
 reconnect explicitly.

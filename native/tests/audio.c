@@ -172,22 +172,31 @@ static void check_invalid_audio(void) {
             for (unsigned c = 0; c < channels; c++)
               for (uint32_t n = 0; n < sizes[size]; n++)
                 assert(test_buffers[MAX_CHANNELS + c][n] == 1.5f);
-            if (output) fixture.invalid_output = true;
-            else test_buffers[channel][sizes[size] - 1] = invalid[kind];
-            process_audio(&h, &position);
-            assert(atomic_load(&h.audio_error));
+            // Invalid input stops the host at once. Invalid output on sound
+            // does after half a second of it in a row, each block silenced.
+            unsigned blocks = 1;
+            if (output) {
+              fixture.invalid_output = true;
+              blocks = (h.rate / 2 + sizes[size] - 1) / sizes[size];
+            } else test_buffers[channel][sizes[size] - 1] = invalid[kind];
+            for (unsigned b = 0; b < blocks; b++) {
+              for (unsigned c = 0; c < channels; c++)
+                test_buffers[MAX_CHANNELS + c][0] = -1;
+              process_audio(&h, &position);
+              assert(atomic_load(&h.audio_error) == (b + 1 == blocks));
+              // The whole block is silent, including the unaffected channel.
+              for (unsigned c = 0; c < channels; c++)
+                for (uint32_t n = 0; n < sizes[size]; n++)
+                  assert(test_buffers[MAX_CHANNELS + c][n] == 0);
+            }
             assert(atomic_load(&h.invalid_audio) ==
                    (output ? AUDIO_INVALID_OUTPUT : AUDIO_INVALID_INPUT));
-            assert(fixture.calls == (output ? 2u : 1u));
-            // The whole block is silent, including the unaffected channel.
-            for (unsigned c = 0; c < channels; c++)
-              for (uint32_t n = 0; n < sizes[size]; n++)
-                assert(test_buffers[MAX_CHANNELS + c][n] == 0);
+            assert(fixture.calls == (output ? 1u + blocks : 1u));
             // Until the main-loop tick exits, do not feed the poisoned
             // instance again, even if the next input is ordinary audio.
             test_buffers[channel][sizes[size] - 1] = .75f;
             process_audio(&h, &position);
-            assert(fixture.calls == (output ? 2u : 1u));
+            assert(fixture.calls == (output ? 1u + blocks : 1u));
             for (unsigned i = 0; i < MAX_CHANNELS * 2; i++) {
               assert_canary(test_buffers[i]);
               for (uint32_t n = sizes[size]; n < MAX_FRAMES; n++)
@@ -198,7 +207,70 @@ static void check_invalid_audio(void) {
     free(test_buffers[i]);
     test_buffers[i] = NULL;
   }
-  puts("PASS: invalid input never reaches a plugin; invalid output silences the block and retires the instance");
+  puts("PASS: invalid input never reaches a plugin; invalid output silences the block, and half a second of it on sound retires the instance");
+}
+
+// Feed `blocks` blocks of 256 frames at `level`, the plugin adding a NaN to
+// each when `nan`, and check what leaves the host.
+static void feed(Host *h, float *const *out, float level, bool nan,
+                 unsigned blocks) {
+  AudioFixture *fixture = h->impl;
+  struct spa_io_position position = {0};
+  position.clock.duration = 256;
+  position.clock.rate.denom = h->rate;
+  fixture->invalid_output = nan;
+  for (unsigned b = 0; b < blocks; b++) {
+    for (unsigned c = 0; c < h->channels; c++)
+      for (unsigned n = 0; n < 256; n++) test_buffers[c][n] = level;
+    process_audio(h, &position);
+    for (unsigned c = 0; c < h->channels; c++)
+      for (unsigned n = 0; n < 256; n++)
+        assert(out[c][n] == (nan || atomic_load(&h->audio_error) ? 0 : 2 * level));
+  }
+}
+
+// Issue 577: a denoiser that puts out NaN after a minute of a muted
+// microphone's pure zeros, and recovers a tenth of a second after sound
+// comes back, keeps running and keeps its restart budget.
+static void check_invalid_output_on_silence(void) {
+  const Backend gain = {.process = gain_audio};
+  for (unsigned inplace = 0; inplace < 2; inplace++) {
+    AudioFixture fixture = {.invalid = NAN};
+    Host h = {.backend = &gain, .rate = 48000, .channels = 2, .impl = &fixture};
+    for (unsigned c = 0; c < h.channels; c++) {
+      test_buffers[c] = guarded();
+      test_buffers[MAX_CHANNELS + c] = guarded();
+      h.in_ports[c] = &test_buffers[c];
+      h.out_ports[c] = inplace ? &test_buffers[c] : &test_buffers[MAX_CHANNELS + c];
+    }
+    float *const out[] = {*(float **)h.out_ports[0], *(float **)h.out_ports[1]};
+    const unsigned second = 48000 / 256, half = second / 2;
+    feed(&h, out, 0, false, 78 * second);  // muted: clean at first
+    feed(&h, out, 0, true, 180 * second);  // then NaN for three minutes of silence
+    assert(!atomic_load(&h.audio_error));
+    feed(&h, out, .25f, true, 21);         // unmuted: a tenth of a second to recover
+    feed(&h, out, .25f, false, second);
+    assert(!atomic_load(&h.audio_error) && !atomic_load(&h.invalid_audio));
+    // On sound the run counts; silence in the middle neither counts nor
+    // clears it, and a clean block does.
+    feed(&h, out, .25f, true, half - 2);
+    feed(&h, out, 0, true, second);
+    feed(&h, out, .25f, false, 1);
+    feed(&h, out, .25f, true, half - 1);
+    assert(!atomic_load(&h.audio_error));
+    feed(&h, out, .25f, true, 1);
+    assert(!atomic_load(&h.audio_error));
+    feed(&h, out, 0, true, second);
+    feed(&h, out, .25f, true, 1);
+    assert(atomic_load(&h.audio_error));
+    assert(atomic_load(&h.invalid_audio) == AUDIO_INVALID_OUTPUT);
+    for (unsigned i = 0; i < MAX_CHANNELS * 2; i++) {
+      if (test_buffers[i]) assert_canary(test_buffers[i]);
+      free(test_buffers[i]);
+      test_buffers[i] = NULL;
+    }
+  }
+  puts("PASS: invalid output on pure silence is silenced without counting, so a plugin that recovers on sound keeps running");
 }
 
 static void check_inplace_audio(void) {
@@ -220,8 +292,13 @@ static void check_inplace_audio(void) {
     for (unsigned n = 0; n < 512; n++) assert(test_buffers[c][n] == 1.5f);
   fixture.invalid_output = true;
   fixture.invalid = NAN;
-  process_audio(&h, &position);
-  assert(atomic_load(&h.audio_error) && fixture.calls == 2);
+  const unsigned run = h.rate / 2 / 512 + 1;
+  for (unsigned i = 0; i < run; i++) {
+    for (unsigned c = 0; c < h.channels; c++)
+      for (unsigned n = 0; n < 512; n++) test_buffers[c][n] = .75f;
+    process_audio(&h, &position);
+  }
+  assert(atomic_load(&h.audio_error) && fixture.calls == 1 + run);
   for (unsigned c = 0; c < h.channels; c++) {
     for (unsigned n = 0; n < 512; n++) assert(test_buffers[c][n] == 0);
     assert_canary(test_buffers[c]);
@@ -311,6 +388,7 @@ int main(void) {
   check_processing_failure();
   check_invalid_audio();
   check_inplace_audio();
+  check_invalid_output_on_silence();
   Host h = {.rate = 48000, .channels = 2};
 
   // The quantum the graph runs at decides whether the cycle can happen at

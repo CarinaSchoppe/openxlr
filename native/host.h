@@ -112,6 +112,7 @@ struct Host {
   _Atomic bool audio_error;
   _Atomic bool process_failed;  // the plugin refused to start or process audio
   uint32_t failed_frames;  // audio thread: the current run of refused blocks
+  uint32_t invalid_frames; // audio thread: the current run of invalid output on sound
   _Atomic unsigned invalid_audio;  // input or output, explained by the main loop
   _Atomic bool failure_explained;  // a non-audio thread has claimed the report
   _Atomic bool monitor_stop;
@@ -189,6 +190,10 @@ void host_fail(Host *h, const char *why);
 // which the tick reports before it stops the instance. Only atomic flags
 // and the audio thread's own counter are touched.
 void host_processing_result(Host *h, bool ok, uint32_t frames);
+// The audio thread's verdict on one block of plugin output. An invalid block
+// is silenced by the caller. It counts only when the input carried sound,
+// and half a second of such blocks in a row latches AUDIO_INVALID_OUTPUT.
+void host_output_result(Host *h, bool finite, bool silent_input, uint32_t frames);
 // Whether one cycle can be carried at all: the fixed fallback buffers hold
 // MAX_FRAMES frames, and the plugin was activated for one sample rate. A
 // cycle that fails this is refused before anything is written.

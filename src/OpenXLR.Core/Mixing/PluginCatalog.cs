@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace OpenXLR.Core.Mixing;
 
 /// <summary>
@@ -13,6 +15,9 @@ namespace OpenXLR.Core.Mixing;
 public static class PluginCatalog
 {
     private static readonly Refreshable<IReadOnlyList<PluginInfo>> All = new(Build);
+    // A scan result never changes in place. Keep its lookup index only while
+    // the list is alive, so a rescan does not pin the retired catalogue.
+    private static readonly ConditionalWeakTable<IReadOnlyList<PluginInfo>, Dictionary<(string Kind, string Plugin), PluginInfo>> Indexes = new();
 
     private static IReadOnlyList<PluginInfo> Build()
         => Combine(() => Lv2Catalog.Plugins, () => ClapCatalog.Plugins, () => Vst3Catalog.Plugins);
@@ -109,7 +114,14 @@ public static class PluginCatalog
     public static PluginInfo? Find(string kind, string plugin) => Find(Plugins, kind, plugin);
 
     internal static PluginInfo? Find(IReadOnlyList<PluginInfo> catalogue, string kind, string plugin)
-        => catalogue.FirstOrDefault(p => p.Kind == kind && p.Plugin == plugin);
+        => Indexes.GetValue(catalogue, Index).GetValueOrDefault((kind, plugin));
+
+    private static Dictionary<(string Kind, string Plugin), PluginInfo> Index(IReadOnlyList<PluginInfo> catalogue)
+    {
+        var index = new Dictionary<(string Kind, string Plugin), PluginInfo>();
+        foreach (PluginInfo item in catalogue) index.TryAdd((item.Kind, item.Plugin), item);
+        return index;
+    }
 
     public static PluginInfo? Find(InsertDefinition insert) => Find(insert.Kind, insert.Plugin);
 

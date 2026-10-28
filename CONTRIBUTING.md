@@ -122,6 +122,11 @@ The idle graph allocation check measures reads on a dedicated warmed thread,
 so test-runner diagnostic allocations are outside the measured interval. It
 still requires zero bytes and the same cached snapshot across 10,000 reads.
 
+The plugin lookup allocation check also uses a dedicated warmed thread.
+Repeated hits and misses must not walk the catalogue again or allocate per
+lookup. Each scan result has its own index, with the first copy of a plugin
+winning; replacing the catalogue must not keep the retired list alive.
+
 Tests of retries, cancellation and shutdown wait on a handshake with a
 deadline, not on timer scheduling or on which thread wins a race. A test
 that waits for a helper process to exit also waits for the output it

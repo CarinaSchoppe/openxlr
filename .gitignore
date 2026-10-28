@@ -20,6 +20,7 @@ native/tests/sound-check
 native/tests/eq
 native/tests/duck
 native/tests/denoise
+native/tests/denoise-handoff
 native/build-config.h
 native/rnnoise/src/*.o
 native/rnnoise/src/x86/*.o

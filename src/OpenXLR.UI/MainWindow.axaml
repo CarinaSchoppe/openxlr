@@ -902,7 +902,7 @@
     <Border Classes="card" IsVisible="{Binding (layout:RegionHost.Shown), RelativeSource={RelativeSource Self}}">
       <Expander Name="SubmixerTile" Classes="section" Theme="{StaticResource TileExpanderTheme}" IsExpanded="True">
         <Expander.Header>
-          <StackPanel Orientation="Horizontal" Spacing="10">
+          <WrapPanel ItemSpacing="10" LineSpacing="4">
             <Button Classes="ghost reorderHandle" Content="↕" Tag="SubmixerTile" AutomationProperties.Name="{loc:Text Key=MoveSubmixer}"
                     ToolTip.Tip="{loc:Text Key=DragToAnotherSectionArrowKeysMove}"/>
             <TextBlock Text="{loc:Text Key=SUBMIXER}" Classes="h" VerticalAlignment="Center"/>
@@ -948,7 +948,7 @@
                 </MultiBinding>
               </ToggleButton.IsVisible>
             </ToggleButton>
-          </StackPanel>
+          </WrapPanel>
         </Expander.Header>
       <Grid>
         <StackPanel Name="DetachedMixerNotice" IsVisible="False" Spacing="8">

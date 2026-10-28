@@ -67,6 +67,27 @@ internal static class LocalizationRenderingTests
         }
     }
 
+    internal static void CheckLongMixerActions(MainWindow window, Border card)
+    {
+        Button[] buttons = [window.FindControl<Button>("PopOutMixerButton")!, window.FindControl<Button>("MicSetupButton")!];
+        object?[] captions = [.. buttons.Select(button => button.Content)];
+        try
+        {
+            buttons[0].Content = "Open the mixer in its own window";
+            buttons[1].Content = "Set up the microphone";
+            window.UpdateLayout();
+            Panel row = (Panel)buttons[0].Parent!;
+            Control[] shown = [.. row.Children.Where(c => c.IsEffectivelyVisible)];
+            foreach (Control action in shown) WindowLayoutTests.AssertInside(action, card);
+            WindowLayoutTests.AssertNoOverlap(shown);
+        }
+        finally
+        {
+            for (int i = 0; i < buttons.Length; i++) buttons[i].Content = captions[i];
+            window.UpdateLayout();
+        }
+    }
+
     private static FlowDirection Direction(TextBlock text, string value, Window host)
     {
         text.Text = value;

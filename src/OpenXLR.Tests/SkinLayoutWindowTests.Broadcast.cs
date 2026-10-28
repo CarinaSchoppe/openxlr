@@ -769,8 +769,11 @@ internal static partial class SkinLayoutWindowTests
             foreach (Slider fader in faders)
             {
                 Assert.Equal(0, fader.TranslatePoint(default, levels)!.Value.X, 0.5);
-                Assert.True(fader.Bounds.Width >= levels.Bounds.Width * 0.6,
-                    $"{model.Channel.Id}: a fader {fader.Bounds.Width:0.#} wide in {levels.Bounds.Width:0.#} {where}");
+                Grid line = Assert.IsType<Grid>(fader.Parent!.Parent);
+                // The gap belongs to neither control when comparing their shares.
+                double usable = line.Bounds.Width - line.ColumnSpacing * (line.ColumnDefinitions.Count - 1);
+                Assert.True(fader.Bounds.Width >= usable * 0.6,
+                    $"{model.Channel.Id}: a fader {fader.Bounds.Width:0.#} wide in {usable:0.#} usable pixels {where}");
             }
         }
         MeterFader[] tracks = [.. levels.GetVisualDescendants().OfType<MeterFader>().Where(m => m.IsEffectivelyVisible)];

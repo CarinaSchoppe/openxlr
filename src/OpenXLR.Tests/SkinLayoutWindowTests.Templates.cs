@@ -119,6 +119,7 @@ internal static partial class SkinLayoutWindowTests
                 string where = $"at {width}";
                 AssertNoOverlap([.. cards.Where(c => c.IsVisible), window.FindControl<Border>("HeaderCard")!]);
                 foreach (Border card in cards.Where(c => c.IsVisible)) AssertControlsInside(card, scroll);
+                LocalizationRenderingTests.CheckLongMixerActions(window, Card("SubmixerTile"));
                 Assert.Equal(280, Card("InputsTile").Bounds.Width, 0.5);
                 double banksNeed = SkinLayoutDefaults.RegionMinWidth(SkinLayoutRegions.Submixer, SkinService.Layout,
                     new RegionSizes(strip, (double)window.FindResource("Ox.Mixer.MixWidth")!,

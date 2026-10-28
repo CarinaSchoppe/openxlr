@@ -54,7 +54,7 @@ public sealed class NativeEditorPolicy
     private const int MaxNameLength = 200;
     private const int MaxReasonLength = 400;
     private const int MaxOverrides = 1024;
-    private const long MaxFileBytes = 1024 * 1024;
+    private const int MaxFileBytes = 1024 * 1024;
 
     /// <summary>
     /// The known cases this release ships. Every entry is blocked unless the
@@ -216,7 +216,7 @@ public sealed class NativeEditorPolicy
             if (Directory.Exists(path)) return (empty, Damaged(path, "the path is a directory"));
             if (!File.Exists(path)) return (empty, null);
             if (new FileInfo(path).Length > MaxFileBytes) return (empty, Damaged(path, "the file is too large"));
-            text = File.ReadAllText(path);
+            text = RegularFile.ReadText(path, MaxFileBytes);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

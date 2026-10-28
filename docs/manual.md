@@ -1521,8 +1521,10 @@ Rules identify plugins by format and stable id, so moving or renaming a file
 does not bypass a rule. Only your overrides are stored in
 `~/.config/openxlr/native-editors.json`, honoring `XDG_CONFIG_HOME`. If that
 file is damaged, Options reports it and keeps the release defaults in force
-rather than overwriting it. Repair or remove the file and restart the daemon
-to reload it.
+rather than overwriting it. It must be a regular file of at most 1 MiB;
+symbolic links to regular files are supported within the same byte limit.
+Named pipes, sockets and device files are refused without waiting for data.
+Repair or remove the file and restart the daemon to reload it.
 
 <a name="install-plugins"></a>
 **Installing plugins.** The quickest set comes from your distribution:

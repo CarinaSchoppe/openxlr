@@ -72,13 +72,13 @@ public sealed class TuiViewTests
         }
         """;
 
-    private static (App App, List<string> Sent) Ready(int tab = 0)
+    private static (App App, List<string> Sent) Ready(int tab = 0, TimeProvider? time = null)
     {
         DaemonLink link = new();
         List<string> sent = [];
         link.Sent += json => sent.Add(json);
         link.Receive(StateJson);
-        App app = new(link, Theme.Material);
+        App app = new(link, Theme.Material, time: time);
         app.ShowTab(tab);
         // A frame settles the selections the way a running terminal would.
         app.Draw(new Screen(140, 36));
@@ -1051,6 +1051,61 @@ public sealed class TuiViewTests
             app.Draw(frame);
             return Frame(frame);
         }
+    }
+
+    [Theory]
+    [InlineData(-3600, 4000, 0)]
+    [InlineData(3600, 1000, 1)]
+    [InlineData(0, 4000, 0)]
+    public void SummedFeedConfirmationExpiresWithItsNoticeDespiteClockCorrections(int correction, int elapsed, int count)
+    {
+        var clock = new TuiNoticeTimingTests.Clock();
+        (App app, List<string> sent) = Ready(tab: 3, time: clock);
+        var state = ThreeFeedState();
+        state["mixer"]!["monitorFeeds"]!["alsa_output.arctis"] = "monitor+stream";
+        app.Link.Receive(state.ToJsonString());
+        SelectOutputRow(app, "Arctis Nova Elite");
+        app.Handle(new KeyPress(Key.Right));
+        Assert.Empty(sent);
+        clock.Advance(TimeSpan.FromMilliseconds(elapsed));
+        clock.Offset = TimeSpan.FromSeconds(correction);
+        app.Handle(new KeyPress(Key.Right));
+        Assert.Equal(count, sent.Count);
+        if (count == 0)
+        {
+            app.Handle(new KeyPress(Key.Right));
+            Assert.Single(sent);
+        }
+    }
+
+    [Theory]
+    [InlineData("tabs")]
+    [InlineData("numbers")]
+    [InlineData("help")]
+    [InlineData("question")]
+    [InlineData("same-tab")]
+    public void GlobalKeysWithdrawASummedFeedConfirmation(string action)
+    {
+        (App app, List<string> sent) = Ready(tab: 3);
+        var state = ThreeFeedState();
+        state["mixer"]!["monitorFeeds"]!["alsa_output.arctis"] = "monitor+stream";
+        app.Link.Receive(state.ToJsonString());
+        SelectOutputRow(app, "Arctis Nova Elite");
+        app.Handle(new KeyPress(Key.Right));
+        Assert.Empty(sent);
+        switch (action)
+        {
+            case "tabs": app.Handle(new KeyPress(Key.Tab)); app.Handle(new KeyPress(Key.BackTab)); break;
+            case "numbers": app.Handle(new KeyPress(Key.Char, '1')); app.Handle(new KeyPress(Key.Char, '4')); break;
+            case "help": app.Handle(new KeyPress(Key.F1)); app.Handle(new KeyPress(Key.Escape)); break;
+            case "question": app.Handle(new KeyPress(Key.Char, '?')); app.Handle(new KeyPress(Key.Escape)); break;
+            case "same-tab": app.Handle(new KeyPress(Key.Char, '4')); break;
+        }
+        Assert.Equal(3, app.Tab);
+        app.Handle(new KeyPress(Key.Right));
+        Assert.Empty(sent);
+        app.Handle(new KeyPress(Key.Right));
+        Assert.Single(sent);
     }
 
     [Fact]

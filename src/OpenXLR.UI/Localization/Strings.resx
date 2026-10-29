@@ -3692,7 +3692,7 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
     <value>Replace</value>
   </data>
   <data name="SoundboardImportModeMessage" xml:space="preserve">
-    <value>Add the clips from {0} to the {1} clips here, or replace them? Replace deletes the clips here and keeps the ids from the file, so keys bound to those ids play the imported clips.</value>
+    <value>Add the clips from {0} to the {1} clips here, or replace them? Replace deletes the clips here and keeps the ids from the file, so keys bound to those ids play the imported clips. It replaces nothing unless every clip in the file can be imported here.</value>
   </data>
   <data name="SoundboardDropHint" xml:space="preserve">
     <value>Drop sound files to add them to {0}. A folder's sound files go to a page named after the folder.</value>
@@ -3704,6 +3704,9 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
     <value>Empty puts the clip on {0}. A name no page has yet makes a new page. A clip moved to a page goes last on it.</value>
   </data>
   <data name="SoundClipPageInvalid" xml:space="preserve">
-    <value>A page name has at most 40 characters and no control characters.</value>
+    <value>A page name has at most 40 characters, no control characters, and is not a dash alone.</value>
+  </data>
+  <data name="SoundboardExportNeedsZip" xml:space="preserve">
+    <value>Choose a file name that ends in .zip: the library is saved as a zip file.</value>
   </data>
 </root>

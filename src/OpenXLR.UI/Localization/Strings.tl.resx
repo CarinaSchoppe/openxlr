@@ -3693,7 +3693,7 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
     <value>Palitan</value>
   </data>
   <data name="SoundboardImportModeMessage" xml:space="preserve">
-    <value>Idagdag ang mga clip mula sa {0} sa {1} clip dito, o palitan ang mga ito? Binubura ng Palitan ang mga clip dito at pinapanatili ang mga id mula sa file, kaya ang mga key na nakatali sa mga id na iyon ay magpapatugtog ng mga na-import na clip.</value>
+    <value>Idagdag ang mga clip mula sa {0} sa {1} clip dito, o palitan ang mga ito? Binubura ng Palitan ang mga clip dito at pinapanatili ang mga id mula sa file, kaya ang mga key na nakatali sa mga id na iyon ay magpapatugtog ng mga na-import na clip. Walang papalitan maliban kung ma-import dito ang bawat clip sa file.</value>
   </data>
   <data name="SoundboardDropHint" xml:space="preserve">
     <value>I-drop ang mga sound file para idagdag sa {0}. Ang mga sound file ng isang folder ay mapupunta sa pahinang ipinangalan sa folder.</value>
@@ -3705,6 +3705,9 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
     <value>Kapag walang laman, ilalagay ang clip sa {0}. Ang pangalang wala pang pahina ay gagawa ng bagong pahina. Ang clip na inilipat sa isang pahina ay mapupunta sa huli nito.</value>
   </data>
   <data name="SoundClipPageInvalid" xml:space="preserve">
-    <value>Ang pangalan ng pahina ay hanggang 40 character at walang control character.</value>
+    <value>Ang pangalan ng pahina ay hanggang 40 character, walang control character, at hindi isang gitling lang.</value>
+  </data>
+  <data name="SoundboardExportNeedsZip" xml:space="preserve">
+    <value>Pumili ng pangalan ng file na nagtatapos sa .zip: sine-save ang library bilang zip file.</value>
   </data>
 </root>

@@ -3365,7 +3365,7 @@ Von OpenXLR gesteuertes Interface wählen</value>
     <value>Ersetzen</value>
   </data>
   <data name="SoundboardImportModeMessage" xml:space="preserve">
-    <value>Die Clips aus {0} zu den {1} Clips hier hinzufügen oder diese ersetzen? Ersetzen löscht die Clips hier und behält die IDs aus der Datei, sodass Tasten mit diesen IDs die importierten Clips abspielen.</value>
+    <value>Die Clips aus {0} zu den {1} Clips hier hinzufügen oder diese ersetzen? Ersetzen löscht die Clips hier und behält die IDs aus der Datei, sodass Tasten mit diesen IDs die importierten Clips abspielen. Es wird nur ersetzt, wenn sich jeder Clip der Datei hier importieren lässt.</value>
   </data>
   <data name="SoundboardDropHint" xml:space="preserve">
     <value>Tondateien hier ablegen, um sie zu {0} hinzuzufügen. Die Tondateien eines Ordners kommen auf eine Seite mit dem Namen des Ordners.</value>
@@ -3377,6 +3377,9 @@ Von OpenXLR gesteuertes Interface wählen</value>
     <value>Leer legt den Clip auf {0}. Ein Name, den noch keine Seite hat, legt eine neue Seite an. Ein auf eine Seite verschobener Clip kommt an deren Ende.</value>
   </data>
   <data name="SoundClipPageInvalid" xml:space="preserve">
-    <value>Ein Seitenname hat höchstens 40 Zeichen und keine Steuerzeichen.</value>
+    <value>Ein Seitenname hat höchstens 40 Zeichen, keine Steuerzeichen und ist kein einzelner Bindestrich.</value>
+  </data>
+  <data name="SoundboardExportNeedsZip" xml:space="preserve">
+    <value>Wählen Sie einen Dateinamen, der auf .zip endet: Die Bibliothek wird als ZIP-Datei gespeichert.</value>
   </data>
 </root>

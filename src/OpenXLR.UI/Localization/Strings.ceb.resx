@@ -3693,7 +3693,7 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
     <value>Ilisan</value>
   </data>
   <data name="SoundboardImportModeMessage" xml:space="preserve">
-    <value>Idugang ang mga clip gikan sa {0} sa {1} ka clip dinhi, o ilisan kini? Ang Ilisan mopapas sa mga clip dinhi ug magpabilin sa mga id gikan sa file, busa ang mga key nga nakagapos niadtong mga id motukar sa mga na-import nga clip.</value>
+    <value>Idugang ang mga clip gikan sa {0} sa {1} ka clip dinhi, o ilisan kini? Ang Ilisan mopapas sa mga clip dinhi ug magpabilin sa mga id gikan sa file, busa ang mga key nga nakagapos niadtong mga id motukar sa mga na-import nga clip. Walay ilisan gawas kung ma-import dinhi ang matag clip sa file.</value>
   </data>
   <data name="SoundboardDropHint" xml:space="preserve">
     <value>I-drop ang mga sound file aron idugang sa {0}. Ang mga sound file sa usa ka folder moadto sa panid nga ginganlan sunod sa folder.</value>
@@ -3705,6 +3705,9 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
     <value>Kung walay sulod, ibutang ang clip sa {0}. Ang ngalan nga wala pay panid maghimo og bag-ong panid. Ang clip nga gibalhin sa usa ka panid moadto sa kataposan niini.</value>
   </data>
   <data name="SoundClipPageInvalid" xml:space="preserve">
-    <value>Ang ngalan sa panid adunay labing daghan 40 ka karakter ug walay control character.</value>
+    <value>Ang ngalan sa panid adunay labing daghan 40 ka karakter, walay control character, ug dili usa ka gitling lang.</value>
+  </data>
+  <data name="SoundboardExportNeedsZip" xml:space="preserve">
+    <value>Pagpili og ngalan sa file nga matapos sa .zip: gi-save ang library isip zip file.</value>
   </data>
 </root>

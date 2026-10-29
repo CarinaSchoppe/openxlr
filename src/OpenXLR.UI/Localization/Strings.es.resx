@@ -3341,7 +3341,7 @@ Selecciona la interfaz que controla OpenXLR</value>
     <value>Sustituir</value>
   </data>
   <data name="SoundboardImportModeMessage" xml:space="preserve">
-    <value>¿Añadir los clips de {0} a los {1} clips de aquí, o sustituirlos? Sustituir borra los clips de aquí y conserva los identificadores del archivo, así que las teclas asignadas a ellos reproducen los clips importados.</value>
+    <value>¿Añadir los clips de {0} a los {1} clips de aquí, o sustituirlos? Sustituir borra los clips de aquí y conserva los identificadores del archivo, así que las teclas asignadas a ellos reproducen los clips importados. No sustituye nada a menos que todos los clips del archivo se puedan importar aquí.</value>
   </data>
   <data name="SoundboardDropHint" xml:space="preserve">
     <value>Suelte archivos de sonido para añadirlos a {0}. Los archivos de sonido de una carpeta van a una página con el nombre de la carpeta.</value>
@@ -3353,6 +3353,9 @@ Selecciona la interfaz que controla OpenXLR</value>
     <value>Vacío pone el clip en {0}. Un nombre que ninguna página tiene aún crea una página nueva. Un clip movido a una página va al final de ella.</value>
   </data>
   <data name="SoundClipPageInvalid" xml:space="preserve">
-    <value>Un nombre de página tiene como máximo 40 caracteres y ningún carácter de control.</value>
+    <value>Un nombre de página tiene como máximo 40 caracteres, ningún carácter de control y no es un guion solo.</value>
+  </data>
+  <data name="SoundboardExportNeedsZip" xml:space="preserve">
+    <value>Elija un nombre de archivo que termine en .zip: la biblioteca se guarda como archivo zip.</value>
   </data>
 </root>

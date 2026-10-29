@@ -752,6 +752,7 @@ public sealed class SoundboardViewModelTests
             // A folder's clips go to a page named after it, printable and trimmed, and the page is shown.
             Assert.Equal("Crowd noises", SoundboardViewModel.FolderPage(folder + "/"));
             Assert.Equal("ab", SoundboardViewModel.FolderPage("/music/a\u0001b"));
+            Assert.Equal("", SoundboardViewModel.FolderPage("/music/-"));
             await board.ImportFolderAsync(folder);
             Assert.Equal(["a.wav", "b.wav"], commands.Sent.Select(s => Path.GetFileName(s.Value!.GetValue<string>())));
             Assert.Equal(["Crowd noises", "Crowd noises"], commands.ImportPages);
@@ -830,6 +831,13 @@ public sealed class SoundboardViewModelTests
         commands.One();
         Assert.Equal(Localizer.Text("SoundboardTransferNoAnswer"), board.Status);
 
+        // A picked name without .zip is refused here, never changed, so the
+        // overwrite question and a portal's grant stay for the name picked.
+        await board.ExportLibraryAsync("/home/me/board");
+        Assert.Empty(commands.Sent);
+        Assert.Equal(Localizer.Text("SoundboardExportNeedsZip"), board.Status);
+        Assert.True(board.StatusWarns);
+
         // Nothing to export from an empty board, and nothing while the mixer is off.
         JsonObject empty = Board();
         empty["clips"] = new JsonArray();
@@ -853,6 +861,9 @@ public sealed class SoundboardViewModelTests
         edit.Page = "";
         Assert.True(await edit.SaveAsync());
         Assert.Equal("""{"page":"","clip":"drumroll"}""", commands.One().Value!.ToJsonString());
+        edit.Page = "-";
+        Assert.False(await edit.SaveAsync());
+        Assert.Equal(Localizer.Text("SoundClipPageInvalid"), edit.Note);
         edit.Page = new string('p', 41);
         Assert.False(await edit.SaveAsync());
         Assert.Equal(Localizer.Text("SoundClipPageInvalid"), edit.Note);

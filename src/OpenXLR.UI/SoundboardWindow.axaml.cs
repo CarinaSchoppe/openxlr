@@ -197,8 +197,8 @@ public partial class SoundboardWindow : Window
             board.ShowReport(Localizer.Format("SoundboardFileUnreadable", file.Name), true);
             return;
         }
-        // The daemon writes archives that end in .zip only.
-        if (!path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) path += ".zip";
+        // The name is the one picked, which the overwrite question and a
+        // desktop portal's grant were for; one without .zip is refused there.
         await board.ExportLibraryAsync(path);
     }
 

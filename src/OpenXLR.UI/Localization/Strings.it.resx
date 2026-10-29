@@ -3706,7 +3706,7 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
     <value>Sostituisci</value>
   </data>
   <data name="SoundboardImportModeMessage" xml:space="preserve">
-    <value>Aggiungere le clip di {0} alle {1} clip presenti, o sostituirle? Sostituisci elimina le clip presenti e mantiene gli id del file, così i tasti legati a quegli id riproducono le clip importate.</value>
+    <value>Aggiungere le clip di {0} alle {1} clip presenti, o sostituirle? Sostituisci elimina le clip presenti e mantiene gli id del file, così i tasti legati a quegli id riproducono le clip importate. Non sostituisce nulla se non tutte le clip del file si possono importare qui.</value>
   </data>
   <data name="SoundboardDropHint" xml:space="preserve">
     <value>Rilascia i file audio per aggiungerli a {0}. I file audio di una cartella vanno in una pagina con il nome della cartella.</value>
@@ -3718,6 +3718,9 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
     <value>Vuoto mette la clip in {0}. Un nome che nessuna pagina ha ancora crea una pagina nuova. Una clip spostata in una pagina va in fondo.</value>
   </data>
   <data name="SoundClipPageInvalid" xml:space="preserve">
-    <value>Il nome di una pagina ha al massimo 40 caratteri e nessun carattere di controllo.</value>
+    <value>Il nome di una pagina ha al massimo 40 caratteri, nessun carattere di controllo e non è un trattino da solo.</value>
+  </data>
+  <data name="SoundboardExportNeedsZip" xml:space="preserve">
+    <value>Scegli un nome di file che finisca con .zip: la libreria viene salvata come file zip.</value>
   </data>
 </root>

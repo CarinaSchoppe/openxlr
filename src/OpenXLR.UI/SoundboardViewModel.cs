@@ -666,13 +666,19 @@ public sealed class SoundboardViewModel : ViewModelBase
 
     /// <summary>
     /// A folder's name as a page: printable, trimmed and cut to the length
-    /// the daemon takes. Empty, the default page, for a name with nothing left.
+    /// the daemon takes. Empty, the default page, for a name with nothing left
+    /// or a lone dash.
     /// </summary>
     internal static string PageName(string? name)
     {
         string text = new string([.. (name ?? "").Where(c => !char.IsControl(c))]).Trim();
-        return text.Length > MaxPageLength ? text[..MaxPageLength].TrimEnd() : text;
+        text = text.Length > MaxPageLength ? text[..MaxPageLength].TrimEnd() : text;
+        // A lone dash is the default page's word in the terminal mixer, never a page.
+        return text == DefaultPageWord ? "" : text;
     }
+
+    /// <summary>What the daemon refuses as a page name: it stands for the default page where no empty name can be typed.</summary>
+    internal const string DefaultPageWord = "-";
 
     // No board was reported on the daemon connection yet. Reset runs on the
     // UI thread in order with the states, so a state still queued from the
@@ -979,9 +985,21 @@ public sealed class SoundboardViewModel : ViewModelBase
     /// <summary>The library can be exported: the daemon reports a board with clips, and nothing else is copying.</summary>
     public bool CanExport => _mixerRunning && _reported && Clips.Count > 0 && !_importing && !_transferring;
 
-    /// <summary>Write the library into a zip archive the user picked, and say how it went.</summary>
+    /// <summary>
+    /// Write the library into a zip archive the user picked, and say how it
+    /// went. The daemon writes only a name that ends in .zip, and the name is
+    /// never changed here, since the overwrite question and a desktop
+    /// portal's grant were for the name picked: another is refused at once.
+    /// </summary>
     public Task ExportLibraryAsync(string path)
-        => TransferAsync(CanExport, Localizer.Text("SoundboardExporting"), () => _commands.ExportSoundboardAsync(path));
+    {
+        if (CanExport && !path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowReport(Localizer.Text("SoundboardExportNeedsZip"), true);
+            return Task.CompletedTask;
+        }
+        return TransferAsync(CanExport, Localizer.Text("SoundboardExporting"), () => _commands.ExportSoundboardAsync(path));
+    }
 
     /// <summary>Add a library archive's clips, or replace the library with them, and say how it went.</summary>
     public Task ImportLibraryAsync(string path, bool merge)
@@ -1148,7 +1166,7 @@ public sealed class SoundClipEditViewModel : ViewModelBase
             return null;
         }
         string page = (_page ?? "").Trim();
-        if (page.Length > SoundboardViewModel.MaxPageLength || page.Any(char.IsControl))
+        if (page.Length > SoundboardViewModel.MaxPageLength || page.Any(char.IsControl) || page == SoundboardViewModel.DefaultPageWord)
         {
             Note = Localizer.Text("SoundClipPageInvalid");
             return null;

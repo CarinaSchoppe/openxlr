@@ -78,6 +78,7 @@ make -C native test-sound-check  # Sound Check loop backend, no audio server
 make -C native test-eq  # microphone EQ backend against the cookbook table, no audio server
 make -C native test-duck  # duck detector, gain depth and timing, no audio server
 make -C native test-denoise  # noise removal, RNNoise and DeepFilterNet when built (cargo), no audio server
+make -C native test-player  # soundboard player: decoding, limits, press modes and ramps, libsndfile, no audio server
 OPENXLR_TEST_DESKTOP=1 xvfb-run -a dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~TrayWindowTests
 OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
 OPENXLR_TEST_TOOLTIP=1 xvfb-run -a -s '-screen 0 1600x1000x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~ToolTipInputTests

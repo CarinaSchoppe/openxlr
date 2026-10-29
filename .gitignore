@@ -21,6 +21,7 @@ native/tests/eq
 native/tests/duck
 native/tests/denoise
 native/tests/denoise-handoff
+native/tests/player
 native/build-config.h
 native/rnnoise/src/*.o
 native/rnnoise/src/x86/*.o

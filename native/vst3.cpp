@@ -1358,6 +1358,7 @@ extern "C" const Backend vst3_backend = {
     true,
     0,
     0,
+    nullptr,
 };
 
 // --- the scanner ------------------------------------------------------------

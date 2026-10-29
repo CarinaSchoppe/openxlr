@@ -72,6 +72,9 @@ typedef struct {
   // 0, or one mono output beside the audio, port tap_0, which the backend
   // writes through Host.tap in process. Unlinked, it is written and dropped.
   unsigned tap_outputs;
+  // A command line the core does not know, on the main thread. True when the
+  // backend took it. NULL for a backend that only takes `set` lines.
+  bool (*command)(Host *h, char *line);
 } Backend;
 
 #ifndef __cplusplus

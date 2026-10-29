@@ -112,7 +112,7 @@ internal static class FocusProcesses
     internal static int[] Match(int focused, int[] candidates, Func<int, int?> parent, System.Threading.CancellationToken cancel = default)
     {
         cancel.ThrowIfCancellationRequested();
-        if (focused <= 0) throw new InvalidOperationException("The desktop has no focused application.");
+        if (focused <= 1) throw new InvalidOperationException("The desktop has no focused application.");
         if (candidates.Contains(focused)) return [focused];
         var parents = new Dictionary<int, int?>();
         bool Related(int child)

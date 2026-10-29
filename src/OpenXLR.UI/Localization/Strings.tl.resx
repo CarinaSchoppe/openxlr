@@ -555,10 +555,10 @@
     <value>Naka-on ang focus routing ng OpenDeck. Pumili ng mga channel sa ibaba upang magtakda ng PC shortcut.</value>
   </data>
   <data name="DesktopKeysIntro" xml:space="preserve">
-    <value>Gumagamit ng KDE Plasma, Sway o Hyprland ang routing ng nakapokus na app. Paganahin ito para sa mga OpenDeck key, saka pumili ng mga channel sa ibaba upang magtakda ng PC shortcut sa dialog ng pahintulot ng desktop. Panatilihing tumatakbo ang OpenXLR, kahit nasa tray.</value>
+    <value>Gumagamit ng KDE Plasma, Sway, Hyprland, Niri o X11 ang routing ng nakapokus na app. Paganahin ito para sa mga OpenDeck key, saka pumili ng mga channel sa ibaba upang magtakda ng PC shortcut sa dialog ng pahintulot ng desktop. Panatilihing tumatakbo ang OpenXLR, kahit nasa tray.</value>
   </data>
   <data name="DesktopKeysNote" xml:space="preserve">
-    <value>Mga shortcut para sa application channel, volume at system output, at focus routing ng OpenDeck na nangangailangan ng KDE Plasma, Sway o Hyprland.</value>
+    <value>Mga shortcut para sa application channel, volume at system output, at focus routing ng OpenDeck na nangangailangan ng KDE Plasma, Sway, Hyprland, Niri o X11.</value>
   </data>
   <data name="DesktopKeysTitle" xml:space="preserve">
     <value>Mga desktop key ng OpenXLR</value>

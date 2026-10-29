@@ -3926,7 +3926,10 @@ routing is requested:
   `HYPRLAND_INSTANCE_SIGNATURE` from the session.
 - Niri: `niri msg --json focused-window`, using `NIRI_SOCKET` from the session.
 - X11: `xprop` reads the active window, its PID and its client machine.
-  Windows identifying a different computer are refused.
+  Windows identifying a different computer are refused. This source only
+  supports native applications: a Flatpak window reports a sandbox PID in
+  `_NET_WM_PID`, which cannot be resolved to a host process from X11 alone.
+  Xwayland cannot identify focused Wayland windows.
 
 Hyprland routing has been run on a live session. Sway, Niri and the new X11
 source still need owner desktop acceptance.
@@ -3938,11 +3941,18 @@ ask the UI. GNOME and other compositors have no focus source yet, and
 routing reports an error there, when the UI is closed, and inside the
 Flatpak, which has no access to the compositor.
 
-Native OpenXLR can also match Flatpak audio clients using their portal
-instance ids, `flatpak ps` and the host process namespace. A missing or
+With a host PID from KWin, Sway, Hyprland or Niri, native OpenXLR can also
+match Flatpak audio clients using their portal instance ids, `flatpak ps`
+and the host process namespace. A missing or
 failed Flatpak query leaves those candidates unavailable and keeps native
 application matching working. It never treats a sandbox PID as a host PID.
-See [focused routing](focused-routing.md) for the matching rules.
+An exact host process takes precedence over its descendants. Shared
+namespaces keep each instance distinct; ambiguous identities are refused.
+The daemon reads one application snapshot for the candidates, then another
+to recheck the returned keys before saving the assignment. With no audio
+client it reports that the focused application has no identifiable PipeWire
+client. A timed-out UI query has its own error; after an update, restart an
+older UI as well as the daemon.
 
 PC shortcuts need the GlobalShortcuts portal; Deck routing does not. On a
 desktop without the portal, Desktop keys says so and routing

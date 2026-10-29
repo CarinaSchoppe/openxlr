@@ -66,8 +66,8 @@ public sealed class FocusProcessResolutionTests
 
     [Theory]
     [InlineData("Error: GDBus.Error:org.openxlr.Desktop.Unavailable: The desktop has no focused application.", "The desktop has no focused application.")]
-    [InlineData("Error: GDBus.Error:org.freedesktop.DBus.Error.UnknownMethod: No such method", "updated OpenXLR window")]
-    [InlineData("Error: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: no owner", "OpenXLR window running")]
+    [InlineData("Error: GDBus.Error:org.freedesktop.DBus.Error.UnknownMethod: No such method", "updated OpenXLR UI")]
+    [InlineData("Error: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: no owner", "OpenXLR UI running")]
     public async Task DesktopFailuresGiveActionableMessagesWithoutRawDbusErrors(string stderr, string expected)
     {
         await WithHelper("gdbus", "printf '%s' '" + stderr + "' >&2\nexit 1", () =>
@@ -78,6 +78,47 @@ public sealed class FocusProcessResolutionTests
             return Task.CompletedTask;
         });
     }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void SystemProcessesNeverMatchEvenAnExactCandidate(int focused)
+    {
+        int reads = 0;
+        var error = Assert.Throws<InvalidOperationException>(() => FocusProcesses.Match(focused, [1, 42], _ => { ++reads; return 1; }));
+        Assert.Contains("no focused application", error.Message);
+        Assert.Equal(0, reads);
+    }
+
+    [Fact]
+    public void InitNeverMatchesAnApplicationsParentChain()
+    {
+        int reads = 0;
+        Assert.Throws<InvalidOperationException>(() => FocusProcesses.Match(1, [42], _ => { ++reads; return 1; }));
+        Assert.Equal(0, reads);
+    }
+
+    [Fact]
+    public Task NoAudioClientsGetsAnActionableErrorWithoutStartingGdbus() => WithHelper("gdbus", "exit 99", () =>
+    {
+        var error = Assert.Throws<InvalidOperationException>(() => DesktopFocusQuery.ReadAudioProcesses([]));
+        Assert.Equal("the focused application has no identifiable PipeWire client", error.Message);
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task ATimeoutHasItsOwnMessageAndTheNextQueryCanRun() => WithHelper("gdbus", "/bin/sleep 30", () =>
+    {
+        var error = Assert.Throws<InvalidOperationException>(() => DesktopFocusQuery.ReadAudioProcesses(["42"]));
+        Assert.Contains("timed out", error.Message);
+        Assert.Contains("UI", error.Message);
+        // A second request must reach the helper rather than retain the gate.
+        string helper = Path.Combine(Environment.GetEnvironmentVariable("PATH")!, "gdbus");
+        ExecutableScript.Write(helper, "printf \"('42',)\"");
+        Assert.Equal(["42"], DesktopFocusQuery.ReadAudioProcesses(["42"]));
+        return Task.CompletedTask;
+    });
 
     [Fact]
     public void MatchingKeepsExactPrecedenceAndBoundsParentWalks()

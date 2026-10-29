@@ -8,7 +8,9 @@ internal static class DesktopFocusQuery
     private static int _pending;
     internal static string[] ReadAudioProcesses(string[] candidates)
     {
-        if (candidates.Length is 0 or > 1024 || candidates.Any(string.IsNullOrWhiteSpace)
+        if (candidates.Length == 0)
+            throw new InvalidOperationException("the focused application has no identifiable PipeWire client");
+        if (candidates.Length > 1024 || candidates.Any(string.IsNullOrWhiteSpace)
             || candidates.Sum(candidate => (long)candidate.Length + 1) > 32768)
             throw new InvalidOperationException("no bounded list of audio processes is available");
         if (Interlocked.Exchange(ref _pending, 1) != 0)
@@ -20,13 +22,15 @@ internal static class DesktopFocusQuery
                 string.Join(',', candidates)], TimeSpan.FromSeconds(7), stdoutCap: 32768, stderrCap: 4096);
             if (!reply.Ok)
             {
+                if (reply.TimedOut)
+                    throw new InvalidOperationException("the OpenXLR UI focus query timed out; check that the UI and compositor are responding");
                 const string prefix = "GDBus.Error:org.openxlr.Desktop.Unavailable:";
                 int at = reply.Stderr.IndexOf(prefix, StringComparison.Ordinal);
                 string detail = at >= 0 ? reply.Stderr[(at + prefix.Length)..].Trim()
                     : reply.Stderr.Contains("org.freedesktop.DBus.Error.UnknownMethod", StringComparison.Ordinal)
                         || reply.Stderr.Contains("org.freedesktop.DBus.Error.UnknownInterface", StringComparison.Ordinal)
-                        ? "focused routing needs an updated OpenXLR window; restart the window after updating"
-                        : "focused routing requires the OpenXLR window running with Desktop keys enabled and a configured compositor focus source";
+                        ? "focused routing needs an updated OpenXLR UI; restart the UI after updating"
+                        : "focused routing requires the OpenXLR UI running with Desktop keys enabled and a configured compositor focus source";
                 throw new InvalidOperationException(detail.Length <= 512 ? detail : detail[..512]);
             }
             return ParseAudioProcesses(reply.StdoutText, candidates);

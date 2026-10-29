@@ -24,9 +24,16 @@ extern "C" {
 enum {
   MAX_FRAMES = 8192,
   MAX_CHANNELS = 2,
+  MAX_TAPS = 2,
   MAX_CONTROLS = 4096,
   MAX_SYMBOL = 255
 };
+
+// One mono output beside the audio: its port name and its channel position.
+typedef struct {
+  const char *port;     // "tap_0"
+  const char *channel;  // "MONO", "FL" or "FR"
+} TapOutput;
 
 enum { AUDIO_INVALID_INPUT = 1, AUDIO_INVALID_OUTPUT };
 
@@ -69,9 +76,10 @@ typedef struct {
   // These formats can arrive through Wine and need the coordinate nudge.
   bool editor_coordinate_nudge;
   unsigned key_inputs;  // 0, or one mono detector input separate from the audio
-  // 0, or one mono output beside the audio, port tap_0, which the backend
-  // writes through Host.tap in process. Unlinked, it is written and dropped.
-  unsigned tap_outputs;
+  // The outputs beside the audio, at most MAX_TAPS, ended by an entry with
+  // no port; NULL for none. The backend writes tap i through Host.taps[i] in
+  // process, every sample of it. Unlinked, a tap is written and dropped.
+  const TapOutput *tap_outputs;
   // A command line the core does not know, on the main thread. True when the
   // backend took it. NULL for a backend that only takes `set` lines.
   bool (*command)(Host *h, char *line);
@@ -108,10 +116,15 @@ struct Host {
   void *in_ports[MAX_CHANNELS], *out_ports[MAX_CHANNELS];
   void *key_port;
   const float *key;
-  void *tap_port;
-  float *tap;  // the tap output's buffer for this cycle, or NULL without one
+  void *tap_ports[MAX_TAPS];
+  unsigned tap_count;  // the taps the backend declared and the host added
+  // Each tap output's buffer for this cycle, or NULL past tap_count.
+  float *taps[MAX_TAPS];
   float *silence, *scratch;  // for a channel PipeWire gave no buffer this cycle
-  float *tap_scratch;        // the same for the tap output
+  float *tap_scratch[MAX_TAPS];  // the same for each tap output
+  // This cycle PipeWire gave none of the main outputs a buffer: nothing is
+  // linked to read them, though a tap may be, which keeps the node running.
+  bool outputs_unread;
   _Atomic bool audio_error;
   _Atomic bool process_failed;  // the plugin refused to start or process audio
   uint32_t failed_frames;  // audio thread: the current run of refused blocks

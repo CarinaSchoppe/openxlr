@@ -19,7 +19,7 @@ static void check_raw_switch(void) {
   SoundCheck *s = h.impl;
   float input[512], output[512], tap[512];
   float *in[] = {input}, *out[] = {output};
-  h.tap = tap;
+  h.taps[0] = tap;
   for (unsigned i = 0; i < 512; i++) input[i] = 0.5f;
   sound_check_process(&h, 512, in, out);
   for (unsigned i = 0; i < 512; i++) assert(output[i] == 0.5f && tap[i] == 0);
@@ -41,7 +41,7 @@ static void check_raw_switch(void) {
   for (unsigned i = 0; i < 512; i++) assert(output[i] == 0 && tap[i] == 0.5f);
   // Back to processed, and without a tap buffer the main output still works.
   atomic_store(&s->raw->desired, 0);
-  h.tap = NULL;
+  h.taps[0] = NULL;
   for (unsigned i = 0; i < 4; i++) sound_check_process(&h, 512, in, out);
   for (unsigned i = 0; i < 512; i++) assert(output[i] == 0.5f);
   sound_check_unload(&h);
@@ -229,7 +229,9 @@ static void check_level(void) {
 
 int main(void) {
   assert(backend_named("soundcheck") == &sound_check_backend);
-  assert(sound_check_backend.tap_outputs == 1);
+  // Sound Check keeps its one mono tap, tap_0.
+  const TapOutput *taps = sound_check_backend.tap_outputs;
+  assert(taps && !strcmp(taps[0].port, "tap_0") && !strcmp(taps[0].channel, "MONO") && !taps[1].port);
   Host h = {.rate = 8000, .channels = 1};
   assert(sound_check_load(&h, NULL));
   SoundCheck *s = h.impl;

@@ -520,6 +520,24 @@ graph, and a press sent before then waits in a queue of 256 lines. A press
 the audio thread reaches more than a quarter of a second after it was sent
 is dropped, so presses that waited for a link never sound late, all at once.
 
+Beside the main pair the player has an audition pair, `audition_0` (FL)
+and `audition_1` (FR), two mono taps the daemon links into the monitor
+mixes only. One audition voice plays there, outside the 8 voices. It is
+never mixed into `capture_0` and `capture_1`, and a press never steals it.
+`restart`, `toggle` and `release` act on the 8 voices alone. An audition
+plays its clip once from the start at the slot's gain, whatever the slot's
+loop, and a second audition fades the first out under it, of whichever
+slot. A stop of its slot, `stop all`, `stop audition` and a new clip in its
+slot end it with the usual fade. An audition the audio thread reaches more
+than a quarter of a second late is dropped like a press.
+
+A linked audition pair keeps the node running when the main pair's link is
+gone. In a cycle where PipeWire gives neither main output a buffer, so that
+nothing reads them, the player stands still as an unlinked node would. It
+takes nothing from the queue, moves no voice, the audition's included,
+and writes silence. Presses sent meanwhile wait and go stale as before,
+instead of playing unheard and surfacing mid-clip once the link is back.
+
 Each slot has two controls and three meters, for N from 0 to 63:
 
 | Symbol | Range | Default | Meaning |
@@ -530,6 +548,12 @@ Each slot has two controls and three meters, for N from 0 to 63:
 | `pos_N` | 0 to 1 | 0 | Read-only: how far through the clip the newest of them is |
 | `ended_N` | 0 to 16777215 | 0 | Read-only: the newest numbered press on the slot whose `hold` voice has ended, together with every earlier press's; 0 before the slot took a numbered press |
 
+One more meter is the player's, not a slot's:
+
+| Symbol | Range | Default | Meaning |
+|---|---|---|---|
+| `audition` | 0 to 64 | 0 | Read-only: the slot the audition voice plays, plus one; 0 while none plays. `playing_N` and `pos_N` never count it |
+
 `set SYMBOL VALUE` moves a control as for every backend, and both apply to
 voices already playing. The other lines are the player's own:
 
@@ -539,7 +563,8 @@ voices already playing. The other lines are the player's own:
 | `unload SLOT` | Empty the slot, and drop a load for it still decoding. Answered with `clip SLOT unloaded` |
 | `play SLOT [MODE [PRESS]]` | `overlap`, the default, starts another voice; `restart` fades out the slot's voices and starts one; `toggle` fades them out when one plays, else starts one; `hold` starts one that `release` ends. `PRESS` numbers the press for `ended_N` |
 | `release SLOT` | End the slot's `hold` voices |
-| `stop SLOT`, `stop all` | Fade out the slot's voices, or every voice |
+| `audition SLOT` | Play the slot's clip once on the audition pair, in place of the audition playing |
+| `stop SLOT`, `stop all`, `stop audition` | Fade out the slot's voices and its audition, every voice and the audition, or the audition alone |
 | `probe PATH` | Check a file as `load` would and keep nothing. Answered with one line |
 
 `SLOT` is 0 to 63. `TOKEN` is 0 to 4294967295, chosen by the sender and
@@ -641,6 +666,11 @@ three channels, 4000 Hz, a path that is too long, the memory budget and
 malformed lines; 150 damaged and truncated copies each of a WAV, FLAC, Ogg
 and MP3 file, each answered with one line and played with finite output; each
 press mode, release, stop and stop all with no step larger than the ramp's;
+the audition on its own pair and never on the main one, through every press
+mode, a full pool and a steal, replaced by the next audition without a
+step, ended by `stop audition`, a stop of its slot, `stop all` and a new
+clip, played once whatever the loop, dropped when late and run with no tap
+buffers; and the player standing still while its main pair is unread;
 `ended_N` through a release, a stop, a toggle, a clip's own end, a dropped
 press, an unnumbered press and the count starting over;
 the voice limit and stealing across slots; a clip's end, a loop's wrap and

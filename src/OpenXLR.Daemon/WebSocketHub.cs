@@ -454,6 +454,8 @@ public sealed class WebSocketHub
             case "releaseClip":
             case "stopClip":
             case "stopClips":
+            case "auditionClip":
+            case "stopAudition":
                 // On a WebSocket, browserOwner is that connection's id: a clip
                 // pressed in hold mode belongs to it until released.
                 error = _mixer.Apply(cmd, browserOwner);       // broadcasts on success

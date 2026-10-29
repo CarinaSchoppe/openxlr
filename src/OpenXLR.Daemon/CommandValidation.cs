@@ -84,6 +84,8 @@ public static class CommandValidation
             case "releaseClip":
             case "stopClip":
             case "stopClips":
+            case "auditionClip":
+            case "stopAudition":
             case "setClipOrder":
             case "getSoundboard":
                 return CheckSoundboard(cmd, nativeHostInstalled ?? PluginCatalog.HostInstalled);
@@ -567,6 +569,7 @@ public static class CommandValidation
             case "deleteClip":
             case "releaseClip":
             case "stopClip":
+            case "auditionClip":
                 return NeedClip();
             case "setClipOrder":
                 return cmd.Clips is { Count: <= SoundboardLibrary.MaxClips } clips && clips.All(SoundboardLibrary.IsValidId)

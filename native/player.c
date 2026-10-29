@@ -3,6 +3,13 @@
 // voices mixed into one stereo output. The daemon links that output into a
 // channel; playing a clip changes nothing in the graph.
 //
+// The audition. One voice of its own, outside the pool, plays a clip into a
+// second stereo pair, the taps audition_0 and audition_1, which the daemon
+// links into the monitor mixes only. An audition voice is never mixed into
+// the main pair, and a press on the main pair never ends one: restart,
+// toggle, release and the steal of the oldest voice see only the pool. A
+// stop of the clip, a stop of everything and a new clip in its slot end it.
+//
 // Who owns what. A worker thread decodes one clip at a time, so command lines
 // keep flowing while a long file loads; it reads files and allocates the
 // clip it decodes, and hands it to the main thread, which owns every clip
@@ -34,6 +41,7 @@
 enum {
   PLAYER_SLOTS = 64,         // clips the player holds at once
   PLAYER_VOICES = 8,         // clips heard at once; one more steals the oldest
+  PLAYER_AUDITIONS = 1,      // clips auditioned at once; another replaces it
   PLAYER_MAX_SECONDS = 30,   // the longest clip
   PLAYER_MIN_RATE = 8000,    // a clip's own sample rate, as the helper's
   PLAYER_MAX_RATE = 384000,
@@ -62,7 +70,7 @@ static const char *const mode_words[] = {"overlap", "restart", "toggle", "hold"}
 
 enum {
   // Room for the voices that fade out beside the ones that play.
-  PHYSICAL_VOICES = 2 * PLAYER_VOICES,
+  PHYSICAL_VOICES = 2 * (PLAYER_VOICES + PLAYER_AUDITIONS),
   EVENT_CAPACITY = 256,
   // Clips alive at once: in a slot, still read by a fading voice, or on their
   // way back to the main thread. The return ring holds this many, so it can
@@ -81,13 +89,13 @@ typedef struct {
   size_t bytes;
 } Clip;
 
-enum { EVENT_SWAP, EVENT_PLAY, EVENT_RELEASE, EVENT_STOP, EVENT_STOP_ALL };
+enum { EVENT_SWAP, EVENT_PLAY, EVENT_RELEASE, EVENT_STOP, EVENT_STOP_ALL, EVENT_AUDITION, EVENT_STOP_AUDITION };
 
 typedef struct {
   uint8_t type, slot, mode;
   uint32_t press;  // EVENT_PLAY: the press's number, or 0 when it came without one
   Clip *clip;      // EVENT_SWAP: the slot's new clip, or NULL to empty it
-  uint64_t at;     // EVENT_PLAY: when the main thread queued it, CLOCK_MONOTONIC
+  uint64_t at;     // EVENT_PLAY and EVENT_AUDITION: when the main thread queued it, CLOCK_MONOTONIC
 } Event;
 
 static uint64_t monotonic_ns(void) {
@@ -115,6 +123,7 @@ typedef struct {
   float gain;        // follows the slot's gain at the ramp's pace
   bool releasing;    // fading out, then free
   bool held;         // started by a `hold` press: a release ends it
+  bool audition;     // plays into the audition pair, never the main one
   bool loop_pass;    // this pass wraps instead of ending
   uint32_t press;    // the number of the press that started it, or 0
   uint64_t order;    // when it started, for stealing the oldest
@@ -151,7 +160,11 @@ typedef struct {
   // Controls and meters.
   Control *gain[PLAYER_SLOTS], *loop[PLAYER_SLOTS];
   Control *playing[PLAYER_SLOTS], *position[PLAYER_SLOTS], *ended[PLAYER_SLOTS];
+  Control *auditioning;  // the slot the audition voice plays, plus one; 0 for none
   char names[PLAYER_SLOTS][5][16];
+  // Audio thread: where the audition pair goes when the host gave it no
+  // buffer, so the voice still runs and ends on time.
+  float spare[2][MAX_FRAMES];
 } Player;
 
 // --- the audio thread -------------------------------------------------------
@@ -197,18 +210,21 @@ static void retire(Player *p, Clip *clip) {
 
 static void release_voice(Voice *v) { v->releasing = true; }
 
-static void start_voice(Player *p, unsigned slot, bool held, uint32_t press) {
+// A voice in the pool, or with AUDITION the audition voice. Each has its own
+// count: a press steals the oldest voice of the pool and an audition replaces
+// the audition, so neither ever takes the other's.
+static void start_voice(Player *p, unsigned slot, bool held, uint32_t press, bool audition) {
   const Clip *clip = p->current[slot];
   if (!clip) return;
   unsigned playing = 0;
   Voice *oldest = NULL;
   for (unsigned i = 0; i < PHYSICAL_VOICES; i++) {
     Voice *v = &p->voices[i];
-    if (!v->clip || v->releasing) continue;
+    if (!v->clip || v->releasing || v->audition != audition) continue;
     playing++;
     if (!oldest || v->order < oldest->order) oldest = v;
   }
-  if (playing >= PLAYER_VOICES && oldest) release_voice(oldest);
+  if (playing >= (audition ? PLAYER_AUDITIONS : PLAYER_VOICES) && oldest) release_voice(oldest);
   Voice *free_voice = NULL, *quietest = NULL;
   for (unsigned i = 0; i < PHYSICAL_VOICES && !free_voice; i++) {
     Voice *v = &p->voices[i];
@@ -224,17 +240,20 @@ static void start_voice(Player *p, unsigned slot, bool held, uint32_t press) {
       .clip = clip,
       .slot = slot,
       .held = held,
+      .audition = audition,
       .press = press,
       .gain = atomic_load(&p->gain[slot]->desired),
-      .loop_pass = atomic_load(&p->loop[slot]->desired) >= 0.5f,
+      // An audition plays the clip once, whatever its loop.
+      .loop_pass = !audition && atomic_load(&p->loop[slot]->desired) >= 0.5f,
       .order = ++p->started,
   };
 }
 
+// A voice of the pool plays the slot. An audition of it does not count.
 static bool slot_playing(const Player *p, unsigned slot) {
   for (unsigned i = 0; i < PHYSICAL_VOICES; i++) {
     const Voice *v = &p->voices[i];
-    if (v->clip && !v->releasing && v->slot == slot) return true;
+    if (v->clip && !v->releasing && !v->audition && v->slot == slot) return true;
   }
   return false;
 }
@@ -257,10 +276,19 @@ static void apply(Player *p, const Event *e, uint64_t now) {
     if (now - e->at > PLAYER_STALE_NS) break;
     if (e->mode == MODE_RESTART || (e->mode == MODE_TOGGLE && slot_playing(p, e->slot))) {
       for (unsigned i = 0; i < PHYSICAL_VOICES; i++)
-        if (p->voices[i].clip && p->voices[i].slot == e->slot) release_voice(&p->voices[i]);
+        if (p->voices[i].clip && !p->voices[i].audition && p->voices[i].slot == e->slot)
+          release_voice(&p->voices[i]);
       if (e->mode == MODE_TOGGLE) break;
     }
-    start_voice(p, e->slot, e->mode == MODE_HOLD, e->press);
+    start_voice(p, e->slot, e->mode == MODE_HOLD, e->press, false);
+    break;
+  case EVENT_AUDITION:
+    if (now - e->at > PLAYER_STALE_NS) break;
+    start_voice(p, e->slot, false, 0, true);
+    break;
+  case EVENT_STOP_AUDITION:
+    for (unsigned i = 0; i < PHYSICAL_VOICES; i++)
+      if (p->voices[i].clip && p->voices[i].audition) release_voice(&p->voices[i]);
     break;
   case EVENT_RELEASE:
     for (unsigned i = 0; i < PHYSICAL_VOICES; i++) {
@@ -334,20 +362,45 @@ static void render(Voice *v, float step, float gain, bool loop, uint32_t frames,
 
 static void player_process(Host *h, uint32_t frames, float *const *in, float *const *out) {
   Player *p = h->impl;
+  // The audition pair alone keeps the node running while the main pair's
+  // link is gone. The player then does what a node that does not run does:
+  // it takes nothing from the queue and moves no voice, the audition's
+  // included, so presses wait and go stale as they always did, and nothing
+  // plays unheard to surface mid-clip once the main pair is linked again.
+  if (h->outputs_unread) {
+    for (unsigned c = 0; c < 2; c++) {
+      memset(out[c], 0, sizeof(float) * frames);
+      if (h->taps[c]) memset(h->taps[c], 0, sizeof(float) * frames);
+    }
+    return;
+  }
   uint32_t head = atomic_load_explicit(&p->event_head, memory_order_acquire);
   uint32_t tail = atomic_load_explicit(&p->event_tail, memory_order_relaxed);
   uint64_t now = head != tail ? monotonic_ns() : 0;
   for (; tail != head; tail++) apply(p, &p->events[tail % EVENT_CAPACITY], now);
   atomic_store_explicit(&p->event_tail, tail, memory_order_release);
-  memset(out[0], 0, sizeof(float) * frames);
-  memset(out[1], 0, sizeof(float) * frames);
+  // The audition pair is the host's two taps, or the player's spare when the
+  // host has none to give, as in a test that drives the player directly.
+  float *audition[2] = {h->taps[0] ? h->taps[0] : p->spare[0], h->taps[1] ? h->taps[1] : p->spare[1]};
+  for (unsigned c = 0; c < 2; c++) {
+    memset(out[c], 0, sizeof(float) * frames);
+    memset(audition[c], 0, sizeof(float) * frames);
+  }
+  unsigned auditioned = 0;
+  uint64_t auditioned_order = 0;
   for (unsigned i = 0; i < PHYSICAL_VOICES; i++) {
     Voice *v = &p->voices[i];
     if (!v->clip) continue;
     float gain = atomic_load(&p->gain[v->slot]->desired);
-    bool loop = atomic_load(&p->loop[v->slot]->desired) >= 0.5f;
-    render(v, p->ramp_step, gain, loop, frames, out[0], out[1]);
+    bool loop = !v->audition && atomic_load(&p->loop[v->slot]->desired) >= 0.5f;
+    float *const *into = v->audition ? audition : out;
+    render(v, p->ramp_step, gain, loop, frames, into[0], into[1]);
+    if (v->audition && v->clip && !v->releasing && v->order > auditioned_order) {
+      auditioned = v->slot + 1;
+      auditioned_order = v->order;
+    }
   }
+  atomic_store(&p->auditioning->observed, (float)auditioned);
   sweep_fading(p);
   // The meters: voices playing each slot, how far its newest one is, and
   // the newest press whose hold voice, and every older one's, has ended.
@@ -363,7 +416,7 @@ static void player_process(Host *h, uint32_t frames, float *const *in, float *co
   const Voice *oldest_held[PLAYER_SLOTS] = {0};
   for (unsigned i = 0; i < PHYSICAL_VOICES; i++) {
     const Voice *v = &p->voices[i];
-    if (!v->clip || v->releasing) continue;
+    if (!v->clip || v->releasing || v->audition) continue;
     counts[v->slot]++;
     if (!newest[v->slot] || v->order > newest[v->slot]->order) newest[v->slot] = v;
     if (v->held && v->press && (!oldest_held[v->slot] || v->order < oldest_held[v->slot]->order))
@@ -914,11 +967,18 @@ static bool player_command(Host *h, char *line) {
     else if (!push_event(p, (Event){.type = EVENT_PLAY, .slot = (uint8_t)slot, .mode = (uint8_t)mode,
                                     .press = press, .at = monotonic_ns()}))
       fprintf(stderr, "note: the player is busy; a press was dropped\n");
+  } else if ((rest = after(line, "audition"))) {
+    const char *end;
+    if (!parse_slot(rest, &slot, &end) || *end) invalid(line);
+    else if (!p->assigned[slot]) fprintf(stderr, "note: slot %u holds no clip\n", slot);
+    else if (!push_event(p, (Event){.type = EVENT_AUDITION, .slot = (uint8_t)slot, .at = monotonic_ns()}))
+      fprintf(stderr, "note: the player is busy; an audition was dropped\n");
   } else if ((rest = after(line, "release")) || (rest = after(line, "stop"))) {
     bool stop = line[0] == 's';
     const char *end;
     Event e = {.type = stop ? EVENT_STOP : EVENT_RELEASE};
     if (stop && !strcmp(rest, "all")) e.type = EVENT_STOP_ALL;
+    else if (stop && !strcmp(rest, "audition")) e.type = EVENT_STOP_AUDITION;
     else if (!parse_slot(rest, &slot, &end) || *end) {
       invalid(line);
       return true;
@@ -955,7 +1015,8 @@ static bool player_load(Host *h, char **arguments) {
     p->ended[s] = host_add_control(h, p->names[s][4], 0, PLAYER_MAX_PRESS, 0, true, NULL);
     if (!p->gain[s] || !p->loop[s] || !p->playing[s] || !p->position[s] || !p->ended[s]) return false;
   }
-  return true;
+  p->auditioning = host_add_control(h, "audition", 0, PLAYER_SLOTS, 0, true, NULL);
+  return p->auditioning != NULL;
 }
 
 static bool player_activate(Host *h) { return true; }
@@ -991,12 +1052,15 @@ static void player_unload(Host *h) {
   h->impl = NULL;
 }
 
+// The audition pair, beside the main pair the daemon links into a channel.
+static const TapOutput player_taps[] = {{"audition_0", "FL"}, {"audition_1", "FR"}, {NULL, NULL}};
+
 const Backend player_backend = {
   .name = "Player", .argument_count = 0,
   .load = player_load, .activate = player_activate,
   .deactivate = player_deactivate, .process = player_process,
   .main_thread = player_tick, .unload = player_unload,
-  .command = player_command,
+  .command = player_command, .tap_outputs = player_taps,
 };
 
 // --- outside a running player -------------------------------------------------

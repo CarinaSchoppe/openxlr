@@ -326,21 +326,24 @@ static void process_audio(void *data, struct spa_io_position *position) {
       if (buffer)
         memset(buffer, 0, sizeof(float) * frames);
     }
-    if (h->tap_port) {
-      float *buffer = pw_filter_get_dsp_buffer(h->tap_port, frames);
+    for (unsigned t = 0; t < h->tap_count; ++t) {
+      float *buffer = pw_filter_get_dsp_buffer(h->tap_ports[t], frames);
       if (buffer)
         memset(buffer, 0, sizeof(float) * frames);
     }
     return;
   }
   float *in[MAX_CHANNELS], *out[MAX_CHANNELS];
+  h->outputs_unread = true;
   for (unsigned i = 0; i < h->channels; ++i) {
     float *buffer = pw_filter_get_dsp_buffer(h->in_ports[i], frames);
     if (!buffer)
       buffer = host_fallback(h->silence, frames, true);
     in[i] = buffer;
     out[i] = pw_filter_get_dsp_buffer(h->out_ports[i], frames);
-    if (!out[i])
+    if (out[i])
+      h->outputs_unread = false;
+    else
       out[i] = host_fallback(h->scratch, frames, false);
   }
   h->key = h->silence;
@@ -348,10 +351,11 @@ static void process_audio(void *data, struct spa_io_position *position) {
     const float *buffer = pw_filter_get_dsp_buffer(h->key_port, frames);
     h->key = buffer ? buffer : host_fallback(h->silence, frames, true);
   }
-  h->tap = NULL;
-  if (h->tap_port) {
-    float *buffer = pw_filter_get_dsp_buffer(h->tap_port, frames);
-    h->tap = buffer ? buffer : host_fallback(h->tap_scratch, frames, false);
+  for (unsigned t = 0; t < MAX_TAPS; ++t) {
+    h->taps[t] = NULL;
+    if (t >= h->tap_count) continue;
+    float *buffer = pw_filter_get_dsp_buffer(h->tap_ports[t], frames);
+    h->taps[t] = buffer ? buffer : host_fallback(h->tap_scratch[t], frames, false);
   }
   // One invalid sample can poison a stateful processor until it is replaced.
   // Keep it out of the plugin and of downstream nodes. Finite headroom above
@@ -378,8 +382,8 @@ static void process_audio(void *data, struct spa_io_position *position) {
   if (invalid_output || atomic_load(&h->audio_error)) {
     for (unsigned c = 0; c < h->channels; ++c)
       memset(out[c], 0, sizeof(float) * frames);
-    if (h->tap)
-      memset(h->tap, 0, sizeof(float) * frames);
+    for (unsigned t = 0; t < h->tap_count; ++t)
+      memset(h->taps[t], 0, sizeof(float) * frames);
   }
 }
 
@@ -430,14 +434,17 @@ static bool add_audio_ports(Host *h) {
         NULL, 0);
     if (!h->key_port) return false;
   }
-  if (h->backend->tap_outputs == 1) {
-    h->tap_port = pw_filter_add_port(
+  h->tap_count = 0;
+  for (const TapOutput *tap = h->backend->tap_outputs; tap && tap->port; ++tap) {
+    if (h->tap_count == MAX_TAPS) return false;
+    void *port = pw_filter_add_port(
         h->filter, PW_DIRECTION_OUTPUT, PW_FILTER_PORT_FLAG_MAP_BUFFERS, 1,
         pw_properties_new(PW_KEY_FORMAT_DSP, "32 bit float mono audio",
-                          PW_KEY_PORT_NAME, "tap_0", PW_KEY_AUDIO_CHANNEL,
-                          "MONO", NULL),
+                          PW_KEY_PORT_NAME, tap->port, PW_KEY_AUDIO_CHANNEL,
+                          tap->channel, NULL),
         NULL, 0);
-    if (!h->tap_port) return false;
+    if (!port) return false;
+    h->tap_ports[h->tap_count++] = port;
   }
   return true;
 }
@@ -1085,8 +1092,10 @@ int main(int argc, char **argv) {
   XSetIOErrorHandler(lost_x_connection);
   h.silence = calloc(MAX_FRAMES, sizeof(float));
   h.scratch = calloc(MAX_FRAMES, sizeof(float));
-  h.tap_scratch = calloc(MAX_FRAMES, sizeof(float));
-  if (!h.silence || !h.scratch || !h.tap_scratch)
+  for (unsigned t = 0; t < MAX_TAPS; ++t)
+    if (!(h.tap_scratch[t] = calloc(MAX_FRAMES, sizeof(float))))
+      return 1;
+  if (!h.silence || !h.scratch)
     return 1;
 
   pw_init(NULL, NULL);
@@ -1169,6 +1178,7 @@ cleanup:
     pw_main_loop_destroy(h.loop);
   free(h.silence);
   free(h.scratch);
-  free(h.tap_scratch);
+  for (unsigned t = 0; t < MAX_TAPS; ++t)
+    free(h.tap_scratch[t]);
   return h.exit_code;
 }

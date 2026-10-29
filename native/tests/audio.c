@@ -139,6 +139,41 @@ static void check_processing_failure(void) {
   puts("PASS: half a second of processing errors silences every channel, stops callbacks and exits for recovery");
 }
 
+// outputs_unread is true only in a cycle where no main output had a buffer:
+// one output with a buffer is enough for the node's outputs to be read.
+static void check_outputs_unread(void) {
+  const Backend gain = {.process = gain_audio};
+  AudioFixture fixture = {0};
+  Host h = {.backend = &gain, .rate = 48000, .channels = 2, .impl = &fixture};
+  h.silence = guarded(), h.scratch = guarded();
+  for (unsigned c = 0; c < h.channels; ++c) {
+    test_buffers[c] = guarded();
+    h.in_ports[c] = &test_buffers[c];
+    h.out_ports[c] = &test_buffers[MAX_CHANNELS + c];
+  }
+  struct spa_io_position position = {0};
+  position.clock.duration = 32;
+  position.clock.rate.denom = h.rate;
+  for (unsigned given = 0; given < 4; ++given) {
+    for (unsigned c = 0; c < h.channels; ++c)
+      test_buffers[MAX_CHANNELS + c] = (given >> c) & 1 ? guarded() : NULL;
+    h.outputs_unread = given != 0;  // the opposite of what the cycle must say
+    process_audio(&h, &position);
+    assert(h.outputs_unread == (given == 0) && fixture.calls == given + 1);
+    for (unsigned c = 0; c < h.channels; ++c) {
+      free(test_buffers[MAX_CHANNELS + c]);
+      test_buffers[MAX_CHANNELS + c] = NULL;
+    }
+  }
+  for (unsigned c = 0; c < h.channels; ++c) {
+    free(test_buffers[c]);
+    test_buffers[c] = NULL;
+  }
+  assert_canary(h.silence), assert_canary(h.scratch);
+  free(h.silence), free(h.scratch);
+  puts("PASS: the main outputs count as unread only when none of them has a buffer");
+}
+
 static void check_invalid_audio(void) {
   const Backend gain = {.process = gain_audio};
   const float invalid[] = {NAN, INFINITY, -INFINITY};
@@ -314,21 +349,32 @@ static void check_key_silence(Host *h, uint32_t frames, float *const *in,
   for (uint32_t n = 0; n < frames; n++) assert(host_key(h)[n] == 0);
 }
 
-// A tap output PipeWire gave no buffer writes into the host's own spare,
-// never into the main outputs' scratch.
+// A tap output PipeWire gave no buffer writes into the host's own spare for
+// that tap, never into the main outputs' scratch or another tap's.
 static void check_tap_fallback(Host *h, uint32_t frames, float *const *in,
                                float *const *out) {
-  assert(h->tap == h->tap_scratch && h->tap != h->scratch);
-  for (uint32_t n = 0; n < frames; n++) h->tap[n] = 0.25f;
+  for (unsigned t = 0; t < MAX_TAPS; t++) {
+    if (t >= h->tap_count) {
+      assert(h->taps[t] == NULL);
+      continue;
+    }
+    assert(h->taps[t] == h->tap_scratch[t] && h->taps[t] != h->scratch);
+    for (uint32_t n = 0; n < frames; n++) h->taps[t][n] = 0.25f * (float)(t + 1);
+  }
 }
+
+static const TapOutput one_tap[] = {{"tap_0", "MONO"}, {NULL, NULL}};
+static const TapOutput stereo_taps[] = {{"audition_0", "FL"}, {"audition_1", "FR"}, {NULL, NULL}};
+static const TapOutput too_many_taps[] = {{"a", "MONO"}, {"b", "MONO"}, {"c", "MONO"}, {NULL, NULL}};
 
 static void check_ports(void) {
   pw_init(NULL, NULL);
   struct pw_main_loop *loop = pw_main_loop_new(NULL);
   assert(loop);
   const Backend keyed = {.process = check_key_silence, .key_inputs = 1};
-  const Backend tapped = {.process = check_tap_fallback, .tap_outputs = 1};
-  const Backend *backends[] = {&lv2_backend, &clap_backend, &vst3_backend, &keyed, &tapped};
+  const Backend tapped = {.process = check_tap_fallback, .tap_outputs = one_tap};
+  const Backend paired = {.process = check_tap_fallback, .tap_outputs = stereo_taps};
+  const Backend *backends[] = {&lv2_backend, &clap_backend, &vst3_backend, &keyed, &tapped, &paired};
   for (unsigned i = 0; i < sizeof(backends) / sizeof(backends[0]); i++) {
     Host h = {.backend = backends[i], .rate = 48000, .channels = 2};
     h.filter = pw_filter_new_simple(pw_main_loop_get_loop(loop), "port-test",
@@ -341,21 +387,33 @@ static void check_ports(void) {
       assert(!strcmp(pw_properties_get(in, PW_KEY_PORT_NAME), c ? "playback_1" : "playback_0"));
       assert(!strcmp(pw_properties_get(out, PW_KEY_PORT_NAME), c ? "capture_1" : "capture_0"));
     }
-    if (h.backend != &tapped) {
-      assert(h.backend->tap_outputs == 0 && h.tap_port == NULL);
+    if (h.backend != &tapped && h.backend != &paired) {
+      assert(h.backend->tap_outputs == NULL && h.tap_count == 0 && h.tap_ports[0] == NULL);
     } else {
-      assert(h.tap_port);
-      const struct pw_properties *tap = pw_filter_get_properties(h.filter, h.tap_port);
-      assert(!strcmp(pw_properties_get(tap, PW_KEY_PORT_NAME), "tap_0"));
-      assert(!strcmp(pw_properties_get(tap, PW_KEY_AUDIO_CHANNEL), "MONO"));
-      h.silence = guarded(), h.scratch = guarded(), h.tap_scratch = guarded();
+      // The taps in the order the backend declared them, each with its own
+      // name and channel position, and each with a spare of its own.
+      const TapOutput *declared = h.backend->tap_outputs;
+      assert(h.tap_count == (h.backend == &paired ? 2u : 1u));
+      for (unsigned t = 0; t < h.tap_count; t++) {
+        assert(h.tap_ports[t]);
+        const struct pw_properties *tap = pw_filter_get_properties(h.filter, h.tap_ports[t]);
+        assert(!strcmp(pw_properties_get(tap, PW_KEY_PORT_NAME), declared[t].port));
+        assert(!strcmp(pw_properties_get(tap, PW_KEY_AUDIO_CHANNEL), declared[t].channel));
+        assert(!strcmp(pw_properties_get(tap, PW_KEY_FORMAT_DSP), "32 bit float mono audio"));
+      }
+      h.silence = guarded(), h.scratch = guarded();
+      for (unsigned t = 0; t < MAX_TAPS; t++) h.tap_scratch[t] = guarded();
       struct spa_io_position position = {0};
       position.clock.duration = 256;
       position.clock.rate.denom = h.rate;
       process_audio(&h, &position);
-      assert(atomic_load(&h.audio_left) == 1 && h.tap_scratch[255] == 0.25f);
-      assert_canary(h.silence), assert_canary(h.scratch), assert_canary(h.tap_scratch);
-      free(h.silence), free(h.scratch), free(h.tap_scratch);
+      // Nothing is linked here, so no main output had a buffer to give.
+      assert(atomic_load(&h.audio_left) == 1 && h.outputs_unread);
+      for (unsigned t = 0; t < MAX_TAPS; t++)
+        assert(h.tap_scratch[t][255] == (t < h.tap_count ? 0.25f * (float)(t + 1) : -1.0f));
+      assert_canary(h.silence), assert_canary(h.scratch);
+      for (unsigned t = 0; t < MAX_TAPS; t++) assert_canary(h.tap_scratch[t]), free(h.tap_scratch[t]);
+      free(h.silence), free(h.scratch);
     }
     if (h.backend != &keyed) {
       assert(h.backend->key_inputs == 0 && h.key_port == NULL);
@@ -376,16 +434,24 @@ static void check_ports(void) {
     }
     pw_filter_destroy(h.filter);
   }
+  // More taps than the host has room for refuse the node.
+  const Backend crowded = {.process = check_tap_fallback, .tap_outputs = too_many_taps};
+  Host h = {.backend = &crowded, .rate = 48000, .channels = 2};
+  h.filter = pw_filter_new_simple(pw_main_loop_get_loop(loop), "port-test", NULL, &filter_events, &h);
+  assert(h.filter && !add_audio_ports(&h) && h.tap_count == MAX_TAPS);
+  pw_filter_destroy(h.filter);
   pw_main_loop_destroy(loop);
   pw_deinit();
   puts("PASS: existing backends get no key or tap port; a keyed backend gets mono key_0 and silence "
-       "without a buffer, a tapped one mono tap_0 and its own spare");
+       "without a buffer, a tapped one mono tap_0, a paired one audition_0 and audition_1, each tap "
+       "its own spare, and a backend past the tap room is refused");
 }
 
 int main(void) {
   check_ports();
   check_failed_monitor();
   check_processing_failure();
+  check_outputs_unread();
   check_invalid_audio();
   check_inplace_audio();
   check_invalid_output_on_silence();

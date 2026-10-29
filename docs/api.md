@@ -315,8 +315,10 @@ that final acknowledgement (or an `error` without a request id):
 | `setClipOrder` | `clips` | every clip id once, in the order clients draw them |
 | `playClip` | `clip`, `mode?` | press the clip's key: the clip's own `mode` unless `mode` gives another for this press. A press in `hold` mode belongs to the WebSocket it came on: the clip plays until `releaseClip`, or until that connection closes, unless another open connection holds it too. A hold lasts as long as its voice. Once the clip ends by itself, or a stop, a toggle or a ninth voice ends it, the connection holds nothing, even with its key still down. Over HTTP, which keeps no connection, a `hold` press is refused. Refused while the board cannot play, with the board's `error`, while the clip is not `ready`, and for the moment the player's link into SFX is being made again, with "The soundboard is reconnecting to SFX. Press the clip again in a moment." Never saved; no state of its own beyond the start of the clip |
 | `releaseClip` | `clip` | the key came up: this connection's hold on the clip ends, and the clip's `hold` voices end unless another open connection still holds it with a voice that plays. A hold whose voice has ended keeps no other connection's release from ending that connection's voice |
-| `stopClip` | `clip` | fade the clip's voices out |
-| `stopClips` | none | fade every voice out; no error while the board is off |
+| `stopClip` | `clip` | fade the clip's voices out, its audition included |
+| `stopClips` | none | fade every voice out, the audition included; no error while the board is off |
+| `auditionClip` | `clip` | play the clip once from its start in the monitor mixes the monitor outputs play, and in no other mix. It never plays in SFX, Stream, Chat or Aux, so the headphones hear it and the stream and a call do not. It replaces the audition playing, of any clip. SFX's fader, mutes and sends do not apply; the clip's own `gain` does, and its `mode` and `loop` do not. It is not one of the eight voices, and no press ends it. Refused like `playClip` while the board cannot play or the clip is not `ready`; with "No monitor output is selected, so an audition would not be heard. Select a monitor output first." while none is; with "Listening is paused, so an audition would not be heard. Resume listening first." while the monitor is paused; with "The monitor outputs play no monitor mix, so an audition would not be heard. Have an output play a monitor mix first." while every selected output plays only virtual microphone mixes; with "The soundboard is reconnecting to the monitor mixes. Audition the clip again in a moment." while its links are made again; and, as a press is, while the player's link into SFX is made again, since the player stands still then. Never saved. See [auditions](#auditions) |
+| `stopAudition` | none | fade the audition out; the clips playing in SFX play on. No error while the board is off or nothing is auditioned |
 | `getSoundboard` | none | answered with `soundboard`, for a client that wants the board without the whole state |
 | `setEq` | `channel`, `eq` | replace a microphone's whole EQ: `eq` is `{enabled, bands}` with 1 to 16 bands, each `{enabled, type, frequency, gain, q}` with every field. `channel` is `xlr1`, `xlr2` or a capture input whose `microphone` is true; any other channel is refused. See [microphone EQ](#microphone-eq) |
 | `setEqEnabled` | `channel`, `value` | the EQ's own switch, a boolean. Off bypasses inside the running stage, so on and off compare at once |
@@ -1560,7 +1562,7 @@ SFX's sink with a port link of its own. A press is one line to that
 helper, and nothing in the graph changes when a clip plays.
 
 `mixer.soundboard` is `{channel, enabled, available, error, formats,
-clips, playing}`:
+clips, playing, auditioning}`:
 
 - `channel` is `sfx` while that channel exists, and null after it was
   deleted. A client finds the strip whose fader and sends carry the clips
@@ -1582,10 +1584,12 @@ clips, playing}`:
   board cannot play at all, the reason in the board's `error`. `loaded` is
   true exactly when `status` is `ready`, and `playing` is true while a
   voice plays the clip.
-- `playing` lists the ids of the clips playing now.
+- `playing` lists the ids of the clips playing now. An audition is not
+  counted here, nor in a clip's `playing`.
+- `auditioning` is the id of the clip auditioned now, or null.
 
 A clip starting or ending, by a press or by itself, pushes a state at the
-next meter frame, within about 70 ms. Where a clip is lies in `meters` as
+next meter frame, within about 70 ms, and so does an audition. Where a clip is lies in `meters` as
 `clip:<id>`, never in the state.
 
 The press modes are `overlap`, the default, which starts another voice;
@@ -1645,6 +1649,33 @@ has the id `sfx` is used as it is.
 The library is machine data, like the input bindings: profiles carry SFX's
 sends, mutes and volume as they carry any channel's, and nothing of the
 board.
+
+#### Auditions
+
+`auditionClip` lets the user hear a clip before playing it to the stream.
+The player has a second stereo output, its audition pair, which the daemon
+links into the monitor mixes that the selected monitor outputs play, the
+mixes Sound Check's Hear myself also uses. While no monitor output is
+selected, or listening is paused, nothing would hear an audition, so the
+pair is linked nowhere and `auditionClip` is refused. It is never linked into SFX's sink, a virtual
+microphone mix such as Stream or Chat, or the Aux mix, so SFX's sends cannot
+carry an audition anywhere. An output whose feed sums a monitor mix with a
+virtual microphone mix hears the audition through the monitor mix. An
+output that plays only a virtual microphone mix does not hear it. When an
+output's feed, the selection of outputs or the pause changes, the links
+follow at once. A link the audio server refuses is made again by the next
+sweep, and until then `auditionClip` is refused as reconnecting. When a monitor mix is
+created or deleted, they follow at the next sweep. The mix's own volume and
+mute apply, as for anything the mix plays.
+
+One clip is auditioned at a time. A second `auditionClip` fades the first
+out under it. The audition plays the clip once from its start at the clip's
+`gain`, whatever its `mode` and `loop`, and ends by itself, with
+`stopAudition`, with `stopClip` for that clip, with `stopClips`, or when the
+clip is deleted or the player stops. It does not take one of the eight
+voices. A press never steals it, and `restart`, `toggle` and `releaseClip`
+leave it alone. `auditioning` names the clip while it plays, and `meters`
+carries no `clip:<id>` for it.
 
 ### Meter before the chain
 

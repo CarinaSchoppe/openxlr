@@ -258,6 +258,50 @@ public sealed class TuiSoundsTests
         Assert.Equal("stopClips", Text(session.Command(), "cmd"));
     }
 
+    /// <summary>
+    /// a auditions the selected clip in the monitor mixes; on the clip the
+    /// daemon says it auditions, a stops it. A key held down repeats, and the
+    /// repeat sends nothing. The row and the line under the list say so.
+    /// </summary>
+    [Fact]
+    public void AAuditionsTheSelectedClipAndStopsItsAudition()
+    {
+        Session session = new();
+        session.Key('a');
+        JsonObject audition = session.Command();
+        Assert.Equal("auditionClip", Text(audition, "cmd"));
+        Assert.Equal("airhorn", Text(audition, "clip"));
+        session.Sent.Clear();
+        // The key repeating sends nothing.
+        session.Key('a');
+        Assert.Empty(session.Sent);
+
+        session.Board["auditioning"] = "airhorn";
+        session.Echo();
+        (_, int row) = session.Find("Airhorn");
+        Assert.Contains("auditioning", session.Draw()[row], StringComparison.Ordinal);
+        Assert.Contains("Auditioning in the monitor mixes only", session.Frame(), StringComparison.Ordinal);
+        // An audition is not a press: the clip does not count as playing.
+        Assert.DoesNotContain("playing", session.Draw()[0..4].Aggregate((a, b) => a + b), StringComparison.Ordinal);
+
+        session.Later();
+        session.Key('a');
+        Assert.Equal(["stopAudition"], session.Commands());
+        session.Sent.Clear();
+
+        // Another clip's key auditions that clip in its place.
+        session.Later();
+        session.Key(Key.Down);
+        session.Key('a');
+        Assert.Equal("drumroll", Text(session.Command(), "clip"));
+        session.Sent.Clear();
+
+        // A clip playing and auditioned at once says both.
+        session.Clip(0)["playing"] = true;
+        session.Echo();
+        Assert.Contains(" audition", session.Draw()[session.Find("Airhorn").Y], StringComparison.Ordinal);
+    }
+
     [Fact]
     public void AHoldClipIsHeldOnceAcceptedAndLetGoOnTheNextPress()
     {
@@ -804,7 +848,8 @@ public sealed class TuiSoundsTests
         string frame = session.Frame();
         for (int i = 0; i < 12; i++) session.Key(Key.Down);
         frame += session.Frame();
-        foreach (string text in new[] { "a hold clip plays until pressed again", "S stop all", "i import a file", "SFX volume" })
+        foreach (string text in new[] { "a hold clip plays until pressed again", "S stop all", "i import a file", "SFX volume",
+                     "a audition in the monitor mixes, not the stream" })
             Assert.Contains(text, frame, StringComparison.Ordinal);
     }
 }

@@ -1104,15 +1104,27 @@ public sealed class PipeWireAdapter
     /// <summary>The soundboard player's node: one per daemon, named after the channel it plays into.</summary>
     internal const string PlayerNode = "OpenXLR_player_" + Mixer.SoundboardChannel;
 
-    /// <summary>The player's meters: voices playing each slot, how far the newest is, and the newest press whose hold voice has ended.</summary>
+    /// <summary>
+    /// The player's meters: voices playing each slot, how far the newest is,
+    /// the newest press whose hold voice has ended, and the slot the
+    /// audition plays, plus one.
+    /// </summary>
     internal static readonly IReadOnlySet<string> PlayerMeters = new HashSet<string>(
-        Enumerable.Range(0, SoundboardLibrary.MaxClips).SelectMany(i => new[] { $"playing_{i}", $"pos_{i}", $"ended_{i}" }), StringComparer.Ordinal);
+        [.. Enumerable.Range(0, SoundboardLibrary.MaxClips).SelectMany(i => new[] { $"playing_{i}", $"pos_{i}", $"ended_{i}" }), AuditionMeter],
+        StringComparer.Ordinal);
+
+    /// <summary>The player's meter for the audition: the slot it plays, plus one, or 0.</summary>
+    internal const string AuditionMeter = "audition";
+
+    /// <summary>The prefix of the player's audition pair, <c>audition_0</c> and <c>audition_1</c>.</summary>
+    internal const string AuditionPorts = "audition";
 
     /// <summary>
     /// The soundboard player: the helper's stereo "player" backend under
     /// <see cref="PlayerNode"/>, started with each slot's controls at
     /// <paramref name="controls"/>. Its outputs, <c>capture_0</c> and
-    /// <c>capture_1</c>, are linked by the caller; its inputs stay unlinked.
+    /// <c>capture_1</c>, and its audition pair, <c>audition_0</c> and
+    /// <c>audition_1</c>, are linked by the caller; its inputs stay unlinked.
     /// Refused at once without the helper.
     /// </summary>
     internal FilterHandle CreatePlayer(IReadOnlyDictionary<string, double> controls, out int rate)
@@ -1134,7 +1146,8 @@ public sealed class PipeWireAdapter
         var filter = new FilterHandle(PlayerNode, PlayerNode, PlayerNode, host.Process) { NativeHost = host };
         try
         {
-            if (!WaitForPorts(PlayerNode, "capture", true, TimeSpan.FromSeconds(3), host.Process, count: 2))
+            if (!WaitForPorts(PlayerNode, "capture", true, TimeSpan.FromSeconds(3), host.Process, count: 2)
+                || !WaitForPorts(PlayerNode, AuditionPorts, true, TimeSpan.FromSeconds(3), host.Process, count: 2))
                 throw new InvalidOperationException("The soundboard player's audio ports did not appear.");
             return filter;
         }

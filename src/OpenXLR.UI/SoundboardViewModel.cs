@@ -36,6 +36,11 @@ public interface ISoundboardCommands
     Task<string?> StopClipAsync(string clip);
 
     Task<string?> StopClipsAsync();
+
+    /// <summary><c>auditionClip</c>: the clip in the monitor mixes only, never on the stream.</summary>
+    Task<string?> AuditionClipAsync(string clip);
+
+    Task<string?> StopAuditionAsync();
 }
 
 /// <summary>
@@ -106,6 +111,14 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
     /// <summary>A voice plays the clip: the state says so, or the last meter frame did.</summary>
     public bool Playing => _statePlaying || _meterPlaying;
 
+    private bool _auditioned;
+    /// <summary>The daemon auditions the clip in the monitor mixes now.</summary>
+    public bool Auditioned
+    {
+        get => _auditioned;
+        internal set { if (Set(ref _auditioned, value)) { Raise(nameof(PadName)); Raise(nameof(Detail)); Raise(nameof(Tip)); } }
+    }
+
     private double _position;
     /// <summary>How far the newest voice is, 0 to 1; 0 while the clip is silent.</summary>
     public double Position { get => _position; private set => Set(ref _position, value); }
@@ -134,9 +147,10 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
         _ => Localizer.Text("SoundClipModeOverlap"),
     };
 
-    /// <summary>The pad's second line: why it cannot play, that it is loading, or its length and mode.</summary>
+    /// <summary>The pad's second line: why it cannot play, that it is loading or auditioned, or its length and mode.</summary>
     public string Detail => HasError ? _error!
         : Loading ? Localizer.Text("SoundClipLoading")
+        : _auditioned ? Localizer.Text("SoundClipAuditioning")
         : _loop ? Localizer.Format("SoundClipDetailLoop", _seconds, ModeName)
         : Localizer.Format("SoundClipDetail", _seconds, ModeName);
 
@@ -154,6 +168,7 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
 
     /// <summary>The pad's name for a screen reader: the clip, what a press does, and whether it plays.</summary>
     public string PadName => Playing ? Localizer.Format("SoundPadNamePlaying", _name, ModeName)
+        : _auditioned ? Localizer.Format("SoundPadNameAuditioning", _name, ModeName)
         : Localizer.Format("SoundPadName", _name, ModeName);
 
     /// <summary>The pad's tooltip: its name, its length, mode and gain, or why it cannot play.</summary>
@@ -469,6 +484,9 @@ public sealed class SoundboardViewModel : ViewModelBase
                 .Where(f => f.Length > 0 && f.All(char.IsAsciiLetterOrDigit))];
             Channel = _channelId is null ? null : _lastChannels.FirstOrDefault(c => c.Id == _channelId);
             SyncClips(state["clips"] as JsonArray ?? []);
+            // A daemon from before auditions says nothing, which is none.
+            string? auditioned = SoundClipViewModel.Text(state["auditioning"]);
+            foreach (SoundClipViewModel clip in Clips) clip.Auditioned = clip.Id == auditioned;
             RaiseBoard();
         }
         finally { _applying = false; }
@@ -569,6 +587,21 @@ public sealed class SoundboardViewModel : ViewModelBase
     public void StopAll()
     {
         if (_reported) Send(_commands.StopClipsAsync());
+    }
+
+    /// <summary>
+    /// Audition the clip in the monitor mixes, in place of any other
+    /// audition. The daemon's next state says which clip it auditions.
+    /// </summary>
+    public void Audition(SoundClipViewModel clip)
+    {
+        if (clip.CanPlay) Send(_commands.AuditionClipAsync(clip.Id));
+    }
+
+    /// <summary>End the audition, whichever clip it plays.</summary>
+    public void StopAudition()
+    {
+        if (_reported) Send(_commands.StopAuditionAsync());
     }
 
     /// <summary>The window's turn-on button, which creates SFX when the layout has none.</summary>

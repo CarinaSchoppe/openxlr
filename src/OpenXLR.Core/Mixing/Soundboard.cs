@@ -7,7 +7,8 @@ namespace OpenXLR.Core.Mixing;
 /// The soundboard as clients see it: the channel its clips play into (null
 /// once that channel was deleted), whether it is on, whether this build has
 /// the helper it needs, why it cannot play now (null exactly when it can),
-/// the formats this build decodes, the clips in library order and the ones playing now.
+/// the formats this build decodes, the clips in library order, the ones playing now
+/// and the one auditioned in the monitor mixes, or null.
 /// </summary>
 public sealed record SoundboardState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Channel,
@@ -16,7 +17,8 @@ public sealed record SoundboardState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Error,
     IReadOnlyList<string> Formats,
     IReadOnlyList<SoundboardClipState> Clips,
-    IReadOnlyList<string> Playing)
+    IReadOnlyList<string> Playing,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Auditioning = null)
 {
     public static SoundboardState Off { get; } = new(null, false, false, Mixer.SoundboardOff, [], [], []);
 }
@@ -91,6 +93,22 @@ public sealed partial class Mixer
     /// <summary>Why a press is refused while the player's link into SFX is being made again.</summary>
     public const string SoundboardReconnecting = "The soundboard is reconnecting to SFX. Press the clip again in a moment.";
 
+    /// <summary>Why an audition is refused while the monitor outputs play no monitor mix to hear it in.</summary>
+    public const string SoundboardAuditionUnheard =
+        "The monitor outputs play no monitor mix, so an audition would not be heard. Have an output play a monitor mix first.";
+
+    /// <summary>Why an audition is refused while no monitor output is selected.</summary>
+    public const string SoundboardAuditionNoOutput =
+        "No monitor output is selected, so an audition would not be heard. Select a monitor output first.";
+
+    /// <summary>Why an audition is refused while listening is paused.</summary>
+    public const string SoundboardAuditionPaused =
+        "Listening is paused, so an audition would not be heard. Resume listening first.";
+
+    /// <summary>Why an audition is refused while its links into the monitor mixes are being made again.</summary>
+    public const string SoundboardAuditionReconnecting =
+        "The soundboard is reconnecting to the monitor mixes. Audition the clip again in a moment.";
+
     private const string SoundboardKey = "soundboard";
 
     // The library is replaced whole, never changed in place, so a press can
@@ -106,6 +124,13 @@ public sealed partial class Mixer
     // Whether the player's outputs are linked into SFX now. An unlinked node
     // does not run, so a press sent then would wait and sound late.
     private volatile bool _playerLinked;
+    // The player's audition pair into each monitor mix the monitor outputs
+    // play, by mix id, and why an audition cannot be heard now, or null.
+    // The refusal is read by auditions without the mixer's lock.
+    private readonly Dictionary<string, PortLink> _auditionLinks = new(StringComparer.Ordinal);
+    private volatile string? _auditionRefusal = SoundboardAuditionReconnecting;
+    // A link failure is noted once, not at every sweep that tries again.
+    private bool _auditionLinkFailing;
     // Clips the player died while loading. A file that crashes the decoder
     // is not given to the next player, which would die the same way.
     private readonly Dictionary<string, string> _crashedClips = new(StringComparer.Ordinal);
@@ -201,7 +226,8 @@ public sealed partial class Mixer
                 return new SoundboardClipState(c.Id, c.Name, Math.Round(load is { Loaded: true } ? load.Seconds : c.Seconds, 2),
                     c.Gain, c.Mode, c.Loop, c.Icon, c.Colour, load?.Loaded == true, error, playing.ContainsKey(c.Id), status);
             })],
-            [.. board.Clips.Where(c => playing.ContainsKey(c.Id)).Select(c => c.Id)]);
+            [.. board.Clips.Where(c => playing.ContainsKey(c.Id)).Select(c => c.Id)],
+            player?.Auditioning is { } auditioned && board.Clips.Any(c => c.Id == auditioned) ? auditioned : null);
     }
 
     /// <summary>
@@ -522,12 +548,37 @@ public sealed partial class Mixer
         _player?.Stop(id);
     }
 
-    /// <summary>Fade every voice out. Nothing plays while the board is off, so that is no error.</summary>
+    /// <summary>Fade every voice out, the audition included. Nothing plays while the board is off, so that is no error.</summary>
     public void StopClips()
     {
         lock (_holds) _holds.Clear();
         _player?.StopAll();
     }
+
+    /// <summary>
+    /// Audition a clip: play it once from its start on the player's audition
+    /// pair, in place of the audition playing. The pair reaches the monitor
+    /// mixes the monitor outputs play and no other mix, so the clip is heard
+    /// on the headphones and never on the stream: SFX's fader, mutes and
+    /// sends do not apply, the clip's own gain does. The voice is not one of
+    /// the eight a press plays, and a press never ends it. Refused while the
+    /// board cannot play, the clip has not loaded, or no monitor mix would
+    /// hear it, and while the player's link into SFX is made again. Never
+    /// waits for the mixer's lock.
+    /// </summary>
+    public void AuditionClip(string id)
+    {
+        SoundboardClip clip = BoardClip(id);
+        SoundboardPlayer player = LivePlayer();
+        // The player stands still while its link into SFX is away, the
+        // audition with it, so an audition then would wait like a press.
+        if (!_playerLinked) throw new InvalidOperationException(SoundboardReconnecting);
+        if (_auditionRefusal is { } refusal) throw new InvalidOperationException(refusal);
+        player.Audition(id, clip.Name);
+    }
+
+    /// <summary>Fade the audition out. Nothing plays while the board is off, so that is no error.</summary>
+    public void StopAudition() => _player?.StopAudition();
 
     /// <summary>
     /// A connection closed: release the clips it pressed in hold mode and
@@ -639,6 +690,9 @@ public sealed partial class Mixer
         string directory = _clipDirectory;
         _player = new SoundboardPlayer(filter.NativeHost!, clips.Select((c, slot) => (c.Id, slot, Path.Combine(directory, c.File))));
         _boardError = null;
+        // After the player is in place: a sync that cannot link leaves the
+        // audition refused and the sweep tries again, never a half-started player.
+        SyncAuditionLinksLocked();
     }
 
     private void StopPlayerLocked()
@@ -651,8 +705,77 @@ public sealed partial class Mixer
         // at once, whatever the helper is still doing.
         if (_playerLink is not null) _pw.Unlink(_playerLink);
         _playerLink = null;
+        UnlinkAuditionLocked();
         if (_playerFilter is not null) _pw.StopFilter(_playerFilter);
         _playerFilter = null;
+    }
+
+    /// <summary>
+    /// Link the player's audition pair into each monitor mix the monitor
+    /// outputs play (<see cref="HeadphoneMixesLocked"/>), and into nothing
+    /// else: never a virtual microphone, the Aux mix or a channel, so an
+    /// audition never reaches the stream or a call. While no monitor output
+    /// is selected, or listening is paused, nothing would hear it: no link is
+    /// kept and an audition is refused with the reason. A link into a mix that
+    /// left the set is removed, and a broken one is made again, the new pairs
+    /// first and only the ones it no longer has removed. Without a player
+    /// every link goes. A link the audio server's tools refuse leaves the
+    /// audition refused until the next sweep makes it. Called when the player
+    /// starts, when the monitor outputs, their feeds or the pause change, and
+    /// by the sweep; it never throws for a link, so none of those fails
+    /// because of the soundboard.
+    /// </summary>
+    private void SyncAuditionLinksLocked()
+    {
+        if (_player is null || _playerFilter is null || !_built)
+        {
+            UnlinkAuditionLocked();
+            return;
+        }
+        string? unheard = _monitorOutputs.Count == 0 ? SoundboardAuditionNoOutput
+            : _monitorMuted ? SoundboardAuditionPaused : null;
+        HashSet<string> wanted = unheard is null ? HeadphoneMixesLocked() : [];
+        try
+        {
+            foreach (string gone in _auditionLinks.Keys.Where(id => !wanted.Contains(id)).ToList())
+            {
+                _pw.Unlink(_auditionLinks[gone]);
+                _auditionLinks.Remove(gone);
+            }
+            bool complete = true;
+            foreach (string id in wanted)
+            {
+                if (MonitorMixLocked(id) is not { } mix) continue;
+                PortLink? previous = _auditionLinks.GetValueOrDefault(id);
+                if (previous is { Pairs.Count: >= 2 } && _pw.EnsureLinks(previous) != LinkHealth.Broken) continue;
+                PortLink fresh = _pw.LinkNodes(PipeWireAdapter.PlayerNode, PipeWireAdapter.AuditionPorts, mix.SinkName, "playback");
+                _auditionLinks[id] = fresh;
+                if (previous is not null) _pw.Unlink(new PortLink([.. previous.Pairs.Except(fresh.Pairs)]));
+                if (!fresh.Complete || fresh.Pairs.Count < 2) complete = false;
+            }
+            _auditionRefusal = unheard ?? (wanted.Count == 0 ? SoundboardAuditionUnheard : complete ? null : SoundboardAuditionReconnecting);
+            _auditionLinkFailing = false;
+        }
+        catch (InvalidOperationException ex)
+        {
+            _auditionRefusal = SoundboardAuditionReconnecting;
+            if (!_auditionLinkFailing)
+                _pw.Note($"The soundboard's audition could not be linked into the monitor mixes and is tried again: {ex.Message}");
+            _auditionLinkFailing = true;
+        }
+    }
+
+    private void UnlinkAuditionLocked()
+    {
+        _auditionRefusal = SoundboardAuditionReconnecting;
+        foreach (PortLink link in _auditionLinks.Values) _pw.Unlink(link);
+        _auditionLinks.Clear();
+    }
+
+    /// <summary>The monitor mixes the audition pair is linked into now, for tests.</summary>
+    internal IReadOnlyCollection<string> AuditionMixes
+    {
+        get { lock (_gate) return [.. _auditionLinks.Where(l => l.Value.Pairs.Count >= 2).Select(l => l.Key).Order(StringComparer.Ordinal)]; }
     }
 
     /// <summary>Start the player when the library wants it and nothing stands in the way; a failure is the state's error.</summary>
@@ -767,6 +890,7 @@ public sealed partial class Mixer
             }
             else if (!_playerLinked || _playerLink is null || _pw.EnsureLinks(_playerLink) == LinkHealth.Broken)
                 RelinkPlayerLocked();
+            if (_player is not null) SyncAuditionLinksLocked();
         }
         if (_player is null && _board.Enabled) StartSoundboardIfWantedLocked();
         string state = JsonSerializer.Serialize(SoundboardSnapshotLocked());
@@ -812,8 +936,8 @@ public sealed partial class Mixer
     }
 
     /// <summary>
-    /// Whether a clip started, ended or finished loading since the last
-    /// call, for the meter push: a clip that ends by itself pushes the state
+    /// Whether a clip started, ended or finished loading, or an audition
+    /// started or ended, since the last call, for the meter push: a clip that ends by itself pushes the state
     /// at once, not at the next sweep. Never takes the mixer's lock.
     /// </summary>
     public bool SoundboardActivityChanged()
@@ -823,7 +947,8 @@ public sealed partial class Mixer
         else
         {
             IReadOnlyDictionary<string, (double Position, int Voices)> playing = player.Progress();
-            activity = player.Version.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + string.Join(",", playing.Keys.Order(StringComparer.Ordinal));
+            activity = player.Version.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + string.Join(",", playing.Keys.Order(StringComparer.Ordinal))
+                + ":" + player.Auditioning;
         }
         if (activity == Volatile.Read(ref _lastBoardActivity)) return false;
         Volatile.Write(ref _lastBoardActivity, activity);

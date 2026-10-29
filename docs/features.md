@@ -871,7 +871,8 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   18 dB per second. Meter colours belong to positions on the scale
 - Nine keyboard sections: the desk, the matrix of every send into every
   mix, hardware inputs, outputs and defaults,
-  application routing, inserts, profiles, options and the soundboard. Wide terminals have
+  application routing, inserts, profiles, options and the
+  soundboard. Wide terminals have
   a section rail and grouped hardware cards with gain arcs. At 80x24 the
   rail becomes a top row and the strips shorten. Both banks scroll to keep
   the selection visible. F1 or `?` lists all keys. A plugin is added from

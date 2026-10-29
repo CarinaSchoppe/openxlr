@@ -4504,21 +4504,34 @@ shows the selected clip's whole reason when it cannot be loaded, and the
 answer to the last import.
 
 A terminal sends no key-up, so a **Hold** clip cannot play only while a
-key is down. Instead the first Enter or Space plays it and holds it, the
-row says held, and the next press lets it go, which ends it the way
-lifting a Deck key does. A Hold clip that has ended by itself plays again
-on the next press. `s` and `S` let go of a held clip too, and so does
-changing its mode. The daemon also lets go of every clip the terminal
-held when its connection closes, so quitting or losing the daemon leaves
-nothing playing.
+key is down. Instead the first Enter or Space plays it, and once the
+daemon takes the press the row says held. The next press lets it go,
+which ends it the way lifting a Deck key does. A press the daemon refuses
+holds nothing and shows its sentence on the bottom line. The terminal
+also lets go when the clip stops, by itself or by a stop from any client,
+when `s` or `S` stops it, and when its mode changes away from Hold, here
+or in another client, once the daemon reports the change. The daemon
+lets go of every clip the terminal held when its connection closes, so
+quitting or losing the daemon leaves nothing playing, and no press goes
+out while the terminal is not connected.
+
+A key held down repeats, which would play and stop a Hold or Toggle clip
+over and over. Presses of the same Hold or Toggle clip less than three
+quarters of a second apart, counting from the last one, are taken as that
+repeat and ignored, so press again after a short pause. Overlap and
+Restart clips play on every press.
 
 `i` asks for a file's path. The terminal mixer expands a leading `~` and
-a `file://` address, drops the quotes a file manager puts around a dropped
-file, and reads a relative path from the folder it was started in. The
-daemon copies and checks the file as it does for the UI. For a refused
-file the bottom line and the foot of the list show the daemon's sentence,
-such as "The clip is 31.0 s long; the limit is 30 s." After an import the
-new clip is selected. Deleting a clip asks you to type `yes`. Choose
+a `file://` address on this machine, decoding its `%20` escapes and
+keeping a `#` as part of the name. It drops the quotes or the backslashes
+a terminal puts around or inside a dropped file's name, and reads a
+relative path from the folder it was started in. A path longer than 4096
+characters is refused before anything is sent, and without a connection
+to the daemon the import fails at once. The daemon copies and checks the
+file as it does for the UI. Its answer reaches the bottom line on
+whatever tab is open, and the foot of the list keeps it. A refused file
+shows the daemon's sentence, such as "The clip is 31.0 s long; the limit
+is 30 s." After an import the clip the daemon added is selected. Deleting a clip asks you to type `yes`. Choose
 icons and colours in the UI.
 
 The header names the connected interface, and its lamp is the interface's

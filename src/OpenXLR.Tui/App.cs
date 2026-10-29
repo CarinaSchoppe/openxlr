@@ -45,6 +45,8 @@ internal sealed class App
     private Action<string>? _promptDone;
     private int _promptLimit = 64;
 
+    private long _importSeen;
+
     private Theme _chosenTheme;
     private bool _skinOverride;
     private int _systemScheme;
@@ -215,6 +217,12 @@ internal sealed class App
     {
         Theme theme = Theme;
         screen.Clear(theme.Window);
+        // An import's answer reaches the bottom line whichever tab is shown.
+        if (Link.LastImport is { } outcome && outcome.Serial != _importSeen)
+        {
+            _importSeen = outcome.Serial;
+            Say(outcome.Message);
+        }
 
         Header(screen);
         if (screen.Width < 80 || screen.Height < 24)
@@ -258,7 +266,7 @@ internal sealed class App
         int height = screen.Height - 3;
         screen.Fill(1, 2, 15, height, theme.Card);
         screen.Text(3, 3, "CONSOLE", theme.TextMuted, theme.Card, bold: true);
-        // Eight entries a row apart fit a short terminal; taller ones space them out.
+        // Nine entries a row apart fit a short terminal; taller ones space them out.
         int step = screen.Height >= 34 ? 2 : 1;
         for (int index = 0; index < _views.Count; index++)
         {
@@ -333,7 +341,7 @@ internal sealed class App
         screen.Fill(0, y, screen.Width, 1, theme.Window);
         int x = 1;
         // The full names when the whole row fits, the short ones otherwise.
-        string[] shortNames = ["Mix", "Matrix", "In", "Out", "Apps", "FX", "Prof", "Options", "SFX"];
+        string[] shortNames = ["Mix", "Matrix", "In", "Out", "Apps", "FX", "Prof", "Options", "Snd"];
         bool full = 1 + _views.Select((view, index) => $" {index + 1} {view.Title} ".Length + 1).Sum() <= screen.Width;
         for (int index = 0; index < _views.Count; index++)
         {
@@ -359,7 +367,12 @@ internal sealed class App
             string prompt = $" {_promptTitle}: {_promptText}";
             // A long line, such as a file's path, shows its end, where the typing is.
             if (prompt.Length > screen.Width - 1)
-                prompt = "…" + prompt[^Math.Max(0, screen.Width - 2)..];
+            {
+                string tail = prompt[^Math.Max(0, screen.Width - 2)..];
+                // Never start on the second half of a character outside the BMP.
+                if (tail.Length > 0 && char.IsLowSurrogate(tail[0])) tail = tail[1..];
+                prompt = "…" + tail;
+            }
             screen.TextPad(0, y, prompt, screen.Width, theme.TextPrimary, theme.Card, bold: true);
             screen.Set(Math.Min(prompt.Length, screen.Width - 1), y, '▁', theme.Accent, theme.Card);
             return;

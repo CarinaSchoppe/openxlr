@@ -78,6 +78,47 @@ internal sealed class DaemonLink : IAsyncDisposable
     /// <summary>A local lifetime for a channel id and its numbered EQ table.</summary>
     internal long ChannelRevision(string channel) => _channelRevisions.GetValueOrDefault(channel).Revision;
 
+    /// <summary>The answer to the last clip import, or null before the first.</summary>
+    public ClipImportOutcome? LastImport { get; private set; }
+
+    /// <summary>True from an import's request until its answer, a timeout or a closed connection.</summary>
+    public bool Importing => Volatile.Read(ref _importing) != 0;
+
+    private int _importing;
+    private long _importSerial;
+    private (string? Clip, string? Message) _importReply;
+
+    /// <summary>
+    /// Import a file into the soundboard. The outcome lands in
+    /// <see cref="LastImport"/> whichever tab is shown, with the clip id from
+    /// the daemon's <c>clipImport</c> answer. Without a connection it fails
+    /// at once rather than waiting for the timeout.
+    /// </summary>
+    public void ImportClip(string path)
+    {
+        if (!Connected)
+        {
+            Finish(false, "Not connected to the daemon, so the file was not imported", null);
+            return;
+        }
+        if (Interlocked.Exchange(ref _importing, 1) != 0) return;
+        _importReply = (null, null);
+        // Copying and checking a long file can take longer than a fader write.
+        Request("importClip", body => body["path"] = path, TimeSpan.FromMinutes(2)).ContinueWith(task =>
+        {
+            string? error = task.IsCompletedSuccessfully ? task.Result : "The import did not finish";
+            (string? clip, string? message) = _importReply;
+            Volatile.Write(ref _importing, 0);
+            Finish(error is null, error ?? message ?? "The clip was added to the soundboard.", error is null ? clip : null);
+        }, TaskScheduler.Default);
+    }
+
+    private void Finish(bool ok, string message, string? clip)
+    {
+        LastImport = new ClipImportOutcome(Interlocked.Increment(ref _importSerial), ok, message, clip);
+        Changed?.Invoke();
+    }
+
     /// <summary>The last error the daemon sent back, shown once and then cleared.</summary>
     public string? LastError { get; private set; }
 
@@ -406,6 +447,11 @@ internal sealed class DaemonLink : IAsyncDisposable
                 Changed?.Invoke();
                 break;
 
+            case "clipImport":
+                // The commandResult that follows ends the request; this names the clip.
+                _importReply = (Message(json, "clip"), Message(json));
+                break;
+
             case "nativeEditorRulesChanged":
                 RefreshPlugins();
                 Changed?.Invoke();
@@ -483,3 +529,6 @@ internal sealed class DaemonLink : IAsyncDisposable
         _stopping.Dispose();
     }
 }
+
+/// <summary>How a clip import ended: <see cref="Serial"/> counts imports, so a client sees each answer once.</summary>
+internal sealed record ClipImportOutcome(long Serial, bool Ok, string Message, string? Clip);

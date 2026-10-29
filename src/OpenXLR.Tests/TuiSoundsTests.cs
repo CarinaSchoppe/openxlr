@@ -51,12 +51,13 @@ public sealed class TuiSoundsTests
         public Screen Screen { get; }
         public JsonNode Board => State["mixer"]!["soundboard"]!;
         public JsonNode Clip(int index) => Board["clips"]![index]!;
+        public ManualTime Clock { get; } = new();
 
         public Session(Theme? theme = null, int width = 80, int height = 24)
         {
             Link.Sent += json => Sent.Add(JsonNode.Parse(json)!.AsObject());
             Echo();
-            App = new(Link, theme ?? Theme.Material);
+            App = new(Link, theme ?? Theme.Material, time: Clock);
             App.ShowTab(SoundsTab);
             Screen = new(width, height);
             Draw();
@@ -77,6 +78,39 @@ public sealed class TuiSoundsTests
         public string Frame() => string.Join('\n', Draw());
 
         public JsonObject Command() => Assert.Single(Sent);
+
+        public string[] Commands() => [.. Sent.Select(command => command["cmd"]!.GetValue<string>())];
+
+        /// <summary>The daemon's answer to a command sent with a requestId.</summary>
+        public void Reply(JsonObject command, string? error)
+        {
+            Link.Receive(new JsonObject
+            {
+                ["type"] = "commandResult", ["requestId"] = command["requestId"]!.GetValue<string>(), ["error"] = error,
+            }.ToJsonString());
+            Draw();
+        }
+
+        /// <summary>Waits past the key repeat window, as a person pressing again would.</summary>
+        public void Later() => Clock.Advance(TimeSpan.FromSeconds(1));
+
+        /// <summary>Presses the selected hold clip and has the daemon accept it.</summary>
+        public void Hold()
+        {
+            Key(OpenXLR.Tui.Key.Enter);
+            JsonObject press = Command();
+            Assert.Equal("playClip", press["cmd"]!.GetValue<string>());
+            Sent.Clear();
+            Reply(press, null);
+            Assert.Empty(Sent);
+        }
+
+        public void Playing(int index, bool playing)
+        {
+            Clip(index)["playing"] = playing;
+            Echo();
+            Draw();
+        }
 
         /// <summary>The row a text sits on, and its column.</summary>
         public (int X, int Y) Find(string text)
@@ -116,7 +150,7 @@ public sealed class TuiSoundsTests
         session.Link.Receive("""{"type":"meters","levels":{"clip:airhorn":[0.5,2]}}""");
         string frame = session.Frame();
 
-        Assert.Contains("9 SFX", frame, StringComparison.Ordinal);
+        Assert.Contains("9 Snd", frame, StringComparison.Ordinal);
         Assert.Contains("8 Options", frame, StringComparison.Ordinal);
         Assert.Contains("Sounds", frame, StringComparison.Ordinal);
         Assert.Contains("Board on", frame, StringComparison.Ordinal);
@@ -225,61 +259,232 @@ public sealed class TuiSoundsTests
     }
 
     [Fact]
-    public void AHoldClipPlaysOnTheFirstPressAndIsLetGoOnTheNext()
+    public void AHoldClipIsHeldOnceAcceptedAndLetGoOnTheNextPress()
     {
         Session session = new();
         session.Key(Key.Down);
         Assert.Contains("the first press plays it, the next press lets it go", session.Frame(), StringComparison.Ordinal);
         session.Key(Key.Enter);
-        Assert.Equal("playClip", Text(session.Command(), "cmd"));
-        Assert.Equal("drumroll", Text(session.Command(), "clip"));
+        JsonObject press = session.Command();
+        Assert.Equal("drumroll", Text(press, "clip"));
+        Assert.Contains("Starting", session.Frame(), StringComparison.Ordinal);
         session.Sent.Clear();
-
-        session.Clip(1)["playing"] = true;
-        session.Echo();
+        session.Reply(press, null);
+        session.Playing(1, true);
         string frame = session.Frame();
         Assert.Contains("held", frame, StringComparison.Ordinal);
         Assert.Contains("press Enter or Space again to let it go", frame, StringComparison.Ordinal);
 
+        session.Later();
         session.Key(' ');
         Assert.Equal("releaseClip", Text(session.Command(), "cmd"));
         Assert.Equal("drumroll", Text(session.Command(), "clip"));
         session.Sent.Clear();
-
-        // A clip that ended by itself plays again on the next press.
-        session.Key(Key.Enter);
-        Assert.Equal("playClip", Text(session.Command(), "cmd"));
-        session.Sent.Clear();
-        session.Clip(1)["playing"] = false;
-        session.Echo();
-        session.Key(Key.Enter);
-        Assert.Equal("playClip", Text(session.Command(), "cmd"));
-        session.Sent.Clear();
-
-        // Stopping a held clip lets this terminal's hold go too.
-        session.Key('s');
-        Assert.Equal(["stopClip", "releaseClip"], session.Sent.Select(command => Text(command, "cmd")));
+        session.Playing(1, false);
+        Assert.Empty(session.Sent);
     }
 
     [Fact]
-    public void AClosedConnectionEndsTheHoldsItHad()
+    public void TheSecondPressReleasesOnTheHoldAloneEvenBeforeTheClipShowsPlaying()
+    {
+        Session session = new();
+        session.Key(Key.Down);
+        session.Hold();
+        session.Later();
+        session.Key(Key.Enter);
+        Assert.Equal("releaseClip", Text(session.Command(), "cmd"));
+    }
+
+    [Fact]
+    public void AHeldClipThatEndsByItselfIsReleasedAndPlaysAgainOnTheNextPress()
+    {
+        Session session = new();
+        session.Key(Key.Down);
+        session.Hold();
+        session.Playing(1, true);
+        Assert.Empty(session.Sent);
+        session.Playing(1, false);
+        Assert.Equal("releaseClip", Text(session.Command(), "cmd"));
+        session.Sent.Clear();
+        Assert.DoesNotContain("held", session.Frame(), StringComparison.Ordinal);
+
+        session.Later();
+        session.Key(Key.Enter);
+        Assert.Equal("playClip", Text(session.Command(), "cmd"));
+    }
+
+    [Fact]
+    public void AHoldThatNeverStartsIsLetGoAfterAWhile()
+    {
+        Session session = new();
+        session.Key(Key.Down);
+        session.Hold();
+        session.Clock.Advance(TimeSpan.FromSeconds(1));
+        session.Draw();
+        Assert.Empty(session.Sent);
+        session.Clock.Advance(TimeSpan.FromSeconds(2));
+        session.Draw();
+        Assert.Equal("releaseClip", Text(session.Command(), "cmd"));
+    }
+
+    [Fact]
+    public void ALoadingClipKeepsItsHold()
+    {
+        Session session = new();
+        session.Key(Key.Down);
+        session.Hold();
+        session.Playing(1, true);
+        session.Clip(1)["status"] = "loading";
+        session.Playing(1, false);
+        Assert.Empty(session.Sent);
+    }
+
+    [Fact]
+    public void AnotherClientMovingTheClipOutOfHoldLetsTheHoldGo()
+    {
+        Session session = new();
+        session.Key(Key.Down);
+        session.Hold();
+        session.Playing(1, true);
+        session.Clip(1)["mode"] = "overlap";
+        session.Echo();
+        session.Draw();
+        Assert.Equal("releaseClip", Text(session.Command(), "cmd"));
+        session.Sent.Clear();
+        session.Later();
+        session.Key(Key.Enter);
+        Assert.Equal("playClip", Text(session.Command(), "cmd"));
+        Assert.False(session.Command().ContainsKey("requestId"));
+    }
+
+    [Fact]
+    public void ARefusedPressIsNotHeldAndShowsTheDaemonsSentence()
     {
         Session session = new();
         session.Key(Key.Down);
         session.Key(Key.Enter);
-        session.Clip(1)["playing"] = true;
+        JsonObject press = session.Command();
+        session.Sent.Clear();
+        session.Reply(press, "The soundboard is off. Turn it on first.");
+        Assert.Contains("The soundboard is off. Turn it on first.", session.Draw()[^1], StringComparison.Ordinal);
+        session.Later();
+        session.Key(Key.Enter);
+        Assert.Equal("playClip", Text(session.Command(), "cmd"));
+    }
+
+    [Fact]
+    public void ADoublePressWithinTheRepeatWindowSendsOnePress()
+    {
+        Session session = new();
+        session.Key(Key.Down);
+        session.Key(Key.Enter);
+        session.Clock.Advance(TimeSpan.FromMilliseconds(300));
+        session.Key(' ');
+        JsonObject press = session.Command();
+        Assert.Equal("playClip", Text(press, "cmd"));
+
+        // A second press past the window while the daemon has not answered lets go once it does.
+        session.Later();
+        session.Key(Key.Enter);
+        Assert.Single(session.Sent);
+        session.Sent.Clear();
+        session.Reply(press, null);
+        Assert.Equal("releaseClip", Text(session.Command(), "cmd"));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void HoldingEnterDownDoesNotAlternatePlayAndStop(int clip)
+    {
+        Session session = new();
+        for (int i = 0; i < clip; i++) session.Key(Key.Down);
+        session.Key(Key.Enter);
+        JsonObject press = session.Command();
+        // A desktop's repeat starts after half a second or so, then comes every 40 ms.
+        session.Clock.Advance(TimeSpan.FromMilliseconds(660));
+        session.Key(Key.Enter);
+        for (int i = 0; i < 30; i++)
+        {
+            session.Clock.Advance(TimeSpan.FromMilliseconds(40));
+            session.Key(Key.Enter);
+        }
+        Assert.Single(session.Sent);
+        if (clip == 1)
+        {
+            session.Sent.Clear();
+            session.Reply(press, null);
+            Assert.Empty(session.Sent);
+            session.Later();
+            session.Key(Key.Enter);
+            Assert.Equal("releaseClip", Text(session.Command(), "cmd"));
+        }
+    }
+
+    [Fact]
+    public void AnOverlapClipPlaysOnEveryPress()
+    {
+        Session session = new();
+        session.Key(Key.Enter);
+        session.Key(Key.Enter);
+        Assert.Equal(["playClip", "playClip"], session.Commands());
+    }
+
+    [Fact]
+    public void StoppingAHeldClipLetsTheHoldGo()
+    {
+        Session session = new();
+        session.Key(Key.Down);
+        session.Hold();
+        session.Playing(1, true);
+        session.Key('s');
+        Assert.Equal(["stopClip", "releaseClip"], session.Commands());
+        session.Sent.Clear();
+        session.Playing(1, false);
+        Assert.Empty(session.Sent);
+    }
+
+    [Fact]
+    public void AClosedConnectionEndsTheHoldsAndNoPressGoesOutWhileDisconnected()
+    {
+        Session session = new();
+        session.Key(Key.Down);
+        session.Hold();
+        session.Playing(1, true);
+
+        session.Link.EndSession();
+        session.Later();
+        session.Key(Key.Enter);
+        Assert.Empty(session.Sent);
+        Assert.Contains("Not connected to the daemon", session.Draw()[^1], StringComparison.Ordinal);
+
         session.Echo();
         session.Draw();
+        session.Later();
+        session.Key(Key.Enter);
+        JsonObject press = session.Command();
+        Assert.Equal("playClip", Text(press, "cmd"));
         session.Sent.Clear();
+        session.Key('S');
+        Assert.Equal(["stopClips"], session.Commands());
+        session.Sent.Clear();
+        session.Reply(press, null);
+        Assert.Equal("releaseClip", Text(session.Command(), "cmd"));
+    }
 
+    [Fact]
+    public void APressWaitingWhenTheConnectionClosesIsNeverHeld()
+    {
+        Session session = new();
+        session.Key(Key.Down);
+        session.Key(Key.Enter);
+        session.Sent.Clear();
         session.Link.EndSession();
         session.Echo();
         session.Draw();
+        session.Later();
         session.Key(Key.Enter);
         Assert.Equal("playClip", Text(session.Command(), "cmd"));
-        session.Sent.Clear();
-        session.Key('S');
-        Assert.Equal(["stopClips", "releaseClip"], session.Sent.Select(command => Text(command, "cmd")));
     }
 
     [Theory]
@@ -319,15 +524,17 @@ public sealed class TuiSoundsTests
         Assert.True(session.Command()["loop"]!.GetValue<bool>());
         session.Sent.Clear();
 
-        // Hold becomes overlap; a clip this terminal held is let go first.
+        // Hold becomes overlap; the hold goes once the daemon reports the new mode.
         session.Key(Key.Down);
-        session.Key(Key.Enter);
-        session.Clip(1)["playing"] = true;
-        session.Echo();
-        session.Sent.Clear();
+        session.Hold();
+        session.Playing(1, true);
         session.Key('m');
-        Assert.Equal(["releaseClip", "updateClip"], session.Sent.Select(command => Text(command, "cmd")));
-        Assert.Equal("overlap", Text(session.Sent[1], "mode"));
+        Assert.Equal("overlap", Text(session.Command(), "mode"));
+        session.Sent.Clear();
+        session.Clip(1)["mode"] = "overlap";
+        session.Echo();
+        session.Draw();
+        Assert.Equal("releaseClip", Text(session.Command(), "cmd"));
         session.Sent.Clear();
         session.Key('l');
         Assert.False(session.Command()["loop"]!.GetValue<bool>());
@@ -405,6 +612,30 @@ public sealed class TuiSoundsTests
         Assert.Contains("The SFX channel was deleted", session.Frame(), StringComparison.Ordinal);
     }
 
+    private static JsonObject NewClip(string id, string name) => new()
+    {
+        ["id"] = id, ["name"] = name, ["seconds"] = 3, ["gain"] = 1, ["mode"] = "overlap",
+        ["loop"] = false, ["icon"] = "", ["colour"] = null, ["loaded"] = false, ["status"] = "loading",
+        ["error"] = null, ["playing"] = false,
+    };
+
+    /// <summary>The daemon's answer to an import, in its order: clipImport, the state, then the commandResult.</summary>
+    private static void AnswerImport(Session session, JsonObject command, bool ok, string message, string? clip)
+    {
+        session.Link.Receive(new JsonObject
+        {
+            ["type"] = "clipImport", ["ok"] = ok, ["message"] = message, ["clip"] = clip,
+        }.ToJsonString());
+        session.Echo();
+        long before = session.Link.LastImport?.Serial ?? 0;
+        session.Link.Receive(new JsonObject
+        {
+            ["type"] = "commandResult", ["requestId"] = Text(command, "requestId"), ["error"] = ok ? null : message,
+        }.ToJsonString());
+        // The link records the outcome on the request's continuation.
+        Assert.True(SpinWait.SpinUntil(() => (session.Link.LastImport?.Serial ?? 0) > before, TimeSpan.FromSeconds(5)));
+    }
+
     [Fact]
     public void AnImportSendsTheTypedPathAndShowsTheDaemonsRefusal()
     {
@@ -421,17 +652,14 @@ public sealed class TuiSoundsTests
         Assert.Equal(path, Text(command, "path"));
         Assert.Contains("Importing", session.Frame(), StringComparison.Ordinal);
 
-        session.Link.Receive(new JsonObject
-        {
-            ["type"] = "commandResult", ["requestId"] = Text(command, "requestId"),
-            ["error"] = "The clip is 31.0 s long; the limit is 30 s.",
-        }.ToJsonString());
-        string frame = session.Frame();
-        Assert.Contains("The clip is 31.0 s long; the limit is 30 s.", frame, StringComparison.Ordinal);
+        AnswerImport(session, command, false, "The clip is 31.0 s long; the limit is 30 s.", null);
+        string[] lines = session.Draw();
+        Assert.Contains("The clip is 31.0 s long; the limit is 30 s.", lines[^1], StringComparison.Ordinal);
+        Assert.Contains("The clip is 31.0 s long; the limit is 30 s.", lines[^3], StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ASuccessfulImportSelectsTheNewClip()
+    public void AnImportAnsweredOnAnotherTabIsShownThereAndSelectsTheClipTheDaemonNamed()
     {
         Session session = new();
         session.Key('i');
@@ -439,22 +667,59 @@ public sealed class TuiSoundsTests
         session.Key(Key.Enter);
         JsonObject command = session.Command();
         session.Sent.Clear();
-        session.Board["clips"]!.AsArray().Add(new JsonObject
-        {
-            ["id"] = "applause", ["name"] = "Applause", ["seconds"] = 3, ["gain"] = 1, ["mode"] = "overlap",
-            ["loop"] = false, ["icon"] = "", ["colour"] = null, ["loaded"] = false, ["status"] = "loading",
-            ["error"] = null, ["playing"] = false,
-        });
-        session.Echo();
-        session.Link.Receive(new JsonObject
-        {
-            ["type"] = "commandResult", ["requestId"] = Text(command, "requestId"), ["error"] = null,
-        }.ToJsonString());
+        session.App.ShowTab(0);
+        session.Draw();
+
+        // The new clip is not the last one, so only the daemon's id finds it.
+        session.Board["clips"]!.AsArray().Insert(0, NewClip("applause", "Applause"));
+        AnswerImport(session, command, true, "Applause was added to the soundboard.", "applause");
+        Assert.Contains("Applause was added to the soundboard.", session.Draw()[^1], StringComparison.Ordinal);
+
+        session.Clock.Advance(TimeSpan.FromSeconds(5));
+        session.App.ShowTab(SoundsTab);
         string frame = session.Frame();
-        Assert.Contains("Imported Applause", frame, StringComparison.Ordinal);
-        Assert.Contains("loading", frame, StringComparison.Ordinal);
+        Assert.Contains("Applause was added to the soundboard.", frame, StringComparison.Ordinal);
         session.Key(Key.Enter);
         Assert.Equal("applause", Text(session.Command(), "clip"));
+    }
+
+    [Fact]
+    public void AnImportFailsAtOnceWithoutAConnection()
+    {
+        Session session = new();
+        session.Key('i');
+        session.Type("/tmp/applause.flac");
+        session.Link.EndSession();
+        session.Key(Key.Enter);
+        Assert.Empty(session.Sent);
+        Assert.False(session.Link.Importing);
+        string[] lines = session.Draw();
+        Assert.Contains("Not connected to the daemon", lines[^1], StringComparison.Ordinal);
+        Assert.Contains("Not connected to the daemon", lines[^3], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void APathLongerThanTheDaemonTakesIsRefusedHere()
+    {
+        Session session = new();
+        session.Key('i');
+        session.Type("~/" + new string('a', 4094));
+        session.Key(Key.Enter);
+        Assert.Empty(session.Sent);
+        Assert.Contains("the daemon takes at most 4096", session.Frame(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ALongPromptNeverStartsOnHalfACharacter()
+    {
+        Session session = new();
+        session.Key('i');
+        // The prompt is " Path of the file to import: ", 29 cells; 78 fit after the ellipsis.
+        string text = new string('a', 100) + "\U0001F600" + new string('b', 77);
+        session.Type(text);
+        session.Draw();
+        Assert.Equal('…', session.Screen.At(0, 23).Ch);
+        Assert.False(char.IsLowSurrogate(session.Screen.At(1, 23).Ch));
     }
 
     [Fact]
@@ -491,6 +756,17 @@ public sealed class TuiSoundsTests
         Assert.Contains("F1/? help", frame, StringComparison.Ordinal);
         session.Key(Key.Enter);
         Assert.Equal("clip39", Text(session.Command(), "clip"));
+        session.Sent.Clear();
+
+        // A page is ten clips, as on the Mixer tab.
+        session.Key(Key.Home);
+        session.Key(Key.PageDown);
+        session.Key(Key.Enter);
+        Assert.Equal("clip10", Text(session.Command(), "clip"));
+        session.Sent.Clear();
+        session.Key(Key.PageUp);
+        session.Key(Key.Enter);
+        Assert.Equal("clip0", Text(session.Command(), "clip"));
     }
 
     [Fact]
@@ -513,6 +789,10 @@ public sealed class TuiSoundsTests
         Assert.Equal("/tmp/a b.wav", SoundsView.ImportPath("'/tmp/a b.wav'"));
         Assert.Equal("/tmp/a b.wav", SoundsView.ImportPath("\"/tmp/a b.wav\" "));
         Assert.Equal("/tmp/a b.wav", SoundsView.ImportPath("file:///tmp/a%20b.wav"));
+        Assert.Equal("/tmp/a b.wav", SoundsView.ImportPath("file://localhost/tmp/a%20b.wav"));
+        Assert.Equal("/tmp/take#2.wav", SoundsView.ImportPath("file:///tmp/take#2.wav"));
+        Assert.Equal("/tmp/My Clip (1).wav", SoundsView.ImportPath("/tmp/My\\ Clip\\ \\(1\\).wav"));
+        Assert.Equal("/tmp/a\\b.wav", SoundsView.ImportPath("'/tmp/a\\b.wav'"));
         Assert.Equal(Path.Combine(Environment.CurrentDirectory, "horn.wav"), SoundsView.ImportPath("horn.wav"));
     }
 

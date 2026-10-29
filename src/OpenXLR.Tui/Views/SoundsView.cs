@@ -8,7 +8,9 @@ namespace OpenXLR.Tui;
 /// the daemon's sentence says why the board or a clip cannot play.
 ///
 /// A terminal sends no key-up, so a clip in hold mode is let go by pressing
-/// it again: the first press holds it, the next one releases it.
+/// it again: the first press holds it, the next one releases it. A key held
+/// down repeats, so presses of the same Hold or Toggle clip closer together
+/// than <see cref="RepeatWindow"/> are taken as the repeat and ignored.
 /// </summary>
 internal sealed class SoundsView : View
 {
@@ -21,14 +23,32 @@ internal sealed class SoundsView : View
     private int _lastIndex;
     private int _scroll;
 
-    // Hold clips this terminal pressed and has not let go. The daemon ties a
-    // hold to the connection, so a new connection holds nothing.
-    private readonly HashSet<string> _held = new(StringComparer.Ordinal);
+    /// <summary>How close a second press of a Hold or Toggle clip must follow to be the key repeating.</summary>
+    internal static readonly TimeSpan RepeatWindow = TimeSpan.FromMilliseconds(750);
+
+    /// <summary>How long an accepted hold may wait for its clip to start before it is let go.</summary>
+    internal static readonly TimeSpan StartWindow = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// A hold press of this terminal: waiting for the daemon (<see cref="Press"/>
+    /// set), or accepted and held until it is let go.
+    /// </summary>
+    private sealed class Hold
+    {
+        public Task<string?>? Press;
+        public long AcceptedAt;
+        public bool Started;
+        public bool LetGoWhenAccepted;
+    }
+
+    // The daemon ties a hold to the connection, so a new connection holds nothing.
+    private readonly Dictionary<string, Hold> _holds = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, long> _lastPress = new(StringComparer.Ordinal);
     private long _session = -1;
 
-    private Task<string?>? _importing;
+    private long _importSeen;
+    private string? _importName;
     private string? _importNote;
-    private bool _importFailed;
 
     public override string Title => "Sounds";
 
@@ -80,40 +100,66 @@ internal sealed class SoundsView : View
             if (_scroll + listHeight < clips.Count) screen.Set(area.Right - 1, listY + listHeight - 1, '▼', theme.TextMuted, theme.Card);
         }
 
-        Detail(screen, area, theme, board);
+        Detail(screen, area, app, board);
     }
 
-    /// <summary>Settles the selection, drops holds a closed connection ended, and takes an import's answer.</summary>
+    /// <summary>Settles the selection and the holds, and selects a clip an import added.</summary>
     private void Update(App app, SoundboardEntry board)
     {
-        if (app.Link.SessionRevision != _session)
+        DaemonLink link = app.Link;
+        if (link.SessionRevision != _session)
         {
-            _session = app.Link.SessionRevision;
-            _held.Clear();
+            _session = link.SessionRevision;
+            _holds.Clear();
+            _lastPress.Clear();
         }
-        _held.RemoveWhere(id => !board.Clips.Any(clip => clip.Id == id));
+        Holds(app, board);
+
+        if (link.LastImport is { } outcome && outcome.Serial != _importSeen)
+        {
+            _importSeen = outcome.Serial;
+            if (outcome.Clip is { } added && board.Clips.Any(clip => clip.Id == added)) _selected = added;
+        }
         if (_selected is null || !board.Clips.Any(clip => clip.Id == _selected))
             _selected = board.Clips.Count == 0 ? null : board.Clips[Math.Clamp(_lastIndex, 0, board.Clips.Count - 1)].Id;
+    }
 
-        if (_importing is { IsCompleted: true } done)
+    /// <summary>
+    /// Takes the daemon's answer to each hold press, and lets go of a hold
+    /// that has nothing left to hold: the clip was deleted, another client
+    /// moved it out of hold mode, or it stopped, by itself or by another
+    /// client's stop, or never started.
+    /// </summary>
+    private void Holds(App app, SoundboardEntry board)
+    {
+        DaemonLink link = app.Link;
+        foreach ((string id, Hold hold) in _holds.ToArray())
         {
-            _importing = null;
-            string? error = done.IsCompletedSuccessfully ? done.Result : "The import did not finish";
-            _importFailed = error is { Length: > 0 };
-            if (_importFailed)
+            ClipEntry? clip = board.Clips.FirstOrDefault(entry => entry.Id == id);
+            if (hold.Press is { IsCompleted: true } press)
             {
-                _importNote = error;
-                app.Say(error!);
+                string? error = press.IsCompletedSuccessfully ? press.Result : "The press did not reach the daemon";
+                if (error is not null)
+                {
+                    _holds.Remove(id);
+                    app.Say(error);
+                    continue;
+                }
+                hold.Press = null;
+                hold.AcceptedAt = app.Time.GetTimestamp();
+                if (hold.LetGoWhenAccepted) { LetGo(link, id); continue; }
             }
-            else
-            {
-                // The daemon adds an imported clip at the end of the library.
-                if (board.Clips.Count > 0) _selected = board.Clips[^1].Id;
-                _importNote = _selected is not null ? $"Imported {board.Clips.First(clip => clip.Id == _selected).Name}" : "Imported";
-                app.Say(_importNote);
-            }
+            if (hold.Press is not null) continue;
+            if (clip is null) { _holds.Remove(id); continue; }
+            if (!clip.Hold) { LetGo(link, id); continue; }
+            if (clip.Playing) { hold.Started = true; continue; }
+            if (clip.Status == "loading") continue;
+            if (hold.Started || app.Time.GetElapsedTime(hold.AcceptedAt) > StartWindow) LetGo(link, id);
         }
     }
+
+    /// <summary>True while this terminal holds the clip, accepted by the daemon.</summary>
+    private bool Held(string id) => _holds.TryGetValue(id, out Hold? hold) && hold.Press is null;
 
     private int Index(List<ClipEntry> clips)
     {
@@ -226,7 +272,7 @@ internal sealed class SoundsView : View
         if (clip.Playing)
         {
             string tail = (progress is { Voices: > 1 } many ? $" x{many.Voices}" : string.Empty)
-                + (_held.Contains(clip.Id) ? " held" : string.Empty);
+                + (Held(clip.Id) ? " held" : string.Empty);
             int bar = Math.Max(4, room - tail.Length - 1);
             Progress(screen, statusX, row.Y, bar, progress?.Position ?? 0, theme, back);
             screen.Text(statusX + bar, row.Y, tail, theme.TextInfo, back, maxWidth: Math.Max(0, room - bar));
@@ -255,18 +301,22 @@ internal sealed class SoundsView : View
     }
 
     /// <summary>The line under the list: the selected clip's reason, the hold rule, or the last import.</summary>
-    private void Detail(Screen screen, Rect area, Theme theme, SoundboardEntry board)
+    private void Detail(Screen screen, Rect area, App app, SoundboardEntry board)
     {
+        Theme theme = app.Theme;
         int y = area.Bottom - 1;
         ClipEntry? clip = board.Clips.FirstOrDefault(entry => entry.Id == _selected);
+        ClipImportOutcome? outcome = app.Link.LastImport;
         (string text, Rgb fore) =
-            _importing is not null ? (_importNote ?? "Importing", theme.TextInfo)
+            app.Link.Importing ? ($"Importing {_importName}", theme.TextInfo)
             : clip is { Status: "error", Error.Length: > 0 } ? (clip.Error!, theme.TextWarning)
-            : _importNote is { Length: > 0 } note && _importFailed ? (note, theme.TextWarning)
-            : clip is { Hold: true } ? (_held.Contains(clip.Id) && clip.Playing
+            : _importNote is { Length: > 0 } note ? (note, theme.TextWarning)
+            : outcome is { Ok: false } failed ? (failed.Message, theme.TextWarning)
+            : clip is { Hold: true } ? (Held(clip.Id)
                 ? "Held: press Enter or Space again to let it go"
+                : _holds.ContainsKey(clip.Id) ? "Starting"
                 : "Hold: the first press plays it, the next press lets it go", theme.TextInfo)
-            : _importNote is { Length: > 0 } done ? (done, theme.TextSecondary)
+            : outcome is { Ok: true } done ? (done.Message, theme.TextSecondary)
             : (string.Empty, theme.TextMuted);
         screen.TextPad(area.X + 1, y, text, area.Width - 2, fore, theme.Card);
     }
@@ -313,18 +363,18 @@ internal sealed class SoundsView : View
             case Key.Down when key.Ctrl: Reorder(link, clips, index, 1); return true;
             case Key.Up: Select(clips, Move(index, -1, clips.Count)); return true;
             case Key.Down: Select(clips, Move(index, 1, clips.Count)); return true;
-            case Key.PageUp: Select(clips, Move(index, -8, clips.Count)); return true;
-            case Key.PageDown: Select(clips, Move(index, 8, clips.Count)); return true;
+            case Key.PageUp: Select(clips, Move(index, -10, clips.Count)); return true;
+            case Key.PageDown: Select(clips, Move(index, 10, clips.Count)); return true;
             case Key.Home: Select(clips, 0); return true;
             case Key.End: Select(clips, clips.Count - 1); return true;
-            case Key.Enter: Press(link, clip); return true;
+            case Key.Enter: Press(app, clip); return true;
             case Key.Char when key.Ctrl: return false;
         }
         if (key.Key != Key.Char) return false;
 
         switch (key.Char)
         {
-            case ' ': Press(link, clip); return true;
+            case ' ': Press(app, clip); return true;
             case 's':
                 link.Send("stopClip", body => body["clip"] = clip.Id);
                 LetGo(link, clip.Id);
@@ -335,8 +385,6 @@ internal sealed class SoundsView : View
             case ']': Gain(link, clip, FineGainStep); return true;
             case 'm':
                 string mode = ClipEntry.Modes[(Array.IndexOf(ClipEntry.Modes, clip.Mode) + 1) % ClipEntry.Modes.Length];
-                // A clip that leaves hold mode is let go, so this terminal's hold does not outlive it.
-                if (mode != "hold") LetGo(link, clip.Id);
                 link.Send("updateClip", body => { body["clip"] = clip.Id; body["mode"] = mode; });
                 return true;
             case 'l':
@@ -350,7 +398,8 @@ internal sealed class SoundsView : View
                 app.Ask($"Type yes to delete {clip.Name}", string.Empty, answer =>
                 {
                     if (!answer.Equals("yes", StringComparison.OrdinalIgnoreCase)) return;
-                    _held.Remove(clip.Id);
+                    // Deleting the clip ends its voices and every hold on it.
+                    _holds.Remove(clip.Id);
                     link.Send("deleteClip", body => body["clip"] = clip.Id);
                 });
                 return true;
@@ -373,29 +422,57 @@ internal sealed class SoundsView : View
     }
 
     /// <summary>
-    /// A press. A hold clip this terminal holds while it plays is let go;
-    /// any other press plays the clip in its own mode. The daemon refuses a
-    /// press the board or the clip cannot take, with its sentence.
+    /// A press. A Hold or Toggle clip pressed again within
+    /// <see cref="RepeatWindow"/> is the key repeating, and nothing is sent.
+    /// A Hold clip this terminal holds is let go; otherwise a Hold press asks
+    /// the daemon and is held once it is accepted. Any other press plays the
+    /// clip in its own mode. The daemon refuses a press the board or the clip
+    /// cannot take, with its sentence.
     /// </summary>
-    private void Press(DaemonLink link, ClipEntry clip)
+    private void Press(App app, ClipEntry clip)
     {
-        if (clip.Hold && _held.Contains(clip.Id) && clip.Playing)
+        DaemonLink link = app.Link;
+        if (clip.Hold || clip.Mode == "toggle")
+        {
+            long now = app.Time.GetTimestamp();
+            bool repeat = _lastPress.TryGetValue(clip.Id, out long last) && app.Time.GetElapsedTime(last, now) < RepeatWindow;
+            _lastPress[clip.Id] = now;
+            if (repeat) return;
+        }
+        if (!clip.Hold)
+        {
+            link.Send("playClip", body => body["clip"] = clip.Id);
+            return;
+        }
+        if (_holds.ContainsKey(clip.Id))
         {
             LetGo(link, clip.Id);
             return;
         }
-        if (clip.Hold) _held.Add(clip.Id);
-        link.Send("playClip", body => body["clip"] = clip.Id);
+        if (!link.Connected)
+        {
+            app.Say("Not connected to the daemon");
+            return;
+        }
+        _holds[clip.Id] = new Hold { Press = link.Request("playClip", body => body["clip"] = clip.Id) };
     }
 
+    /// <summary>Ends this terminal's hold on a clip; one still waiting for the daemon ends once it is accepted.</summary>
     private void LetGo(DaemonLink link, string id)
     {
-        if (_held.Remove(id)) link.Send("releaseClip", body => body["clip"] = id);
+        if (!_holds.TryGetValue(id, out Hold? hold)) return;
+        if (hold.Press is not null)
+        {
+            hold.LetGoWhenAccepted = true;
+            return;
+        }
+        _holds.Remove(id);
+        link.Send("releaseClip", body => body["clip"] = id);
     }
 
     private void LetGoAll(DaemonLink link)
     {
-        foreach (string id in _held.ToArray()) LetGo(link, id);
+        foreach (string id in _holds.Keys.ToArray()) LetGo(link, id);
     }
 
     private static void Gain(DaemonLink link, ClipEntry clip, double by)
@@ -415,9 +492,13 @@ internal sealed class SoundsView : View
         link.Send("setClipOrder", body => body["clips"] = new System.Text.Json.Nodes.JsonArray([.. order.Select(id => (System.Text.Json.Nodes.JsonNode?)id)]));
     }
 
+    /// <summary>The longest path the daemon takes.</summary>
+    internal const int MaxPath = 4096;
+
     private void Import(App app)
     {
-        if (_importing is not null)
+        DaemonLink link = app.Link;
+        if (link.Importing)
         {
             app.Say("An import is still running");
             return;
@@ -425,30 +506,64 @@ internal sealed class SoundsView : View
         app.Ask("Path of the file to import", string.Empty, typed =>
         {
             string path = ImportPath(typed);
-            _importFailed = false;
-            _importNote = $"Importing {Path.GetFileName(path)}";
-            // Copying and checking a long file can take longer than a fader write.
-            _importing = app.Link.Request("importClip", body => body["path"] = path, TimeSpan.FromMinutes(2));
-        }, limit: 4096);
+            if (path.Length > MaxPath)
+            {
+                _importNote = $"The path is {path.Length} characters long; the daemon takes at most {MaxPath}.";
+                app.Say(_importNote);
+                return;
+            }
+            _importNote = null;
+            _importName = Path.GetFileName(path);
+            // The answer lands in the link, so it is not lost while another tab shows.
+            link.ImportClip(path);
+        }, limit: MaxPath);
     }
 
     /// <summary>
-    /// The path as the daemon wants it, absolute: quotes a file manager put
-    /// around a dropped file are taken off, a <c>file://</c> address and
-    /// <c>~</c> are expanded, and a relative path is taken from the
-    /// directory the terminal mixer was started in, on the daemon's machine
-    /// since both speak over the local socket.
+    /// The path as the daemon wants it, absolute. Quotes a terminal put
+    /// around a dropped file are taken off; without them, a backslash before
+    /// a space or another character the shell would read is taken off, as a
+    /// terminal escapes a dropped file. A <c>file://</c> address on this
+    /// machine, with no host or <c>localhost</c>, has its <c>%XX</c> escapes
+    /// decoded, and a <c>#</c> in it is part of the name. <c>~</c> is the
+    /// home folder, and a relative path is taken from the directory the
+    /// terminal mixer was started in, on the daemon's machine since both
+    /// speak over the local socket.
     /// </summary>
     internal static string ImportPath(string typed)
     {
         string path = typed.Trim();
         if (path.Length >= 2 && (path[0] == '\'' && path[^1] == '\'' || path[0] == '"' && path[^1] == '"'))
             path = path[1..^1];
-        if (path.StartsWith("file://", StringComparison.Ordinal) && Uri.TryCreate(path, UriKind.Absolute, out Uri? uri))
-            path = uri.LocalPath;
+        else
+            path = Unescape(path);
+        if (path.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+        {
+            string rest = path["file://".Length..];
+            if (rest.StartsWith("localhost/", StringComparison.OrdinalIgnoreCase)) rest = rest["localhost".Length..];
+            if (rest.StartsWith('/'))
+            {
+                try { path = Uri.UnescapeDataString(rest); }
+                catch (UriFormatException) { path = rest; }
+            }
+        }
         if (path == "~" || path.StartsWith("~/", StringComparison.Ordinal))
             path = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + path[1..];
         try { return Path.GetFullPath(path); }
         catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException) { return path; }
+    }
+
+    /// <summary>Takes off the backslash a terminal puts before a character the shell would read, such as a space.</summary>
+    private static string Unescape(string path)
+    {
+        if (!path.Contains('\\', StringComparison.Ordinal)) return path;
+        System.Text.StringBuilder plain = new(path.Length);
+        for (int at = 0; at < path.Length; at++)
+        {
+            if (path[at] == '\\' && at + 1 < path.Length && " \t'\"\\()[]{}&;!$#*?<>|`~=,".Contains(path[at + 1], StringComparison.Ordinal))
+                at++;
+            plain.Append(path[at]);
+        }
+        return plain.ToString();
     }
 }

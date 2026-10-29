@@ -23,8 +23,8 @@ dotnet build src/OpenXLR.slnx -c Release -p:EnableNativeLv2Host=true
 The flag compiles this directory and copies the helper next to the daemon,
 which is what the packaging recipes do. `make -C native` builds it alone.
 It needs a C11 and a C++ compiler, make, pkg-config and the development files for
-PipeWire, lilv, LV2 and X11; the libraries it links are already runtime
-dependencies of every package. DeepFilterNet, one of the two
+PipeWire, lilv, LV2, X11 and libsndfile; the libraries it links are already
+runtime dependencies of every package. DeepFilterNet, one of the two
 [noise removal](#noise-removal) engines, also needs cargo and rustc and,
 the first time, network for its crates and model; `DEEPFILTER=0` builds
 without it.
@@ -506,6 +506,116 @@ each engine's processing time.
 The same target runs `tests/denoise-handoff` with a fake model: a worker
 returned during a tick, repeated switches while it is borrowed, and a
 retry after loading fails. All created models must be freed at unload.
+
+## Soundboard player
+
+`openxlr-lv2-host player NODE 2 RATE [SYMBOL=VALUE ...]` plays soundboard
+clips. It holds up to 64 decoded clips in memory, one per slot, and mixes
+up to 8 voices into one stereo output, `capture_0` and `capture_1`, which
+the daemon links into a channel. Its inputs, `playback_0` and `playback_1`,
+stay unlinked and are not heard. A press is one line on the command pipe;
+nothing in the graph changes. It refuses any channel count other than 2.
+PipeWire runs the node only while its outputs are linked into a running
+graph, and a press sent before then waits in a queue of 256 lines.
+
+Each slot has two controls and two meters, for N from 0 to 63:
+
+| Symbol | Range | Default | Meaning |
+|---|---|---|---|
+| `gain_N` | 0 to 1 | 1 | The clip's gain, unity at 1 |
+| `loop_N` | 0 or 1 | 0 | Start over at the end instead of stopping |
+| `playing_N` | 0 to 8 | 0 | Read-only: voices now playing the slot, not counting ones fading out |
+| `pos_N` | 0 to 1 | 0 | Read-only: how far through the clip the newest of them is |
+
+`set SYMBOL VALUE` moves a control as for every backend, and both apply to
+voices already playing. The other lines are the player's own:
+
+| Line | Does |
+|---|---|
+| `load SLOT PATH` | Decode the file into the slot, replacing what it held. Answered with one line |
+| `unload SLOT` | Empty the slot. Answered with `clip SLOT unloaded` |
+| `play SLOT [MODE]` | `overlap`, the default, starts another voice; `restart` fades out the slot's voices and starts one; `toggle` fades them out when one plays, else starts one; `hold` starts one that `release` ends |
+| `release SLOT` | End the slot's `hold` voices |
+| `stop SLOT`, `stop all` | Fade out the slot's voices, or every voice |
+| `probe PATH` | Check a file as `load` would and keep nothing. Answered with one line |
+
+`SLOT` is 0 to 63. `PATH` is the rest of the line, spaces included. A load
+is answered with `clip SLOT ok FRAMES CHANNELS`, the length at the helper's
+rate and 1 or 2, or with `clip SLOT error MESSAGE`, after which the slot is
+empty. A probe is answered with `probe ok FORMAT CHANNELS RATE FRAMES`, the
+file's own rate and length, where `FORMAT` is `wav`, `flac`, `ogg`, `opus`,
+`mp3`, `aiff` or `other`, or with `probe error MESSAGE`. A message is the
+helper's own sentence, such as `the clip is 31.0 s long; the limit is 30 s`,
+never the decoder's. The player reports a malformed line, a press on an
+empty slot and a press that finds the queue full on stderr, and changes
+nothing.
+
+`openxlr-lv2-host probe PATH` prints the same probe line from a process of
+its own and exits 0 on `ok`, 1 on `error`, so the daemon can check a file
+before any player holds it. `openxlr-lv2-host formats` prints the formats
+this build's libsndfile decodes, as one line of JSON,
+`{"formats":["wav","flac","ogg","opus","mp3"]}`; MP3 needs libsndfile 1.1
+or newer built with it.
+
+The player treats clip files as untrusted and checks every limit before
+it asks for the memory:
+
+- the path names a regular file of at most 64 MiB. A pipe or a device is
+  refused without being read;
+- the file is mono or stereo, at 8000 to 384000 Hz;
+- the clip is at most 30 s long. A header that gives a longer length is
+  refused at once, and when the header gives none, decoding stops one frame
+  past the limit;
+- every slot's samples together take at most 96 MiB, not counting the old
+  clip of the slot being loaded.
+
+Each limit is one constant at the top of `player.c`. Decoding runs on the
+main thread with libsndfile, from a descriptor the player opened itself,
+so the library never opens a name. Non-finite samples become silence and
+the rest is held to full scale. A clip at another rate is converted once,
+when it loads, with a Blackman-windowed sinc of 16 zero crossings each side,
+cut off at 94 % of the lower Nyquist frequency. A thirty second
+stereo clip at 44.1 kHz loads in about a tenth of a second; meters and
+other lines wait while it does, and the audio does not. libsndfile's decoders run in
+this process, so a file that crashes one ends the helper. The daemon should
+therefore probe a file with `openxlr-lv2-host probe` before a player loads
+it. libsndfile also leaks a few kilobytes each time a damaged Ogg file
+fails to open, which a one-shot probe leaves behind with its process.
+
+Every start fades in over 5 ms and every stop, release or replacement fades
+out over 5 ms, so a restart is a crossfade and a stop never clicks. A clip
+that ends by itself fades over its last 5 ms, or its last quarter when that
+is shorter. A gain change moves at the same pace. Where a loop starts over,
+the end fades into the start over 20 ms, or a quarter of the clip, as Sound
+Check's loop does. A pass decides whether it wraps where those fades
+begin, so turning `loop_N` off lets the current pass play out. A ninth
+voice fades out the oldest playing voice, of any slot, while it starts.
+Voices fading out have eight places of their own beside the eight that
+play, so a steal cuts nothing short unless eight are already fading.
+
+The main thread decodes, allocates and frees. The audio thread owns the
+voices and which clip each slot holds. Clips, presses and stops reach the
+audio thread through one single-producer ring. Clips come back through a
+second ring once no voice reads them, and the main thread frees them then.
+The audio callback allocates nothing, takes no lock and touches no file.
+
+`make -C native test-player` drives the backend at 48 kHz in blocks of 256
+with no audio server, with clips it writes with libsndfile. It checks the
+controls and limits; that the resampler keeps a 1 kHz tone within 0.1 dB
+and 1 Hz from 44.1, 48, 96 and 22.05 kHz and takes a 40 kHz tone at 96 kHz
+more than 60 dB down instead of folding it; WAV, FLAC, Ogg Vorbis, Opus and
+MP3 loads where this libsndfile writes them, a path with a space, and
+non-finite samples; the probe line through the pipe and from its own
+process, and `formats`; refusals of a missing file, a directory, a pipe, an
+empty file, text, a file one byte over 64 MiB, a clip one frame over 30 s,
+three channels, 4000 Hz, a path that is too long, the memory budget and
+malformed lines; 150 damaged and truncated copies each of a WAV, FLAC, Ogg
+and MP3 file, each answered with one line and played with finite output; each
+press mode, release, stop and stop all with no step larger than the ramp's;
+the voice limit and stealing across slots; a clip's end, a loop's wrap and
+loop turned off on a running voice; a clip replaced or unloaded while it
+plays, and freed once its voices have faded. Every process call counts the
+program's allocations through a wrapped allocator and must make none.
 
 ## Scope
 

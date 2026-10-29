@@ -1,8 +1,9 @@
 # The optional plugin host: one process per insert, LV2, CLAP and VST3, with
 # the plugin's own editor. The CLAP and VST3 interface headers are vendored
 # under clap/ and vst3/ (both MIT), so building needs nothing beyond the
-# PipeWire, lilv, LV2 and X11 development files and a C and C++ compiler.
-PKGS = libpipewire-0.3 lilv-0 lv2 x11
+# PipeWire, lilv, LV2, X11 and libsndfile development files and a C and C++
+# compiler.
+PKGS = libpipewire-0.3 lilv-0 lv2 x11 sndfile
 # Taken before the flags below are added: vendored code is built with the
 # caller's flags but not with this project's warnings.
 RNN_CFLAGS := -O2 -g $(CFLAGS) -w
@@ -53,7 +54,7 @@ DF_DEPS = $(DEEPFILTER_LIB)
 DF_LINK = -Wl,--gc-sections $(DEEPFILTER_LIB) -lgcc_s -lutil -lrt
 endif
 
-OBJECTS = host.o lv2.o clap.o vst3.o sound-check.o eq.o duck.o level.o denoise.o $(RNN_OBJECTS)
+OBJECTS = host.o lv2.o clap.o vst3.o sound-check.o eq.o duck.o level.o player.o denoise.o $(RNN_OBJECTS)
 HEADERS = host.h icon.h denoise.h $(wildcard clap/include/clap/*.h clap/include/clap/*/*.h) \
           $(wildcard vst3/pluginterfaces/*/*.h)
 # The stages and their tests link these beside the noise removal objects.
@@ -260,3 +261,21 @@ clean: clean-denoise
 clean-denoise:
 	rm -f tests/denoise tests/denoise.o tests/denoise-handoff tests/denoise-handoff.o build-config.h $(RNN_OBJECTS) rnnoise/src/x86/*.o
 	rm -rf deepfilter/target deepfilter/model/verified
+
+# The soundboard player: decoding, resampling, press modes and ramps, driven
+# directly with no audio server. It asks the helper for its `formats` and
+# `probe` lines.
+tests/player.o: tests/player.c player.c host.c $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+tests/player: tests/player.o lv2.o clap.o vst3.o
+	$(CXX) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+
+.PHONY: test-player clean-player
+test: test-player
+test-player: tests/player openxlr-lv2-host
+	./tests/player ./openxlr-lv2-host
+
+clean: clean-player
+clean-player:
+	rm -f tests/player tests/player.o

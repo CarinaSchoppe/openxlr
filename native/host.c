@@ -838,7 +838,8 @@ static void command(Host *h, char *line) {
   else if (sscanf(line, "set %255s %f %c", symbol, &value, &extra) == 2) {
     if (!set_control(h, symbol, value))
       fprintf(stderr, "invalid control: %s\n", symbol);
-  }
+  } else if (h->backend->command)
+    h->backend->command(h, line);
 }
 
 static void read_commands(void *data, int fd, uint32_t mask) {
@@ -993,9 +994,13 @@ extern const Backend eq_backend __attribute__((weak));
 extern const Backend eq_bands_backend __attribute__((weak));
 extern const Backend duck_backend __attribute__((weak));
 extern const Backend level_backend __attribute__((weak));
+extern const Backend player_backend __attribute__((weak));
 // The noise removal engines this build carries (denoise.c), likewise absent
 // from the tests that leave the stages out.
 extern int denoise_print_engines(void) __attribute__((weak));
+// The soundboard's decoders and its one-shot probe (player.c).
+extern int player_print_formats(void) __attribute__((weak));
+extern int player_probe_main(const char *path) __attribute__((weak));
 
 static const Backend *backend_named(const char *name) {
   if (!strcmp(name, "soundcheck"))
@@ -1008,6 +1013,8 @@ static const Backend *backend_named(const char *name) {
     return &duck_backend;
   if (!strcmp(name, "level"))
     return &level_backend;
+  if (!strcmp(name, "player"))
+    return &player_backend;
   if (!strcmp(name, "lv2"))
     return &lv2_backend;
   if (!strcmp(name, "clap"))
@@ -1031,6 +1038,10 @@ int main(int argc, char **argv) {
     return vst3_scan(argv[2]);
   if (argc == 2 && !strcmp(argv[1], "engines") && denoise_print_engines)
     return denoise_print_engines();
+  if (argc == 2 && !strcmp(argv[1], "formats") && player_print_formats)
+    return player_print_formats();
+  if (argc == 3 && !strcmp(argv[1], "probe") && player_probe_main)
+    return player_probe_main(argv[2]);
   const Backend *backend = argc >= 2 ? backend_named(argv[1]) : NULL;
   int first = backend ? 2 + backend->argument_count : 0;  // NODE
   if (!backend || argc < first + 3) {
@@ -1045,9 +1056,12 @@ int main(int argc, char **argv) {
           "       openxlr-lv2-host eq-bands COUNT NODE 1 RATE [SYMBOL=VALUE ...]\n"
           "       openxlr-lv2-host duck NODE 2 RATE [SYMBOL=VALUE ...]\n"
           "       openxlr-lv2-host level NODE 1 RATE\n"
+          "       openxlr-lv2-host player NODE 2 RATE [SYMBOL=VALUE ...]\n"
           "       openxlr-lv2-host scan-clap FILE\n"
           "       openxlr-lv2-host scan-vst3 BUNDLE\n"
-          "       openxlr-lv2-host engines\n",
+          "       openxlr-lv2-host engines\n"
+          "       openxlr-lv2-host formats\n"
+          "       openxlr-lv2-host probe PATH\n",
           stderr);
     return 2;
   }

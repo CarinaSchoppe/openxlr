@@ -906,6 +906,11 @@ public sealed class MixerService : IHostedService, IDisposable
             if (import.Skipped.Count > 0) message += $" Left out: {string.Join("; ", import.Skipped)}.";
             return new(true, message, import.Added, import.Renamed, import.Skipped, import.Replaced);
         }
+        catch (SoundboardImportRefusedException ex)
+        {
+            // Nothing changed; the reply still names each clip that could not be taken.
+            return new(false, ex.Message, [], new Dictionary<string, string>(), ex.Skipped, false);
+        }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
         {
             return Refused(ex.Message);

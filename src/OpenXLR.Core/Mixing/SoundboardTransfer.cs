@@ -14,6 +14,12 @@ public sealed record SoundboardExport(int Clips, IReadOnlyList<string> Skipped);
 public sealed record SoundboardImport(IReadOnlyList<string> Added, IReadOnlyList<string> Skipped,
     IReadOnlyDictionary<string, string> Renamed, bool Replaced);
 
+/// <summary>An import that changed nothing, with each clip that could not be taken.</summary>
+public sealed class SoundboardImportRefusedException(string message, IReadOnlyList<string> skipped) : InvalidOperationException(message)
+{
+    public IReadOnlyList<string> Skipped { get; } = skipped;
+}
+
 public sealed partial class Mixer
 {
     /// <summary>What an export or an import is refused with while another one runs.</summary>
@@ -33,9 +39,15 @@ public sealed partial class Mixer
     /// <summary>
     /// Write the library and every clip file into a zip archive at
     /// <paramref name="path"/>, which must end in <c>.zip</c>. The archive is
-    /// written next to its place as a private file and renamed into it, so an
-    /// archive already there is replaced whole or not at all. A clip whose
-    /// file cannot be read is left out and named in the result.
+    /// built whole first, as a private file in the clip directory, so
+    /// nothing at <paramref name="path"/> is touched until it is complete.
+    /// It then takes the path by a rename, which replaces a file or a link
+    /// there whole or not at all: straight from the clip directory when both
+    /// are on one file system, else through a private copy beside the path.
+    /// A folder that lets only the chosen file be written, as a desktop
+    /// portal hands to a sandbox, takes the archive in place instead: that
+    /// write is not atomic, and it refuses a link and anything but a regular
+    /// file. A clip whose file cannot be read is left out and named.
     /// </summary>
     public SoundboardExport ExportSoundboard(string path)
     {
@@ -43,6 +55,7 @@ public sealed partial class Mixer
         if (!path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The archive's name must end in .zip.");
         if (!_boardTransfer.Wait(0)) throw new InvalidOperationException(SoundboardTransferBusy);
+        string? built = null;
         try
         {
             SoundboardLibrary board;
@@ -61,35 +74,101 @@ public sealed partial class Mixer
                 throw new InvalidOperationException("Something other than a file is at that path.");
 
             var skipped = new List<string>();
-            string staging = Path.Combine(parent, ".openxlr-" + Guid.NewGuid().ToString("N") + ".tmp");
-            FileStream? output = null;
-            try { output = OpenXlrPaths.CreatePrivate(staging); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // A folder only the chosen file can be written in, as a
-                // desktop portal hands to a sandbox, takes the archive in place.
-                staging = path;
-                var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write, Share = FileShare.None };
-                if (!OperatingSystem.IsWindows()) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
-                output = new FileStream(path, options);
-            }
-            bool published = false;
-            try
-            {
-                IReadOnlyList<SoundboardClip> written;
-                using (output) written = SoundboardArchive.Write(output, board.Clips, directory, skipped);
-                if (written.Count == 0)
-                    throw new InvalidOperationException("No clip file could be read, so nothing was exported. " + string.Join(" ", skipped));
-                if (staging != path) File.Move(staging, path, overwrite: true);
-                published = true;
-                return new SoundboardExport(written.Count, skipped);
-            }
-            finally
-            {
-                if (!published) TryDelete(staging);
-            }
+            OpenXlrPaths.EnsurePrivateDir(directory);
+            built = Path.Combine(directory, ".export-" + Guid.NewGuid().ToString("N") + ".tmp");
+            IReadOnlyList<SoundboardClip> written;
+            using (FileStream output = OpenXlrPaths.CreatePrivate(built))
+                written = SoundboardArchive.Write(output, board.Clips, directory, skipped);
+            if (written.Count == 0)
+                throw new InvalidOperationException("No clip file could be read, so nothing was exported. " + string.Join(" ", skipped));
+            Publish(built, path, parent);
+            return new SoundboardExport(written.Count, skipped);
         }
-        finally { _boardTransfer.Release(); }
+        finally
+        {
+            if (built is not null) TryDelete(built);
+            _boardTransfer.Release();
+        }
+    }
+
+    /// <summary>
+    /// Put the finished archive <paramref name="built"/> at
+    /// <paramref name="path"/>. Nothing but a copy of ours is ever deleted:
+    /// a failure leaves what was at the path as it was, except after the
+    /// in-place write has begun.
+    /// </summary>
+    private static void Publish(string built, string path, string parent)
+    {
+        if (SameFileSystem(built, parent))
+        {
+            // A rename that is refused leaves both names as they were.
+            try { File.Move(built, path, overwrite: true); }
+            catch (UnauthorizedAccessException) { WriteInPlace(built, path); }
+            return;
+        }
+        string staging = Path.Combine(parent, ".openxlr-" + Guid.NewGuid().ToString("N") + ".tmp");
+        FileStream copy;
+        try { copy = OpenXlrPaths.CreatePrivate(staging); }
+        catch (UnauthorizedAccessException)
+        {
+            WriteInPlace(built, path);
+            return;
+        }
+        bool moved = false;
+        try
+        {
+            using (copy)
+            using (FileStream source = File.OpenRead(built))
+                source.CopyTo(copy);
+            File.Move(staging, path, overwrite: true);
+            moved = true;
+        }
+        finally
+        {
+            if (!moved) TryDelete(staging);
+        }
+    }
+
+    /// <summary>Whether a file and a folder are on one file system, so a rename moves the one into the other.</summary>
+    private static bool SameFileSystem(string file, string folder)
+    {
+        try
+        {
+            return RegularFile.Inspect(file) is { } a && RegularFile.Inspect(folder) is { } b
+                && a.DeviceMajor == b.DeviceMajor && a.DeviceMinor == b.DeviceMinor;
+        }
+        catch (IOException) { return false; }
+    }
+
+    [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "open", SetLastError = true)]
+    private static extern int OpenForWriting([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPUTF8Str)] string path, int flags, int mode);
+
+    // Linux's values, the same on x86-64 and AArch64.
+    private const int WriteOnly = 1, Create = 0x40, NoFollow = 0x20000, NonBlockingOpen = 0x800, CloseOnExecOpen = 0x80000;
+    private const int LinkLoop = 40;
+
+    /// <summary>
+    /// Copy the archive over the chosen file in place, for a folder that
+    /// lets nothing else be created. The open never follows a link, and the
+    /// handle must be a regular file before a byte of it is cut. Not atomic:
+    /// a failure part way leaves the file part written.
+    /// </summary>
+    private static void WriteInPlace(string built, string path)
+    {
+        int fd = OpenForWriting(path, WriteOnly | Create | NoFollow | NonBlockingOpen | CloseOnExecOpen, 0x180);
+        if (fd < 0)
+        {
+            int error = System.Runtime.InteropServices.Marshal.GetLastPInvokeError();
+            throw new InvalidOperationException(error == LinkLoop ? "The archive's path is a link; choose the file itself."
+                : $"The archive could not be written: {new System.ComponentModel.Win32Exception(error).Message}.");
+        }
+        var handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(fd, ownsHandle: true);
+        using var output = new FileStream(handle, FileAccess.Write);
+        if (RegularFile.Inspect($"/proc/self/fd/{fd}") is not { } status || (status.Mode & 0xf000) != 0x8000)
+            throw new InvalidOperationException("Something other than a file is at that path.");
+        output.SetLength(0);
+        using FileStream source = File.OpenRead(built);
+        source.CopyTo(output);
     }
 
     /// <summary>
@@ -98,9 +177,10 @@ public sealed partial class Mixer
     /// a deleted clip, made unique as an import makes it; without, its clips
     /// replace the library, keeping their ids, and the clips here are deleted
     /// with their files. Every clip file is unpacked into a private copy and
-    /// checked by the helper as importClip checks a file; a clip that fails
-    /// is left out and the rest are imported. Nothing changes when no clip
-    /// can be imported.
+    /// checked by the helper as importClip checks a file. A merge leaves out
+    /// a clip that fails and imports the rest; a replace changes nothing
+    /// unless every clip can be imported. Nothing changes when no clip can be
+    /// imported, and the refusal names each clip left out.
     /// </summary>
     public SoundboardImport ImportSoundboard(string path, bool merge)
     {
@@ -130,7 +210,7 @@ public sealed partial class Mixer
                 using (zip)
                 {
                     (List<SoundboardClip> clips, Dictionary<string, ZipArchiveEntry> files) = SoundboardArchive.Read(zip, skipped);
-                    if (clips.Count == 0) throw new InvalidOperationException(Nothing("The archive holds no clip to import.", skipped));
+                    if (clips.Count == 0) throw new SoundboardImportRefusedException(Nothing("The archive holds no clip to import.", skipped), skipped);
                     OpenXlrPaths.EnsurePrivateDir(directory);
                     long budget = SoundboardArchive.MaxBytes;
                     foreach (SoundboardClip clip in clips)
@@ -168,7 +248,14 @@ public sealed partial class Mixer
                     }
                 }
             }
-            if (staged.Count == 0) throw new InvalidOperationException(Nothing("No clip in the archive could be imported.", skipped));
+            if (staged.Count == 0) throw new SoundboardImportRefusedException(Nothing("No clip in the archive could be imported.", skipped), skipped);
+            // A replace that would leave clips out deletes the library for
+            // less than the archive holds, as when this build cannot decode
+            // a format the other one could: nothing is replaced.
+            if (!merge && skipped.Count > 0)
+                throw new SoundboardImportRefusedException(Nothing(skipped.Count == 1
+                    ? "Nothing was replaced, because 1 clip in the archive cannot be imported here."
+                    : $"Nothing was replaced, because {skipped.Count} clips in the archive cannot be imported here.", skipped), skipped);
             lock (_gate) return CommitImportLocked(directory, merge, staged, skipped);
         }
         catch (InvalidDataException ex)

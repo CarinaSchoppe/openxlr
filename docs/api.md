@@ -122,7 +122,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 | `soundboard` | in answer to `getSoundboard` | `soundboard`, the same object as the state's `mixer.soundboard`. See [Soundboard](#soundboard) |
 | `clipImport` | in answer to `importClip` | `ok`, `message` (a sentence for the user) and `clip`, the new clip's id, or null when the file was refused. See [Soundboard](#soundboard) |
 | `soundboardExport` | in answer to `exportSoundboard` | `ok`, `message` (a sentence for the user), `clips` (how many clips the archive holds) and `skipped` (each clip left out, as `name: reason`). See [Soundboard](#soundboard) |
-| `soundboardImport` | in answer to `importSoundboard` | `ok` (true when at least one clip was imported), `message`, `clips` (the ids added, in library order), `renamed` (the archive's id to the new one, for each clip whose id was in use here), `skipped` (each clip left out, as `name: reason`) and `replaced` (true when the library was replaced). See [Soundboard](#soundboard) |
+| `soundboardImport` | in answer to `importSoundboard` | `ok` (true when at least one clip was imported), `message`, `clips` (the ids added, in library order), `renamed` (the archive's id to the new one, for each clip whose id was in use here), `skipped` (each clip left out, as `name: reason`, and on a refusal each clip that could not be taken) and `replaced` (true when the library was replaced). See [Soundboard](#soundboard) |
 | `plugins` | in answer to `listPlugins` | the installed LV2, CLAP and VST3 plugins with their controls, within the message size limit above and always including the plugins the saved chains use; `supported` is false, with `unsupportedFeatures` listed, for a plugin that needs a host feature the PipeWire chain lacks. `audioIns` and `audioOuts` are the plugin's own port counts, or for VST3 its main buses' default width; a VST3 entry also carries `widths`, the chain widths in channels (1 and 2 are the ones the host carries) its main buses accepted when the helper asked the way the host asks at load, so a plugin that reports 2 and lists 1 in `widths` can be inserted on a mono input. An entry without `widths` (LV2, CLAP, or a description an older helper wrote) fits a mono input with one port each way and a stereo input or mix with two or more |
 | `pluginSetup` | in answer to `getPluginSetup` or `setPluginWineTrace` | where installs go (`lv2Directory`, `clapDirectory`, `vst3Directory`), `hostInstalled`, `wineTrace` (deep tracing enabled in the running daemon), `yabridge` (its version, or null when not installed), `wine`, `windowsDirectories` (the folders yabridge bridges) and `wineFolders` (Wine's own plugin folders that hold a plugin and are not bridged yet, offered as one press since a file dialog hides them), `memoryLockLimitBytes` (the running daemon's soft limit in bytes; -1 means unlimited, null means unknown) and `memoryLockNote` (recovery advice when Windows plugin support is available and the limit is below 256 MiB, otherwise null), `searchDirectories` (every folder searched, see [Plugin search paths](#plugin-search-paths)) and `searchPathWarning` |
 | `windowsPluginFiles` | in answer to `getWindowsPluginFiles` | `ok`, `message` and `plugins`; each plugin file carries `path`, `name`, `format`, `enabled`, `canDelete`, `winePrefix` and `inUse`. Excluded files remain listed |
@@ -314,8 +314,8 @@ that final acknowledgement (or an `error` without a request id):
 | `importClip` | `path`, `name?`, `page?` | copy the file the user picked, an absolute path, into the clip directory, check it in a helper process of its own and add it to the library under an id made from `name`, or from the file's name, on `page`, the default page when it is absent or empty. Answered with `clipImport`. Refused, with a sentence, past 64 clips, for a path that is not a regular file, a file over 64 MiB, a clip over 30 s, a file this build cannot decode, and without the native plugin host. On a WebSocket the import runs beside the connection's later commands. The daemon takes a press or a `releaseClip` sent during the copy and check at once, so its answer can come before the `clipImport`. The `clipImport`, with its state and `commandResult`, follows when the import ends. A connection runs one import at a time, so a second `importClip` waits for the first, and the commands sent after it wait too. Over HTTP the reply waits for the import |
 | `updateClip` | `clip`, at least one of `name`, `gain`, `mode`, `loop`, `icon`, `colour`, `page` | change a clip's library entry; an absent field keeps its value. `gain` is 0 to 1, `mode` one of `overlap`, `restart`, `toggle` and `hold`, `icon` as `setLayoutAppearance` takes it, `colour` `#RRGGBB` or empty to clear it, `page` a page name or empty for the default page. `gain` and `loop` reach a playing clip at once. A clip moved to another page goes to the end of the library |
 | `renameClipPage` | `page`, `name` | give every clip on `page` (empty for the default page) the page `name`. An empty `name` moves them to the default page, which is how a page is removed; the name of another page puts the clips together on it. The clips keep their places in the library. Refused when no clip is on `page` |
-| `exportSoundboard` | `path` | write the library and every clip file into a zip archive at `path`, an absolute path ending in `.zip`. Answered with `soundboardExport`. An archive already there is replaced whole; a folder, a pipe or a device at the path is refused. A clip whose file cannot be read is left out and named. Refused for an empty library and past 512 MiB of clip files. Needs no native plugin host. Runs beside the connection's later commands, as `importClip` does |
-| `importSoundboard` | `path`, `merge` | read a soundboard archive at `path`, an absolute path. `merge: true` adds its clips after the ones in the library, with new ids where theirs are in use; `merge: false` replaces the library with them, keeping their ids. Answered with `soundboardImport`. Each clip file is checked by the helper as `importClip` checks a file, and a clip that fails is left out while the rest are imported. Refused, with nothing changed, when no clip can be imported, for an archive that breaks the rules under [Soundboard](#soundboard), and without the native plugin host. Runs beside the connection's later commands, as `importClip` does |
+| `exportSoundboard` | `path` | write the library and every clip file into a zip archive at `path`, an absolute path ending in `.zip`. Answered with `soundboardExport`. The archive is built whole before the path is touched, and an archive or a link already there is replaced whole; a folder, a pipe or a device at the path is refused. In a folder where only the chosen file can be written, as a desktop portal grants one, the file is written in place instead, which is not atomic and refuses a link. A clip whose file cannot be read is left out and named. Refused for an empty library and past 512 MiB of clip files. Needs no native plugin host. Runs beside the connection's later commands, as `importClip` does |
+| `importSoundboard` | `path`, `merge` | read a soundboard archive at `path`, an absolute path. `merge: true` adds its clips after the ones in the library, with new ids where theirs are in use; `merge: false` replaces the library with them, keeping their ids. Answered with `soundboardImport`. Each clip file is checked by the helper as `importClip` checks a file. A merge leaves out a clip that fails and imports the rest; a replace changes nothing unless every clip can be imported, and its refusal lists the clips in `skipped`. Refused, with nothing changed, when no clip can be imported, for an archive that breaks the rules under [Soundboard](#soundboard), and without the native plugin host. Runs beside the connection's later commands, as `importClip` does |
 | `deleteClip` | `clip` | stop the clip, remove it from the library and delete its copy |
 | `setClipOrder` | `clips` | every clip id once, in the order clients draw them |
 | `playClip` | `clip`, `mode?` | press the clip's key: the clip's own `mode` unless `mode` gives another for this press. A press in `hold` mode belongs to the WebSocket it came on: the clip plays until `releaseClip`, or until that connection closes, unless another open connection holds it too. A hold lasts as long as its voice. Once the clip ends by itself, or a stop, a toggle or a ninth voice ends it, the connection holds nothing, even with its key still down. Over HTTP, which keeps no connection, a `hold` press is refused. Refused while the board cannot play, with the board's `error`, while the clip is not `ready`, and for the moment the player's link into SFX is being made again, with "The soundboard is reconnecting to SFX. Press the clip again in a moment." Never saved; no state of its own beyond the start of the clip |
@@ -1598,12 +1598,14 @@ clips, playing, auditioning, pages}`:
   is `""` for the default page.
 
 A page is a name a clip carries, up to 40 characters with no control
-character; spaces around it are dropped. A page exists while a clip is on
+character, other than `-` alone, which the terminal mixer's prompts take
+for the default page; spaces around it are dropped. A page exists while a clip is on
 it, so there is no command to create or delete one: `importClip` and
 `updateClip` take a `page`, and `renameClipPage` renames one or, with an
 empty name, moves its clips to the default page. A page named in another
 case of a page there already, such as `intro` beside `Intro`, takes that
-page's spelling. A clip moved to a page goes to the end of the library,
+page's spelling, and so do such pages in the library file and in an
+archive, under the spelling of the first clip on them. A clip moved to a page goes to the end of the library,
 so it comes last on that page, and a page it starts comes after the
 others. `setClipOrder` still names every clip, whatever its page.
 
@@ -1701,11 +1703,20 @@ carries no `clip:<id>` for it.
 `exportSoundboard` and `importSoundboard` carry the library between
 machines as one zip archive: `soundboard.json`, which holds `format` (1)
 and `clips`, each entry as the library keeps it, and each clip's file
-under `clips/`. The daemon writes the archive to a private file beside
-its place and renames it into place. A replace keeps the archive's ids, so Deck keys and
+under `clips/`. The daemon builds the archive as a private file in the
+clip directory, then renames it into place, through a private copy beside
+the path when the two are on different file systems. A folder where the
+daemon may create no file of its own, as a desktop portal grants a sandbox,
+takes the archive by a write into the chosen file in place: that write is
+not atomic, so a failure part way leaves the file part written, and it
+never follows a link or writes into anything but a regular file. Copies
+left in the clip directory by a daemon that stopped mid-export are removed
+at the next start. A replace keeps the archive's ids, so Deck keys and
 desktop keys bound to them play the same clips on the new machine; the
 clips that were in the library are deleted with their files, and their ids
-retire, as a deleted clip's do. A merge gives a clip whose id is in use
+retire, as a deleted clip's do. A replace changes nothing unless every
+clip in the archive can be imported here, so a build that cannot decode
+one of its formats never trades a library for part of another. A merge gives a clip whose id is in use
 here, or once belonged to a deleted clip here, the next free id, as an
 import does, and names each change in `renamed`. Neither touches
 `enabled`.
@@ -1719,13 +1730,17 @@ name is anything other than `soundboard.json`, `clips/` or `clips/` and a
 name the library's `file` rule takes (no separator, no `..`, no control
 character, not hidden, a known extension), and when `soundboard.json` is
 missing, larger than 4 MiB, not JSON, lists no clips or names a newer
-format. A clip is left out, and the rest imported, when its entry in
+format. In a merge, a clip is left out, and the rest imported, when its entry in
 `soundboard.json` breaks the library's rules, when its file is missing
 from the archive, empty, over 64 MiB or longer than 30 seconds, when the
 helper cannot decode it, when its file is damaged in the archive, and once
-the library holds 64 clips. The daemon unpacks each file into a private
-copy in the clip directory, never more bytes than its entry declares, and
-the helper checks the copy before the library names it. One export or import runs at
+the library holds 64 clips; in a replace any of these refuses the import.
+The daemon unpacks each file into a private copy in the clip directory,
+never more bytes than its entry declares, and the helper checks the copy
+before the library names it. An entry whose data is not the size and the
+CRC-32 it declares refuses the whole archive: the reader stops at the
+declared size, so an entry that holds more shows as a checksum that does
+not match. One export or import runs at
 a time across the daemon; another is refused with a sentence until it
 ends.
 

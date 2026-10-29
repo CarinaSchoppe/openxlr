@@ -112,11 +112,18 @@ public sealed record SoundboardLibrary
         => name is not null && name.Trim() is { Length: > 0 and <= MaxNameLength } trimmed && !trimmed.Any(char.IsControl);
 
     /// <summary>
+    /// What clients that cannot send an empty name, such as the terminal
+    /// mixer's prompts, type for the default page; never a page's own name.
+    /// </summary>
+    public const string DefaultPageWord = "-";
+
+    /// <summary>
     /// A page name: empty for the default page, or up to 40 characters with
-    /// no control character and no space at either end.
+    /// no control character and no space at either end, other than
+    /// <see cref="DefaultPageWord"/> alone.
     /// </summary>
     public static bool IsValidPage(string? page)
-        => page is { Length: <= MaxPageLength } && page == page.Trim() && !page.Any(char.IsControl);
+        => page is { Length: <= MaxPageLength } && page == page.Trim() && !page.Any(char.IsControl) && page != DefaultPageWord;
 
     /// <summary>
     /// The pages in the order clients draw them: the default page first while
@@ -159,7 +166,7 @@ public sealed record SoundboardLibrary
         if (!Modes.Contains(clip.Mode, StringComparer.Ordinal)) return "the mode must be overlap, restart, toggle or hold";
         if (!LayoutAppearance.IsValid(new LayoutAppearance(clip.Icon ?? "\0", clip.Colour))) return "the icon or colour is not valid";
         if (!double.IsFinite(clip.Seconds) || clip.Seconds is < 0 or > MaxSeconds + 1) return "the length is not valid";
-        if (!IsValidPage(clip.Page)) return $"the page must have at most {MaxPageLength} printable characters";
+        if (!IsValidPage(clip.Page)) return $"the page must have at most {MaxPageLength} printable characters, and cannot be {DefaultPageWord} alone";
         return null;
     }
 
@@ -223,6 +230,8 @@ public sealed record SoundboardLibrary
         var clips = new List<SoundboardClip>();
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var files = new HashSet<string>(StringComparer.Ordinal);
+        // Pages that differ only in case are one page, under the spelling its first clip has.
+        var pages = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (!root.TryGetProperty("clips", out JsonElement list) || list.ValueKind != JsonValueKind.Array) return clips;
         int index = 0;
         foreach (JsonElement entry in list.EnumerateArray())
@@ -239,7 +248,8 @@ public sealed record SoundboardLibrary
             if (problem is null && !files.Add(clip!.File)) problem = "the file is used twice";
             if (problem is null && clips.Count >= MaxClips) problem = $"a library holds at most {MaxClips} clips";
             if (problem is not null) { dropped.Add($"{label} ({problem})"); continue; }
-            clips.Add(clip! with { Name = clip.Name.Trim() });
+            string page = clip!.Page.Length == 0 ? "" : pages.TryAdd(clip.Page, clip.Page) ? clip.Page : pages[clip.Page];
+            clips.Add(clip with { Name = clip.Name.Trim(), Page = page });
         }
         return clips;
     }

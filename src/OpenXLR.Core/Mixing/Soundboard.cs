@@ -181,8 +181,9 @@ public sealed partial class Mixer
         try
         {
             if (!Directory.Exists(_clipDirectory)) return;
-            foreach (string leftover in Directory.EnumerateFiles(_clipDirectory, ".import-*.tmp"))
-                TryDelete(leftover);
+            foreach (string pattern in new[] { ".import-*.tmp", ".export-*.tmp" })
+                foreach (string leftover in Directory.EnumerateFiles(_clipDirectory, pattern))
+                    TryDelete(leftover);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
@@ -333,13 +334,13 @@ public sealed partial class Mixer
                 {
                     Id = id,
                     Name = clipName,
-                    File = $"{id}.{probe.Extension}",
+                    File = FreeFileNameLocked(id, probe.Extension),
                     Seconds = Math.Round(probe.Seconds, 3),
                     Page = SamePageLocked(clipPage),
                 };
                 string target = Path.Combine(directory, clip.File);
-                // A file under this name that the library does not list is a
-                // leftover of an earlier import; rename replaces it, link or not.
+                // No clip lists this name, so a file under it is a leftover of
+                // an earlier import; rename replaces it, link or not.
                 File.Move(staging, target, overwrite: true);
                 try { SaveBoardLocked(_board with { Clips = [.. _board.Clips, clip] }); }
                 catch
@@ -364,6 +365,20 @@ public sealed partial class Mixer
         finally { TryDelete(staging); }
     }
 
+    /// <summary>
+    /// A clip file name no clip in the library lists, nor any of
+    /// <paramref name="taken"/>: <c>id.ext</c>, or <c>id-2.ext</c> and on
+    /// when that is in use. A clip's file is not always named after its id:
+    /// a replace that met the id here gives the archive's clip the next name.
+    /// </summary>
+    private string FreeFileNameLocked(string id, string extension, ICollection<string>? taken = null)
+    {
+        var listed = new HashSet<string>(_board.Clips.Select(c => c.File), StringComparer.Ordinal);
+        string file = $"{id}.{extension}";
+        for (int n = 2; listed.Contains(file) || taken?.Contains(file) == true; n++) file = $"{id}-{n}.{extension}";
+        return file;
+    }
+
     /// <summary>The name a clip is imported under: the one given, else the file's name without its extension.</summary>
     internal static string ClipName(string? name, string path)
     {
@@ -381,7 +396,7 @@ public sealed partial class Mixer
     {
         string text = page?.Trim() ?? "";
         if (!SoundboardLibrary.IsValidPage(text))
-            throw new InvalidOperationException($"A page name must have at most {SoundboardLibrary.MaxPageLength} printable characters.");
+            throw new InvalidOperationException($"A page name must have at most {SoundboardLibrary.MaxPageLength} printable characters, and cannot be {SoundboardLibrary.DefaultPageWord} alone.");
         return text;
     }
 

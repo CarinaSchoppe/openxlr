@@ -3206,9 +3206,12 @@ Some things follow from the clips sharing SFX:
 **Pages.** Every clip is on a page, **Main** unless you choose another.
 Once a clip is on a named page, the pages stand as tabs over the pads,
 **Main** first and then each page in the order its first clip comes, and
-the pads show the page whose tab is lit. A page exists while a clip is on
+the pads show the page whose tab is lit. Since a tab stands where its page's
+first clip does, moving a clip to another page, or the first clip of a
+page in the library, can move the tabs too. A page exists while a clip is on
 it: give a clip a page in its Edit window, add a folder, or drop one on
-the window. The **⋯** button beside the tabs renames the page shown, or
+the window. A page name has up to 40 characters and cannot be a dash
+alone, which the terminal mixer uses for Main. The **⋯** button beside the tabs renames the page shown, or
 moves its clips to **Main**, which ends the page. Renaming a page to the
 name of another puts the clips together on it. **Move earlier** and
 **Move later** move a pad among the pads of its own page. Pages change
@@ -3221,11 +3224,14 @@ library** reads one back, on this computer or another. With clips already
 on the board it asks whether to **Add** the archive's clips to them or
 **Replace** them. Replace deletes the clips here and keeps the ids from
 the file, so Deck keys and desktop keys set up for those clips on the
-other computer play them here too. Add keeps the clips here and gives an
+other computer play them here too. It replaces nothing unless every clip
+in the file can be imported here, and the line under the pads names any
+that cannot. Add keeps the clips here and gives an
 imported clip a new id when its id is taken, and the line under the pads
 names each one that changed. OpenXLR checks every file in the archive
-the way it checks a file from **Add clips**. A clip that fails is left out
-and named, and the others come in. An archive that is not a soundboard library, holds
+the way it checks a file from **Add clips**. When adding, a clip that fails
+is left out and named, and the others come in. Export library needs a file
+name that ends in `.zip`. An archive that is not a soundboard library, holds
 anything but its library file and its clips, or is over 512 MiB is
 refused whole and nothing changes.
 
@@ -4673,7 +4679,7 @@ next and the previous page. `i` imports onto the page shown. `g` asks for
 the selected clip's page, and the tab follows it there; `G` renames the
 page shown. Typing `-` in either prompt means Main, so `g` with `-` moves a
 clip back to Main and `G` with `-` moves the whole page there, which ends
-it. Ctrl+Up and Ctrl+Down move a clip among the clips of its page. Export
+it. No page can be named `-` alone, so the dash always means Main. Ctrl+Up and Ctrl+Down move a clip among the clips of its page. Export
 and import the library in the UI.
 
 The header names the connected interface, and its lamp is the interface's

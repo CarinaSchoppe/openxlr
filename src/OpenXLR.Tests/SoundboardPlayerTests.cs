@@ -582,6 +582,7 @@ public sealed class SoundboardPlayerTests : IDisposable
     {
         string clips = Directory.CreateDirectory(Path.Combine(_directory, "leftovers")).FullName;
         File.WriteAllText(Path.Combine(clips, ".import-0123.tmp"), "half a copy");
+        File.WriteAllText(Path.Combine(clips, ".export-4567.tmp"), "half an archive");
         File.WriteAllText(Path.Combine(clips, "kept.wav"), "a clip");
         using var mixer = new Mixer(new PipeWireAdapter { PlayerHost = Path.Combine(_directory, "absent") });
         mixer.UseSoundboard(SoundboardLibrary.Empty, _ => null, clips);

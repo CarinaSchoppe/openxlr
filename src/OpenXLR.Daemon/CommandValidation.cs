@@ -601,7 +601,7 @@ public static class CommandValidation
     /// <summary>An absent page is kept; a present one, trimmed, is empty or a page name.</summary>
     private static bool BadPage(string? page) => page is not null && !SoundboardLibrary.IsValidPage(page.Trim());
     private static string PageError(string command, string field = "page")
-        => $"{command}: {field} must be empty, for the default page, or at most {SoundboardLibrary.MaxPageLength} printable characters";
+        => $"{command}: {field} must be empty, for the default page, or at most {SoundboardLibrary.MaxPageLength} printable characters other than {SoundboardLibrary.DefaultPageWord} alone";
     private static bool BadName(string? name)
         => name is null || name.Length > 60 || string.IsNullOrWhiteSpace(name) || name.Any(char.IsControl);
     /// <summary>An absent icon takes the default; a present one has the shape setLayoutAppearance accepts.</summary>

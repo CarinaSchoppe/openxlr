@@ -139,6 +139,111 @@ public sealed class SoundboardArchiveTests : IDisposable
     }
 
     [Fact]
+    public void AClipAddedAfterAReplaceNeverTakesAnImportedClipsFile()
+    {
+        var library = new SoundboardLibrary { Clips = [new SoundboardClip { Id = "horn", Name = "Horn", File = "horn.wav" }] };
+        (Mixer mixer, List<SoundboardLibrary> saved, string clips) = Board(library);
+        using (mixer)
+        {
+            string archive = Zip("horn.zip", ("soundboard.json", Library(Entry("horn", "horn.wav"))), ("clips/horn.wav", "RIFF imported horn"));
+            mixer.ImportSoundboard(archive, merge: false);
+            // The archive's horn keeps its id and takes the next free file name.
+            Assert.Equal("horn-2.wav", Assert.Single(saved[^1].Clips).File);
+
+            // A new clip under the same name gets the next id, horn-2, but
+            // never the file the imported horn already has.
+            SoundboardClip added = mixer.ImportClip(Source("horn.wav", "RIFF new horn"), null);
+            Assert.Equal(("horn-2", "horn-2-2.wav"), (added.Id, added.File));
+            Assert.Equal("RIFF imported horn", File.ReadAllText(Path.Combine(clips, "horn-2.wav")));
+            Assert.Equal("RIFF new horn", File.ReadAllText(Path.Combine(clips, "horn-2-2.wav")));
+            Assert.Equal(2, mixer.SoundboardLibrary.Clips.Select(c => c.File).Distinct().Count());
+        }
+    }
+
+    [Fact]
+    public void AReplaceThatWouldLeaveAClipOutChangesNothing()
+    {
+        var library = new SoundboardLibrary { Clips = [new SoundboardClip { Id = "keep", Name = "Keep", File = "keep.wav" }] };
+        (Mixer mixer, List<SoundboardLibrary> saved, string clips) = Board(library);
+        using (mixer)
+        {
+            // As a build that cannot decode one of the formats would see it.
+            string archive = Zip("mixed.zip", ("soundboard.json", Library(Entry("good", "good.wav"), Entry("text", "text.wav"))),
+                ("clips/good.wav", "RIFF good"), ("clips/text.wav", "TEXT"));
+            SoundboardImportRefusedException refused = Assert.Throws<SoundboardImportRefusedException>(() => mixer.ImportSoundboard(archive, merge: false));
+            Assert.Equal("Nothing was replaced, because 1 clip in the archive cannot be imported here. TEXT: the file is not audio this build can decode.", refused.Message);
+            Assert.Equal(["TEXT: the file is not audio this build can decode"], refused.Skipped);
+            Assert.Equal(["keep"], mixer.SoundboardLibrary.Clips.Select(c => c.Id));
+            Assert.Empty(saved);
+            Assert.Equal(["keep.wav"], Directory.GetFiles(clips).Select(Path.GetFileName));
+
+            // A merge takes what it can.
+            Assert.Equal(["good"], mixer.ImportSoundboard(archive, merge: true).Added);
+        }
+    }
+
+    [Fact]
+    public void PagesInAnArchiveThatDifferOnlyInCaseAreOne()
+    {
+        (Mixer mixer, _, _) = Board();
+        using (mixer)
+        {
+            string archive = Zip("cases.zip", ("soundboard.json", Library(Entry("a", "a.wav", "Intro"), Entry("b", "b.wav", "intro"), Entry("c", "c.wav", "INTRO"))),
+                ("clips/a.wav", "RIFF"), ("clips/b.wav", "RIFF"), ("clips/c.wav", "RIFF"));
+            mixer.ImportSoundboard(archive, merge: false);
+            Assert.Equal(["Intro"], mixer.Soundboard().Pages);
+            mixer.ImportSoundboard(archive, merge: true);
+            Assert.Equal(["Intro"], mixer.Soundboard().Pages);
+        }
+    }
+
+    [Fact]
+    public void AnExportInAFolderOnlyItsFileCanBeWrittenInIsWrittenInPlaceAndNeverThroughALink()
+    {
+        (Mixer mixer, _, string clips) = Board();
+        using (mixer)
+        {
+            mixer.ImportClip(Source("horn.wav", "RIFF horn"), null);
+            string folder = Directory.CreateDirectory(Path.Combine(_directory, "granted")).FullName;
+            string keep = Path.Combine(folder, "keep.zip");
+            File.WriteAllText(keep, "the user's file");
+            string victim = Path.Combine(_directory, "victim.txt");
+            File.WriteAllText(victim, "not an archive");
+            string link = Path.Combine(folder, "link.zip");
+            File.CreateSymbolicLink(link, victim);
+            File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+            try
+            {
+                // A link is refused, and what it points at is untouched.
+                Assert.Equal("The archive's path is a link; choose the file itself.",
+                    Assert.Throws<InvalidOperationException>(() => mixer.ExportSoundboard(link)).Message);
+                Assert.Equal("not an archive", File.ReadAllText(victim));
+
+                // An export that fails leaves the chosen file as it was.
+                File.Move(Path.Combine(clips, "horn.wav"), Path.Combine(_directory, "away.wav"));
+                Assert.StartsWith("No clip file could be read",
+                    Assert.Throws<InvalidOperationException>(() => mixer.ExportSoundboard(keep)).Message);
+                Assert.Equal("the user's file", File.ReadAllText(keep));
+                File.Move(Path.Combine(_directory, "away.wav"), Path.Combine(clips, "horn.wav"));
+
+                // One that works writes the archive into the file itself.
+                Assert.Equal(1, mixer.ExportSoundboard(keep).Clips);
+                using (ZipArchive zip = ZipFile.OpenRead(keep))
+                    Assert.Equal(["clips/horn.wav", "soundboard.json"], zip.Entries.Select(e => e.FullName));
+                Assert.Equal(["keep.zip", "link.zip"], Directory.GetFileSystemEntries(folder).Select(Path.GetFileName).Order());
+            }
+            finally { File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
+
+            // In a folder that can be written, a link in the archive's place is replaced, not followed.
+            Assert.Equal(1, mixer.ExportSoundboard(link).Clips);
+            Assert.Equal("not an archive", File.ReadAllText(victim));
+            Assert.False(new FileInfo(link).Attributes.HasFlag(FileAttributes.ReparsePoint));
+            // The archive is built in the clip directory and nothing of it stays there.
+            Assert.Equal(["horn.wav"], Directory.GetFiles(clips).Select(Path.GetFileName));
+        }
+    }
+
+    [Fact]
     public void AnEmptyBoardHasNothingToExport()
     {
         (Mixer mixer, _, _) = Board();
@@ -233,8 +338,9 @@ public sealed class SoundboardArchiveTests : IDisposable
 
             // Nothing that can be imported changes nothing.
             string none = Zip("none.zip", ("soundboard.json", Library(Entry("text", "text.wav"))), ("clips/text.wav", "TEXT"));
-            Assert.Equal("No clip in the archive could be imported. TEXT: the file is not audio this build can decode.",
-                Assert.Throws<InvalidOperationException>(() => mixer.ImportSoundboard(none, merge: false)).Message);
+            SoundboardImportRefusedException nothing = Assert.Throws<SoundboardImportRefusedException>(() => mixer.ImportSoundboard(none, merge: true));
+            Assert.Equal("No clip in the archive could be imported. TEXT: the file is not audio this build can decode.", nothing.Message);
+            Assert.Equal(["TEXT: the file is not audio this build can decode"], nothing.Skipped);
             Assert.Equal(["good"], mixer.SoundboardLibrary.Clips.Select(c => c.Id));
             Assert.Equal(["good.wav"], Directory.GetFiles(clips).Select(Path.GetFileName));
         }
@@ -319,19 +425,23 @@ public sealed class SoundboardArchiveTests : IDisposable
     }
 
     [Fact]
-    public void AnEntryThatUnpacksToMoreThanItDeclaresIsNeverWrittenPastIt()
+    public void AnEntryThatHoldsMoreThanItDeclaresRefusesTheArchive()
     {
         (Mixer mixer, _, string clips) = Board();
         using (mixer)
         {
-            string archive = Zip("liar.zip", ("soundboard.json", Library(Entry("liar", "liar.wav"))), ("clips/liar.wav", "RIFF" + new string('a', 4096)));
+            string archive = Zip("liar.zip", ("soundboard.json", Library(Entry("good", "good.wav"), Entry("liar", "liar.wav"))),
+                ("clips/good.wav", "RIFF good"), ("clips/liar.wav", "RIFF" + new string('a', 4096)));
             Declare(archive, "clips/liar.wav", 8);
-            // The reader stops at the declared size, and the copy is held to
-            // it too: what lands is the 8 bytes declared, never the rest.
-            SoundboardImport import = mixer.ImportSoundboard(archive, merge: true);
-            Assert.Equal(["liar"], import.Added);
-            Assert.Equal("RIFFaaaa", File.ReadAllText(Path.Combine(clips, "liar.wav")));
+            // The reader stops at the declared 8 bytes; their checksum is not
+            // the one taken over the whole entry, and that refuses it all.
+            Assert.Equal("The archive is damaged: clips/liar.wav does not match the size and checksum it declares.",
+                Assert.Throws<SoundboardArchiveRefusedException>(() => mixer.ImportSoundboard(archive, merge: true)).Message);
+            Assert.Empty(mixer.SoundboardLibrary.Clips);
+            Assert.Empty(Directory.GetFileSystemEntries(clips));
         }
+        Assert.Equal(0xCBF43926u, SoundboardArchive.Crc32(0, "123456789"u8));
+        Assert.Equal(0xCBF43926u, SoundboardArchive.Crc32(SoundboardArchive.Crc32(0, "1234"u8), "56789"u8));
     }
 
     [Fact]
@@ -461,9 +571,9 @@ public sealed class SoundboardArchiveTests : IDisposable
             Assert.Equal(["", "Jingles"], mixer.Soundboard().Pages);
 
             Assert.Equal("No clip is on the page Gone.", Assert.Throws<InvalidOperationException>(() => mixer.RenameClipPage("Gone", "x")).Message);
-            Assert.Equal("A page name must have at most 40 printable characters.",
+            Assert.Equal("A page name must have at most 40 printable characters, and cannot be - alone.",
                 Assert.Throws<InvalidOperationException>(() => mixer.UpdateClip("a", new SoundboardClipChange(Page: new string('p', 41)))).Message);
-            Assert.Equal("A page name must have at most 40 printable characters.",
+            Assert.Equal("A page name must have at most 40 printable characters, and cannot be - alone.",
                 Assert.Throws<InvalidOperationException>(() => mixer.ImportClip(Source("x.wav", "RIFF"), null, "a\tb")).Message);
 
             SoundboardClip imported = mixer.ImportClip(Source("y.wav", "RIFF"), null, "jingles");
@@ -481,13 +591,19 @@ public sealed class SoundboardArchiveTests : IDisposable
               {"id": "old", "name": "Old", "file": "old.wav"},
               {"id": "spaced", "name": "Spaced", "file": "spaced.wav", "page": "  Intro "},
               {"id": "control", "name": "Control", "file": "control.wav", "page": "a\u0001b"},
-              {"id": "long", "name": "Long", "file": "long.wav", "page": "{{new string('p', 41)}}"}
+              {"id": "long", "name": "Long", "file": "long.wav", "page": "{{new string('p', 41)}}"},
+              {"id": "dash", "name": "Dash", "file": "dash.wav", "page": "-"},
+              {"id": "lower", "name": "Lower", "file": "lower.wav", "page": "intro"}
             ]}
             """);
         SoundboardLibrary read = SoundboardLibrary.Load(path, out string? warning);
-        Assert.Equal(["", "Intro"], read.Clips.Select(c => c.Page));
-        Assert.Equal($"{path}: dropped control (the page must have at most 40 printable characters), long (the page must have at most 40 printable characters)", warning);
+        // Pages that differ only in case are one, under the first clip's spelling.
+        Assert.Equal(["", "Intro", "Intro"], read.Clips.Select(c => c.Page));
+        const string rule = "the page must have at most 40 printable characters, and cannot be - alone";
+        Assert.Equal($"{path}: dropped control ({rule}), long ({rule}), dash ({rule})", warning);
         Assert.Equal(["", "Intro"], SoundboardLibrary.PagesOf(read.Clips));
+        Assert.False(SoundboardLibrary.IsValidPage("-"));
+        Assert.True(SoundboardLibrary.IsValidPage("-x"));
         Assert.Empty(SoundboardLibrary.PagesOf([]));
     }
 }

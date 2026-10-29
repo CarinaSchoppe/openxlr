@@ -216,9 +216,10 @@ public static class SoundboardArchive
 
     /// <summary>
     /// Unpack a clip file into a new private file at <paramref name="target"/>.
-    /// A file over 64 MiB is refused as importClip refuses it; an entry that
-    /// holds more than it declares, or more than <paramref name="budget"/>
-    /// bytes, refuses the whole archive. Returns the bytes written.
+    /// A file over 64 MiB is refused as importClip refuses it. An entry whose
+    /// data is not the size and checksum it declares, or that declares more
+    /// than <paramref name="budget"/> bytes, refuses the whole archive.
+    /// Returns the bytes written.
     /// </summary>
     public static long Extract(ZipArchiveEntry entry, string target, long budget)
     {
@@ -232,22 +233,48 @@ public static class SoundboardArchive
         return copied;
     }
 
-    /// <summary>Copy an entry, refusing the archive when the entry unpacks to more than it declares or than <paramref name="limit"/>.</summary>
+    /// <summary>
+    /// Copy an entry, never more than it declares or than
+    /// <paramref name="limit"/>, and refuse the archive unless what came out
+    /// is the size and the checksum the entry declares. .NET's reader stops
+    /// at the declared size, so an entry that holds more than it declares
+    /// cannot be seen by reading on; its checksum, taken over all its data,
+    /// does not match the part read, and that refuses it.
+    /// </summary>
     private static long CopyCapped(ZipArchiveEntry entry, Stream output, long limit)
     {
         if (entry.Length > limit) throw new SoundboardArchiveRefusedException($"{Shown(entry.FullName)} is larger than a soundboard archive allows.");
         using Stream input = entry.Open();
         var buffer = new byte[81920];
         long copied = 0;
+        uint crc = 0;
         int read;
         while ((read = input.Read(buffer)) > 0)
         {
             copied += read;
             if (copied > entry.Length || copied > limit)
                 throw new SoundboardArchiveRefusedException($"The archive is damaged: {Shown(entry.FullName)} unpacks to more than it declares.");
+            crc = Crc32(crc, buffer.AsSpan(0, read));
             output.Write(buffer, 0, read);
         }
+        if (copied != entry.Length || crc != entry.Crc32)
+            throw new SoundboardArchiveRefusedException($"The archive is damaged: {Shown(entry.FullName)} does not match the size and checksum it declares.");
         return copied;
+    }
+
+    private static readonly uint[] CrcTable = [.. Enumerable.Range(0, 256).Select(n =>
+    {
+        uint c = (uint)n;
+        for (int k = 0; k < 8; k++) c = (c & 1) != 0 ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+        return c;
+    })];
+
+    /// <summary>The zip format's CRC-32 of <paramref name="data"/>, carried on from <paramref name="crc"/>.</summary>
+    internal static uint Crc32(uint crc, ReadOnlySpan<byte> data)
+    {
+        crc = ~crc;
+        foreach (byte b in data) crc = CrcTable[(crc ^ b) & 0xFF] ^ (crc >> 8);
+        return ~crc;
     }
 
     private static SoundboardArchiveRefusedException Unexpected(string name)

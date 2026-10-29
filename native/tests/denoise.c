@@ -365,6 +365,28 @@ static void check_deepfilter_follows(void) {
   release(h);
 }
 
+// A smaller quantum must settle two seconds after the last large block,
+// independently of where the old fixed sampling window happened to start.
+static void check_deepfilter_settle_deadline(void) {
+  Host *h = stage(RATE, DENOISE_DEEPFILTER, 0);
+  block(h, input, output, 2048);
+  uint32_t large = eq_latency(h);
+  for (unsigned n = 0; n < 374; n++) block(h, input, output, 256);
+  assert(eq_latency(h) == large);
+  block(h, input, output, 256);
+  assert(eq_latency(h) == large - worker_lag(2048, 480) + worker_lag(256, 480));
+  // One large block during a shorter run restarts the quiet interval.
+  block(h, input, output, 2048);
+  for (unsigned n = 0; n < 200; n++) block(h, input, output, 256);
+  block(h, input, output, 2048);
+  for (unsigned n = 0; n < 374; n++) block(h, input, output, 256);
+  assert(eq_latency(h) == large);
+  block(h, input, output, 256);
+  assert(eq_latency(h) == large - worker_lag(2048, 480) + worker_lag(256, 480));
+  release(h);
+  puts("DeepFilterNet: smaller blocks settle after two seconds, with a large block restarting the wait");
+}
+
 // The same voice in quieter rooms. At -50 dBFS of noise the model rates the
 // voice between its thresholds for gains alone and for deep filtering, where
 // DeepFilterNet's library defaults cut into the syllables; at -70 dBFS the
@@ -418,6 +440,9 @@ int main(int argc, char **argv) {
   make_voice();
   make_noise();
   for (size_t n = 0; n < COUNT; n++) input[n] = voice[n] + noise[n];
+#if OPENXLR_DEEPFILTER
+  check_deepfilter_settle_deadline();
+#endif
   check_engines(argv[1]);
   check_controls();
   check_engine(DENOISE_RNNOISE, "RNNoise", 10);

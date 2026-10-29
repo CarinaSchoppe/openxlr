@@ -458,7 +458,8 @@ passes the microphone through untouched and says so.
   plus answering time in whole blocks. That is one block, or enough blocks
   to make up a hop when blocks are smaller. The total is 51 ms at a quantum
   of 256, 61 ms at 1024 and 83 ms at 2048. The lag grows at once with a
-  larger block and shrinks once smaller blocks have held for 2 s, with a
+  larger block and shrinks once smaller blocks have held for 2 s after the
+  last block needing the larger lag, with a
   5 ms crossfade between the two read positions. The latency it reports
   follows it. Strength is
   the model's attenuation limit; below 0.01 dB the library would hand the

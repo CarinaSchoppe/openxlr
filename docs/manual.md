@@ -1313,7 +1313,9 @@ Two engines do the work, and you choose per microphone:
   the processor and adds more delay: about 50 ms with PipeWire's small
   buffers, 61 ms with its usual 1024-sample ones and 83 ms with 2048. The
   delay follows PipeWire's buffer size, so the figure shown can change
-  while it runs. OpenXLR's level meters ask for PipeWire's default size,
+  while it runs. A lower delay takes effect after two continuous seconds
+  of smaller buffers; a larger buffer restarts that wait. OpenXLR's level
+  meters ask for PipeWire's default size,
   so they never raise it themselves, and [Block size](#block-size) can
   set a smaller one. The first time you choose
   DeepFilterNet, its

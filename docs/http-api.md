@@ -23,6 +23,7 @@ rate limits and reply envelopes are unchanged.
 | `GET /api/v1/channels`, `/channels/{id}` | Every channel, or the one with that id |
 | `GET /api/v1/mixes`, `/mixes/{id}` | Every mix, or the one with that id |
 | `GET /api/v1/inserts`, `/inserts/{id}` | Every insert chain by key, or one chain |
+| `GET /api/v1/soundboard` | The state's `mixer.soundboard`: the board's channel, switch, clips and the clips playing |
 | `GET /api/v1/plugins` | v1 result containing a plugins message |
 | `GET /api/v1/plugin-setup` | v1 result containing a pluginSetup message |
 | `GET /api/v1/plugin-diagnostics` | v1 result containing a pluginDiagnostics message |
@@ -169,12 +170,24 @@ when none runs, and `{"cmd":"getSoundCheckTake"}` returns the take's
 waveform as a `soundCheckTake` message in `messages`. The
 [meter before the chain](api.md#meter-before-the-chain) and the loop's
 playhead come only with the meters, on `/api/v1/events`.
+The [soundboard](api.md#soundboard) takes the same path.
+`{"cmd":"setSoundboard","enabled":true}` turns it on, creating SFX muted in
+every mix when the layout has none;
+`{"cmd":"importClip","path":"/home/me/Sounds/airhorn.mp3","name":"Airhorn"}`
+copies and checks a file and answers with a `clipImport` message whose
+`clip` is the new id, `airhorn`; `{"cmd":"playClip","clip":"airhorn"}` plays
+it and `{"cmd":"stopClips"}` fades every clip out. `GET /api/v1/soundboard`
+reads the library and what plays; where a clip is comes only with the
+meters, as `clip:<id>` on `/api/v1/events`. A press in `hold` mode, given
+or the clip's own, is refused here: a held clip belongs to the connection
+that pressed it and is released when that closes, and an HTTP request
+closes at once. A script that holds a clip uses `/api/v1/events`.
 Both transports share the dispatcher,
 validation and broadcasts. HTTP returns
 `{"apiVersion":"1","ok":true,"messages":[]}` after a successful mutation.
 Read replies are in `messages`; rejected commands return HTTP 400, `ok:false`
-and an error message. This includes failed plugin installation and Windows
-plugin file operations: their typed reply remains in `messages`, followed by
+and an error message. This includes failed plugin installation, refused
+clip imports and Windows plugin file operations: their typed reply remains in `messages`, followed by
 the error or failed `commandResult` when a request id was supplied.
 Some rejected optimistic edits also include current state.
 This reports execution, not a new durability guarantee: saving follows each

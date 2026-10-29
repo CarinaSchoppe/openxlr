@@ -523,6 +523,21 @@ member. On a Wave XLR Pro, XLR 1 in a group gives up the zero-latency
 hardware path to the jacks, because the group mutes through the mixer.
 See [Exclusive groups](manual.md#exclusive-groups).
 
+### Soundboard
+
+Short clips play into the SFX channel, so SFX's fader, mutes and sends
+into Stream, Chat and the monitor mixes decide where they are heard. The
+native helper holds up to 64 clips decoded in memory and plays up to eight
+at once, each press a single line to it and nothing rebuilt in the graph.
+A clip has its own gain, a loop switch and a press mode: overlap, restart,
+toggle or hold. Imported WAV, FLAC, Ogg Vorbis, Opus and MP3 files, up to
+30 seconds and 64 MiB each, are copied into OpenXLR's own data folder and
+checked in a separate process before the player opens them. Renaming or
+hiding SFX keeps the clips playing; deleting it turns the board off until it
+is turned on again, which creates SFX anew. The daemon side is in place and
+driven through the [API](api.md#soundboard); the UI, the terminal mixer and
+the OpenDeck plugin do not offer it yet.
+
 ## Inserts
 
 LV2, CLAP and VST3 effects can form a mono chain on each XLR input, a mono

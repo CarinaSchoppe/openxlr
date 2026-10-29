@@ -76,6 +76,17 @@ public static class CommandValidation
             case "setWaveInterfaceEnabled":
             case "setWaveControl":
                 return CheckWave(cmd);
+            case "setSoundboard":
+            case "importClip":
+            case "updateClip":
+            case "deleteClip":
+            case "playClip":
+            case "releaseClip":
+            case "stopClip":
+            case "stopClips":
+            case "setClipOrder":
+            case "getSoundboard":
+                return CheckSoundboard(cmd, nativeHostInstalled ?? PluginCatalog.HostInstalled);
             case "setDucking":
                 return CheckDucking(cmd, layout, out _);
             case "setDuckingProcessing":
@@ -517,6 +528,53 @@ public static class CommandValidation
     private static string? Finite(Command cmd, string field)
         => cmd.Value.ValueKind == JsonValueKind.Number && cmd.Value.TryGetDouble(out double d) && double.IsFinite(d)
             ? null : $"{cmd.Cmd}: '{field}' must be a finite number";
+
+    /// <summary>
+    /// The soundboard commands' shape: a clip id where one is named, a mode
+    /// from the four, a gain from 0 to 1, a name, icon and colour as the
+    /// library keeps them, an absolute path to import. Whether the clip
+    /// exists is the mixer's to say. Turning the board on and importing need
+    /// the helper; everything else answers without it.
+    /// </summary>
+    internal static string? CheckSoundboard(Command cmd, bool nativeHostInstalled)
+    {
+        string? NeedClip() => SoundboardLibrary.IsValidId(cmd.Clip) ? null : $"{cmd.Cmd}: need 'clip', a clip id";
+        switch (cmd.Cmd)
+        {
+            case "setSoundboard":
+                if (cmd.Enabled is not bool on) return "setSoundboard: need 'enabled', a boolean";
+                return on && !nativeHostInstalled ? Mixer.SoundboardNeedsHost : null;
+            case "importClip":
+                if (cmd.Path is not { Length: > 0 and <= 4096 } path || path.Any(char.IsControl) || !System.IO.Path.IsPathFullyQualified(path))
+                    return "importClip: need 'path', an absolute path to the file";
+                if (cmd.Name is not null && BadName(cmd.Name)) return "importClip: name must contain 1 to 60 printable characters";
+                return nativeHostInstalled ? null : Mixer.SoundboardNeedsHost;
+            case "updateClip":
+                if (NeedClip() is { } missing) return missing;
+                if (cmd.Name is null && cmd.Gain is null && cmd.Mode is null && cmd.Loop is null && cmd.Icon is null && cmd.Colour is null)
+                    return "updateClip: give at least one of name, gain, mode, loop, icon and colour";
+                if (cmd.Name is not null && BadName(cmd.Name)) return "updateClip: name must contain 1 to 60 printable characters";
+                if (cmd.Gain is double gain && (!double.IsFinite(gain) || gain is < 0 or > 1)) return "updateClip: gain must be from 0 to 1";
+                if (cmd.Mode is not null && !SoundboardLibrary.Modes.Contains(cmd.Mode)) return "updateClip: mode must be overlap, restart, toggle or hold";
+                if (BadIcon(cmd.Icon)) return IconError("updateClip");
+                if (cmd.Colour is { Length: > 0 } colour && !LayoutAppearance.IsValid(new LayoutAppearance("", colour)))
+                    return "updateClip: colour must be #RRGGBB, or empty to clear it";
+                return null;
+            case "playClip":
+                if (NeedClip() is { } none) return none;
+                return cmd.Mode is null || SoundboardLibrary.Modes.Contains(cmd.Mode) ? null
+                    : "playClip: mode must be overlap, restart, toggle or hold";
+            case "deleteClip":
+            case "releaseClip":
+            case "stopClip":
+                return NeedClip();
+            case "setClipOrder":
+                return cmd.Clips is { Count: <= SoundboardLibrary.MaxClips } clips && clips.All(SoundboardLibrary.IsValidId)
+                    ? null : $"setClipOrder: need 'clips', at most {SoundboardLibrary.MaxClips} clip ids";
+            default:
+                return null;
+        }
+    }
 
     private static bool TooLong(string? s, int max) => s is not null && s.Length > max;
     private static bool BadName(string? name)

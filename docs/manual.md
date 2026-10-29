@@ -3669,6 +3669,8 @@ settings. See
 | `~/.config/openxlr/devices/<vid-pid>/defaults.json` | the firmware defaults of such an interface, recorded after a power cycle, written back by "Reset device to defaults" (the Pro has no such file: its reset writes OpenXLR's baseline) |
 | `~/.config/openxlr/daemon.json` | the submixer on/off preference and the added plugin folders |
 | `~/.config/openxlr/gainlock.json` | which devices have the gain lock set |
+| `~/.config/openxlr/soundboard.json` | the soundboard's clip library and whether it is on, written by the daemon ([api.md](api.md#soundboard)) |
+| `~/.local/share/openxlr/soundboard/` | the soundboard's clips, copied in when imported |
 | `~/.config/openxlr/wave-interfaces.json` | the units driven as additional interfaces, by instance id ([Multiple Wave interfaces](wave-interfaces.md)) |
 | `~/.config/openxlr/devices/<vid-pid>@<hash>/last-state.json` | the last settings of an additional interface that keeps none on board |
 | `~/.config/openxlr/native-editors.json` | your native editor overrides ([section 3.5](#native-editor-compatibility)) |

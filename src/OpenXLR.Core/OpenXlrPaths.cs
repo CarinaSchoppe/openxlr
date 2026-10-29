@@ -52,6 +52,15 @@ public static class OpenXlrPaths
         Environment.GetEnvironmentVariable("XDG_STATE_HOME") is { Length: > 0 } state
             ? state : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "state"), "openxlr");
 
+    /// <summary>
+    /// Data the daemon keeps that is neither a preference nor a log, such as
+    /// the soundboard's clips: $XDG_DATA_HOME/openxlr when that is set and
+    /// non-empty, else ~/.local/share/openxlr.
+    /// </summary>
+    public static string DataDir => Path.Combine(
+        Environment.GetEnvironmentVariable("XDG_DATA_HOME") is { Length: > 0 } data
+            ? data : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share"), "openxlr");
+
     /// <summary>A file directly under the configuration directory.</summary>
     public static string ConfigFile(string name) => Path.Combine(ConfigDir, name);
 

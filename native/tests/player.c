@@ -21,7 +21,9 @@ enum { RATE = 48000, BLOCK = 256, RECORDING = 8 * RATE };
 
 // --- allocation counting ------------------------------------------------------
 
-static _Atomic bool counting;
+// Per thread: the worker allocates while it decodes, and only the thread
+// that runs the process call is counted.
+static _Thread_local _Atomic bool counting;
 static _Atomic unsigned long allocations;
 
 // The program's allocator, wrapped: calls made while `counting` is set are
@@ -110,23 +112,37 @@ static void release(Host *h) {
   free(h);
 }
 
-// One command line through the host's own dispatch, its stdout returned.
-static void send(Host *h, const char *line, char *reply, size_t size) {
+// One command line through the host's own dispatch, its stdout returned; with
+// WAIT, ticks too until no load is out, and what they print. With no line,
+// only the ticks.
+static void transact(Host *h, const char *line, char *reply, size_t size, bool wait) {
   static char copy[16384];
-  snprintf(copy, sizeof(copy), "%s", line);
+  snprintf(copy, sizeof(copy), "%s", line ? line : "");
   fflush(stdout);
   int saved = dup(STDOUT_FILENO);
   FILE *capture = tmpfile();
   assert(saved >= 0 && capture);
   dup2(fileno(capture), STDOUT_FILENO);
-  command(h, copy);
+  if (line) command(h, copy);
   fflush(stdout);
+  // A load is answered from a later tick, once the worker has decoded it.
+  // A malformed line or a refusal leaves no load out, and is answered at once.
+  for (int i = 0; wait && ((Player *)h->impl)->busy; i++) {
+    assert(i < 20000);
+    nanosleep(&(struct timespec){0, 1000000}, NULL);
+    player_tick(h);
+    fflush(stdout);
+  }
   dup2(saved, STDOUT_FILENO);
   close(saved);
   rewind(capture);
   size_t n = fread(reply, 1, size - 1, capture);
   reply[n] = 0;
   fclose(capture);
+}
+
+static void send(Host *h, const char *line, char *reply, size_t size) {
+  transact(h, line, reply, size, true);
 }
 
 static void expect(Host *h, const char *line, const char *reply) {
@@ -141,9 +157,9 @@ static void expect(Host *h, const char *line, const char *reply) {
 // A refused load: one `clip SLOT error` line holding WORDS.
 static void refused(Host *h, unsigned slot, const char *path, const char *words) {
   char line[8192], got[1024], start[32];
-  snprintf(line, sizeof(line), "load %u %s", slot, path);
+  snprintf(line, sizeof(line), "load %u 7 %s", slot, path);
   send(h, line, got, sizeof(got));
-  snprintf(start, sizeof(start), "clip %u error ", slot);
+  snprintf(start, sizeof(start), "clip %u 7 error ", slot);
   if (strncmp(got, start, strlen(start)) || !strstr(got, words) || strchr(got, '\n') != got + strlen(got) - 1) {
     fprintf(stderr, "%s: expected an error with \"%s\", got \"%s\"\n", line, words, got);
     assert(!"unexpected reply");
@@ -350,8 +366,8 @@ static void check_decoding(const char *helper) {
   // A float WAV at the helper's rate arrives sample for sample.
   const char *wav = named("stereo.wav");
   write_clip(wav, SF_FORMAT_WAV | SF_FORMAT_FLOAT, RATE, 2, 4800, stereo_ramp);
-  snprintf(line, sizeof(line), "load 0 %s", wav);
-  expect(h, line, "clip 0 ok 4800 2\n");
+  snprintf(line, sizeof(line), "load 0 7 %s", wav);
+  expect(h, line, "clip 0 7 ok 4800 2\n");
   run(h, BLOCK);
   const Clip *c = p->current[0];
   assert(c && c->channels == 2 && c->frames == 4800);
@@ -360,21 +376,21 @@ static void check_decoding(const char *helper) {
   // A 16 bit mono WAV, and a path with a space in it.
   const char *spaced = named("a mono clip.wav");
   write_clip(spaced, SF_FORMAT_WAV | SF_FORMAT_PCM_16, RATE, 1, 1000, dc);
-  snprintf(line, sizeof(line), "load 1 %s", spaced);
-  expect(h, line, "clip 1 ok 1000 1\n");
+  snprintf(line, sizeof(line), "load 1 7 %s", spaced);
+  expect(h, line, "clip 1 7 ok 1000 1\n");
   // A FLAC at 44.1 kHz comes in at the helper's rate with its tone intact.
   const char *flac = named("tone.flac");
   write_clip(flac, SF_FORMAT_FLAC | SF_FORMAT_PCM_24, 44100, 1, 44100, tone);
-  snprintf(line, sizeof(line), "load 2 %s", flac);
-  expect(h, line, "clip 2 ok 48000 1\n");
+  snprintf(line, sizeof(line), "load 2 7 %s", flac);
+  expect(h, line, "clip 2 7 ok 48000 1\n");
   run(h, BLOCK);
   Tone t = measure(p->current[2]->samples + 1000, 46000, 1, RATE);
   assert(fabs(t.level_db) < 0.1 && fabs(t.frequency - 1000) < 1);
   // Non-finite samples become silence and the rest is held to full scale.
   const char *wild = named("nonfinite.wav");
   write_clip(wild, SF_FORMAT_WAV | SF_FORMAT_FLOAT, RATE, 1, 6, nonfinite);
-  snprintf(line, sizeof(line), "load 3 %s", wild);
-  expect(h, line, "clip 3 ok 6 1\n");
+  snprintf(line, sizeof(line), "load 3 7 %s", wild);
+  expect(h, line, "clip 3 7 ok 6 1\n");
   run(h, BLOCK);
   const float sane[] = {0, 0, 0, 1, -1, 0.5f};
   assert(memcmp(p->current[3]->samples, sane, sizeof(sane)) == 0);
@@ -424,10 +440,10 @@ static void check_decoding(const char *helper) {
     send(h, line, reply, sizeof(reply));
     snprintf(expected, sizeof(expected), "probe ok %s 1 48000 ", compressed[i].word);
     assert(!strncmp(reply, expected, strlen(expected)));
-    snprintf(line, sizeof(line), "load 4 %s", path);
+    snprintf(line, sizeof(line), "load 4 7 %s", path);
     send(h, line, reply, sizeof(reply));
     unsigned frames = 0, channels = 0;
-    assert(sscanf(reply, "clip 4 ok %u %u", &frames, &channels) == 2 && channels == 1);
+    assert(sscanf(reply, "clip 4 7 ok %u %u", &frames, &channels) == 2 && channels == 1);
     // Encoders pad; the length is near a second.
     assert(frames >= RATE * 95 / 100 && frames <= RATE * 11 / 10);
     printf("%s: %u frames\n", compressed[i].word, frames);
@@ -459,8 +475,8 @@ static void check_refusals(void) {
   // Thirty seconds play, one more frame does not.
   const char *thirty = named("thirty.wav");
   write_clip(thirty, SF_FORMAT_WAV | SF_FORMAT_PCM_16, 8000, 1, 30 * 8000, silence);
-  snprintf(path, sizeof(path), "load 5 %s", thirty);
-  expect(h, path, "clip 5 ok 1440000 1\n");
+  snprintf(path, sizeof(path), "load 5 7 %s", thirty);
+  expect(h, path, "clip 5 7 ok 1440000 1\n");
   const char *longer = named("longer.wav");
   write_clip(longer, SF_FORMAT_WAV | SF_FORMAT_PCM_16, 8000, 1, 30 * 8000 + 1, silence);
   refused(h, 0, longer, "the clip is 30.1 s long; the limit is 30 s");
@@ -483,15 +499,33 @@ static void check_refusals(void) {
   memset(path, 'a', 5000);
   path[0] = '/', path[5000] = 0;
   refused(h, 0, path, "the path is too long");
-  // The memory budget counts every slot but the one being loaded.
+  // The memory budget counts every clip in memory, the one a load would
+  // replace and the ones still fading included.
   const char *two = named("two.wav");  // 2 s of stereo: 750 KiB of samples
   write_clip(two, SF_FORMAT_WAV | SF_FORMAT_PCM_16, RATE, 2, 2 * RATE, dc);
   expect(h, "unload 5", "clip 5 unloaded\n");
+  run(h, BLOCK);
+  player_tick(h);
+  assert(p->live_count == 0);
   p->budget = 1 << 20;
-  snprintf(path, sizeof(path), "load 6 %s", two);
-  expect(h, path, "clip 6 ok 96000 2\n");
+  snprintf(path, sizeof(path), "load 6 7 %s", two);
+  expect(h, path, "clip 6 7 ok 96000 2\n");
   refused(h, 7, two, "would take more than 96 MiB of memory");
-  expect(h, path, "clip 6 ok 96000 2\n");  // replacing it fits
+  // Replacing it does not fit while the old clip is still held, and the
+  // failed load empties the slot; once that clip is freed, it fits.
+  refused(h, 6, two, "would take more than 96 MiB of memory");
+  run(h, BLOCK);
+  player_tick(h);
+  expect(h, path, "clip 6 7 ok 96000 2\n");
+  // A clip a fading voice still reads counts too.
+  quiet(h, "play 6");
+  run(h, BLOCK);
+  expect(h, "unload 6", "clip 6 unloaded\n");
+  refused(h, 6, two, "would take more than 96 MiB of memory");
+  run(h, 4 * BLOCK);
+  player_tick(h);
+  assert(p->live_count == 0);
+  expect(h, path, "clip 6 7 ok 96000 2\n");
   p->budget = PLAYER_MAX_DECODED_BYTES;
   // A failed load empties its slot, so it cannot play the clip it had.
   refused(h, 6, text, "not audio");
@@ -501,7 +535,8 @@ static void check_refusals(void) {
   player_tick(h);
   assert(p->live_count == 0);
   // Lines that are not commands of the player reply nothing on stdout.
-  const char *bad[] = {"load 64 /x", "load -1 /x", "load 1", "load 1 ", "load 007 /x",
+  const char *bad[] = {"load 64 7 /x", "load -1 7 /x", "load 1", "load 1 ", "load 1 7", "load 1 7 ",
+                       "load 1 /x", "load 1 x /x", "load 1 12345678901 /x", "load 1 4294967296 /x", "load 007 7 /x",
                        "play 3 sideways", "play abc", "play", "stop 999", "stop",
                        "stop every", "unload 3 extra", "release", "release x", "probe"};
   for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) quiet(h, bad[i]);
@@ -549,11 +584,11 @@ static void check_damaged(void) {
       assert(fwrite(copy, 1, length, out) == length && fclose(out) == 0);
       char line[1024], got[1024];
       unsigned slot = round % 4;
-      snprintf(line, sizeof(line), "load %u %s", slot, damaged);
+      snprintf(line, sizeof(line), "load %u 7 %s", slot, damaged);
       send(h, line, got, sizeof(got));
       char ok[32], failed[32];
-      snprintf(ok, sizeof(ok), "clip %u ok ", slot);
-      snprintf(failed, sizeof(failed), "clip %u error ", slot);
+      snprintf(ok, sizeof(ok), "clip %u 7 ok ", slot);
+      snprintf(failed, sizeof(failed), "clip %u 7 error ", slot);
       assert(strchr(got, '\n') == got + strlen(got) - 1);
       if (!strncmp(got, ok, strlen(ok))) loaded++;
       else assert(!strncmp(got, failed, strlen(failed))), refusals++;
@@ -579,8 +614,8 @@ static Host *dc_board(const char *name, size_t frames) {
   const char *path = named(name);
   write_clip(path, SF_FORMAT_WAV | SF_FORMAT_FLOAT, RATE, 2, frames, dc);
   char line[1024], expected[64];
-  snprintf(line, sizeof(line), "load 0 %s", path);
-  snprintf(expected, sizeof(expected), "clip 0 ok %zu 2\n", frames);
+  snprintf(line, sizeof(line), "load 0 7 %s", path);
+  snprintf(expected, sizeof(expected), "clip 0 7 ok %zu 2\n", frames);
   expect(h, line, expected);
   return h;
 }
@@ -685,8 +720,8 @@ static void check_voice_limit(void) {
   assert(meter(h, "playing_0") == 8);
   // Stealing crosses slots: the oldest voice goes, whichever clip it plays.
   char line[1024];
-  snprintf(line, sizeof(line), "load 1 %s", named("dc.wav"));
-  expect(h, line, "clip 1 ok 48000 2\n");
+  snprintf(line, sizeof(line), "load 1 7 %s", named("dc.wav"));
+  expect(h, line, "clip 1 7 ok 48000 2\n");
   quiet(h, "play 1");
   run(h, 2 * BLOCK);
   assert(meter(h, "playing_0") == 7 && meter(h, "playing_1") == 1);
@@ -727,8 +762,8 @@ static void check_ends_and_loops(void) {
   const char *path = named("saw.wav");
   write_clip(path, SF_FORMAT_WAV | SF_FORMAT_FLOAT, RATE, 1, 4800, saw);
   char line[1024];
-  snprintf(line, sizeof(line), "load 0 %s", path);
-  expect(h, line, "clip 0 ok 4800 1\n");
+  snprintf(line, sizeof(line), "load 0 7 %s", path);
+  expect(h, line, "clip 0 7 ok 4800 1\n");
   quiet(h, "set loop_0 1");
   quiet(h, "play 0");
   run(h, 5 * 4800);
@@ -747,8 +782,8 @@ static void check_ends_and_loops(void) {
   // A clip of three frames loops with nothing to fade over.
   const char *tiny = named("tiny.wav");
   write_clip(tiny, SF_FORMAT_WAV | SF_FORMAT_FLOAT, RATE, 1, 3, dc);
-  snprintf(line, sizeof(line), "load 1 %s", tiny);
-  expect(h, line, "clip 1 ok 3 1\n");
+  snprintf(line, sizeof(line), "load 1 7 %s", tiny);
+  expect(h, line, "clip 1 7 ok 3 1\n");
   quiet(h, "set loop_1 1");
   quiet(h, "play 1");
   run(h, 2 * BLOCK);
@@ -771,8 +806,8 @@ static void check_replacing(void) {
   const char *quieter = named("silence.wav");
   write_clip(quieter, SF_FORMAT_WAV | SF_FORMAT_FLOAT, RATE, 2, RATE, silence);
   char line[1024];
-  snprintf(line, sizeof(line), "load 0 %s", quieter);
-  expect(h, line, "clip 0 ok 48000 2\n");
+  snprintf(line, sizeof(line), "load 0 7 %s", quieter);
+  expect(h, line, "clip 0 7 ok 48000 2\n");
   assert(p->live_count == 2);
   run(h, BLOCK / 2);
   player_tick(h);
@@ -783,9 +818,9 @@ static void check_replacing(void) {
   player_tick(h);
   assert(p->live_count == 1 && p->current[0]->samples[0] == 0);
   // Unloading a playing slot fades it the same way.
-  expect(h, "load 0 /nonexistent/ignored", "clip 0 error the file does not exist\n");
-  snprintf(line, sizeof(line), "load 0 %s", named("dc.wav"));
-  expect(h, line, "clip 0 ok 48000 2\n");
+  expect(h, "load 0 7 /nonexistent/ignored", "clip 0 7 error the file does not exist\n");
+  snprintf(line, sizeof(line), "load 0 7 %s", named("dc.wav"));
+  expect(h, line, "clip 0 7 ok 48000 2\n");
   quiet(h, "play 0");
   run(h, 2 * BLOCK);
   expect(h, "unload 0", "clip 0 unloaded\n");
@@ -795,7 +830,7 @@ static void check_replacing(void) {
   player_tick(h);
   assert(p->live_count == 0 && p->current[0] == NULL);
   // Presses with no audio running fill the queue, and the rest are dropped.
-  expect(h, line, "clip 0 ok 48000 2\n");
+  expect(h, line, "clip 0 7 ok 48000 2\n");
   for (unsigned i = 0; i < EVENT_CAPACITY + 10; i++) quiet(h, "play 0");
   run(h, 2 * BLOCK);
   assert(meter(h, "playing_0") == 8);
@@ -803,6 +838,87 @@ static void check_replacing(void) {
   quiet(h, "play 0 restart");
   release(h);
   puts("PASS: a replaced or unloaded clip fades out and is freed after its voices end");
+}
+
+static bool decoding(Player *p) {
+  pthread_mutex_lock(&p->lock);
+  bool going = p->busy && !p->done;
+  pthread_mutex_unlock(&p->lock);
+  return going;
+}
+
+static double seconds_since(const struct timespec *start) {
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  return (double)(now.tv_sec - start->tv_sec) + (double)(now.tv_nsec - start->tv_nsec) / 1e9;
+}
+
+// Decoding runs on a worker: a press, a stop or a gain change is taken while
+// a long clip loads, the answer names the load it answers, an unload cancels
+// a load still decoding, and a press the audio thread reaches late is dropped.
+static void check_worker(void) {
+  Host *h = fresh();
+  Player *p = h->impl;
+  char line[1024], got[1024];
+  const char *short_clip = named("worker-dc.wav");
+  write_clip(short_clip, SF_FORMAT_WAV | SF_FORMAT_PCM_16, RATE, 2, RATE, dc);
+  snprintf(line, sizeof(line), "load 0 41 %s", short_clip);
+  expect(h, line, "clip 0 41 ok 48000 2\n");
+  // The slot's meters are printed again after a load, whatever they were.
+  assert(isnan(p->playing[0]->reported) && isnan(p->position[0]->reported));
+  // Thirty seconds at 384 kHz, converted to 48 kHz: the worker takes a while.
+  const char *slow = named("worker-384k.wav");
+  write_clip(slow, SF_FORMAT_WAV | SF_FORMAT_PCM_16, 384000, 2, 30 * 384000, dc);
+  quiet(h, "play 0 overlap");
+  run(h, 2 * BLOCK);
+  assert(meter(h, "playing_0") == 1 && fabsf(last(1)[0] - 0.1f) < 1e-3f);
+  snprintf(line, sizeof(line), "load 1 42 %s", slow);
+  transact(h, line, got, sizeof(got), false);
+  assert(got[0] == 0 && decoding(p));
+  // One load at a time: another is refused at once, by its own token.
+  transact(h, "load 2 43 /x", got, sizeof(got), false);
+  assert(!strcmp(got, "clip 2 43 error the player is still loading another clip; try again\n"));
+  // Stop all is taken now and heard at the next block, while the decode goes on.
+  struct timespec start;
+  clock_gettime(CLOCK_MONOTONIC, &start);
+  transact(h, "set gain_0 0.5", got, sizeof(got), false);
+  assert(got[0] == 0);
+  transact(h, "stop all", got, sizeof(got), false);
+  double taken = seconds_since(&start);
+  assert(got[0] == 0);
+  run(h, 2 * BLOCK);
+  assert(decoding(p));
+  for (size_t i = 0; i < BLOCK; i++) assert(last(BLOCK)[i] == 0);
+  printf("stop all during a load: taken in %.2f ms, silent within two blocks\n", taken * 1000);
+  assert(taken < 0.02);
+  transact(h, NULL, got, sizeof(got), true);
+  assert(!strcmp(got, "clip 1 42 ok 1440000 2\n"));
+  // An unload cancels a load still decoding for that slot: its answer says
+  // so, and the slot stays empty.
+  snprintf(line, sizeof(line), "load 2 44 %s", slow);
+  transact(h, line, got, sizeof(got), false);
+  assert(decoding(p));
+  transact(h, "unload 2", got, sizeof(got), false);
+  assert(!strcmp(got, "clip 2 unloaded\n"));
+  transact(h, NULL, got, sizeof(got), true);
+  assert(!strcmp(got, "clip 2 44 error the load was cancelled\n"));
+  run(h, BLOCK);
+  assert(p->current[2] == NULL && p->assigned[2] == 0);
+  // A press the audio thread reaches more than a quarter second late, as
+  // when the node was not running, is dropped rather than played out of time.
+  quiet(h, "play 1");
+  nanosleep(&(struct timespec){0, 300000000}, NULL);
+  run(h, 2 * BLOCK);
+  assert(meter(h, "playing_1") == 0);
+  for (size_t i = 0; i < 2 * BLOCK; i++) assert(last(2 * BLOCK)[i] == 0);
+  quiet(h, "play 1");
+  run(h, 2 * BLOCK);
+  assert(meter(h, "playing_1") == 1);
+  quiet(h, "stop all");
+  run(h, 4 * BLOCK);
+  release(h);
+  puts("PASS: lines flow while the worker decodes, answers carry their load's token, an unload "
+       "cancels a load, and a late press is dropped");
 }
 
 int main(int argc, char **argv) {
@@ -819,6 +935,7 @@ int main(int argc, char **argv) {
   check_voice_limit();
   check_ends_and_loops();
   check_replacing();
+  check_worker();
   char command_line[512];
   snprintf(command_line, sizeof(command_line), "rm -rf '%s'", directory);
   assert(system(command_line) == 0);

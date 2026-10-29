@@ -1094,6 +1094,157 @@ public sealed class PipeWireAdapter
         catch (System.Text.Json.JsonException) { return []; }
     }
 
+    /// <summary>The soundboard player's helper; null uses the installed helper beside the daemon.</summary>
+    internal string? PlayerHost { get; set; }
+
+    internal string PlayerExecutable => PlayerHost ?? NativePluginHost.Executable;
+
+    internal bool PlayerHostInstalled => File.Exists(PlayerExecutable);
+
+    /// <summary>The soundboard player's node: one per daemon, named after the channel it plays into.</summary>
+    internal const string PlayerNode = "OpenXLR_player_" + Mixer.SoundboardChannel;
+
+    /// <summary>The player's meters: voices playing each slot, and how far the newest is.</summary>
+    internal static readonly IReadOnlySet<string> PlayerMeters = new HashSet<string>(
+        Enumerable.Range(0, SoundboardLibrary.MaxClips).SelectMany(i => new[] { $"playing_{i}", $"pos_{i}" }), StringComparer.Ordinal);
+
+    /// <summary>
+    /// The soundboard player: the helper's stereo "player" backend under
+    /// <see cref="PlayerNode"/>, started with each slot's controls at
+    /// <paramref name="controls"/>. Its outputs, <c>capture_0</c> and
+    /// <c>capture_1</c>, are linked by the caller; its inputs stay unlinked.
+    /// Refused at once without the helper.
+    /// </summary>
+    internal FilterHandle CreatePlayer(IReadOnlyDictionary<string, double> controls, out int rate)
+    {
+        string executable = PlayerExecutable;
+        if (!File.Exists(executable)) throw new InvalidOperationException(Mixer.SoundboardNeedsHost);
+        rate = ParseGraphSampleRate(Run("pw-metadata", "-n", "settings"));
+        NativePluginHost host;
+        try
+        {
+            host = new NativePluginHost(new() { Id = "soundboard", Kind = "player", Plugin = "player", Params = new(controls) },
+                PlayerNode, 2, rate, executable, [], meterSymbols: PlayerMeters, note: _note);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or System.ComponentModel.Win32Exception)
+        {
+            throw new InvalidOperationException($"The soundboard could not start the native plugin host. {ex.Message}", ex);
+        }
+        _nativeHosts.Add(host);
+        var filter = new FilterHandle(PlayerNode, PlayerNode, PlayerNode, host.Process) { NativeHost = host };
+        try
+        {
+            if (!WaitForPorts(PlayerNode, "capture", true, TimeSpan.FromSeconds(3), host.Process, count: 2))
+                throw new InvalidOperationException("The soundboard player's audio ports did not appear.");
+            return filter;
+        }
+        catch
+        {
+            StopFilter(filter);
+            throw;
+        }
+    }
+
+    // The formats each helper build said it decodes, by its path and time.
+    private readonly Dictionary<string, IReadOnlyList<string>> _playerFormats = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The clip formats the player's helper decodes, as its <c>formats</c>
+    /// command reports them. Asked once per build of the helper; empty
+    /// without a helper and from one that does not answer.
+    /// </summary>
+    internal IReadOnlyList<string> PlayerFormats
+    {
+        get
+        {
+            string executable = PlayerExecutable;
+            DateTime built;
+            try
+            {
+                if (!File.Exists(executable)) return [];
+                built = File.GetLastWriteTimeUtc(executable);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
+            string key = executable + "\n" + built.Ticks.ToString(CultureInfo.InvariantCulture);
+            lock (_playerFormats)
+            {
+                if (_playerFormats.TryGetValue(key, out IReadOnlyList<string>? known)) return known;
+                IReadOnlyList<string> formats = [];
+                try
+                {
+                    ProcessResult result = ProcessRunner.Run(executable, ["formats"], TimeSpan.FromSeconds(3), stdoutCap: 4096);
+                    if (result.ExitCode == 0) formats = ParsePlayerFormats(System.Text.Encoding.UTF8.GetString(result.Stdout));
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or IOException or System.ComponentModel.Win32Exception) { }
+                _playerFormats[key] = formats;
+                return formats;
+            }
+        }
+    }
+
+    /// <summary>The formats in the helper's <c>formats</c> line that the soundboard knows, in its order.</summary>
+    internal static IReadOnlyList<string> ParsePlayerFormats(string? output)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(output ?? "");
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("formats", out JsonElement list)
+                || list.ValueKind != JsonValueKind.Array) return [];
+            var named = list.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String)
+                .Select(e => e.GetString()).ToHashSet(StringComparer.Ordinal);
+            return [.. SoundboardLibrary.Extensions.Where(named.Contains)];
+        }
+        catch (JsonException) { return []; }
+    }
+
+    /// <summary>
+    /// Check a clip file in a helper process of its own, so a file that
+    /// crashes the decoder never reaches the running player. Throws with the
+    /// helper's sentence when the file is refused.
+    /// </summary>
+    internal ClipProbe ProbeClip(string path)
+    {
+        string executable = PlayerExecutable;
+        if (!File.Exists(executable)) throw new InvalidOperationException(Mixer.SoundboardNeedsHost);
+        ProcessResult result;
+        try { result = ProcessRunner.Run(executable, ["probe", path], TimeSpan.FromSeconds(20), stdoutCap: 4096, stderrCap: 4096); }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or System.ComponentModel.Win32Exception)
+        {
+            throw new InvalidOperationException($"The file could not be checked: {ex.Message}", ex);
+        }
+        if (result.TimedOut) throw new InvalidOperationException("The file could not be checked in time.");
+        return ParseProbe(result.StdoutText)
+            ?? throw new InvalidOperationException(result.ExitCode == 0 || result.Stdout.Length > 0
+                ? "The file could not be checked." : "The file could not be checked; the decoder stopped.");
+    }
+
+    /// <summary>
+    /// The clip a <c>probe ok FORMAT CHANNELS RATE FRAMES</c> line describes.
+    /// A <c>probe error MESSAGE</c> line throws with the message; anything
+    /// else is null.
+    /// </summary>
+    internal static ClipProbe? ParseProbe(string? output)
+    {
+        string line = (output ?? "").Split('\n')[0].TrimEnd('\r');
+        string[] parts = line.Split(' ');
+        if (parts.Length >= 3 && parts[0] == "probe" && parts[1] == "error")
+        {
+            string message = new string([.. line["probe error ".Length..].Take(200).Where(c => !char.IsControl(c))]).Trim().TrimEnd('.');
+            throw new InvalidOperationException(message.Length == 0 ? "The file was refused."
+                : char.ToUpperInvariant(message[0]) + message[1..] + ".");
+        }
+        if (parts.Length != 6 || parts[0] != "probe" || parts[1] != "ok") return null;
+        string format = parts[2];
+        if (!int.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out int channels) || channels is not (1 or 2)
+            || !int.TryParse(parts[4], NumberStyles.None, CultureInfo.InvariantCulture, out int rate) || rate <= 0
+            || !long.TryParse(parts[5], NumberStyles.None, CultureInfo.InvariantCulture, out long frames) || frames <= 0)
+            return null;
+        string extension = format is "other" ? "audio" : format;
+        if (!SoundboardLibrary.Extensions.Contains(extension, StringComparer.Ordinal)) return null;
+        return new ClipProbe(extension, channels, rate, frames);
+    }
+
     /// <summary>The duck stage's helper; null uses the installed helper beside the daemon.</summary>
     internal string? DuckHost { get; set; }
 
@@ -1469,6 +1620,45 @@ public sealed class PipeWireAdapter
                 $"key:'{System.Text.RegularExpressions.Regex.Escape(key)}' value:'(\\d+)'");
             if (match.Success && int.TryParse(match.Groups[1].Value, out int quantum) && quantum is >= 8 and <= 65536)
                 return quantum;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The graph's sample rate as the settings metadata in the registry
+    /// snapshot gives it, read without starting a process: the forced rate
+    /// when one is set, else the default rate. Null when the snapshot holds
+    /// no such metadata.
+    /// </summary>
+    internal int? GraphSampleRate() => ParseGraphSampleRate(GraphObjects());
+
+    /// <summary>The rate in the <c>settings</c> metadata among <paramref name="objects"/>, as <see cref="ParseGraphSampleRate(string)"/> reads it from pw-metadata.</summary>
+    internal static int? ParseGraphSampleRate(IEnumerable<JsonElement> objects)
+    {
+        foreach (JsonElement item in objects)
+        {
+            if (item.ValueKind != JsonValueKind.Object
+                || !item.TryGetProperty("type", out JsonElement type) || type.ValueKind != JsonValueKind.String
+                || type.GetString() != "PipeWire:Interface:Metadata"
+                || !item.TryGetProperty("props", out JsonElement props) || props.ValueKind != JsonValueKind.Object
+                || !props.TryGetProperty("metadata.name", out JsonElement name) || name.ValueKind != JsonValueKind.String
+                || name.GetString() != "settings"
+                || !item.TryGetProperty("metadata", out JsonElement entries) || entries.ValueKind != JsonValueKind.Array)
+                continue;
+            int? Value(string key)
+            {
+                foreach (JsonElement entry in entries.EnumerateArray())
+                    if (entry.ValueKind == JsonValueKind.Object
+                        && entry.TryGetProperty("subject", out JsonElement subject) && subject.ValueKind == JsonValueKind.Number && subject.GetRawText() == "0"
+                        && entry.TryGetProperty("key", out JsonElement k) && k.ValueKind == JsonValueKind.String && k.GetString() == key
+                        && entry.TryGetProperty("value", out JsonElement value))
+                    {
+                        string text = value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : value.GetRawText();
+                        return int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out int rate) && rate is >= 8000 and <= 384000 ? rate : null;
+                    }
+                return null;
+            }
+            return Value("clock.force-rate") ?? Value("clock.rate");
         }
         return null;
     }
@@ -2511,6 +2701,15 @@ public sealed record FilterHandle(string Id, string SinkName, string SourceName,
     internal string? LastWords => Stages.Count > 0
         ? Stages.Select(stage => stage.LastWords).FirstOrDefault(words => words is not null)
         : NativeHost is { IsHealthy: false } host && host.LastMessage.Trim() is { Length: > 0 } said ? said : null;
+}
+
+/// <summary>
+/// What the helper's probe found in a clip file: the extension the copy is
+/// stored under, its channels, and its own rate and length.
+/// </summary>
+internal sealed record ClipProbe(string Extension, int Channels, int Rate, long Frames)
+{
+    public double Seconds => (double)Frames / Rate;
 }
 
 /// <summary>Whether an optional host-side DSP feature can be loaded safely.</summary>

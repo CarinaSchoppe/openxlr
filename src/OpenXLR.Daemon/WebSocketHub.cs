@@ -150,6 +150,8 @@ public sealed class WebSocketHub
         {
             _clients.TryRemove(client.Id, out _);
             _mixer.RemoveBrowserSession(client.Id);
+            // A client that went away with a key down must not leave its clip playing.
+            _mixer.ReleaseHeldClips(client.Id);
             client.Dispose();
         }
     }
@@ -187,6 +189,7 @@ public sealed class WebSocketHub
     internal static string? OperationError(object message) => message switch
     {
         PluginInstallMessage { Ok: false } result => result.Message,
+        ClipImportMessage { Ok: false } result => result.Message,
         WindowsPluginFilesMessage { Ok: false } result => result.Message,
         _ => null,
     };
@@ -244,6 +247,14 @@ public sealed class WebSocketHub
                 break;
             case "getSoundCheckTake":
                 await reply(SoundCheckTakeMessage.From(_mixer.CurrentSoundCheckTake()));
+                break;
+            case "getSoundboard":
+                if (_mixer.Soundboard() is { } soundboard) await reply(new SoundboardMessage(soundboard));
+                else error = _mixer.NotBuiltError;
+                break;
+            case "importClip":
+                // Copying and checking the file runs a helper; keep it off the socket loop's thread.
+                await ReplyOperationAsync(await Task.Run(() => _mixer.ImportClip(cmd)));
                 break;
             case "listPlugins":
                 // The first call may block on lilv's scan; keep it off the socket loop's thread.
@@ -418,7 +429,17 @@ public sealed class WebSocketHub
             case "setNoiseRemoval":
             case "setDucking":
             case "setDuckingProcessing":
-                error = _mixer.Apply(cmd);                     // broadcasts on success
+            case "setSoundboard":
+            case "updateClip":
+            case "deleteClip":
+            case "setClipOrder":
+            case "playClip":
+            case "releaseClip":
+            case "stopClip":
+            case "stopClips":
+                // On a WebSocket, browserOwner is that connection's id: a clip
+                // pressed in hold mode belongs to it until released.
+                error = _mixer.Apply(cmd, browserOwner);       // broadcasts on success
                 stateOnError = true;
                 break;
             case "setActiveDevice":

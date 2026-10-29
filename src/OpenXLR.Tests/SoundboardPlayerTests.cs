@@ -18,6 +18,8 @@ public sealed class SoundboardPlayerTests : IDisposable
 
     // A player that answers every load, slower for a path naming "slow",
     // refuses one naming "bad", and writes each line it is given to a file.
+    // `finish SLOT PRESS` stands for the helper's audio: it reports that
+    // press's hold voice, and every older one's, ended.
     private const string FakePlayer = """
         echo ready
         while IFS= read -r line; do
@@ -34,6 +36,7 @@ public sealed class SoundboardPlayerTests : IDisposable
             "unload "*) echo "clip ${line#unload } unloaded" ;;
             "play "*) rest=${line#play }; slot=${rest%% *}; echo "meter playing_$slot 2"; echo "meter pos_$slot 0.25" ;;
             "stop all") for s in 0 1 2 3; do echo "meter playing_$s 0"; done ;;
+            "finish "*) rest=${line#finish }; echo "meter ended_${rest%% *} ${rest#* }" ;;
           esac
         done
         """;
@@ -100,8 +103,146 @@ public sealed class SoundboardPlayerTests : IDisposable
         player.SetLoop("second", true);
         player.StopAll();
         Until(() => Lines(lines).Contains("stop all"), "every line arrived");
-        Assert.Equal(["play 1 restart", "release 1", "stop 1", "set gain_1 0.5", "set loop_1 1", "stop all"], Lines(lines)[3..]);
+        Assert.Equal(["play 1 restart 1", "release 1", "stop 1", "set gain_1 0.5", "set loop_1 1", "stop all"], Lines(lines)[3..]);
         Until(() => player.Progress().Count == 0, "stop all ends the voices");
+    }
+
+    [Fact]
+    public void PressesAreNumberedAndAHoldEndsWhenThePlayerSaysSo()
+    {
+        using NativePluginHost host = StartPlayer(out string lines);
+        using var player = new SoundboardPlayer(host, [("a", 0, "/clips/a.wav"), ("b", 1, "/clips/b.wav")]);
+        Until(() => player.Status("b")?.Loaded == true, "both loaded");
+        Assert.Equal(1u, player.Play("a", "hold", "A"));
+        Assert.Equal(2u, player.Play("b", "overlap", "B"));
+        Assert.Equal(3u, player.Play("a", "hold", "A"));
+        // Nothing reported yet: a press the helper has not taken plays.
+        Assert.False(player.HoldEnded("a", 1));
+        host.Send("finish 0 1");
+        Until(() => player.HoldEnded("a", 1), "the helper reported press 1 ended");
+        Assert.False(player.HoldEnded("a", 3));
+        // Another slot's report says nothing of this one.
+        host.Send("finish 1 3");
+        Until(() => player.HoldEnded("b", 3), "slot 1 reported");
+        Assert.False(player.HoldEnded("a", 3));
+        // A clip the player no longer holds has no voice left.
+        player.Remove("a");
+        Assert.True(player.HoldEnded("a", 3));
+        Assert.Equal(["play 0 hold 1", "play 1 overlap 2", "play 0 hold 3"], Lines(lines)[2..5]);
+        Assert.Equal(["stop 0", "unload 0"], Lines(lines)[^2..]);
+    }
+
+    [Fact]
+    public void ThePressCountStartsOverPastTheLargestAFloatHolds()
+    {
+        const uint max = SoundboardPlayer.MaxPress;
+        Assert.Equal((1u << 24) - 1, max);
+        Assert.Equal(max, (uint)(float)max);
+        Assert.True(SoundboardPlayer.Covers(5, 5));
+        Assert.True(SoundboardPlayer.Covers(5, 4));
+        Assert.False(SoundboardPlayer.Covers(4, 5));
+        // Across the start over: the press before 1 is the largest.
+        Assert.True(SoundboardPlayer.Covers(1, max));
+        Assert.True(SoundboardPlayer.Covers(2, max - 1));
+        Assert.False(SoundboardPlayer.Covers(max, 1));
+        Assert.False(SoundboardPlayer.Covers(max, 2));
+        // Half the count behind is covered, the rest is ahead.
+        Assert.True(SoundboardPlayer.Covers(max / 2 + 1, 1));
+        Assert.False(SoundboardPlayer.Covers(max / 2 + 2, 1));
+
+        using NativePluginHost host = StartPlayer(out string lines);
+        using var player = new SoundboardPlayer(host, [("a", 0, "/clips/a.wav")]);
+        Until(() => player.Status("a")?.Loaded == true, "loaded");
+        typeof(SoundboardPlayer).GetField("_lastPress", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(player, max - 1);
+        Assert.Equal(max, player.Play("a", "overlap", "A"));
+        Assert.Equal(1u, player.Play("a", "overlap", "A"));
+        Until(() => Lines(lines).Length == 3, "both presses arrived");
+        Assert.Equal(["play 0 overlap 16777215", "play 0 overlap 1"], Lines(lines)[1..]);
+    }
+
+    private static void UsePlayer(Mixer mixer, SoundboardPlayer? player)
+    {
+        const System.Reflection.BindingFlags field = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        typeof(Mixer).GetField("_player", field)!.SetValue(mixer, player);
+        typeof(Mixer).GetField("_playerLinked", field)!.SetValue(mixer, player is not null);
+    }
+
+    /// <summary>
+    /// The terminal mixer holds a clip and lets it play out; later a Deck key
+    /// holds the same clip and comes up. The terminal's hold ended with its
+    /// voice, so the Deck's release ends the Deck's voice instead of leaving
+    /// it to play to its end. Holds whose voices still play keep theirs.
+    /// </summary>
+    [Fact]
+    public void AHoldWhoseVoiceEndedNoLongerKeepsAnotherHoldersVoice()
+    {
+        var library = new SoundboardLibrary { Clips = [new SoundboardClip { Id = "drum-roll", Name = "Drum roll", File = "drum-roll.wav", Mode = "hold" }] };
+        (Mixer mixer, _, _) = Board(library);
+        using NativePluginHost host = StartPlayer(out string lines);
+        using var player = new SoundboardPlayer(host, [("drum-roll", 0, "/clips/drum-roll.wav")]);
+        Until(() => player.Status("drum-roll")?.Loaded == true, "loaded");
+        UsePlayer(mixer, player);
+        try
+        {
+            Guid terminal = Guid.NewGuid(), deck = Guid.NewGuid();
+            // What the daemon sent after the load, without the test's own lines.
+            string[] Sent() => [.. Lines(lines)[1..].Where(line => !line.StartsWith("finish ", StringComparison.Ordinal))];
+
+            // The terminal holds the clip and lets it play out, key down.
+            mixer.PlayClip("drum-roll", null, terminal);
+            Assert.Equal(["drum-roll"], mixer.HeldClips(terminal));
+            host.Send("finish 0 1");
+            Until(() => mixer.HeldClips(terminal).Count == 0, "the hold whose voice ended is forgotten");
+            // The Deck's key goes down and comes up: its release is sent.
+            mixer.PlayClip("drum-roll", null, deck);
+            mixer.ReleaseClip("drum-roll", deck);
+            Assert.Empty(mixer.HeldClips(deck));
+            Until(() => Sent().Length == 3, "the release arrived");
+            Assert.Equal(["play 0 hold 1", "play 0 hold 2", "release 0"], Sent());
+            // The terminal's key comes up late: nobody holds the clip, so the
+            // release goes out, and ends nothing.
+            mixer.ReleaseClip("drum-roll", terminal);
+            Until(() => Sent().Length == 4, "the late release arrived");
+
+            // Both hold, and the terminal's voice ends while the Deck's plays.
+            mixer.PlayClip("drum-roll", null, terminal);
+            mixer.PlayClip("drum-roll", null, deck);
+            host.Send("finish 0 3");
+            Until(() => mixer.HeldClips(terminal).Count == 0, "the ended hold is forgotten");
+            Assert.Equal(["drum-roll"], mixer.HeldClips(deck));
+            // The terminal presses again just as the Deck's voice ends: the
+            // helper reports press 4 ended and has not taken press 5 yet, so
+            // the terminal's new hold stands.
+            mixer.PlayClip("drum-roll", null, terminal);
+            host.Send("finish 0 4");
+            Until(() => mixer.HeldClips(deck).Count == 0, "the Deck's ended hold is forgotten");
+            Assert.Equal(["drum-roll"], mixer.HeldClips(terminal));
+            // Two holds that both play: the first key up ends nothing.
+            mixer.PlayClip("drum-roll", null, deck);
+            mixer.ReleaseClip("drum-roll", terminal);
+            mixer.ReleaseClip("drum-roll", deck);
+            Until(() => Sent().Length == 9, "every line arrived");
+            Assert.Equal(["play 0 hold 3", "play 0 hold 4", "play 0 hold 5", "play 0 hold 6", "release 0"], Sent()[4..]);
+
+            // A connection that goes away with a hold whose voice ended
+            // releases nothing; one whose voice plays releases it.
+            mixer.PlayClip("drum-roll", null, terminal);
+            host.Send("finish 0 7");
+            Until(() => mixer.HeldClips(terminal).Count == 0, "ended");
+            Assert.Equal(0, mixer.ReleaseHeldClips(terminal));
+            mixer.PlayClip("drum-roll", null, deck);
+            Assert.Equal(1, mixer.ReleaseHeldClips(deck));
+
+            // A hold the player that took it is gone with holds nothing.
+            mixer.PlayClip("drum-roll", null, terminal);
+            UsePlayer(mixer, null);
+            Assert.Empty(mixer.HeldClips(terminal));
+        }
+        finally
+        {
+            UsePlayer(mixer, null);
+            mixer.Dispose();
+        }
     }
 
     [Fact]

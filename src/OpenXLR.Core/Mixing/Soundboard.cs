@@ -111,8 +111,12 @@ public sealed partial class Mixer
     private readonly Dictionary<string, string> _crashedClips = new(StringComparer.Ordinal);
     private string? _lastBoardState;
     private string _lastBoardActivity = "";
-    // Clips pressed in hold mode, by the connection that holds them.
-    private readonly Dictionary<Guid, HashSet<string>> _holds = [];
+    // Clips pressed in hold mode, by the connection that holds them: the
+    // player that took each press and its number. A hold whose voice has
+    // ended, by itself or otherwise, is forgotten before any hold is read.
+    private readonly Dictionary<Guid, Dictionary<string, SoundboardHold>> _holds = [];
+
+    private readonly record struct SoundboardHold(SoundboardPlayer Player, uint Press);
 
     /// <summary>
     /// Take the library read at start, where it is saved, and where its clip
@@ -479,19 +483,22 @@ public sealed partial class Mixer
         if (hold && holder is null) throw new InvalidOperationException(SoundboardHoldNeedsConnection);
         SoundboardPlayer player = LivePlayer();
         if (!_playerLinked) throw new InvalidOperationException(SoundboardReconnecting);
-        player.Play(id, press, clip.Name);
+        uint number = player.Play(id, press, clip.Name);
         if (hold)
             lock (_holds)
             {
-                if (!_holds.TryGetValue(holder!.Value, out HashSet<string>? held)) _holds[holder.Value] = held = new(StringComparer.Ordinal);
-                held.Add(id);
+                ForgetEndedHoldsLocked();
+                if (!_holds.TryGetValue(holder!.Value, out Dictionary<string, SoundboardHold>? held))
+                    _holds[holder.Value] = held = new(StringComparer.Ordinal);
+                held[id] = new SoundboardHold(player, number);
             }
     }
 
     /// <summary>The key came up: end the clip's hold voices.</summary>
     /// <param name="holder">
     /// The connection the key came up on. Its hold ends; the clip's hold
-    /// voices end only when no other open connection still holds it.
+    /// voices end only when no other open connection still holds it with a
+    /// voice that plays. A hold whose voice ended by itself holds nothing.
     /// </param>
     public void ReleaseClip(string id, Guid? holder = null)
     {
@@ -499,9 +506,10 @@ public sealed partial class Mixer
         bool othersHold;
         lock (_holds)
         {
-            if (holder is Guid mine && _holds.TryGetValue(mine, out HashSet<string>? held) && held.Remove(id) && held.Count == 0)
+            ForgetEndedHoldsLocked();
+            if (holder is Guid mine && _holds.TryGetValue(mine, out Dictionary<string, SoundboardHold>? held) && held.Remove(id) && held.Count == 0)
                 _holds.Remove(mine);
-            othersHold = _holds.Values.Any(other => other.Contains(id));
+            othersHold = _holds.Values.Any(other => other.ContainsKey(id));
         }
         if (!othersHold) _player?.Release(id);
     }
@@ -532,8 +540,9 @@ public sealed partial class Mixer
         string[] released;
         lock (_holds)
         {
-            if (!_holds.Remove(holder, out HashSet<string>? held)) return 0;
-            released = [.. held.Where(id => !_holds.Values.Any(other => other.Contains(id)))];
+            ForgetEndedHoldsLocked();
+            if (!_holds.Remove(holder, out Dictionary<string, SoundboardHold>? held)) return 0;
+            released = [.. held.Keys.Where(id => !_holds.Values.Any(other => other.ContainsKey(id)))];
         }
         foreach (string id in released)
         {
@@ -546,7 +555,11 @@ public sealed partial class Mixer
     /// <summary>The clips each open connection holds, for tests.</summary>
     internal IReadOnlyCollection<string> HeldClips(Guid holder)
     {
-        lock (_holds) return _holds.TryGetValue(holder, out HashSet<string>? held) ? [.. held] : [];
+        lock (_holds)
+        {
+            ForgetEndedHoldsLocked();
+            return _holds.TryGetValue(holder, out Dictionary<string, SoundboardHold>? held) ? [.. held.Keys] : [];
+        }
     }
 
     private void ForgetHolds(string id)
@@ -554,6 +567,26 @@ public sealed partial class Mixer
         lock (_holds)
             foreach (Guid holder in _holds.Keys.ToList())
                 if (_holds[holder].Remove(id) && _holds[holder].Count == 0) _holds.Remove(holder);
+    }
+
+    /// <summary>
+    /// Forget every connection's hold whose voice is over: the clip ended by
+    /// itself, a toggle, stop or steal ended it, the helper dropped the
+    /// press, or the player that took it is gone. Otherwise a key that stayed
+    /// down past the clip's end would keep the next holder's release from
+    /// ending that holder's voice. The player numbers its presses and reports
+    /// the newest one whose hold voice has ended, so a press it has not taken
+    /// yet, as when it comes just as the last voice ends, is kept.
+    /// </summary>
+    private void ForgetEndedHoldsLocked()
+    {
+        SoundboardPlayer? live = _player;
+        foreach ((Guid holder, Dictionary<string, SoundboardHold> held) in _holds.ToList())
+        {
+            foreach ((string id, SoundboardHold hold) in held.ToList())
+                if (!ReferenceEquals(hold.Player, live) || hold.Player.HoldEnded(id, hold.Press)) held.Remove(id);
+            if (held.Count == 0) _holds.Remove(holder);
+        }
     }
 
     private SoundboardClip BoardClip(string id)

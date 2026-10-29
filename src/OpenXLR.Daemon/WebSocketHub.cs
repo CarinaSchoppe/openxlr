@@ -177,7 +177,7 @@ public sealed class WebSocketHub
     }
 
     private Task Dispatch(Client client, string text)
-        => DispatchAsync(message => client.SendAsync(Serialize(message)), text, client.Id);
+        => DispatchAsync(message => client.SendAsync(Serialize(message)), text, client.Id, client);
 
     internal async Task<ApiCommandResult> ExecuteForApiAsync(string text)
     {
@@ -194,7 +194,11 @@ public sealed class WebSocketHub
         _ => null,
     };
 
-    private async Task DispatchAsync(Func<object, Task> reply, string text, Guid? browserOwner = null)
+    /// <param name="connection">
+    /// The WebSocket the command came on, null over HTTP. A slow command it
+    /// sends, <c>importClip</c>, runs beside the connection's later commands.
+    /// </param>
+    private async Task DispatchAsync(Func<object, Task> reply, string text, Guid? browserOwner = null, Client? connection = null)
     {
         Command? cmd;
         try { cmd = JsonSerializer.Deserialize<Command>(text, Json); }
@@ -252,6 +256,19 @@ public sealed class WebSocketHub
                 if (_mixer.Soundboard() is { } soundboard) await reply(new SoundboardMessage(soundboard));
                 else error = _mixer.NotBuiltError;
                 break;
+            case "importClip" when connection is not null:
+                // Copying and checking the file takes as long as the file and
+                // its helper do, so it runs beside the connection's later
+                // commands: a key coming up for a held clip, or another
+                // press, is not kept waiting behind it. Its reply, and its
+                // state and commandResult, follow when it ends. A second
+                // import on the connection waits for the first.
+                await connection.RunImportAsync(async () =>
+                {
+                    await ReplyOperationAsync(await Task.Run(() => _mixer.ImportClip(cmd)));
+                    await FinishAsync();
+                }, ex => _log.LogWarning(ex, "soundboard: an import failed"));
+                return;
             case "importClip":
                 // Copying and checking the file runs a helper; keep it off the socket loop's thread.
                 await ReplyOperationAsync(await Task.Run(() => _mixer.ImportClip(cmd)));
@@ -491,15 +508,20 @@ public sealed class WebSocketHub
                 error = $"unknown cmd '{cmd.Cmd}'";
                 break;
         }
-        if (cmd.RequestId is not null)
+        await FinishAsync();
+
+        async Task FinishAsync()
         {
-            await reply(Snapshot());
-            await reply(new CommandResultMessage(cmd.RequestId, error));
-        }
-        else if (error is not null)
-        {
-            await reply(new ErrorMessage(error));
-            if (stateOnError) await reply(Snapshot());
+            if (cmd.RequestId is not null)
+            {
+                await reply(Snapshot());
+                await reply(new CommandResultMessage(cmd.RequestId, error));
+            }
+            else if (error is not null)
+            {
+                await reply(new ErrorMessage(error));
+                if (stateOnError) await reply(Snapshot());
+            }
         }
     }
 
@@ -802,6 +824,28 @@ public sealed class WebSocketHub
         public Guid Id { get; } = Guid.NewGuid();
         public WebSocket Socket { get; }
         public CommandBudget Budget { get; } = new();
+        // The import running for this connection. Only the receive loop
+        // starts one, so it needs no lock.
+        private Task _import = Task.CompletedTask;
+
+        /// <summary>
+        /// Start <paramref name="import"/> beside the receive loop, once the
+        /// connection's earlier import has ended, so one runs at a time and
+        /// a client that sends many is held back as before. Returns once it
+        /// has started. A reply that cannot be sent, the connection gone, is
+        /// dropped; <paramref name="failed"/> hears of any other failure.
+        /// </summary>
+        public async Task RunImportAsync(Func<Task> import, Action<Exception> failed)
+        {
+            await _import;
+            _import = Task.Run(async () =>
+            {
+                try { await import(); }
+                catch (Exception ex) when (ex is WebSocketException or OperationCanceledException
+                                           or IOException or InvalidOperationException or ObjectDisposedException) { }
+                catch (Exception ex) { failed(ex); }
+            });
+        }
         private readonly Channel<PendingSend> _outgoing;
         private readonly CancellationTokenSource _lifetime;
         private readonly Task _sendPump;

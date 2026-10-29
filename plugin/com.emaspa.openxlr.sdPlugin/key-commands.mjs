@@ -6,6 +6,9 @@ import { randomUUID } from "node:crypto";
 // them back would apply them later to whatever application or output is
 // current by then.
 const ORDERED = new Set(["adjustOutputVolume", "toggleOutputMute", "toggleMonitorMuted"]);
+// A soundboard press is answered only when it fails: a check mark over a clip
+// key would hide its progress bar for as long as a short clip plays.
+const QUIET = new Set(["playClip", "stopClips"]);
 const OUTSTANDING_LIMIT = 64;
 const WAITING_PER_KEY = 8;
 const TIMEOUT_MS = 8000;
@@ -42,7 +45,7 @@ export class KeyCommands {
     if ([...this.immediate.values()].some(entry => entry.context === context)) return;
     if (this.outstanding() >= OUTSTANDING_LIMIT) { this.notify(context, true); return; }
     const requestId = this.id();
-    const entry = {context};
+    const entry = {context, quiet: QUIET.has(payload.cmd)};
     this.immediate.set(requestId, entry);
     entry.timer = this.delay(() => this.finish(requestId, true), TIMEOUT_MS);
     entry.timer.unref?.();
@@ -65,7 +68,7 @@ export class KeyCommands {
     if (direct) {
       this.cancel(direct.timer);
       this.immediate.delete(requestId);
-      this.notify(direct.context, failed);
+      if (failed || !direct.quiet) this.notify(direct.context, failed);
       return;
     }
     const entry = this.active;

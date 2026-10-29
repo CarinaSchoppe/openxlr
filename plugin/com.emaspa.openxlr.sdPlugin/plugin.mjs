@@ -10,6 +10,7 @@ import { channelName, mixName, mixShortName, defaultMonitorMix, monitorFeed, lay
 import { SkinPalette } from "./skin-palette.mjs";
 import { captureGainOf, channelUnitControl, channelUnitTarget, deviceTargetSupported, duckingEnabled, duckingToggle, unitDialLabel, unitKeyLabel, unitMeterKey } from "./unit-inputs.mjs";
 import { isEqTarget, eqTarget, eqStep, eqCommand, eqLabel, eqDial } from "./microphone-eq.mjs";
+import { CLIP_ACTION, clipKey, clipIdOf, clipPress, clipProgress, progressBucket, clipAppearance, clipChoices } from "./soundboard.mjs";
 
 // ---------- launch arguments ----------
 const arg = (name) => {
@@ -57,6 +58,18 @@ function publishLayout() {
   for (const context of layoutInspectors)
     send({ event: "sendToPropertyInspector", context, payload: choices });
 }
+// Clip key inspectors, sent the library again whenever it changes.
+const clipInspectors = new Set();
+let lastClips = "";
+function publishClips() {
+  if (!clipInspectors.size) return;
+  const choices = clipChoices(daemonState?.mixer, daemonUp);
+  const serialized = JSON.stringify(choices);
+  if (serialized === lastClips) return;
+  lastClips = serialized;
+  for (const context of clipInspectors)
+    send({ event: "sendToPropertyInspector", context, payload: { soundboard: choices } });
+}
 let daemonState = null;   // last full {"type":"state"} message
 let daemonUp = false;
 // A short word keys and dials show instead of "offline" when the adapter
@@ -97,7 +110,7 @@ function connectDaemon() {
     if (daemon !== socket) return;
     let m;
     try { m = JSON.parse(e.data); } catch { return; }
-    if (m.type === "state") { daemonState = m; pruneEqTurns(); refreshAll(); refreshMeters(); publishLayout(); }
+    if (m.type === "state") { daemonState = m; pruneEqTurns(); refreshAll(); refreshMeters(); publishLayout(); publishClips(); }
     else if (m.type === "meters") { meterLevels = m.levels; refreshMeters(); }
     else if (m.type === "plugins") {
       catalog = new Map((m.plugins ?? []).map((p) => [p.plugin, p]));
@@ -122,6 +135,7 @@ function connectDaemon() {
     keyCommands.disconnect();
     refreshAll();
     refreshMeters();
+    publishClips();
     scheduleDaemonReconnect(generation);
   };
 }
@@ -303,6 +317,7 @@ host.onmessage = (e) => {
       refreshEqMeter(m.context);
       break;
     case "willDisappear":
+      releaseHeldClip(m.context);
       keyCommands.clear(m.context);
       clearEqTurns(m.context);
       instances.delete(m.context);
@@ -311,6 +326,7 @@ host.onmessage = (e) => {
       marquee.delete(m.context);
       break;
     case "didReceiveSettings":
+      releaseHeldClip(m.context);
       keyCommands.clear(m.context);
       if (inst) {
         const previous = eqBinding(inst);
@@ -321,7 +337,11 @@ host.onmessage = (e) => {
       }
       break;
     case "keyDown":
-      if (inst) onKeyDown(m.context, inst);
+      if (inst?.action === CLIP_ACTION) onClipDown(m.context, inst);
+      else if (inst) onKeyDown(m.context, inst);
+      break;
+    case "keyUp":
+      releaseHeldClip(m.context);
       break;
     case "dialRotate":
       if (inst) onDialRotate(m.context, inst, m.payload?.ticks ?? 0);
@@ -362,9 +382,16 @@ host.onmessage = (e) => {
       else if (m.payload?.request === "profiles")
         send({ event: "sendToPropertyInspector", context: m.context,
                payload: { profiles: profileChoices() } });
+      else if (m.payload?.request === "soundboard") {
+        clipInspectors.add(m.context);
+        const choices = clipChoices(daemonState?.mixer, daemonUp);
+        lastClips = JSON.stringify(choices);
+        send({ event: "sendToPropertyInspector", context: m.context, payload: { soundboard: choices } });
+      }
       break;
     case "propertyInspectorDidDisappear":
       layoutInspectors.delete(m.context);
+      clipInspectors.delete(m.context);
       break;
   }
 };
@@ -833,6 +860,25 @@ function dialValue(target, inst) {
 }
 
 // ---------- input handlers ----------
+// A clip key plays its clip on the press; in hold mode the release ends it.
+// The press goes beside the ordered queue and alerts only when refused. The
+// release is sent as it is, never dropped behind an unanswered press.
+const heldClips = new Map();   // context -> clip id held down in hold mode
+function onClipDown(context, inst) {
+  const key = clipKey(mixer(), inst.settings);
+  if (!daemonUp || key.word !== null) { send({ event: "showAlert", context }); return; }
+  releaseHeldClip(context);
+  const press = clipPress(key, inst.settings);
+  keyCommands.enqueue(context, press.payload);
+  if (press.hold) heldClips.set(context, key.id);
+}
+function releaseHeldClip(context) {
+  const id = heldClips.get(context);
+  if (id === undefined) return;
+  heldClips.delete(context);
+  cmd({ cmd: "releaseClip", clip: id });
+}
+
 function onKeyDown(context, inst) {
   const t = inst.settings.target;
   const cur = toggleValue(t, inst);
@@ -1091,6 +1137,10 @@ const GLYPHS = {
         <path d="M104 88 h-50 m0 0 l12 -10 m-12 10 l12 10" stroke="currentColor" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
   jack: `<circle cx="72" cy="72" r="28" stroke="currentColor" stroke-width="7" fill="none"/>
         <circle cx="72" cy="72" r="9" fill="currentColor"/>`,
+  // a play triangle over a short wave, for clip keys, and a stop square
+  play: `<path d="M56 40 l40 24 l-40 24 z" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/>
+        <path d="M38 102 q8 -10 16 0 t16 0 t16 0 t16 0 t16 0" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>`,
+  stop: `<rect x="46" y="46" width="52" height="52" rx="8" fill="currentColor"/>`,
   // a stack of scene cards, for profile keys
   scene: `<rect x="44" y="52" width="56" height="40" rx="6" fill="none" stroke="currentColor" stroke-width="6"/>
         <path d="M52 44 h52 a6 6 0 0 1 6 6 v34" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
@@ -1149,7 +1199,7 @@ function sevenSegText(text, x, y, h, color) {
   return out;
 }
 
-function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null, appearance = {}) {
+function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null, appearance = {}, progress = null) {
   // The skin colours the owned faceplate, cap and glyph. An insert's bypass
   // uses the alert colour, and a mute keeps its visible slash and status lamp.
   // A channel's or mix's own icon and colour from the layout editor replace
@@ -1202,9 +1252,15 @@ function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null, a
       (accent ? `<circle cx="120" cy="24" r="11" fill="${accent}" opacity="0.5" filter="url(#soft)"/>` : "")
     : "";
 
+  // A playing clip's progress, a thin bar along the bottom; a one-line label
+  // moves up to clear it.
+  const bar = progress === null ? "" :
+    `<rect x="22" y="124" width="100" height="6" rx="3" fill="${skinPalette.colours["Ox.Meter.Track"]}"/>` +
+    (progress > 0 ? `<rect x="22" y="124" width="${Math.round(Math.min(1, progress) * 100)}" height="6" rx="3" fill="${skinPalette.colours["Ox.Meter.Fill"]}"/>` : "");
+
   const labelSvg = lines.map((line, i) => {
     const size = line.length > 11 ? 19 : line.length > 8 ? 22 : 26;
-    const y = lines.length === 1 ? 126 : 106 + i * 24;
+    const y = lines.length === 1 ? (progress === null ? 126 : 114) : 106 + i * 24;
     return `<text x="72" y="${y}" text-anchor="middle" fill="${tint ?? skinPalette.colours["Ox.Text.Primary"]}" ` +
       `stroke="#000" stroke-width="4" paint-order="stroke" stroke-linejoin="round" ` +
       `font-family="Inter, Noto Sans, DejaVu Sans, sans-serif" font-size="${size}" font-weight="700">` +
@@ -1227,7 +1283,7 @@ function keySvg(on, muteLike, known, glyphName, badge, label, offColor = null, a
       <rect x="6" y="6" width="132" height="132" rx="14" fill="${skinPalette.colours["Ox.Card.Background"]}"/>
       <rect x="6" y="6" width="132" height="132" rx="14" fill="url(#side)"/>
       <rect x="9" y="9" width="126" height="126" rx="12" fill="none" stroke="${tint ?? skinPalette.colours["Ox.Text.Muted"]}" stroke-width="4"/>
-      ${face}${slash}${lampDot}${labelSvg}
+      ${face}${slash}${lampDot}${labelSvg}${bar}
     </svg>`).toString("base64");
 }
 
@@ -1323,6 +1379,11 @@ function refreshMeters(contextOnly) {
   if (!meterLevels) return;
   for (const [context, inst] of instances) {
     if (contextOnly !== undefined && context !== contextOnly) continue;
+    // A clip key redraws when its bar moves a step, not on every frame.
+    if (inst.action === CLIP_ACTION) {
+      if (lastMeter.get(context) !== progressBucket(clipProgress(meterLevels, clipIdOf(inst.settings.target)))) refresh(context);
+      continue;
+    }
     if (inst.action !== "com.emaspa.openxlr.dial") continue;
     const target = activeTarget(inst);
     const key = meterKeyFor(target);
@@ -1415,6 +1476,18 @@ function refresh(context) {
     const appearance = { ...targetAppearance(mixer(), t), ...(hasIcon ? { icon: "", path: null } : {}) };
     send({ event: "setImage", context,
            payload: { image: keySvg(v === true, isMuteLike(t), v !== null && daemonUp, glyphName, badge, label, offColor, appearance) } });
+  } else if (inst.action === CLIP_ACTION) {
+    const key = clipKey(mixer(), inst.settings);
+    const word = !daemonUp ? daemonNotice ?? "offline" : key.word;
+    const known = word === null;
+    const progress = clipProgress(meterLevels, key.id);
+    lastMeter.set(context, progressBucket(progress));
+    const label = emptyTitle.has(context) ? (word === null ? key.label : `${key.label}\n${word}`) : "";
+    // Lit while the clip plays; the meters say so before the state does.
+    const playing = known && (key.playing || !key.stop && progress !== null);
+    send({ event: "setImage", context,
+           payload: { image: keySvg(playing, false, known, key.stop ? "stop" : "play", "", label, null,
+             key.stop ? {} : clipAppearance(mixer(), key.clip), known && !key.stop && progress ? progress.position : null) } });
   } else if (inst.action === "com.emaspa.openxlr.dial") {
     const d = dialValue(t, inst);
     const isDb = t === "gain" || t === "gain2" || t?.startsWith("chgain:");

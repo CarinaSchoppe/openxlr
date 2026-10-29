@@ -3105,7 +3105,7 @@ again even when the generated Linux wrapper did not change.
 <a name="stream-deck"></a>
 ## 4. Stream Deck (OpenDeck)
 
-The plugin has two actions. Both are clients of the daemon and show
+The plugin has three actions. All are clients of the daemon and show
 its live state, so what a key displays is what the UI shows.
 
 **Toggle** (a key) switches one thing: a hardware control (mute,
@@ -3237,6 +3237,29 @@ follows the dial at once and each tick steps from the value shown, while
 the daemon hears the first tick immediately and a fast turn as a short
 series of changes. The daemon's own value takes over once the turn has
 settled.
+
+**Clip** (a key) plays one clip of the [soundboard](api.md#soundboard)
+into the SFX channel, or stops every clip. Its settings list the clips by
+name and store the one picked by its id, so renaming the clip keeps the
+key. A press plays the clip in its own press mode, set in the library:
+overlap starts another voice, restart plays it again from the top, toggle
+stops it when it is playing, and hold plays it while the key is down and
+ends it when the key comes up. **When pressed** in the key's settings gives
+the key a mode of its own instead. The key shows the clip's name, icon and
+colour, or SFX's icon and colour from the layout editor where the clip has
+none. Its light is green while the clip plays, and a bar along the bottom
+shows how far it is. With a clip played over itself, the bar follows the
+newest voice. **Stop every clip** fades every clip out and is lit while
+any clip plays. A key reads in grey why it cannot play: off when the
+soundboard is off, no SFX when the SFX channel was deleted, unavailable
+without the native plugin host, stopped while the player starts or after
+it failed, loading while the clip is being loaded, error when the clip
+could not be loaded, gone when the clip was deleted, and update with an
+OpenXLR older than the plugin. A press on a grey key
+only flashes an alert, as does a press OpenXLR refuses. The key's settings
+show OpenXLR's own sentence for why. A deleted clip stays selected there as
+missing. The clips play wherever SFX's sends and fader put them, together
+with any application routed to SFX.
 
 Installing: the plugin zip from the release through OpenDeck's
 install-from-file, or the folder the package ships in

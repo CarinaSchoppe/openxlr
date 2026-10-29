@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  body { font-family: sans-serif; background: #16181d; color: #e6e9f0;
+         margin: 10px; font-size: 13px; }
+  label { display: block; margin-bottom: 6px; color: #8b93a7; }
+  :root { color-scheme: dark; }
+  select { width: 100%; background: #23262f; color: #e6e9f0;
+           border: 1px solid #3a3f4c; border-radius: 5px; padding: 6px;
+           appearance: none; -webkit-appearance: none; }
+  option, optgroup { background: #23262f; color: #e6e9f0; }
+  #notice { margin-top: 12px; color: #e6b450; line-height: 1.4; }
+  #notice:empty { display: none; }
+</style></head>
+<body>
+  <label for="clip">What this key plays</label>
+  <select id="clip">
+    <option value="">choose…</option>
+    <option value="stopClips">Stop every clip</option>
+    <!-- The clips are listed from the daemon's library. -->
+  </select>
+  <label for="mode" style="margin-top:12px">When pressed</label>
+  <select id="mode">
+    <option value="">The clip's own mode</option>
+    <option value="overlap">Overlap: start another voice</option>
+    <option value="restart">Restart from the top</option>
+    <option value="toggle">Toggle: stop it when playing</option>
+    <option value="hold">Hold: play while the key is down</option>
+  </select>
+  <div id="notice"></div>
+  <script src="clip.js"></script>
+</body></html>

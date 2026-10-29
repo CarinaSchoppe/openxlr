@@ -254,7 +254,7 @@ internal static partial class MixerPopOutWindowTests
         Assert.Equal("100", text.Text);
         Assert.Equal(1, popped.Scale);
         Assert.Null(scaler.LayoutTransform);
-        text.Text = "142.6";
+        text.Text = 142.6m.ToString(box.NumberFormat);
         PressEnter(text);
         Layout(popped, 800, 600);
         Assert.Equal(143m, box.Value);

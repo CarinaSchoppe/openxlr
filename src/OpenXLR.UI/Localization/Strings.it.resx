@@ -3594,4 +3594,22 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   <data name="SoundsButtonName" xml:space="preserve">
     <value>Soundboard di {0}</value>
   </data>
+  <data name="SoundboardMixerOff" xml:space="preserve">
+    <value>Il mixer software non è in esecuzione, quindi la soundboard non può suonare. I suoi pad tornano con il mixer.</value>
+  </data>
+  <data name="SoundboardCancelImport" xml:space="preserve">
+    <value>Annulla</value>
+  </data>
+  <data name="SoundboardCancelImportTip" xml:space="preserve">
+    <value>Smetti di aggiungere clip dopo il file in corso.</value>
+  </data>
+  <data name="SoundboardImportStopped" xml:space="preserve">
+    <value>{0} file non sono stati aggiunti: l'importazione è stata fermata.</value>
+  </data>
+  <data name="SoundboardImportFull" xml:space="preserve">
+    <value>{0} file sono stati esclusi: la soundboard contiene al massimo {1} clip.</value>
+  </data>
+  <data name="SoundboardFileUnreadable" xml:space="preserve">
+    <value>Impossibile leggere {0}: il desktop non ha fornito un percorso su questo computer.</value>
+  </data>
 </root>

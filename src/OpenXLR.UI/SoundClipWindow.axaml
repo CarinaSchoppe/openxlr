@@ -7,6 +7,8 @@
         WindowStartupLocation="CenterOwner" Classes="dialog">
   <!-- One clip's name, gain, press mode, loop, icon and colour. Save sends what changed. -->
   <StackPanel Margin="18" Spacing="10">
+    <!-- why the player cannot hold the clip, in full -->
+    <TextBlock Name="SoundClipError" Text="{Binding ClipError}" IsVisible="{Binding HasClipError}" Classes="warn" TextWrapping="Wrap"/>
     <TextBlock Text="{loc:Text Key=SoundClipName}" Classes="h"/>
     <TextBox Name="SoundClipName" Text="{Binding Name, Mode=TwoWay}" MaxLength="60"
              AutomationProperties.Name="{loc:Text Key=SoundClipName}"/>

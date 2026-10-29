@@ -34,8 +34,12 @@ namespace OpenXLR.Tests;
 /// </summary>
 internal static class SoundboardWindowTests
 {
+    /// <summary>A reason a clip cannot load, longer than one line of a pad.</summary>
+    private const string LongError = "The file could not be decoded: this installation's decoder does not read the format it is in.";
+
     private sealed class Daemon
     {
+        public bool MixerOff;
         public bool Available = true;
         public bool Enabled = true;
         public bool HasSfx = true;
@@ -45,7 +49,7 @@ internal static class SoundboardWindowTests
         [
             Clip("airhorn", "Airhorn", 2.4, 0.8, "overlap", "#FF7A00"),
             Clip("drumroll", "Drum roll with a name long enough to wrap", 6, 1, "hold", null, icon: "music", loop: true),
-            Clip("broken", "Broken", 0, 1, "restart", null, error: "The file could not be decoded."),
+            Clip("broken", "Broken", 0, 1, "restart", null, error: LongError),
         ];
 
         private static JsonObject Clip(string id, string name, double seconds, double gain, string mode, string? colour,
@@ -82,7 +86,7 @@ internal static class SoundboardWindowTests
         {
             JsonNode state = JsonNode.Parse(InputBindingModelTests.ProState(""))!;
             state["type"] = "state";
-            state["mixer"] = Mixer(HasSfx, Board());
+            state["mixer"] = MixerOff ? null : Mixer(HasSfx, Board());
             return state;
         }
 
@@ -238,8 +242,9 @@ internal static class SoundboardWindowTests
             window.OpenSoundboard();
             Assert.Same(board, SoundboardWindow.Current);
 
-            // Options, AUDIO: the button beside Ducking opens it under Options.
-            options.Show();
+            // Options, AUDIO: the button beside Ducking raises the same window, which stays the mixer's,
+            // so closing Options never closes the board.
+            options.Show(window);
             Layout(options, 980, 900);
             Button fromOptions = options.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "SoundboardButton");
             Assert.True(fromOptions.IsEffectivelyVisible);
@@ -248,8 +253,10 @@ internal static class SoundboardWindowTests
             AssertNoOverlap([options.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "DuckingButton"), fromOptions]);
             fromOptions.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Dispatcher.UIThread.RunJobs();
-            Assert.Empty(window.OwnedWindows.OfType<SoundboardWindow>());
-            board = options.OwnedWindows.OfType<SoundboardWindow>().Single();
+            Assert.Empty(options.OwnedWindows.OfType<SoundboardWindow>());
+            Assert.Same(board, SoundboardWindow.Current);
+            Assert.Same(window, board.Owner);
+            Assert.True(Find<Button>(board, "SoundboardClose").IsCancel);
             if (Environment.GetEnvironmentVariable("OPENXLR_LAYOUT_FONT") is { Length: > 0 } boardFont)
                 board.FontFamily = new FontFamily(boardFont);
             Layout(board, 760, 620);
@@ -273,7 +280,12 @@ internal static class SoundboardWindowTests
             Assert.Equal(["airhorn", "drumroll", "broken"], board.GetVisualDescendants().OfType<SoundPad>().Select(p => ((SoundClipViewModel)p.DataContext!).Id));
             Assert.True(Pad("airhorn").IsEnabled);
             Assert.False(Pad("broken").IsEnabled);
-            Assert.Equal("The file could not be decoded.", ((TextBlock)Part("broken", "SoundPadDetail")).Text);
+            Assert.Equal(LongError, ((TextBlock)Part("broken", "SoundPadDetail")).Text);
+            Assert.Contains("warn", Part("broken", "SoundPadDetail").Classes);
+            Assert.Equal(LongError, Avalonia.Automation.AutomationProperties.GetHelpText(Pad("broken")));
+            // A clip's colour tints its icon and its name, as a channel's does.
+            Assert.Equal(Color.Parse("#FF7A00"), ((ISolidColorBrush)((TextBlock)Part("airhorn", "SoundPadName")).Foreground!).Color);
+            Capture(board, "soundboard-error-pad");
             Assert.True(Part("airhorn", "SoundPadColour").IsEffectivelyVisible);
             Assert.False(Part("drumroll", "SoundPadColour").IsEffectivelyVisible);
             Assert.False(Find<StackPanel>(board, "SoundboardNoticeArea").IsEffectivelyVisible);
@@ -320,6 +332,8 @@ internal static class SoundboardWindowTests
             JsonNode order = await Sent(() => items[3].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)));
             Assert.Equal("""["drumroll","airhorn","broken"]""", order["clips"]!.ToJsonString());
             await Until(() => board.GetVisualDescendants().OfType<SoundPad>().Select(p => ((SoundClipViewModel)p.DataContext!).Id).First() == "drumroll");
+            // The keyboard stays on the pad it moved.
+            await Until(() => board.GetVisualDescendants().OfType<SoundPad>().Any(p => p.DataContext is SoundClipViewModel { Id: "airhorn" } && p.IsFocused));
 
             // The edit window: the gain and the mode go in one updateClip, and the pad shows the daemon's answer.
             SoundClipViewModel airhorn = main.Soundboard.Clips.Single(c => c.Id == "airhorn");
@@ -336,9 +350,54 @@ internal static class SoundboardWindowTests
             await editing.WaitAsync(TimeSpan.FromSeconds(10));
             await Until(() => airhorn.Mode == "toggle" && airhorn.Detail == Localizer.Format("SoundClipDetail", 2.4, Localizer.Text("SoundClipModeToggle")));
 
+            // A hold pad held down is released when it turns off: the board stops under it.
+            await Sent(() => Key(Pad("drumroll"), Avalonia.Input.Key.Enter, true));
+            daemon.Enabled = false;
+            await live.Push(daemon.State());
+            await Until(() => commands.ToArray()[^1]["cmd"]!.GetValue<string>() == "releaseClip");
+            Assert.Equal("drumroll", commands.ToArray()[^1]["clip"]!.GetValue<string>());
+            daemon.Enabled = true;
+            await live.Push(daemon.State());
+            await Until(() => Pad("drumroll").IsEffectivelyEnabled);
+            // Held, then moved: the press releases its own clip exactly once, whether the pad goes
+            // with the move or the window loses focus first, and a key up afterwards sends nothing.
+            int beforeHold = commands.Count;
+            await Sent(() => Key(Pad("drumroll"), Avalonia.Input.Key.Enter, true));
+            await board.MoveAsync(main.Soundboard, main.Soundboard.Clips.Single(c => c.Id == "drumroll"), +1);
+            await Until(() => main.Soundboard.Clips[1].Id == "drumroll");
+            board.ReleaseHeldPads();
+            Key(Pad("drumroll"), Avalonia.Input.Key.Enter, false);
+            board.ReleaseHeldPads();
+            await Until(() => commands.Skip(beforeHold).Any(c => c["cmd"]!.GetValue<string>() == "releaseClip"));
+            await Task.Delay(200);
+            JsonNode[] holdReleases = [.. commands.Skip(beforeHold).Where(c => c["cmd"]!.GetValue<string>() == "releaseClip")];
+            Assert.Single(holdReleases);
+            Assert.Equal("drumroll", holdReleases[0]["clip"]!.GetValue<string>());
+
+            // A finger: a scroll that starts on a pad plays nothing, a tap plays on lifting,
+            // and a hold pad plays on the touch and releases when the finger lifts.
+            SoundPad tapped = Pad("airhorn");
+            int beforeTouch = commands.Count;
+            tapped.PointerDown(PointerType.Touch, new Point(20, 30));
+            tapped.PointerMove(new Point(20, 30 + SoundPad.TouchSlop + 20));
+            tapped.PointerUp(new Point(20, 30 + SoundPad.TouchSlop + 20));
+            await Task.Delay(150);
+            Assert.Equal(beforeTouch, commands.Count);
+            tapped.PointerDown(PointerType.Touch, new Point(20, 30));
+            Assert.Equal(beforeTouch, commands.Count);
+            JsonNode tap = await Sent(() => tapped.PointerUp(new Point(23, 32)));
+            Assert.Equal(("playClip", "airhorn"), (tap["cmd"]!.GetValue<string>(), tap["clip"]!.GetValue<string>()));
+            SoundPad holding = Pad("drumroll");
+            Assert.Equal("playClip", (await Sent(() => holding.PointerDown(PointerType.Touch, new Point(20, 30))))["cmd"]!.GetValue<string>());
+            Assert.Equal("releaseClip", (await Sent(() => holding.PointerUp(new Point(60, 30))))["cmd"]!.GetValue<string>());
+            // The mouse keeps press to play.
+            Assert.Equal("playClip", (await Sent(() => tapped.PointerDown(PointerType.Mouse, new Point(20, 30))))["cmd"]!.GetValue<string>());
+            tapped.PointerUp(new Point(20, 30));
+            await Sent(() => Find<Button>(board, "SoundboardStopAll").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));
+
             // A refused import shows the daemon's own sentence; an accepted one adds its pad.
             await main.Soundboard.ImportAsync(["/home/user/long.flac"]);
-            TextBlock status = Find<TextBlock>(board, "SoundboardStatus");
+            TextBlock status = board.FindControl<TextBlock>("SoundboardStatus")!;
             await Until(() => status.IsEffectivelyVisible && status.Classes.Contains("warn"));
             Assert.Equal("The clip is 31.0 s long; the limit is 30 s.", status.Text);
             await main.Soundboard.ImportAsync(["/home/user/applause.wav"]);
@@ -367,6 +426,22 @@ internal static class SoundboardWindowTests
             Assert.True(on["enabled"]!.GetValue<bool>());
             await Until(() => main.Soundboard.CanPlay && !notice.IsEffectivelyVisible && Pad("airhorn").IsEnabled);
 
+            // The software mixer stops: the pads stay, the same ones, unable to play, and the window says why.
+            SoundPad kept = Pad("airhorn");
+            daemon.MixerOff = true;
+            await live.Push(daemon.State());
+            await Until(() => notice.IsEffectivelyVisible && notice.Text == Localizer.Text("SoundboardMixerOff") && !kept.IsEnabled);
+            Assert.Same(kept, Pad("airhorn"));
+            Assert.Equal(4, main.Soundboard.Clips.Count);
+            Assert.False(Find<StackPanel>(board, "SoundboardMaster").IsEffectivelyVisible);
+            Assert.False(Find<Button>(board, "SoundboardAddFiles").IsEnabled);
+            Layout(board, 760, 620);
+            AssertFits(board, "with the mixer off");
+            Capture(board, "soundboard-mixer-off");
+            daemon.MixerOff = false;
+            await live.Push(daemon.State());
+            await Until(() => kept.IsEnabled && !notice.IsEffectivelyVisible);
+
             // No native helper: the sentence, and nothing to add or turn on.
             daemon.Available = false;
             await live.Push(daemon.State());
@@ -375,6 +450,20 @@ internal static class SoundboardWindowTests
             Assert.False(turnOn.IsEffectivelyVisible);
             Layout(board, 440, 700);
             AssertFits(board, "without the helper");
+
+            // The tray while the mixer is minimized: the window shows on its own, not hidden with the mixer.
+            board.Close();
+            Dispatcher.UIThread.RunJobs();
+            window.WindowState = WindowState.Minimized;
+            DateTime minimizing = DateTime.UtcNow.AddSeconds(2);
+            while (window.WindowState != WindowState.Minimized && DateTime.UtcNow < minimizing) await Task.Delay(20);
+            window.OpenSoundboard();
+            Dispatcher.UIThread.RunJobs();
+            board = SoundboardWindow.Current!;
+            Assert.True(board.IsVisible);
+            // Xvfb runs no window manager, which may leave the mixer unminimized; the rule holds where it does.
+            if (window.WindowState == WindowState.Minimized) Assert.Null(board.Owner);
+            window.WindowState = WindowState.Normal;
         }
         finally
         {
@@ -532,6 +621,30 @@ internal static class SoundboardWindowTests
                 Dispatcher.UIThread.RunJobs();
                 board = null;
             }
+
+            // Touch sizing: larger pads, and the enlarged menu button keeps clear of every pad's name and detail.
+            Assert.Empty(SkinService.Apply(new SkinEntry(SkinPackage.Default, [])));
+            bool touch = SkinService.TouchControls;
+            try
+            {
+                SkinService.ApplyControlSizing(true);
+                board = SoundboardWindow.Open(window, main.Soundboard);
+                Layout(board, 760, 720);
+                foreach (Panel cell in board.GetVisualDescendants().OfType<Panel>().Where(p => p.Name == "SoundPadCell"))
+                {
+                    Assert.True(cell.Bounds.Width >= 176 && cell.Bounds.Height >= 120, $"a touch pad is {cell.Bounds.Size}.");
+                    Button menu = cell.Children.OfType<Button>().Single(b => b.Name == "SoundPadMenu");
+                    Assert.True(menu.Bounds.Height >= SkinTokens.TouchTarget - 0.5, $"the menu button is {menu.Bounds.Size}.");
+                    foreach (TextBlock text in cell.GetVisualDescendants().OfType<TextBlock>()
+                                 .Where(t => t.Name is "SoundPadName" or "SoundPadDetail" && t.IsEffectivelyVisible))
+                        AssertNoOverlap([menu, text]);
+                }
+                Shot(board, "soundboard-touch");
+                board.Close();
+                Dispatcher.UIThread.RunJobs();
+                board = null;
+            }
+            finally { SkinService.ApplyControlSizing(touch); }
         }
         finally
         {

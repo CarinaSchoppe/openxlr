@@ -11,6 +11,8 @@
        along its top edge, a ring while it plays and a bar for how far along it is. Every
        colour, size and radius is an Ox.* token or the clip's own colour. -->
   <Window.Styles>
+    <!-- the mixer's own styles: the layout accent a clip's colour tints its icon and name with, and control sizing -->
+    <StyleInclude Source="avares://OpenXLR.UI/MixerStyles.axaml"/>
     <Style Selector="Button.soundPad">
       <Setter Property="Padding" Value="0"/>
       <Setter Property="HorizontalAlignment" Value="Stretch"/>
@@ -46,7 +48,7 @@
     </StackPanel>
 
     <!-- The master: SFX's own channel volume, the very fader the strip draws -->
-    <StackPanel DockPanel.Dock="Top" Name="SoundboardMaster" Spacing="4" Margin="0,0,0,8" IsVisible="{Binding ShowsChannel}">
+    <StackPanel DockPanel.Dock="Top" Name="SoundboardMaster" Spacing="4" Margin="0,0,0,8" IsVisible="{Binding ShowsMaster}">
       <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" IsVisible="{Binding HasMaster}">
         <Grid Name="SoundboardChannelName" ColumnDefinitions="Auto,*" VerticalAlignment="Center" MaxWidth="160"
               DataContext="{Binding Channel}" x:DataType="vm:ChannelViewModel">
@@ -67,21 +69,28 @@
     </StackPanel>
 
     <WrapPanel DockPanel.Dock="Top" Name="SoundboardActions" ItemSpacing="6" LineSpacing="4" Margin="0,0,0,8"
-               IsVisible="{Binding IsReported}">
+               IsVisible="{Binding ShowsBoard}">
       <Button Name="SoundboardStopAll" Content="{loc:Text Key=SoundboardStopAll}" Click="OnStopAll"
-              Classes.fxOn="{Binding AnyPlaying}" Classes="fx" IsEnabled="{Binding HasClips}"
+              Classes.fxOn="{Binding AnyPlaying}" Classes="fx" IsEnabled="{Binding CanStop}"
               ToolTip.Tip="{loc:Text Key=SoundboardStopAllTip}"/>
       <Button Name="SoundboardAddFiles" Content="{loc:Text Key=SoundboardAddFiles}" Click="OnAddFiles"
               IsEnabled="{Binding CanAdd}" ToolTip.ShowOnDisabled="True" ToolTip.Tip="{loc:Text Key=SoundboardAddFilesTip}"/>
       <Button Name="SoundboardAddFolder" Content="{loc:Text Key=SoundboardAddFolder}" Click="OnAddFolder"
               IsEnabled="{Binding CanAdd}" ToolTip.ShowOnDisabled="True" ToolTip.Tip="{loc:Text Key=SoundboardAddFolderTip}"/>
+      <Button Name="SoundboardCancelImport" Content="{loc:Text Key=SoundboardCancelImport}" Click="OnCancelImport"
+              IsVisible="{Binding Importing}" ToolTip.Tip="{loc:Text Key=SoundboardCancelImportTip}"/>
     </WrapPanel>
 
     <!-- What the last import or change came to, then Close -->
     <StackPanel DockPanel.Dock="Bottom" Name="SoundboardFooter" Spacing="8" Margin="0,10,0,0">
-      <TextBlock Name="SoundboardStatus" Text="{Binding Status}" IsVisible="{Binding HasStatus}" Classes="hint"
-                 Classes.warn="{Binding StatusWarns}" TextWrapping="Wrap" MaxLines="8" TextTrimming="CharacterEllipsis"/>
-      <Button Name="SoundboardClose" Content="{loc:Text Key=Close}" HorizontalAlignment="Right" Padding="18,6" Click="OnClose"/>
+      <!-- a long report, a folder's refusals one per line, scrolls in its own area; the right margin
+           keeps the overlay scroll bar off the text -->
+      <ScrollViewer Name="SoundboardStatusScroll" IsVisible="{Binding HasStatus}" MaxHeight="132"
+                    VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <TextBlock Name="SoundboardStatus" Text="{Binding Status}" Classes="hint" Classes.warn="{Binding StatusWarns}"
+                             TextWrapping="Wrap" Margin="0,0,16,0"/>
+      </ScrollViewer>
+      <Button Name="SoundboardClose" Content="{loc:Text Key=Close}" HorizontalAlignment="Right" Padding="18,6" Click="OnClose" IsCancel="True"/>
     </StackPanel>
 
     <Panel>
@@ -97,21 +106,30 @@
             <DataTemplate x:DataType="vm:SoundClipViewModel">
               <Panel Name="SoundPadCell" Width="{DynamicResource Ox.Soundboard.PadWidth}" Height="{DynamicResource Ox.Soundboard.PadHeight}">
                 <vm:SoundPad Name="SoundPad" Classes="soundPad" Classes.playing="{Binding Playing}" IsEnabled="{Binding CanPlay}"
-                             ToolTip.ShowOnDisabled="True" AutomationProperties.Name="{Binding PadName}" ToolTip.Tip="{Binding Tip}">
-                  <Grid RowDefinitions="24,*,Auto,Auto">
-                    <!-- the clip's own colour along the top edge, clear of the menu button -->
-                    <Border Name="SoundPadColour" Height="{DynamicResource Ox.Soundboard.ProgressHeight}" Background="{Binding Appearance.Accent}"
-                            IsVisible="{Binding Appearance.HasColour}" Margin="10,0,34,0" VerticalAlignment="Center"/>
+                             ToolTip.ShowOnDisabled="True" AutomationProperties.Name="{Binding PadName}"
+                             AutomationProperties.HelpText="{Binding HelpText}" ToolTip.Tip="{Binding Tip}">
+                  <Grid RowDefinitions="Auto,*,Auto,Auto">
+                    <!-- the top row keeps the menu button's room, which Touch sizing enlarges, so the
+                         button never covers the name; the clip's own colour runs along it -->
+                    <Grid ColumnDefinitions="*,Auto">
+                      <Border Name="SoundPadColour" Height="{DynamicResource Ox.Soundboard.ProgressHeight}" Background="{Binding Appearance.Accent}"
+                              IsVisible="{Binding Appearance.HasColour}" Margin="10,0,6,0" VerticalAlignment="Center"/>
+                      <Panel Grid.Column="1" Name="SoundPadMenuRoom" Width="28" Height="24"
+                             MinWidth="{DynamicResource Ox.Mixer.SmallControlMinSize}" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"/>
+                    </Grid>
                     <!-- a grid, not a horizontal stack: the name gets what the icon leaves, and wraps -->
                     <Grid Grid.Row="1" ColumnDefinitions="Auto,*" Margin="10,0,10,0" VerticalAlignment="Top">
                       <vm:LayoutIconBlock Icon="{Binding Appearance.Icon}" Fallback="{Binding Appearance.DefaultIcon}" Classes="strip"
                                           Classes.layoutAccent="{Binding Appearance.HasColour}" IsVisible="{Binding Appearance.HasIcon}"
                                           Margin="0,0,6,0" VerticalAlignment="Top"/>
-                      <TextBlock Grid.Column="1" Name="SoundPadName" Text="{Binding Name}" TextWrapping="Wrap" MaxLines="2"
+                      <TextBlock Grid.Column="1" Name="SoundPadName" Text="{Binding Name}" TextWrapping="Wrap" MaxLines="{Binding NameLines}"
+                                 Classes.layoutAccent="{Binding Appearance.HasColour}"
                                  TextTrimming="CharacterEllipsis" FontWeight="{DynamicResource Ox.Label.FontWeight}"/>
                     </Grid>
+                    <!-- the length and mode on one line; a reason the clip cannot load gets up to three -->
                     <TextBlock Grid.Row="2" Name="SoundPadDetail" Text="{Binding Detail}" Classes="hint" Classes.warn="{Binding HasError}"
-                               FontSize="{DynamicResource Ox.Label.FontSize}" Margin="10,2,10,4" TextTrimming="CharacterEllipsis"/>
+                               FontSize="{DynamicResource Ox.Label.FontSize}" Margin="10,2,10,4" TextWrapping="Wrap"
+                               MaxLines="{Binding DetailLines}" TextTrimming="CharacterEllipsis"/>
                     <ProgressBar Grid.Row="3" Name="SoundPadProgress" Classes="soundProgress" Minimum="0" Maximum="1"
                                  Value="{Binding Position}" IsVisible="{Binding Playing}" Margin="10,0,10,8"
                                  AutomationProperties.AccessibilityView="Raw"/>
@@ -122,7 +140,8 @@
                         BorderBrush="{DynamicResource Ox.Soundboard.Playing}" BorderThickness="{DynamicResource Ox.Soundboard.PlayingThickness}"
                         CornerRadius="{DynamicResource Ox.Soundboard.PadCornerRadius}"/>
                 <Button Name="SoundPadMenu" Classes="ghost" Content="⋯" Click="OnPadMenu"
-                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,4,0" Padding="6,0" Height="20"
+                        HorizontalAlignment="Right" VerticalAlignment="Top" Width="28" Height="24" Padding="0"
+                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                         MinWidth="{DynamicResource Ox.Mixer.SmallControlMinSize}" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"
                         AutomationProperties.Name="{Binding MenuName}" ToolTip.Tip="{loc:Text Key=SoundClipMenuTip}"/>
               </Panel>

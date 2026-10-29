@@ -3581,4 +3581,22 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
   <data name="SoundsButtonName" xml:space="preserve">
     <value>Soundboard sa {0}</value>
   </data>
+  <data name="SoundboardMixerOff" xml:space="preserve">
+    <value>Wala nagdagan ang software mixer, busa dili makatukar ang soundboard. Mobalik ang mga pad niini uban sa mixer.</value>
+  </data>
+  <data name="SoundboardCancelImport" xml:space="preserve">
+    <value>Kanselaha</value>
+  </data>
+  <data name="SoundboardCancelImportTip" xml:space="preserve">
+    <value>Hunonga ang pagdugang og clip human sa file nga gidugang karon.</value>
+  </data>
+  <data name="SoundboardImportStopped" xml:space="preserve">
+    <value>Wala nadugang ang {0} ka file: gihunong ang pag-import.</value>
+  </data>
+  <data name="SoundboardImportFull" xml:space="preserve">
+    <value>Wala giapil ang {0} ka file: hangtod {1} ka clip ra ang masulod sa soundboard.</value>
+  </data>
+  <data name="SoundboardFileUnreadable" xml:space="preserve">
+    <value>Dili mabasa ang {0}: walay gihatag nga path ang desktop alang niini niining computer.</value>
+  </data>
 </root>

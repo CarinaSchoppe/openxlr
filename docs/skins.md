@@ -772,13 +772,14 @@ palette entries are required by an existing skin.
 These size the main mixer's controls and strips. Options offers two
 sizings, saved in `ui.json` as `"touchControls"`: Standard wears the values
 below, and Touch raises the five control minimums to 44 units, a channel
-strip to 180, a mix tile to 280, an upright strip to 96, and a mix
-matrix's name column, cell and row to 132, 200 and 52. A skin value
+strip to 180, a mix tile to 280, an upright strip to 96, a mix matrix's
+name column, cell and row to 132, 200 and 52, and a soundboard pad to 176
+by 120. A skin value
 larger than that is kept in both. While Touch is on, or while a skin sets
 `Ox.Mixer.ControlMinSize`, a slider is also made at least as tall as the
 control minimum and the `Ox.Fader.Thumb.Height` cap, so an enlarged cap
-stays inside its row. The other windows and the plugins' own editors keep
-their sizes.
+stays inside its row. The Soundboard window follows the same sizing; the
+other windows and the plugins' own editors keep their sizes.
 
 | Token | Kind | Default | Range | What it paints |
 |---|---|---|---|---|

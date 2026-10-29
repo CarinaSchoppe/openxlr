@@ -3581,4 +3581,22 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   <data name="SoundsButtonName" xml:space="preserve">
     <value>Звучна табла за {0}</value>
   </data>
+  <data name="SoundboardMixerOff" xml:space="preserve">
+    <value>Софтверски миксер не ради, па звучна табла не може да свира. Њени тастери се враћају са миксером.</value>
+  </data>
+  <data name="SoundboardCancelImport" xml:space="preserve">
+    <value>Откажи</value>
+  </data>
+  <data name="SoundboardCancelImportTip" xml:space="preserve">
+    <value>Престани са додавањем клипова после фајла који се сада додаје.</value>
+  </data>
+  <data name="SoundboardImportStopped" xml:space="preserve">
+    <value>{0} фајлова није додато: увоз је заустављен.</value>
+  </data>
+  <data name="SoundboardImportFull" xml:space="preserve">
+    <value>{0} фајлова је изостављено: звучна табла држи највише {1} клипова.</value>
+  </data>
+  <data name="SoundboardFileUnreadable" xml:space="preserve">
+    <value>{0} није могуће прочитати: радно окружење није дало путању до њега на овом рачунару.</value>
+  </data>
 </root>

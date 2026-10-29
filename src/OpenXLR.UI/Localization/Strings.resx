@@ -3580,4 +3580,22 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   <data name="SoundsButtonName" xml:space="preserve">
     <value>{0} soundboard</value>
   </data>
+  <data name="SoundboardMixerOff" xml:space="preserve">
+    <value>The software mixer is not running, so the soundboard cannot play. Its pads come back with the mixer.</value>
+  </data>
+  <data name="SoundboardCancelImport" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="SoundboardCancelImportTip" xml:space="preserve">
+    <value>Stop adding clips after the file being added now.</value>
+  </data>
+  <data name="SoundboardImportStopped" xml:space="preserve">
+    <value>{0} files were not added: the import was stopped.</value>
+  </data>
+  <data name="SoundboardImportFull" xml:space="preserve">
+    <value>{0} files were left out: the soundboard holds at most {1} clips.</value>
+  </data>
+  <data name="SoundboardFileUnreadable" xml:space="preserve">
+    <value>{0} could not be read: the desktop gave no path to it on this computer.</value>
+  </data>
 </root>

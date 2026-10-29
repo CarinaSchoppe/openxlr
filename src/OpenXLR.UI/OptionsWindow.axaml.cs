@@ -176,7 +176,8 @@ public partial class OptionsWindow : Window
 
     private void OnSoundboard(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is OptionsViewModel vm) SoundboardWindow.Open(this, vm.Main.Soundboard);
+        // Under the mixer, not Options: the board stays open when Options closes.
+        if (DataContext is OptionsViewModel vm) SoundboardWindow.Open(Owner as Window, vm.Main.Soundboard);
     }
 
     private void OnWaveInterfaces(object? sender, RoutedEventArgs e)

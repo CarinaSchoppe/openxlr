@@ -581,7 +581,7 @@
                   </Button>
                   <!-- on the channel the soundboard plays into, its Sounds button where a microphone row has its switches -->
                   <Button Grid.Column="3" Grid.RowSpan="2" Name="MatrixSounds" Classes="matrixSounds fx" Classes.fxOn="{Binding Channel.SoundsPlaying}"
-                          Content="{loc:Text Key=SoundsButton}" Padding="5,2" FontSize="11" VerticalAlignment="Center"
+                          Content="{loc:Text Key=SoundsButton}" Padding="5,2" FontSize="{DynamicResource Ox.Label.FontSize}" VerticalAlignment="Center"
                           MinWidth="{DynamicResource Ox.Mixer.SmallControlMinSize}" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"
                           IsVisible="{Binding Channel.ShowsSounds}" Click="OnSounds"
                           AutomationProperties.Name="{Binding Channel.SoundsName}" ToolTip.Tip="{loc:Text Key=SoundsButtonTip}"/>

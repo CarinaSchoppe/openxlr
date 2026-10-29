@@ -3229,4 +3229,22 @@ Selecciona la interfaz que controla OpenXLR</value>
   <data name="SoundsButtonName" xml:space="preserve">
     <value>Botonera de {0}</value>
   </data>
+  <data name="SoundboardMixerOff" xml:space="preserve">
+    <value>El mezclador por software no está en marcha, así que la botonera no puede sonar. Sus botones vuelven con el mezclador.</value>
+  </data>
+  <data name="SoundboardCancelImport" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="SoundboardCancelImportTip" xml:space="preserve">
+    <value>Dejar de añadir clips después del archivo que se está añadiendo.</value>
+  </data>
+  <data name="SoundboardImportStopped" xml:space="preserve">
+    <value>{0} archivos no se añadieron: la importación se detuvo.</value>
+  </data>
+  <data name="SoundboardImportFull" xml:space="preserve">
+    <value>{0} archivos quedaron fuera: la botonera admite como máximo {1} clips.</value>
+  </data>
+  <data name="SoundboardFileUnreadable" xml:space="preserve">
+    <value>No se pudo leer {0}: el escritorio no dio una ruta a él en este equipo.</value>
+  </data>
 </root>

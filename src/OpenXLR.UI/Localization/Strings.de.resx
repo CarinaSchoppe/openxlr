@@ -3253,4 +3253,22 @@ Von OpenXLR gesteuertes Interface wählen</value>
   <data name="SoundsButtonName" xml:space="preserve">
     <value>Soundboard von {0}</value>
   </data>
+  <data name="SoundboardMixerOff" xml:space="preserve">
+    <value>Der Software-Mixer läuft nicht, daher kann das Soundboard nichts spielen. Seine Pads kehren mit dem Mixer zurück.</value>
+  </data>
+  <data name="SoundboardCancelImport" xml:space="preserve">
+    <value>Abbrechen</value>
+  </data>
+  <data name="SoundboardCancelImportTip" xml:space="preserve">
+    <value>Das Hinzufügen nach der Datei, die gerade hinzugefügt wird, beenden.</value>
+  </data>
+  <data name="SoundboardImportStopped" xml:space="preserve">
+    <value>{0} Dateien wurden nicht hinzugefügt: Das Hinzufügen wurde abgebrochen.</value>
+  </data>
+  <data name="SoundboardImportFull" xml:space="preserve">
+    <value>{0} Dateien wurden ausgelassen: Das Soundboard fasst höchstens {1} Clips.</value>
+  </data>
+  <data name="SoundboardFileUnreadable" xml:space="preserve">
+    <value>{0} konnte nicht gelesen werden: Der Desktop hat keinen Pfad auf diesem Computer dafür geliefert.</value>
+  </data>
 </root>

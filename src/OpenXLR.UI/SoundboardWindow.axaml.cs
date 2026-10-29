@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using OpenXLR.UI.Localization;
 
 namespace OpenXLR.UI;
@@ -19,7 +21,24 @@ public partial class SoundboardWindow : Window
 {
     private static SoundboardWindow? _open;
 
-    public SoundboardWindow() => InitializeComponent();
+    public SoundboardWindow()
+    {
+        InitializeComponent();
+        // A key or a finger that comes up in another window never reaches the pad it pressed.
+        Deactivated += (_, _) => ReleaseHeldPads();
+        // Touch sizing, or a skin's own control minimum, enlarges the targets here as in the mixer.
+        UpdateControlSizing();
+        Skinning.SkinService.Changed += UpdateControlSizing;
+        Closed += (_, _) => Skinning.SkinService.Changed -= UpdateControlSizing;
+    }
+
+    private void UpdateControlSizing() => Classes.Set("large-targets", Skinning.SkinService.LargeTargets);
+
+    /// <summary>End every press still holding a pad down, so no hold clip is left playing.</summary>
+    internal void ReleaseHeldPads()
+    {
+        foreach (SoundPad pad in this.GetVisualDescendants().OfType<SoundPad>()) pad.ReleaseHeld();
+    }
 
     private SoundboardViewModel? Board => DataContext as SoundboardViewModel;
 
@@ -31,7 +50,10 @@ public partial class SoundboardWindow : Window
     {
         if (_open is { } open)
         {
-            if (open.Owner == owner && open.DataContext == board)
+            // The open window comes forward from wherever it was asked for, unless the
+            // window it belongs to is out of sight, which would keep it out of sight too.
+            bool ownerAway = open.Owner is Window owning && (!owning.IsVisible || owning.WindowState == WindowState.Minimized);
+            if (open.DataContext == board && !ownerAway)
             {
                 if (open.WindowState == WindowState.Minimized) open.WindowState = WindowState.Normal;
                 open.Activate();
@@ -57,6 +79,8 @@ public partial class SoundboardWindow : Window
 
     private void OnClose(object? sender, RoutedEventArgs e) => Close();
 
+    private void OnCancelImport(object? sender, RoutedEventArgs e) => Board?.CancelImport();
+
     private async void OnAddFiles(object? sender, RoutedEventArgs e)
     {
         if (Board is not { CanAdd: true } board) return;
@@ -76,7 +100,9 @@ public partial class SoundboardWindow : Window
                 FilePickerFileTypes.All,
             ],
         });
-        await board.ImportAsync([.. files.Select(LocalPath).OfType<string>()]);
+        // A pick the desktop hands over without a path on this machine cannot be copied; say so by name.
+        await board.ImportAsync([.. files.Select(LocalPath).OfType<string>()],
+            [.. files.Where(f => LocalPath(f) is null).Select(f => f.Name)]);
     }
 
     private async void OnAddFolder(object? sender, RoutedEventArgs e)
@@ -89,7 +115,9 @@ public partial class SoundboardWindow : Window
             AllowMultiple = false,
             SuggestedStartLocation = start,
         });
-        if (folders.Select(LocalPath).OfType<string>().FirstOrDefault() is { } folder) await board.ImportFolderAsync(folder);
+        if (folders.Count == 0) return;
+        if (LocalPath(folders[0]) is { } folder) await board.ImportFolderAsync(folder);
+        else await board.ImportAsync([], [folders[0].Name]);
     }
 
     private static string? LocalPath(IStorageItem item)
@@ -118,11 +146,23 @@ public partial class SoundboardWindow : Window
         }
         Item("SoundClipEdit", Localizer.Text("SoundClipEdit"), true, () => _ = EditAsync(clip));
         Item("SoundClipStop", Localizer.Text("SoundClipStop"), clip.Playing, () => board.Stop(clip));
-        Item("SoundClipEarlier", Localizer.Text("SoundClipMoveEarlier"), board.CanMove(clip, -1), () => board.Move(clip, -1));
-        Item("SoundClipLater", Localizer.Text("SoundClipMoveLater"), board.CanMove(clip, +1), () => board.Move(clip, +1));
+        Item("SoundClipEarlier", Localizer.Text("SoundClipMoveEarlier"), board.CanMove(clip, -1), () => _ = MoveAsync(board, clip, -1));
+        Item("SoundClipLater", Localizer.Text("SoundClipMoveLater"), board.CanMove(clip, +1), () => _ = MoveAsync(board, clip, +1));
         Item("SoundClipDelete", Localizer.Text("Delete"), true, () => _ = DeleteAsync(clip));
         return menu;
     }
+
+    /// <summary>Move a clip and keep the keyboard on its pad, wherever the pad now stands.</summary>
+    internal async Task MoveAsync(SoundboardViewModel board, SoundClipViewModel clip, int delta)
+    {
+        Task moving = board.Move(clip, delta);
+        FocusPad(clip);
+        await moving;
+        FocusPad(clip);
+    }
+
+    private void FocusPad(SoundClipViewModel clip) => Dispatcher.UIThread.Post(() =>
+        this.GetVisualDescendants().OfType<SoundPad>().FirstOrDefault(p => p.DataContext == clip)?.Focus(), DispatcherPriority.Loaded);
 
     /// <summary>The clip's edit window, owned by this one.</summary>
     internal Task EditAsync(SoundClipViewModel clip) => new SoundClipWindow(clip).ShowDialog(this);

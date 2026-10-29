@@ -347,20 +347,159 @@ public sealed class SoundboardViewModelTests
     }
 
     [Fact]
-    public void AMoveSendsTheWholeOrder()
+    public async Task AMoveSendsTheWholeOrderAndARefusalPutsTheDaemonsOrderBack()
     {
         (SoundboardViewModel board, Recorder commands) = Model();
         SoundClipViewModel airhorn = board.Clips[0], broken = board.Clips[2];
         Assert.False(board.CanMove(airhorn, -1));
         Assert.True(board.CanMove(airhorn, +1));
         Assert.False(board.CanMove(broken, +1));
-        board.Move(airhorn, +1);
+        await board.Move(airhorn, +1);
         Assert.Equal(["drumroll", "airhorn", "broken"], board.Clips.Select(c => c.Id));
         (string command, JsonNode? order) = commands.One();
         Assert.Equal("setClipOrder", command);
         Assert.Equal("""["drumroll","airhorn","broken"]""", order!.ToJsonString());
-        board.Move(broken, +1);
+        await board.Move(broken, +1);
         Assert.Empty(commands.Sent);
+
+        // Refused: the pads go back to the order the daemon last reported, the same pads, and the refusal shows.
+        commands.Refuse = "setClipOrder: the library changed";
+        SoundClipViewModel drumroll = board.Clips[0];
+        await board.Move(drumroll, +1);
+        commands.One();
+        Assert.Equal(["airhorn", "drumroll", "broken"], board.Clips.Select(c => c.Id));
+        Assert.Same(drumroll, board.Clips[1]);
+        Assert.Equal("setClipOrder: the library changed", board.Status);
+    }
+
+    [Fact]
+    public void ADroppedErrorTakesItsWarningColourWithIt()
+    {
+        (SoundboardViewModel board, _) = Model();
+        SoundClipViewModel broken = board.Clips[2];
+        Assert.True(broken.HasError);
+        Assert.Equal(1, broken.NameLines);
+        Assert.Equal(3, broken.DetailLines);
+        Assert.Equal("The file could not be decoded.", broken.HelpText);
+        var raised = new List<string?>();
+        broken.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+        // SFX deleted: every clip is off, and the pad's line is no longer a warning.
+        board.Apply(Board(enabled: false, channel: null), []);
+        Assert.Equal("off", broken.Status);
+        Assert.False(broken.HasError);
+        Assert.Contains(nameof(SoundClipViewModel.HasError), raised);
+        Assert.Contains(nameof(SoundClipViewModel.Detail), raised);
+        Assert.Equal(2, broken.NameLines);
+        Assert.Equal(1, broken.DetailLines);
+        // A pad that cannot play says why to a screen reader: the board's sentence.
+        Assert.Equal(Deleted, broken.HelpText);
+        Assert.Equal(Deleted, board.Clips[0].HelpText);
+        board.Apply(Board(), []);
+        Assert.Equal("", board.Clips[0].HelpText);
+    }
+
+    [Fact]
+    public async Task ASuccessfulPressClearsAPressRefusalAndNeverAnImportReport()
+    {
+        (SoundboardViewModel board, Recorder commands) = Model();
+        SoundClipViewModel airhorn = board.Clips[0];
+        commands.Import = _ => new(false, "The clip is 31.0 s long; the limit is 30 s.", null);
+        await board.ImportAsync(["/a/long.wav"]);
+        board.Press(airhorn);
+        Assert.Equal("The clip is 31.0 s long; the limit is 30 s.", board.Status);
+        Assert.True(board.StatusWarns);
+
+        commands.Refuse = "The soundboard is starting.";
+        board.Press(airhorn);
+        Assert.Equal("The soundboard is starting.", board.Status);
+        commands.Refuse = null;
+        board.Press(airhorn);
+        Assert.False(board.HasStatus);
+
+        // A deletion's report stays through a press too.
+        await board.DeleteAsync(board.Clips[1]);
+        board.Press(airhorn);
+        Assert.Equal(Localizer.Format("SoundClipDeleted", "Drum roll"), board.Status);
+    }
+
+    [Fact]
+    public async Task AFullLibraryLeavesFilesOutAndSaysHowMany()
+    {
+        JsonObject full = Board();
+        JsonArray clips = full["clips"]!.AsArray();
+        for (int i = clips.Count; i < 62; i++)
+        {
+            var extra = (JsonObject)clips[0]!.DeepClone();
+            extra["id"] = $"c{i}";
+            clips.Add(extra);
+        }
+        (SoundboardViewModel board, Recorder commands) = Model(full);
+        Assert.Equal(62, board.Clips.Count);
+        await board.ImportAsync(["/a/1.wav", "/a/2.wav", "/a/3.wav", "/a/4.wav"], ["phone.ogg"]);
+        Assert.Equal(2, commands.Sent.Count);
+        Assert.Equal(string.Join("\n", Localizer.Format("SoundboardImported", 2, 2), Localizer.Format("SoundboardImportFull", 2, 64),
+            Localizer.Format("SoundboardFileUnreadable", "phone.ogg")), board.Status);
+        Assert.True(board.StatusWarns);
+    }
+
+    [Fact]
+    public async Task ACancelStopsAnImportAfterTheFileItIsOn()
+    {
+        (SoundboardViewModel board, Recorder commands) = Model();
+        commands.Import = path =>
+        {
+            if (path.EndsWith("2.wav", StringComparison.Ordinal)) board.CancelImport();
+            return new(true, "added", "x");
+        };
+        await board.ImportAsync(["/a/1.wav", "/a/2.wav", "/a/3.wav", "/a/4.wav"]);
+        Assert.Equal(2, commands.Sent.Count);
+        Assert.Equal(string.Join("\n", Localizer.Format("SoundboardImported", 2, 4), Localizer.Format("SoundboardImportStopped", 2)), board.Status);
+        Assert.False(board.Importing);
+        // A pick the desktop gave no path for is named, even alone.
+        commands.Sent.Clear();
+        await board.ImportAsync([], ["phone.ogg"]);
+        Assert.Empty(commands.Sent);
+        Assert.Equal(Localizer.Format("SoundboardFileUnreadable", "phone.ogg"), board.Status);
+    }
+
+    [Fact]
+    public async Task TheBoardSurvivesTheMixerStoppingAndTheDaemonGoingAway()
+    {
+        await using var client = new DaemonClient("ws://127.0.0.1:1/ws");
+        var model = new MainViewModel(client);
+        string state = InputBindingModelTests.ProState(Channels, mixerExtra: ",\"soundboard\":" + Board().ToJsonString());
+        Apply(model, state);
+        SoundClipViewModel[] pads = [.. model.Soundboard.Clips];
+        Assert.True(pads[0].CanPlay);
+
+        // The software mixer stops: no mixer in the state. The pads stay, unable to play, and say why.
+        JsonNode off = JsonNode.Parse(state)!;
+        off["mixer"] = null;
+        Apply(model, off.ToJsonString());
+        Assert.Equal(pads, model.Soundboard.Clips);
+        Assert.True(model.Soundboard.IsReported);
+        Assert.False(model.Soundboard.MixerRunning);
+        Assert.False(model.Soundboard.CanPlay);
+        Assert.False(pads[0].CanPlay);
+        Assert.False(model.Soundboard.ShowsMaster);
+        Assert.False(model.Soundboard.CanImport);
+        Assert.Equal(Localizer.Text("SoundboardMixerOff"), model.Soundboard.Notice);
+        Assert.False(model.Soundboard.NoticeWarns);
+        Assert.Equal(Localizer.Text("SoundboardMixerOff"), pads[0].HelpText);
+
+        // It comes back: the same pads play again.
+        Apply(model, state);
+        Assert.Equal(pads, model.Soundboard.Clips);
+        Assert.True(pads[0].CanPlay);
+        Assert.False(model.Soundboard.HasNotice);
+
+        // The daemon goes away: the pads stay and the notice says the daemon is not running.
+        model.Soundboard.Reset();
+        Assert.Equal(pads, model.Soundboard.Clips);
+        Assert.False(pads[0].CanPlay);
+        Assert.Equal(Localizer.Text("DaemonNotRunningSentence"), model.Soundboard.Notice);
+        Apply(model, state);
+        Assert.True(pads[0].CanPlay);
     }
 
     [Fact]
@@ -379,6 +518,19 @@ public sealed class SoundboardViewModelTests
         // Nothing changed: nothing is sent, and the window may close.
         Assert.True(await edit.SaveAsync());
         Assert.Empty(commands.Sent);
+
+        // A gain the percent rounds, and a rename alone: only the name goes, never the rounded gain.
+        JsonObject odd = Board();
+        odd["clips"]![0]!["gain"] = 0.333;
+        board.Apply(odd, []);
+        var rename = new SoundClipEditViewModel(airhorn) { Name = "Horn" };
+        Assert.Equal(33, rename.GainPercent);
+        Assert.True(await rename.SaveAsync());
+        Assert.Equal("""{"name":"Horn","clip":"airhorn"}""", commands.One().Value!.ToJsonString());
+        // The window compares with the clip as it opened, whatever a state push changed meanwhile.
+        board.Apply(Board(), []);
+        Assert.True(await rename.SaveAsync());
+        Assert.Equal("""{"name":"Horn","clip":"airhorn"}""", commands.One().Value!.ToJsonString());
 
         edit.GainPercent = 55;
         edit.ModeIndex = 3;

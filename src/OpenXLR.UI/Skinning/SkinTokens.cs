@@ -104,6 +104,8 @@ public static class SkinTokens
         ["Ox.Matrix.NameWidth"] = 132,
         ["Ox.Matrix.CellWidth"] = 200,
         ["Ox.Matrix.RowHeight"] = 52,
+        ["Ox.Soundboard.PadWidth"] = 176,
+        ["Ox.Soundboard.PadHeight"] = 120,
     };
 
     /// <summary>Corner radii and border widths are bounded so a skin cannot swallow a control.</summary>

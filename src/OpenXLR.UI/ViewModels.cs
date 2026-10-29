@@ -979,7 +979,7 @@ public sealed partial class MainViewModel : ViewModelBase
             ApplyBrowserTabs(node["mixer"]);
             ApplyAppRouting(node["mixer"]);
             Ducking.Apply(node["ducking"], node["mixer"]);
-            Soundboard.Apply(node["mixer"]?["soundboard"], Channels);
+            Soundboard.Apply(node["mixer"]?["soundboard"], Channels, node["mixer"] is JsonObject);
             RefreshSoundsButtons();
             // The daemon says whether XLR 1's signal has a hardware low cut and
             // ClipGuard in front of it; an older daemon leaves the window to

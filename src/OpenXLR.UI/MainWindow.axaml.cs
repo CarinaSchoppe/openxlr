@@ -367,7 +367,8 @@ public partial class MainWindow : Window
     internal void OpenSoundboard()
     {
         if (_reallyExit) return;
-        SoundboardWindow.Open(IsVisible ? this : null, _vm.Soundboard);
+        // A window owned by a minimized or hidden mixer would stay out of sight with it.
+        SoundboardWindow.Open(IsVisible && WindowState != WindowState.Minimized ? this : null, _vm.Soundboard);
     }
 
     private void OnAbout(object? sender, RoutedEventArgs e)

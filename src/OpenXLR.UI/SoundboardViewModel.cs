@@ -55,7 +55,11 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
     {
         Board = board;
         Id = id;
+        MeterKey = "clip:" + id;
     }
+
+    /// <summary>The clip's key in a meter frame.</summary>
+    internal string MeterKey { get; }
 
     public SoundboardViewModel Board { get; }
 
@@ -87,7 +91,7 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
     /// <c>loading</c>, <c>error</c> with the reason in <see cref="Error"/>, or
     /// <c>off</c> while the board cannot play, the reason in the board's error.
     /// </summary>
-    public string Status { get => _status; private set { if (Set(ref _status, value)) { Raise(nameof(Loaded)); RaiseState(); } } }
+    public string Status { get => _status; private set { if (Set(ref _status, value)) { Raise(nameof(Loaded)); Raise(nameof(HasError)); RaiseState(); } } }
 
     /// <summary>The player holds the clip, so a press plays it at once.</summary>
     public bool Loaded => _status == "ready";
@@ -113,8 +117,8 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
     /// <summary>The key has to come up for the clip to end: the pad sends a release.</summary>
     public bool IsHold => _mode == "hold";
 
-    /// <summary>A press plays the clip: the daemon says it is ready.</summary>
-    public bool CanPlay => _status == "ready";
+    /// <summary>A press plays the clip: the daemon says it is ready, and the mixer still runs.</summary>
+    public bool CanPlay => _status == "ready" && Board.CanPlay;
 
     /// <summary>The player is loading the clip.</summary>
     public bool Loading => _status == "loading";
@@ -135,6 +139,18 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
         : Loading ? Localizer.Text("SoundClipLoading")
         : _loop ? Localizer.Format("SoundClipDetailLoop", _seconds, ModeName)
         : Localizer.Format("SoundClipDetail", _seconds, ModeName);
+
+    /// <summary>The name takes one line while the pad says why the clip cannot load, two otherwise.</summary>
+    public int NameLines => HasError ? 1 : 2;
+
+    /// <summary>A reason the clip cannot load may wrap to three lines; the length and mode keep one.</summary>
+    public int DetailLines => HasError ? 3 : 1;
+
+    /// <summary>
+    /// Why a press plays nothing, in full, for a screen reader: the clip's
+    /// own reason, or the board's while the board cannot play. Empty while it is ready.
+    /// </summary>
+    public string HelpText => CanPlay ? "" : HasError ? _error! : !Board.CanPlay ? Board.Notice : Loading ? Localizer.Text("SoundClipLoading") : "";
 
     /// <summary>The pad's name for a screen reader: the clip, what a press does, and whether it plays.</summary>
     public string PadName => Playing ? Localizer.Format("SoundPadNamePlaying", _name, ModeName)
@@ -159,6 +175,9 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
     {
         Raise(nameof(CanPlay));
         Raise(nameof(Loading));
+        Raise(nameof(NameLines));
+        Raise(nameof(DetailLines));
+        Raise(nameof(HelpText));
         RaiseText();
     }
 
@@ -236,6 +255,16 @@ public sealed class SoundboardViewModel : ViewModelBase
     /// <summary>The daemon reports a soundboard: the buttons that open the window show.</summary>
     public bool IsReported { get => _reported; private set { if (Set(ref _reported, value)) RaiseBoard(); } }
 
+    private bool _mixerRunning = true;
+    /// <summary>
+    /// The software mixer runs, so the daemon can report the board. While it
+    /// does not (turned off, waiting for the audio server, rebuilding, or no
+    /// daemon at all) the window keeps the last board it saw and plays nothing.
+    /// </summary>
+    public bool MixerRunning { get => _mixerRunning; private set { if (Set(ref _mixerRunning, value)) RaiseBoard(); } }
+
+    private bool _connected = true;
+
     private bool _available;
     /// <summary>This installation has the native helper the player needs.</summary>
     public bool Available { get => _available; private set { if (Set(ref _available, value)) RaiseBoard(); } }
@@ -276,6 +305,7 @@ public sealed class SoundboardViewModel : ViewModelBase
             Raise();
             Raise(nameof(HasMaster));
             Raise(nameof(ShowsChannel));
+            Raise(nameof(ShowsMaster));
             Raise(nameof(ChannelName));
             Raise(nameof(MasterHint));
             Raise(nameof(MasterName));
@@ -294,6 +324,9 @@ public sealed class SoundboardViewModel : ViewModelBase
 
     /// <summary>The header names the channel the clips play into: the mixer has it.</summary>
     public bool ShowsChannel => _channel is not null;
+
+    /// <summary>The master fader shows: the mixer runs and has the channel, with a volume.</summary>
+    public bool ShowsMaster => _mixerRunning && _channel is not null;
 
     /// <summary>The window draws SFX's volume as the board's master: the channel is there and has a volume.</summary>
     public bool HasMaster => _channel is { HasVolume: true };
@@ -322,17 +355,20 @@ public sealed class SoundboardViewModel : ViewModelBase
     /// <summary>The window shows the line that says there are no clips yet.</summary>
     public bool ShowsEmpty => _reported && Clips.Count == 0;
 
+    /// <summary>Stop all can reach a player: there are clips and the mixer runs.</summary>
+    public bool CanStop => _mixerRunning && Clips.Count > 0;
+
     /// <summary>Any clip plays: Stop all lights.</summary>
     public bool AnyPlaying => Clips.Any(c => c.Playing);
 
-    /// <summary>The board can play: the daemon reports it and names no reason it cannot.</summary>
-    public bool CanPlay => _reported && _error is null;
+    /// <summary>The board can play: the mixer runs, and the daemon reports the board and names no reason it cannot.</summary>
+    public bool CanPlay => _mixerRunning && _reported && _error is null;
 
     /// <summary>Clips can be added: the daemon has the board and this installation the helper that checks them.</summary>
-    public bool CanImport => _reported && _available;
+    public bool CanImport => _mixerRunning && _reported && _available;
 
     /// <summary>The window offers to turn the board on: it is off and could run.</summary>
-    public bool ShowsTurnOn => _reported && _available && (!_enabled || _channelId is null);
+    public bool ShowsTurnOn => _mixerRunning && _reported && _available && (!_enabled || _channelId is null);
 
     /// <summary>The turn-on button says it creates SFX when there is none.</summary>
     public string TurnOnText => _channelId is null ? Localizer.Text("SoundboardTurnOnCreate") : Localizer.Text("SoundboardTurnOn");
@@ -341,12 +377,15 @@ public sealed class SoundboardViewModel : ViewModelBase
     /// The sentence over the pads while they cannot play: the daemon's own,
     /// or that the daemon has no soundboard. Empty while they can.
     /// </summary>
-    public string Notice => !_reported ? Localizer.Text("SoundboardNotReported") : _error ?? "";
+    public string Notice => !_connected ? Localizer.Text("DaemonNotRunningSentence")
+        : !_mixerRunning ? Localizer.Text("SoundboardMixerOff")
+        : !_reported ? Localizer.Text("SoundboardNotReported") : _error ?? "";
 
     public bool HasNotice => Notice.Length > 0;
 
-    /// <summary>The notice is a failure rather than a board the user turned off.</summary>
-    public bool NoticeWarns => !_reported || _error is not null && !(_available && !_enabled && _channelId is not null);
+    /// <summary>The notice is a failure rather than a board, or a mixer, the user turned off.</summary>
+    public bool NoticeWarns => _mixerRunning && _connected
+        && (!_reported || _error is not null && !(_available && !_enabled && _channelId is not null));
 
     private string _status = "";
     /// <summary>What the last import, change or press came to, or empty.</summary>
@@ -375,19 +414,37 @@ public sealed class SoundboardViewModel : ViewModelBase
         Raise(nameof(HasNotice));
         Raise(nameof(NoticeWarns));
         Raise(nameof(ShowsEmpty));
+        Raise(nameof(ShowsBoard));
+        Raise(nameof(ShowsMaster));
+        Raise(nameof(CanStop));
         foreach (SoundClipViewModel clip in Clips) clip.RaiseState();
     }
 
+    /// <summary>The window draws the board's actions: the daemon reported a board, now or before the mixer stopped.</summary>
+    public bool ShowsBoard => _reported;
+
+    // The last board the daemon reported, put back when it refuses an order the pads already show.
+    private JsonObject? _lastBoard;
+    private IReadOnlyList<ChannelViewModel> _lastChannels = [];
+
     /// <summary>
     /// Take <c>mixer.soundboard</c> from a state push, with the mixer's
-    /// channels for the master. A daemon without a soundboard, or no mixer,
-    /// passes null.
+    /// channels for the master. A daemon without a soundboard passes null;
+    /// <paramref name="mixerRunning"/> false says the state has no mixer,
+    /// and the last board stays as it was, unable to play.
     /// </summary>
-    public void Apply(JsonNode? board, IEnumerable<ChannelViewModel> channels)
+    public void Apply(JsonNode? board, IEnumerable<ChannelViewModel> channels, bool mixerRunning = true)
     {
         _applying = true;
         try
         {
+            _connected = true;
+            MixerRunning = mixerRunning;
+            if (!mixerRunning)
+            {
+                RaiseBoard();
+                return;
+            }
             if (board is not JsonObject state)
             {
                 IsReported = false;
@@ -401,6 +458,8 @@ public sealed class SoundboardViewModel : ViewModelBase
                 RaiseClips();
                 return;
             }
+            _lastBoard = (JsonObject)state.DeepClone();
+            _lastChannels = [.. channels];
             IsReported = true;
             Available = SoundClipViewModel.Flag(state["available"]);
             Enabled = SoundClipViewModel.Flag(state["enabled"]);
@@ -408,7 +467,7 @@ public sealed class SoundboardViewModel : ViewModelBase
             Error = SoundClipViewModel.Text(state["error"]) is { Length: > 0 } error ? error : null;
             _formats = [.. (state["formats"] as JsonArray ?? []).Select(SoundClipViewModel.Text).OfType<string>()
                 .Where(f => f.Length > 0 && f.All(char.IsAsciiLetterOrDigit))];
-            Channel = _channelId is null ? null : channels.FirstOrDefault(c => c.Id == _channelId);
+            Channel = _channelId is null ? null : _lastChannels.FirstOrDefault(c => c.Id == _channelId);
             SyncClips(state["clips"] as JsonArray ?? []);
             RaiseBoard();
         }
@@ -445,6 +504,7 @@ public sealed class SoundboardViewModel : ViewModelBase
     private void RaiseClips()
     {
         Raise(nameof(HasClips));
+        Raise(nameof(CanStop));
         Raise(nameof(ShowsEmpty));
         Raise(nameof(AnyPlaying));
     }
@@ -455,12 +515,18 @@ public sealed class SoundboardViewModel : ViewModelBase
         if (Clips.Count == 0) return;
         bool before = AnyPlaying;
         foreach (SoundClipViewModel clip in Clips)
-            clip.ApplyMeter(levels[$"clip:{clip.Id}"] as JsonArray);
+            clip.ApplyMeter(levels[clip.MeterKey] as JsonArray);
         if (before != AnyPlaying) Raise(nameof(AnyPlaying));
     }
 
-    /// <summary>The state no longer holds: the daemon went away.</summary>
-    public void Reset() => Apply(null, []);
+    /// <summary>The daemon went away: keep the last board, unable to play, until it comes back.</summary>
+    public void Reset()
+    {
+        _connected = false;
+        Raise(nameof(Notice));
+        MixerRunning = false;
+        RaiseBoard();
+    }
 
     // --- presses ---
 
@@ -471,10 +537,10 @@ public sealed class SoundboardViewModel : ViewModelBase
         Send(_commands.PlayClipAsync(clip.Id));
     }
 
-    /// <summary>A pad came up: a hold clip ends.</summary>
+    /// <summary>A pad came up: a hold clip ends. A clip deleted meanwhile ended with its deletion.</summary>
     public void Release(SoundClipViewModel clip)
     {
-        if (clip.IsHold && _reported) Send(_commands.ReleaseClipAsync(clip.Id));
+        if (clip.IsHold && _reported && Clips.Contains(clip)) Send(_commands.ReleaseClipAsync(clip.Id));
     }
 
     public void Stop(SoundClipViewModel clip)
@@ -503,12 +569,14 @@ public sealed class SoundboardViewModel : ViewModelBase
     /// Move a clip one place earlier (-1) or later (+1). The pads move at
     /// once; the daemon's next state confirms or restores the order.
     /// </summary>
-    public void Move(SoundClipViewModel clip, int delta)
+    public async Task Move(SoundClipViewModel clip, int delta)
     {
         int at = Clips.IndexOf(clip), to = at + delta;
         if (at < 0 || to < 0 || to >= Clips.Count) return;
         Clips.Move(at, to);
-        Send(_commands.SetClipOrderAsync([.. Clips.Select(c => c.Id)]));
+        string? error = await Run(_commands.SetClipOrderAsync([.. Clips.Select(c => c.Id)]));
+        // Refused: the pads go back to the order the daemon last reported.
+        if (error is not null && _lastBoard is { } last) Apply(last.DeepClone(), _lastChannels);
     }
 
     public bool CanMove(SoundClipViewModel clip, int delta)
@@ -525,40 +593,67 @@ public sealed class SoundboardViewModel : ViewModelBase
     public async Task DeleteAsync(SoundClipViewModel clip)
     {
         string? error = await _commands.DeleteClipAsync(clip.Id);
-        Show(error ?? Localizer.Format("SoundClipDeleted", clip.Name), error is not null);
+        ShowReport(error ?? Localizer.Format("SoundClipDeleted", clip.Name), error is not null);
+    }
+
+    /// <summary>The most clips the library holds, as the daemon enforces it.</summary>
+    internal const int MaxClips = 64;
+
+    private bool _cancelImport;
+
+    /// <summary>Stop an import after the file it is on; the report says how far it got.</summary>
+    public void CancelImport()
+    {
+        if (_importing) _cancelImport = true;
     }
 
     /// <summary>
     /// Import each path in turn, one at a time, and say how it went: the
     /// daemon's own sentence for a single file, a count and the refusals for
-    /// several.
+    /// several. Files past the library's room are left out and counted, and
+    /// a cancel stops the import after the file it is on.
     /// </summary>
-    public async Task ImportAsync(IReadOnlyList<string> paths)
+    public async Task ImportAsync(IReadOnlyList<string> paths, IReadOnlyList<string>? unreadable = null)
     {
-        if (paths.Count == 0 || !CanAdd) return;
+        unreadable ??= [];
+        if (paths.Count == 0 && unreadable.Count == 0 || !CanAdd) return;
+        int room = Math.Max(0, MaxClips - Clips.Count);
+        IReadOnlyList<string> taken = paths.Count > room ? [.. paths.Take(room)] : paths;
+        int skipped = paths.Count - taken.Count;
         Importing = true;
+        _cancelImport = false;
         try
         {
-            int added = 0;
-            var refusals = new List<string>();
+            int added = 0, tried = 0;
+            var refusals = new List<string>(unreadable.Select(name => Localizer.Format("SoundboardFileUnreadable", name)));
             string? only = null;
-            for (int i = 0; i < paths.Count; i++)
+            foreach (string path in taken)
             {
-                if (paths.Count > 1) Show(Localizer.Format("SoundboardImporting", i + 1, paths.Count), false);
-                ClipImportResult? result = await _commands.ImportClipAsync(paths[i]);
-                string name = Path.GetFileName(paths[i]);
+                if (_cancelImport) break;
+                tried++;
+                if (taken.Count > 1) ShowReport(Localizer.Format("SoundboardImporting", tried, taken.Count), false);
+                ClipImportResult? result = await _commands.ImportClipAsync(path);
+                string name = Path.GetFileName(path);
                 if (result is null) refusals.Add(Localizer.Format("NoAnswerForPath", name));
                 else if (result.Ok) { added++; only = result.Message; }
-                else refusals.Add(paths.Count > 1 ? $"{name}: {result.Message}" : result.Message);
+                else refusals.Add(taken.Count > 1 ? $"{name}: {result.Message}" : result.Message);
             }
-            if (paths.Count == 1) Show(refusals.Count > 0 ? refusals[0] : only ?? "", refusals.Count > 0);
+            var lines = new List<string>();
+            if (taken.Count == 1 && skipped == 0 && unreadable.Count == 0 && tried == 1) lines.Add(refusals.Count > 0 ? refusals[0] : only ?? "");
             else
             {
-                string count = Localizer.Format("SoundboardImported", added, paths.Count);
-                Show(refusals.Count == 0 ? count : count + "\n" + string.Join("\n", refusals), refusals.Count > 0);
+                if (taken.Count > 0) lines.Add(Localizer.Format("SoundboardImported", added, taken.Count));
+                if (tried < taken.Count) lines.Add(Localizer.Format("SoundboardImportStopped", taken.Count - tried));
+                if (skipped > 0) lines.Add(Localizer.Format("SoundboardImportFull", skipped, MaxClips));
+                lines.AddRange(refusals);
             }
+            ShowReport(string.Join("\n", lines.Where(l => l.Length > 0)), refusals.Count > 0 || skipped > 0);
         }
-        finally { Importing = false; }
+        finally
+        {
+            _cancelImport = false;
+            Importing = false;
+        }
     }
 
     /// <summary>
@@ -576,7 +671,7 @@ public sealed class SoundboardViewModel : ViewModelBase
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
-            Show(ex.Message, true);
+            ShowReport(ex.Message, true);
             return null;
         }
     }
@@ -587,27 +682,50 @@ public sealed class SoundboardViewModel : ViewModelBase
         if (ClipFilesIn(folder) is not { } files) return;
         if (files.Count == 0)
         {
-            Show(Localizer.Format("SoundboardFolderEmpty", Path.GetFileName(folder.TrimEnd('/'))), true);
+            ShowReport(Localizer.Format("SoundboardFolderEmpty", Path.GetFileName(folder.TrimEnd('/'))), true);
             return;
         }
         await ImportAsync(files);
     }
 
-    /// <summary>Show a line under the pads.</summary>
-    internal void Show(string text, bool warns)
+    // Whether the line under the pads is a command's refusal, which the next
+    // command that goes through clears, or a report of an import or a
+    // deletion, which stays until the next report.
+    private bool _statusIsRefusal;
+
+    /// <summary>Show a report under the pads: an import's or a deletion's.</summary>
+    internal void ShowReport(string text, bool warns)
     {
+        _statusIsRefusal = false;
         StatusWarns = warns;
         Status = text;
     }
 
     /// <summary>Send a command, and show the daemon's refusal when it has one.</summary>
-    private async void Send(Task<string?> command)
+    private async void Send(Task<string?> command) => await Run(command);
+
+    /// <summary>
+    /// Wait for a command: a refusal shows under the pads, and a command that
+    /// goes through clears an earlier refusal, never a report.
+    /// </summary>
+    private async Task<string?> Run(Task<string?> command)
     {
         string? error;
         try { error = await command; }
         catch (Exception ex) when (ex is InvalidOperationException or IOException) { error = ex.Message; }
-        if (error is not null) Show(error, true);
-        else if (_statusWarns) Show("", false);
+        if (error is not null)
+        {
+            _statusIsRefusal = true;
+            StatusWarns = true;
+            Status = error;
+        }
+        else if (_statusIsRefusal)
+        {
+            _statusIsRefusal = false;
+            StatusWarns = false;
+            Status = "";
+        }
+        return error;
     }
 }
 
@@ -619,17 +737,28 @@ public sealed class SoundboardViewModel : ViewModelBase
 public sealed class SoundClipEditViewModel : ViewModelBase
 {
     private readonly SoundClipViewModel _clip;
+    // The clip as the window opened on it: a field is sent only when it differs from this.
+    private readonly string _openName, _openColour, _openIcon;
+    private readonly double _openGainPercent;
+    private readonly int _openModeIndex;
+    private readonly bool _openLoop;
 
     public SoundClipEditViewModel(SoundClipViewModel clip)
     {
         _clip = clip;
-        _name = clip.Name;
-        _gainPercent = Math.Round(clip.Gain * 100);
-        _modeIndex = Math.Max(0, Array.IndexOf(SoundClipViewModel.Modes, clip.Mode));
-        _loop = clip.Loop;
-        _colour = clip.Appearance.Colour ?? "";
-        Icon = clip.Appearance.Icon;
+        _name = _openName = clip.Name;
+        _gainPercent = _openGainPercent = Math.Round(clip.Gain * 100);
+        _modeIndex = _openModeIndex = Math.Max(0, Array.IndexOf(SoundClipViewModel.Modes, clip.Mode));
+        _loop = _openLoop = clip.Loop;
+        _colour = _openColour = clip.Appearance.Colour ?? "";
+        Icon = _openIcon = clip.Appearance.Icon;
+        ClipError = clip.HasError ? clip.Error! : "";
     }
+
+    /// <summary>Why the player cannot hold the clip, in full, or empty.</summary>
+    public string ClipError { get; }
+
+    public bool HasClipError => ClipError.Length > 0;
 
     public SoundClipViewModel Clip => _clip;
 
@@ -692,14 +821,14 @@ public sealed class SoundClipEditViewModel : ViewModelBase
             Note = Localizer.Text("ColourFormatHint");
             return null;
         }
-        if (name != _clip.Name) fields["name"] = name;
-        double gain = Math.Clamp(Math.Round(_gainPercent) / 100, 0, 1);
-        if (Math.Abs(gain - _clip.Gain) > 0.004) fields["gain"] = gain;
-        string mode = SoundClipViewModel.Modes.ElementAtOrDefault(_modeIndex) ?? _clip.Mode;
-        if (mode != _clip.Mode) fields["mode"] = mode;
-        if (_loop != _clip.Loop) fields["loop"] = _loop;
-        if ((Icon ?? "") != _clip.Appearance.Icon) fields["icon"] = Icon ?? "";
-        if (!string.Equals(colour, _clip.Appearance.Colour ?? "", StringComparison.OrdinalIgnoreCase)) fields["colour"] = colour;
+        if (name != _openName) fields["name"] = name;
+        // Compared as the percent the window shows, so a rename never sends a rounded gain.
+        double percent = Math.Clamp(Math.Round(_gainPercent), 0, 100);
+        if (percent != _openGainPercent) fields["gain"] = percent / 100;
+        if (_modeIndex != _openModeIndex && SoundClipViewModel.Modes.ElementAtOrDefault(_modeIndex) is { } mode) fields["mode"] = mode;
+        if (_loop != _openLoop) fields["loop"] = _loop;
+        if ((Icon ?? "") != _openIcon) fields["icon"] = Icon ?? "";
+        if (!string.Equals(colour, _openColour, StringComparison.OrdinalIgnoreCase)) fields["colour"] = colour;
         return fields;
     }
 

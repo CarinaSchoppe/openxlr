@@ -50,7 +50,14 @@ async function main() {
     check((await focus(owner))[0] === 42, 'The owner did not receive focus.');
     pid = 73;
     check((await focus(owner))[0] === 73, 'Focus was cached.');
-    await name(owner, 'ReleaseName');
+    const beforeRelease = reads;
+    const release = name(owner, 'ReleaseName');
+    const immediatelyAfterRelease = focus(owner).then(value => ({value}), error => ({error}));
+    await release;
+    const immediate = await immediatelyAfterRelease;
+    check(immediate.error && Gio.DBusError.get_remote_error(immediate.error) === 'org.freedesktop.DBus.Error.AccessDenied',
+      'The former owner could read focus immediately after releasing the name.');
+    check(reads === beforeRelease, 'The owner-loss race read focus.');
     await wait(() => !service._desktopOwner);
     await refused(owner);
     await name(stranger, 'RequestName');

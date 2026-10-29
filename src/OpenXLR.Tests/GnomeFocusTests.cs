@@ -49,6 +49,32 @@ public sealed class GnomeFocusTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => focus.ReadAsync(CancellationToken.None));
     }
 
+    [DesktopBusTheory]
+    [InlineData("s")]
+    [InlineData("b")]
+    [InlineData("i")]
+    [InlineData("uu")]
+    public async Task InvalidReplySignaturesCannotBecomeAProcessIdOrCloseDesktopKeys(string signature)
+    {
+        await using var session = await PrivateBus.Start();
+        using var owner = new DBusConnection(session.Address);
+        await owner.ConnectAsync();
+        await owner.RequestNameAsync(DesktopFocus.Service);
+        var bus = new DesktopBus(owner);
+        var focus = new GnomeFocus(bus);
+        using var shell = new DBusConnection(session.Address);
+        await shell.ConnectAsync();
+        var source = new Source(owner.UniqueName!) { Signature = signature, Pid = 42 };
+        shell.AddMethodHandler(source);
+        await shell.RequestNameAsync(GnomeFocus.Service);
+        var invalid = await Assert.ThrowsAsync<InvalidOperationException>(() => focus.ReadAsync(CancellationToken.None));
+        Assert.Contains("invalid focus reply", invalid.Message);
+        await bus.Empty("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "GetId");
+        source.Signature = "u";
+        source.Pid = 73;
+        Assert.Equal(73u, await focus.ReadAsync(CancellationToken.None));
+    }
+
     [DesktopBusFact]
     public async Task AStalledExtensionKeepsOnePendingReplyWithoutClosingTheDesktopOwner()
     {
@@ -92,6 +118,7 @@ public sealed class GnomeFocusTests
     private sealed class Source(string owner) : IPathMethodHandler
     {
         public uint Pid;
+        public string Signature = "u";
         public bool Hold;
         public int Reads;
         public List<MethodContext> Held { get; } = [];
@@ -113,8 +140,15 @@ public sealed class GnomeFocusTests
         }
         private void Reply(MethodContext context)
         {
-            using var reply = context.CreateReplyWriter("u");
-            reply.WriteUInt32(Pid);
+            using var reply = context.CreateReplyWriter(Signature);
+            if (Signature == "s") reply.WriteString(new string('x', (int)Pid));
+            else if (Signature == "b") reply.WriteBool(Pid > 0);
+            else if (Signature == "i") reply.WriteInt32((int)Pid);
+            else
+            {
+                reply.WriteUInt32(Pid);
+                if (Signature == "uu") reply.WriteUInt32(Pid);
+            }
             context.Reply(reply.CreateMessage());
         }
         public void Release()

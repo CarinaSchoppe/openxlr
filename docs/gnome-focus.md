@@ -49,7 +49,9 @@ the owner exits or changes, the previous owner loses access. The UI queries
 on its existing desktop connection. A stalled extension retains at most
 one unanswered request, preserves desktop shortcuts and retries after the
 reply arrives or the UI's desktop connection is recreated. A late reply
-is never reused as a fresh focus result.
+is never reused as a fresh focus result. Only the declared unsigned PID
+reply is accepted; a different D-Bus signature is refused without closing
+the desktop connection.
 
 The metadata currently names only Shell 46. A private headless Shell 46
 run does not count as owner desktop acceptance. Before merge, test focus

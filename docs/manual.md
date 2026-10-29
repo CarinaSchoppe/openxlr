@@ -4667,6 +4667,15 @@ shows the daemon's sentence, such as "The clip is 31.0 s long; the limit
 is 30 s." After an import the clip the daemon added is selected. Deleting a clip asks you to type `yes`. Choose
 icons and colours in the UI.
 
+Once a clip is on a page other than Main, the pages stand as tabs over the
+rows and the rows are the clips of the page shown. `p` and `P` show the
+next and the previous page. `i` imports onto the page shown. `g` asks for
+the selected clip's page, and the tab follows it there; `G` renames the
+page shown. Typing `-` in either prompt means Main, so `g` with `-` moves a
+clip back to Main and `G` with `-` moves the whole page there, which ends
+it. Ctrl+Up and Ctrl+Down move a clip among the clips of its page. Export
+and import the library in the UI.
+
 The header names the connected interface, and its lamp is the interface's
 connection. A wide terminal's rail shows each interface input's gain and
 the meter of the channel that carries it. The label is the strip's name, or

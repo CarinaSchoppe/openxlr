@@ -904,7 +904,8 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   master, and a row per clip with its length, mode, loop, gain, status or
   reason, and a bar while it plays. Keys play, stop, stop all, step the
   gain, mode and loop, reorder, rename and delete, and `i` imports a file
-  by its typed path. A Hold clip plays on one press and stops on the next,
+  by its typed path. Pages stand as tabs over the rows; keys switch page,
+  move a clip to a page and rename a page. A Hold clip plays on one press and stops on the next,
   since a terminal sends no key-up ([manual](manual.md#terminal-sounds))
 - Insert editing opens the plugin's native editor. A blocked or refused
   editor falls back to terminal controls with the reason shown. Controls

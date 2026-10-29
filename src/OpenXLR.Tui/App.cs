@@ -43,6 +43,7 @@ internal sealed class App
     private string? _promptTitle;
     private string _promptText = string.Empty;
     private Action<string>? _promptDone;
+    private int _promptLimit = 64;
 
     private Theme _chosenTheme;
     private bool _skinOverride;
@@ -63,7 +64,7 @@ internal sealed class App
         _views =
         [
             new MixerView(), new MatrixView(), new InputsView(), new OutputsView(), new AppsView(),
-            new InsertsView(), new ProfilesView(), new OptionsView(),
+            new InsertsView(), new ProfilesView(), new OptionsView(), new SoundsView(),
         ];
     }
 
@@ -101,11 +102,13 @@ internal sealed class App
     }
 
     /// <summary>Asks for a line of text, and calls back when it is typed rather than cancelled.</summary>
-    public void Ask(string title, string initial, Action<string> done)
+    /// <param name="limit">The most characters the line takes: 64 for a name, more for a file's path.</param>
+    public void Ask(string title, string initial, Action<string> done, int limit = 64)
     {
         _promptTitle = title;
         _promptText = initial;
         _promptDone = done;
+        _promptLimit = limit;
     }
 
     /// <summary>Wear a skin chosen in Options; it replaces a launch override.</summary>
@@ -201,7 +204,7 @@ internal sealed class App
             case Key.Backspace:
                 if (_promptText.Length > 0) _promptText = _promptText[..^1];
                 return;
-            case Key.Char when !key.Ctrl && _promptText.Length < 64:
+            case Key.Char when !key.Ctrl && _promptText.Length < _promptLimit:
                 _promptText += key.Char;
                 return;
         }
@@ -329,11 +332,13 @@ internal sealed class App
         int y = screen.Height > 6 ? 2 : 1;
         screen.Fill(0, y, screen.Width, 1, theme.Window);
         int x = 1;
+        // The full names when the whole row fits, the short ones otherwise.
+        string[] shortNames = ["Mix", "Matrix", "In", "Out", "Apps", "FX", "Prof", "Options", "SFX"];
+        bool full = 1 + _views.Select((view, index) => $" {index + 1} {view.Title} ".Length + 1).Sum() <= screen.Width;
         for (int index = 0; index < _views.Count; index++)
         {
             bool chosen = index == Tab;
-            string[] shortNames = ["Mix", "Matrix", "In", "Out", "Apps", "FX", "Profiles", "Options"];
-            string title = screen.Width < 100 ? shortNames[index] : _views[index].Title;
+            string title = full ? _views[index].Title : shortNames[index];
             string label = $" {index + 1} {title} ";
             Rgb back = chosen ? theme.Selection : theme.Card;
             Rgb fore = chosen ? theme.TextPrimary : theme.TextSecondary;
@@ -352,6 +357,9 @@ internal sealed class App
         if (Prompting)
         {
             string prompt = $" {_promptTitle}: {_promptText}";
+            // A long line, such as a file's path, shows its end, where the typing is.
+            if (prompt.Length > screen.Width - 1)
+                prompt = "…" + prompt[^Math.Max(0, screen.Width - 2)..];
             screen.TextPad(0, y, prompt, screen.Width, theme.TextPrimary, theme.Card, bold: true);
             screen.Set(Math.Min(prompt.Length, screen.Width - 1), y, '▁', theme.Accent, theme.Card);
             return;
@@ -389,7 +397,7 @@ internal sealed class App
         Theme theme = Theme;
         string[] lines =
         [
-            "Sections  1-8 or Tab / Shift+Tab. F1 or ? opens this table.",
+            "Sections  1-9 or Tab / Shift+Tab. F1 or ? opens this table.",
             "Quit      q or Ctrl+C. In a text prompt use Ctrl+C to quit.",
             "Mixer     Up/Down channel; Home masters; End last channel.",
             "          Left/Right mix; PgUp/PgDn jump ten channels.",
@@ -412,6 +420,11 @@ internal sealed class App
             "Profiles  Enter load; s overwrite; r recall; d delete.",
             "          Save settings as creates a profile. Arrows set recall.",
             "Options   Enter use skin; R reload skins; arrows move.",
+            "Sounds    Enter/Space play; a hold clip plays until pressed again.",
+            "          s stop the clip; S stop all; b board on or off.",
+            "          -/+ [/] gain; m mode; l loop; r rename; d delete.",
+            "          i import a file by its path; Ctrl+Up/Down reorder.",
+            "          </> ,/. SFX volume, the board's master.",
             "Lists     Up/Down or PgUp/PgDn move; Enter or Space acts.",
             "Confirm   Enter accepts; Escape cancels. Deletion needs yes.",
             "Meters    RMS -60 to 0 dBFS; hold 1 s, fall 18 dB/s.",

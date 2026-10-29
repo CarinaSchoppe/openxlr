@@ -34,6 +34,7 @@ internal sealed class DaemonLink : IAsyncDisposable
     private readonly Lock _meterGate = new();
     private readonly Dictionary<string, MeterTrace> _meters = [];
     private readonly Dictionary<string, (double Decibels, double At)> _reductions = [];
+    private readonly Dictionary<string, (double Position, int Voices, double At)> _clips = [];
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
     private ClientWebSocket? _socket;
     private Task? _pump;
@@ -114,6 +115,20 @@ internal sealed class DaemonLink : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// How far a soundboard clip's newest voice is, 0 to 1, and how many
+    /// voices play it, from its <c>clip:&lt;id&gt;</c> meter; null while the
+    /// clip is silent and once a reading is a second old.
+    /// </summary>
+    public (double Position, int Voices)? ClipProgress(string id)
+    {
+        lock (_meterGate)
+        {
+            return _clips.TryGetValue($"clip:{id}", out var reading) && _clock.Elapsed.TotalSeconds - reading.At < 1
+                ? (reading.Position, reading.Voices) : null;
+        }
+    }
+
     public double[] MeterHistory(string prefix, string id)
     {
         lock (_meterGate)
@@ -175,19 +190,20 @@ internal sealed class DaemonLink : IAsyncDisposable
     }
 
     /// <summary>Match a command outcome to its request, never to an unrelated error.</summary>
-    public Task<string?> Request(string command, Action<JsonObject> fill)
+    /// <param name="timeout">How long the daemon has to answer; 20 seconds unless the command takes longer.</param>
+    public Task<string?> Request(string command, Action<JsonObject> fill, TimeSpan? timeout = null)
     {
         string id = Guid.NewGuid().ToString("N");
         TaskCompletionSource<string?> result = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _requests[id] = result;
-        _ = ExpireRequest(id, result);
+        _ = ExpireRequest(id, result, timeout ?? TimeSpan.FromSeconds(20));
         Send(command, body => { fill(body); body["requestId"] = id; });
         return result.Task;
     }
 
-    private async Task ExpireRequest(string id, TaskCompletionSource<string?> result)
+    private async Task ExpireRequest(string id, TaskCompletionSource<string?> result, TimeSpan timeout)
     {
-        try { await result.Task.WaitAsync(TimeSpan.FromSeconds(20), _stopping.Token).ConfigureAwait(false); }
+        try { await result.Task.WaitAsync(timeout, _stopping.Token).ConfigureAwait(false); }
         catch (TimeoutException) { result.TrySetResult("The daemon did not answer the request"); }
         catch (OperationCanceledException) { result.TrySetResult("Disconnected from the daemon"); }
         finally { _requests.TryRemove(id, out _); }
@@ -435,6 +451,13 @@ internal sealed class DaemonLink : IAsyncDisposable
                         _reductions[entry.Name] = (Math.Clamp(pair[0], 0, 120), now);
                         continue;
                     }
+                    // A soundboard clip reports where it is and how many voices play it, not a level.
+                    if (entry.Name.StartsWith("clip:", StringComparison.Ordinal))
+                    {
+                        int voices = pair.Length > 1 ? (int)Math.Clamp(pair[1], 0, 64) : 1;
+                        _clips[entry.Name] = (Math.Clamp(pair[0], 0, 1), voices, now);
+                        continue;
+                    }
                     if (!_meters.TryGetValue(entry.Name, out MeterTrace? trace))
                         _meters[entry.Name] = trace = new MeterTrace();
                     trace.Push(pair[0], pair.Length > 1 ? pair[1] : pair[0], now);
@@ -443,6 +466,8 @@ internal sealed class DaemonLink : IAsyncDisposable
                     _meters.Remove(missing);
                 foreach (string missing in _reductions.Keys.Where(key => !present.Contains(key)).ToArray())
                     _reductions.Remove(missing);
+                foreach (string missing in _clips.Keys.Where(key => !present.Contains(key)).ToArray())
+                    _clips.Remove(missing);
             }
         }
         catch (JsonException) { }

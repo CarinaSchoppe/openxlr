@@ -4328,12 +4328,12 @@ leave gaps in the history; a reading older than one second falls to zero.
 At 150 columns the usual nine channels and five masters fit side by side.
 At 120 columns the banks show fewer strips and follow the selection.
 Below 120x30 the section rail becomes a top row, with short section names
-below 100 columns, the held reading becomes text, and shorter strips keep
+below 102 columns, the held reading becomes text, and shorter strips keep
 the same controls. Resizing keeps the selection.
 The counters below each bank show which strips are visible. Below 80x24,
 the terminal asks for more room and keeps the selection for when it fits.
 
-Eight sections are reachable with `1` to `8`, Tab and Shift+Tab:
+Nine sections are reachable with `1` to `9`, Tab and Shift+Tab:
 
 | Section | What is on it |
 |---|---|
@@ -4345,6 +4345,7 @@ Eight sections are reachable with `1` to `8`, Tab and Shift+Tab:
 | 6 Inserts | the chain on each input and mix, its order, bypass and status; add a plugin from the catalogue, narrowed by typing, of those that fit the chain's width; open a plugin's native editor or edit its generated controls when the editor is blocked or refused |
 | 7 Profiles | load, save over, save as, delete and recall on connect; interface selection and recorded device defaults |
 | 8 Options | the skin picker and **Material mode**, the interface and its warning, the layout, connection status, daemon version and fresh state request |
+| 9 Sounds | the [soundboard](#play-sound-clips): the board's switch, SFX's volume as its master, and each clip with its length, press mode, loop, gain, status and a bar while it plays; play, stop, stop all, reorder, rename, delete and import by a typed path |
 
 In Outputs, quick Space presses keep the complete selection while the daemon
 acknowledges it. Feed arrows likewise keep each step separately for each output.
@@ -4369,7 +4370,7 @@ Controls below the visible hardware cards appear as the selection moves.
 
 | Where | Keys | Action |
 |---|---|---|
-| Everywhere | `1` to `8`, Tab, Shift+Tab | choose a section |
+| Everywhere | `1` to `9`, Tab, Shift+Tab | choose a section |
 | Everywhere | `F1`, `?` | show help |
 | Everywhere | `q`, Ctrl+C | quit; in a text prompt `q` is text and Ctrl+C quits |
 | Mixer | Up/Down, PageUp/PageDown | choose a channel, or jump ten channels |
@@ -4398,6 +4399,13 @@ Controls below the visible hardware cards appear as the selection moves.
 | Insert controls | `-`, `+`, `[`, `]`, Home, End | lower or raise a number, take a fine step, or set the minimum or maximum; Ctrl+Left/Right also takes a fine step |
 | Profiles, on a profile | Enter, `s`, `r`, `d` | load, overwrite, recall on connect, or delete |
 | Options | Enter, Space, Left/Right, `R` | use a skin, choose the Material mode, or reload the skin list |
+| Sounds | Up/Down, PageUp/PageDown, Home, End | choose a clip |
+| Sounds | Enter, Space, `s`, `S` | play the clip (a second press lets a Hold clip go), stop it, or stop every clip |
+| Sounds | `-`, `+`, `[`, `]` | lower or raise the clip's gain by five points, or by one point |
+| Sounds | `m`, `l`, `r`, `d` | step the press mode, turn the loop on or off, rename, or delete |
+| Sounds | Ctrl+Up/Down | move the clip earlier or later |
+| Sounds | `b`, `i` | turn the board on or off, or import a file by its path |
+| Sounds | `<`, `>`, `,`, `.` | lower or raise SFX's volume, the board's master, by five points or by one point |
 | Inputs, Bindings | Left/Right, Enter | choose a strip's source or port, then apply it |
 | Inputs, Ducking channels and mixes | Left/Right, Home, End, Space, Enter | move between the channels or mixes, then duck the one under the cursor or stop ducking it |
 | Text prompts | Enter, Escape | accept or cancel |
@@ -4479,6 +4487,39 @@ controls, such as Wave:3 input 1 on Mic 2, with the gain, mute, low cut,
 ClipGuard and phantom power the unit has. On the Mixer tab that strip's key
 is the unit's mute. Stop driving the unit and the card goes, and the key is
 a send mute again.
+
+<a name="terminal-sounds"></a>
+The Sounds tab is the [soundboard](#play-sound-clips) in rows. The first
+line has the board's lamp and switch, then SFX's channel volume, which is
+the board's master, then how many clips there are and how many play. When
+the board cannot play, the line under it is the daemon's sentence, such as
+the board being off or SFX deleted. Otherwise it lists the file types this
+build reads. Each clip is a row in library order:
+its icon and name, in its colour when it has one, its length, its press
+mode, whether it loops, its gain, and its status: ready, loading, off, or
+the reason it cannot be loaded. While a clip plays, a mark stands before
+its name and a bar shows how far its newest voice is, with the number of
+voices when more than one plays it. The line at the foot of the list
+shows the selected clip's whole reason when it cannot be loaded, and the
+answer to the last import.
+
+A terminal sends no key-up, so a **Hold** clip cannot play only while a
+key is down. Instead the first Enter or Space plays it and holds it, the
+row says held, and the next press lets it go, which ends it the way
+lifting a Deck key does. A Hold clip that has ended by itself plays again
+on the next press. `s` and `S` let go of a held clip too, and so does
+changing its mode. The daemon also lets go of every clip the terminal
+held when its connection closes, so quitting or losing the daemon leaves
+nothing playing.
+
+`i` asks for a file's path. The terminal mixer expands a leading `~` and
+a `file://` address, drops the quotes a file manager puts around a dropped
+file, and reads a relative path from the folder it was started in. The
+daemon copies and checks the file as it does for the UI. For a refused
+file the bottom line and the foot of the list show the daemon's sentence,
+such as "The clip is 31.0 s long; the limit is 30 s." After an import the
+new clip is selected. Deleting a clip asks you to type `yes`. Choose
+icons and colours in the UI.
 
 The header names the connected interface, and its lamp is the interface's
 connection. A wide terminal's rail shows each interface input's gain and

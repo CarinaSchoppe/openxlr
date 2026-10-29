@@ -437,14 +437,19 @@ static uint32_t df_need(uint32_t block, uint32_t hop) {
 // after DF_SETTLE of smaller blocks the most they needed. A change starts a
 // move from the old lag.
 static void df_follow(Denoise *d, uint32_t need, uint32_t frames) {
-  if (need > d->df_peak) d->df_peak = need;
-  d->df_window += frames;
   uint32_t lag = d->df_lag;
-  if (need > lag) lag = need;
-  else if (d->df_window >= DF_SETTLE) {
-    if (d->df_peak < lag) lag = d->df_peak;
-    d->df_peak = need;
-    d->df_window = 0;
+  if (need >= lag) {
+    // A block requiring the current lag ends any smaller-block interval.
+    // Start the two-second wait at the last such block, not a fixed window.
+    lag = need;
+    d->df_peak = d->df_window = 0;
+  } else {
+    if (need > d->df_peak) d->df_peak = need;
+    d->df_window += frames;
+    if (d->df_window >= DF_SETTLE) {
+      lag = d->df_peak;
+      d->df_peak = d->df_window = 0;
+    }
   }
   if (lag == d->df_lag) return;
   // The session's first lag plays from the start; nothing came before it.

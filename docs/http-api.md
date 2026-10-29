@@ -176,8 +176,10 @@ every mix when the layout has none;
 `{"cmd":"importClip","path":"/home/me/Sounds/airhorn.mp3","name":"Airhorn"}`
 copies and checks a file and answers with a `clipImport` message whose
 `clip` is the new id, `airhorn`; `{"cmd":"playClip","clip":"airhorn"}` plays
-it and `{"cmd":"stopClips"}` fades every clip out. `GET /api/v1/soundboard`
-reads the library and what plays; where a clip is comes only with the
+it and `{"cmd":"stopClips"}` fades every clip out.
+`{"cmd":"auditionClip","clip":"airhorn"}` plays it in the monitor mixes only,
+never on the stream, and `{"cmd":"stopAudition"}` ends that. `GET /api/v1/soundboard`
+reads the library, what plays and what is auditioned; where a clip is comes only with the
 meters, as `clip:<id>` on `/api/v1/events`. A press in `hold` mode, given
 or the clip's own, is refused here: a held clip belongs to the connection
 that pressed it and is released when that closes, and an HTTP request

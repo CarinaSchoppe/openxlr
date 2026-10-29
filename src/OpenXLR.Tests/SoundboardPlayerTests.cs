@@ -17,7 +17,8 @@ public sealed class SoundboardPlayerTests : IDisposable
     public void Dispose() => Directory.Delete(_directory, recursive: true);
 
     // A player that answers every load, slower for a path naming "slow",
-    // refuses one naming "bad", and writes each line it is given to a file.
+    // refuses one naming "bad", reports an audition on its meter, and writes
+    // each line it is given to a file.
     // `finish SLOT PRESS` stands for the helper's audio: it reports that
     // press's hold voice, and every older one's, ended.
     private const string FakePlayer = """
@@ -35,7 +36,9 @@ public sealed class SoundboardPlayerTests : IDisposable
               esac ;;
             "unload "*) echo "clip ${line#unload } unloaded" ;;
             "play "*) rest=${line#play }; slot=${rest%% *}; echo "meter playing_$slot 2"; echo "meter pos_$slot 0.25" ;;
-            "stop all") for s in 0 1 2 3; do echo "meter playing_$s 0"; done ;;
+            "stop all") for s in 0 1 2 3; do echo "meter playing_$s 0"; done; echo "meter audition 0" ;;
+            "audition "*) echo "meter audition $(( ${line#audition } + 1 ))" ;;
+            "stop audition") echo "meter audition 0" ;;
             "finish "*) rest=${line#finish }; echo "meter ended_${rest%% *} ${rest#* }" ;;
           esac
         done
@@ -158,6 +161,89 @@ public sealed class SoundboardPlayerTests : IDisposable
         Assert.Equal(1u, player.Play("a", "overlap", "A"));
         Until(() => Lines(lines).Length == 3, "both presses arrived");
         Assert.Equal(["play 0 overlap 16777215", "play 0 overlap 1"], Lines(lines)[1..]);
+    }
+
+    [Fact]
+    public void AnAuditionIsOneLineOfItsOwnAndItsMeterNamesTheClip()
+    {
+        using NativePluginHost host = StartPlayer(out string lines);
+        using var player = new SoundboardPlayer(host, [("a", 0, "/clips/a slow.wav"), ("b", 1, "/clips/b.wav")]);
+        Until(() => player.Loading == "a", "the first load is out");
+        Assert.Equal("A is still loading.", Assert.Throws<InvalidOperationException>(() => player.Audition("a", "A")).Message);
+        Until(() => player.Status("b")?.Loaded == true, "both loaded");
+        Assert.Null(player.Auditioning);
+
+        player.Audition("b", "B");
+        Until(() => player.Auditioning == "b", "the helper's meter names the clip auditioned");
+        // An audition is not a voice of the clip: nothing plays as far as the state goes.
+        Assert.Empty(player.Progress());
+        player.StopAudition();
+        Until(() => player.Auditioning is null, "stop audition ends it");
+        // Stop all ends the audition too.
+        player.Audition("a", "A");
+        Until(() => player.Auditioning == "a", "a is auditioned");
+        player.StopAll();
+        Until(() => player.Auditioning is null, "stop all ends the audition");
+        // A clip removed while it is auditioned is not named again, even
+        // before the helper reports, and its slot's next clip is not either.
+        player.Audition("b", "B");
+        Until(() => player.Auditioning == "b", "b is auditioned");
+        player.Remove("b");
+        Assert.Null(player.Auditioning);
+        Assert.Equal(1, player.Add("c", "/clips/c.wav", 1, false));
+        Assert.Null(player.Auditioning);
+        Until(() => Lines(lines).Contains("unload 1"), "every line arrived");
+        Assert.Equal(["audition 1", "stop audition", "audition 0", "stop all", "audition 1", "stop 1", "unload 1"],
+            Lines(lines).Where(line => !line.StartsWith("load ", StringComparison.Ordinal) && !line.StartsWith("set ", StringComparison.Ordinal)));
+    }
+
+    /// <summary>
+    /// The mixer's side: an audition needs the player, a loaded clip and a
+    /// monitor mix linked to hear it, and says which it lacks in a sentence;
+    /// stopping one never fails. The state names the clip auditioned.
+    /// </summary>
+    [Fact]
+    public void AnAuditionIsRefusedUntilAMonitorMixCanHearIt()
+    {
+        var library = new SoundboardLibrary { Clips = [new SoundboardClip { Id = "horn", Name = "Horn", File = "horn.wav" }] };
+        (Mixer mixer, _, _) = Board(library);
+        using NativePluginHost host = StartPlayer(out string lines);
+        using var player = new SoundboardPlayer(host, [("horn", 0, "/clips/horn.wav")]);
+        Until(() => player.Status("horn")?.Loaded == true, "loaded");
+        const System.Reflection.BindingFlags field = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        void Refusal(string? sentence) => typeof(Mixer).GetField("_auditionRefusal", field)!.SetValue(mixer, sentence);
+        try
+        {
+            // No player: the board's own reason, and a stop that is no error.
+            Assert.Equal(Mixer.SoundboardOff, Assert.Throws<InvalidOperationException>(() => mixer.AuditionClip("horn")).Message);
+            mixer.StopAudition();
+            Assert.Equal("No clip has the id gone.", Assert.Throws<InvalidOperationException>(() => mixer.AuditionClip("gone")).Message);
+
+            UsePlayer(mixer, player);
+            // Until its links into the monitor mixes are made, the player cannot be heard there.
+            Assert.Equal(Mixer.SoundboardAuditionReconnecting, Assert.Throws<InvalidOperationException>(() => mixer.AuditionClip("horn")).Message);
+            Refusal(Mixer.SoundboardAuditionUnheard);
+            Assert.Equal(Mixer.SoundboardAuditionUnheard, Assert.Throws<InvalidOperationException>(() => mixer.AuditionClip("horn")).Message);
+            Refusal(null);
+            // The player stands still while its link into SFX is made again.
+            typeof(Mixer).GetField("_playerLinked", field)!.SetValue(mixer, false);
+            Assert.Equal(Mixer.SoundboardReconnecting, Assert.Throws<InvalidOperationException>(() => mixer.AuditionClip("horn")).Message);
+            typeof(Mixer).GetField("_playerLinked", field)!.SetValue(mixer, true);
+            mixer.AuditionClip("horn");
+            Until(() => mixer.Soundboard().Auditioning == "horn", "the state names the clip auditioned");
+            Assert.Empty(mixer.Soundboard().Playing);
+            Assert.False(mixer.Soundboard().Clips.Single().Playing);
+            Assert.True(mixer.SoundboardActivityChanged());
+            mixer.StopAudition();
+            Until(() => mixer.Soundboard().Auditioning is null, "stopAudition ends it");
+            Assert.True(mixer.SoundboardActivityChanged());
+            Assert.Equal(["audition 0", "stop audition"], Lines(lines)[1..]);
+        }
+        finally
+        {
+            UsePlayer(mixer, null);
+            mixer.Dispose();
+        }
     }
 
     private static void UsePlayer(Mixer mixer, SoundboardPlayer? player)

@@ -103,7 +103,7 @@ internal sealed class SoundboardPlayer : IDisposable
             _slots[id] = slot;
             _loads[id] = new ClipLoad(false, 0, null);
         }
-        Host.ForgetMeters(Playing(slot), Position(slot), Ended(slot));
+        ForgetSlotMeters(slot);
         Host.SetControl(Gain(slot), gain);
         Host.SetControl(Loop(slot), loop ? 1 : 0);
         lock (_lock) _queue.Enqueue((id, slot, path));
@@ -122,7 +122,7 @@ internal sealed class SoundboardPlayer : IDisposable
             _loads.Remove(id);
         }
         Interlocked.Increment(ref _version);
-        Host.ForgetMeters(Playing(slot), Position(slot), Ended(slot));
+        ForgetSlotMeters(slot);
         Host.Send($"stop {slot}");
         Host.Send($"unload {slot}");
     }
@@ -136,14 +136,7 @@ internal sealed class SoundboardPlayer : IDisposable
     public uint Play(string id, string mode, string name)
     {
         if (!SoundboardLibrary.Modes.Contains(mode, StringComparer.Ordinal)) throw new ArgumentException("Unknown press mode.", nameof(mode));
-        int slot;
-        lock (_lock)
-        {
-            if (!_slots.TryGetValue(id, out slot) || _loads.GetValueOrDefault(id) is not { } load)
-                throw new InvalidOperationException($"{name} is not in the player.");
-            if (!load.Loaded)
-                throw new InvalidOperationException(load.Error is null ? $"{name} is still loading." : $"{name} could not be loaded: {load.Error}");
-        }
+        int slot = LoadedSlot(id, name);
         lock (_presses)
         {
             uint press = _lastPress = _lastPress >= MaxPress ? 1 : _lastPress + 1;
@@ -174,13 +167,54 @@ internal sealed class SoundboardPlayer : IDisposable
     /// </summary>
     internal static bool Covers(uint ended, uint press) => ((ended - press) & MaxPress) < (MaxPress + 1) / 2;
 
+    /// <summary>The slot a loaded clip is in; refused while it is not loaded, with <paramref name="name"/> in the sentence.</summary>
+    private int LoadedSlot(string id, string name)
+    {
+        lock (_lock)
+        {
+            if (!_slots.TryGetValue(id, out int slot) || _loads.GetValueOrDefault(id) is not { } load)
+                throw new InvalidOperationException($"{name} is not in the player.");
+            if (!load.Loaded)
+                throw new InvalidOperationException(load.Error is null ? $"{name} is still loading." : $"{name} could not be loaded: {load.Error}");
+            return slot;
+        }
+    }
+
+    /// <summary>
+    /// Play the clip once on the audition pair, in place of the audition
+    /// playing, whichever clip that is. Refused while the clip has not
+    /// loaded, with <paramref name="name"/> in the sentence.
+    /// </summary>
+    public void Audition(string id, string name)
+        => Host.Send($"audition {LoadedSlot(id, name).ToString(CultureInfo.InvariantCulture)}");
+
+    /// <summary>Fade the audition out; the clips playing on the main pair play on.</summary>
+    public void StopAudition() => Host.Send("stop audition");
+
+    /// <summary>
+    /// The clip the audition plays now, read from the helper's
+    /// <c>audition</c> meter, or null while none plays.
+    /// </summary>
+    public string? Auditioning
+    {
+        get
+        {
+            if (Host.Meter(PipeWireAdapter.AuditionMeter) is not double reported || reported < 1) return null;
+            int slot = (int)reported - 1;
+            lock (_lock)
+                foreach ((string id, int at) in _slots)
+                    if (at == slot) return id;
+            return null;
+        }
+    }
+
     /// <summary>The key came up: end the clip's hold voices.</summary>
     public void Release(string id) => SendFor(id, "release");
 
-    /// <summary>Fade the clip's voices out.</summary>
+    /// <summary>Fade the clip's voices out, its audition included.</summary>
     public void Stop(string id) => SendFor(id, "stop");
 
-    /// <summary>Fade every voice out.</summary>
+    /// <summary>Fade every voice out, the audition included.</summary>
     public void StopAll() => Host.Send("stop all");
 
     public void SetGain(string id, double gain)
@@ -191,6 +225,16 @@ internal sealed class SoundboardPlayer : IDisposable
     public void SetLoop(string id, bool loop)
     {
         if (SlotOf(id) is int slot) Host.SetControl(Loop(slot), loop ? 1 : 0);
+    }
+
+    /// <summary>
+    /// Forget what the helper said about a slot, the audition of it
+    /// included, so a clip given the slot never shows the last one's values.
+    /// </summary>
+    private void ForgetSlotMeters(int slot)
+    {
+        Host.ForgetMeters(Playing(slot), Position(slot), Ended(slot));
+        if (Host.Meter(PipeWireAdapter.AuditionMeter) == slot + 1) Host.ForgetMeters(PipeWireAdapter.AuditionMeter);
     }
 
     private void SendFor(string id, string verb)

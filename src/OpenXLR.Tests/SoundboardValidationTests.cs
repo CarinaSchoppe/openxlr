@@ -36,6 +36,8 @@ public sealed class SoundboardValidationTests
     [InlineData("""{"cmd":"releaseClip","clip":"airhorn"}""")]
     [InlineData("""{"cmd":"stopClip","clip":"airhorn"}""")]
     [InlineData("""{"cmd":"stopClips"}""")]
+    [InlineData("""{"cmd":"auditionClip","clip":"airhorn"}""")]
+    [InlineData("""{"cmd":"stopAudition"}""")]
     [InlineData("""{"cmd":"setClipOrder","clips":["b","a"]}""")]
     [InlineData("""{"cmd":"setClipOrder","clips":[]}""")]
     [InlineData("""{"cmd":"getSoundboard"}""")]
@@ -61,6 +63,8 @@ public sealed class SoundboardValidationTests
     [InlineData("""{"cmd":"deleteClip"}""", "deleteClip: need 'clip', a clip id")]
     [InlineData("""{"cmd":"releaseClip","clip":""}""", "releaseClip: need 'clip', a clip id")]
     [InlineData("""{"cmd":"stopClip","clip":"a b"}""", "stopClip: need 'clip', a clip id")]
+    [InlineData("""{"cmd":"auditionClip"}""", "auditionClip: need 'clip', a clip id")]
+    [InlineData("""{"cmd":"auditionClip","clip":"Airhorn"}""", "auditionClip: need 'clip', a clip id")]
     [InlineData("""{"cmd":"setClipOrder"}""", "setClipOrder: need 'clips', at most 64 clip ids")]
     [InlineData("""{"cmd":"setClipOrder","clips":["a","B"]}""", "setClipOrder: need 'clips', at most 64 clip ids")]
     public void MalformedCommandsAreRefusedWithASentence(string json, string error) => Assert.Equal(error, Check(json));
@@ -80,6 +84,7 @@ public sealed class SoundboardValidationTests
         // Turning off, stopping and editing the library need nothing running.
         Assert.Null(Check("""{"cmd":"setSoundboard","enabled":false}""", host: false));
         Assert.Null(Check("""{"cmd":"stopClips"}""", host: false));
+        Assert.Null(Check("""{"cmd":"stopAudition"}""", host: false));
         Assert.Null(Check("""{"cmd":"deleteClip","clip":"airhorn"}""", host: false));
         Assert.Null(Check("""{"cmd":"updateClip","clip":"airhorn","gain":0.5}""", host: false));
     }
@@ -105,10 +110,14 @@ public sealed class SoundboardValidationTests
         JsonNode json = JsonNode.Parse(JsonSerializer.Serialize(new SoundboardMessage(state), Wire))!;
         Assert.Equal("soundboard", json["type"]!.GetValue<string>());
         JsonObject board = json["soundboard"]!.AsObject();
-        Assert.Equal(["channel", "enabled", "available", "error", "formats", "clips", "playing"], board.Select(p => p.Key));
-        // Null is said, not left out: a client tells a deleted SFX by it.
+        Assert.Equal(["channel", "enabled", "available", "error", "formats", "clips", "playing", "auditioning"], board.Select(p => p.Key));
+        // Null is said, not left out: a client tells a deleted SFX by it,
+        // and a pad that is not auditioned by the other.
         Assert.Null(board["channel"]);
         Assert.True(board.ContainsKey("channel"));
+        Assert.Null(board["auditioning"]);
+        Assert.True(board.ContainsKey("auditioning"));
+        Assert.Equal("airhorn", JsonNode.Parse(JsonSerializer.Serialize(state with { Auditioning = "airhorn" }, Wire))!["auditioning"]!.GetValue<string>());
         JsonObject clip = board["clips"]![0]!.AsObject();
         Assert.Equal(["id", "name", "seconds", "gain", "mode", "loop", "icon", "colour", "loaded", "error", "playing", "status"], clip.Select(p => p.Key));
         Assert.Equal("ready", clip["status"]!.GetValue<string>());

@@ -2302,7 +2302,12 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                     RemovePausedMonitorRoutesLocked();
                     SyncMonitorHardwareMutesLocked(explicitChange: true);
                 }
-                finally { SyncMicrophonePauseLocked(); }
+                finally
+                {
+                    SyncMicrophonePauseLocked();
+                    // Nothing would hear an audition while listening is paused.
+                    SyncAuditionLinksLocked();
+                }
                 return;
             }
             try
@@ -2317,7 +2322,11 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 }
                 SyncMonitorHardwareMutesLocked(explicitChange: true);
             }
-            finally { SyncMicrophonePauseLocked(); }
+            finally
+            {
+                SyncMicrophonePauseLocked();
+                SyncAuditionLinksLocked();
+            }
         }
     }
 
@@ -2499,6 +2508,8 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             }
         CaptureMonitorMuteBaselinesLocked();
         SyncMonitorHardwareMutesLocked();
+        // The soundboard's audition follows the mixes the outputs now play.
+        SyncAuditionLinksLocked();
     }
 
     /// <summary>

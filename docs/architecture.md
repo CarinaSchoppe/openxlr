@@ -166,7 +166,14 @@ modules or custom drivers:
   thread, so presses and stops never wait for a load, and each load carries
   a token its answer repeats. The daemon checks each clip
   file with `openxlr-lv2-host probe`, in a process of its own, before the
-  player opens it. See [api.md](api.md#soundboard).
+  player opens it. A second stereo output, the audition pair
+  `audition_0` and `audition_1`, is linked by port into the sink of each
+  monitor mix the selected monitor outputs play, and into no other node;
+  the sweep and every change of the monitor outputs or their feeds bring
+  those links in line. A linked audition pair keeps the node running
+  while the SFX link is away, so the player stands still in any cycle its
+  main outputs have no buffer, as an unlinked node would. See
+  [api.md](api.md#soundboard).
 - With latency compensation on, a mix that needs a delay gets a stereo
   filter-chain of two builtin delay lines (`OpenXLR_delay_<mix>_in` and
   `_out`) after its inserts, and its consumers read that. The delay is set

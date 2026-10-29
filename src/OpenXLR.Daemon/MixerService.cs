@@ -1149,6 +1149,15 @@ public sealed class MixerService : IHostedService, IDisposable
                 case "stopClips":
                     _mixer.StopClips();
                     return null;
+                // An audition is one line to the player too, heard in the
+                // monitor mixes only; the meter push sends the state when it
+                // starts or ends.
+                case "auditionClip":
+                    _mixer.AuditionClip(cmd.Clip!);
+                    return null;
+                case "stopAudition":
+                    _mixer.StopAudition();
+                    return null;
                 case "showInsertUi":
                     if (cmd.Channel is null || cmd.InsertId is null) return "showInsertUi: need 'channel' and 'insertId'";
                     _mixer.ShowInsertUi(cmd.Channel, cmd.InsertId, insert => EditorPolicy.BlockReason(insert.Kind, insert.Plugin));

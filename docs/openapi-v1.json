@@ -674,7 +674,8 @@
           "error",
           "formats",
           "clips",
-          "playing"
+          "playing",
+          "auditioning"
         ],
         "properties": {
           "channel": {
@@ -720,6 +721,11 @@
               "type": "string"
             },
             "description": "Ids of the clips playing now"
+          },
+          "auditioning": {
+            "type": "string",
+            "nullable": true,
+            "description": "The clip auditioned in the monitor mixes now, or null"
           }
         }
       },

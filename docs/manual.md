@@ -3924,14 +3924,25 @@ routing is requested:
 - Sway: `swaymsg get_tree`, which needs `SWAYSOCK` from the session.
 - Hyprland: `hyprctl activewindow`, which needs
   `HYPRLAND_INSTANCE_SIGNATURE` from the session.
+- Niri: `niri msg --json focused-window`, using `NIRI_SOCKET` from the session.
+- X11: `xprop` reads the active window, its PID and its client machine.
+  Windows identifying a different computer are refused.
 
-Hyprland routing has been run on a live session; Sway has not yet.
+Hyprland routing has been run on a live session. Sway, Niri and the new X11
+source still need owner desktop acceptance.
 Launch the UI from the desktop session so it gets these variables, and
-have `swaymsg` or `hyprctl` installed, as the compositors ship them. No window titles are
+have the corresponding command installed. X11 uses `xprop` from
+`x11-utils` on Debian or Ubuntu. No window titles are
 read. The daemon uses `gdbus`, supplied by the GLib command-line tools, to
 ask the UI. GNOME and other compositors have no focus source yet, and
 routing reports an error there, when the UI is closed, and inside the
 Flatpak, which has no access to the compositor.
+
+Native OpenXLR can also match Flatpak audio clients using their portal
+instance ids, `flatpak ps` and the host process namespace. A missing or
+failed Flatpak query leaves those candidates unavailable and keeps native
+application matching working. It never treats a sandbox PID as a host PID.
+See [focused routing](focused-routing.md) for the matching rules.
 
 PC shortcuts need the GlobalShortcuts portal; Deck routing does not. On a
 desktop without the portal, Desktop keys says so and routing

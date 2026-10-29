@@ -6,7 +6,7 @@ flowchart TD
     Scripts["Scripts / tools"] -->|"authenticated HTTP or WebSocket"| Daemon
     Clients["Terminal mixer / Omarchy plugin"] -->|"authenticated WebSocket"| Daemon
     UI -->|"D-Bus"| Desktop["Desktop portal: global shortcuts; compositor: focused process"]
-    Daemon -->|"gdbus: focused process"| UI
+    Daemon -->|"gdbus: matching audio process keys"| UI
     Daemon --> Core["Core: device control, mixer, profiles"]
     Core --> USB["USB helper: libusb vendor transfers"]
     Core --> ALSA["amixer: first XLR Dock controls"]
@@ -39,8 +39,11 @@ flowchart TD
   a private session-bus connection and turns a press into a daemon
   command, while hidden in the tray as well. For focused-application
   routing it serves `org.openxlr.Desktop` on that bus. KWin's read-only
-  script, Sway's tree or Hyprland's active window supplies the process id
-  on demand. The daemon asks the UI for it with `gdbus`, one request at a time.
+  script, Sway's tree, Hyprland's or Niri's active window, or X11's EWMH
+  properties supply the host process id on demand. The daemon sends its live
+  audio process keys to the UI through `gdbus`, one request at a time. The UI
+  resolves Flatpak instance ids to host PIDs and returns matching keys only;
+  the daemon rechecks their current audio identity before routing.
 - The OpenDeck plugin is an OpenAction plugin in OpenDeck's Node runtime,
   using the same authenticated API and live choices as the UI.
 - `OpenXLR.Tui` is the terminal mixer, `openxlr-tui`. It speaks the same

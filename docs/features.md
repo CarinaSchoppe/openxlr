@@ -717,11 +717,12 @@ restores the split profile when it stops.
   with separate game and chat sinks keeps its own routing for that app
 - The application that has the focus can be sent to a channel from a
   desktop shortcut or a Stream Deck key. The UI reads the focused
-  process id from KWin on KDE Plasma, Sway's tree or Hyprland's active
-  window (Sway not yet run on a live session). The daemon
-  asks the UI for it over D-Bus, and the id is matched against the
-  daemon's live audio clients; an application that cannot be identified
-  without guessing is refused
+  process id from KWin on KDE Plasma, Sway's tree, Hyprland's or Niri's
+  active window, or X11's local EWMH properties. The daemon sends live
+  audio process keys over D-Bus; the UI matches host processes, including
+  Flatpak instances, and the daemon rechecks their identity before routing.
+  Sway, Niri and X11 still need owner desktop acceptance. An application
+  that cannot be identified without guessing is refused
 
 ## Profiles
 
@@ -1016,7 +1017,9 @@ directly, without a desktop-wide mute of internal routing sinks.
 On a monitor mix sink the key toggles only that mix; on any other output
 it toggles the sink's native mute. Focus
 identity comes from KWin on KDE Plasma, `swaymsg` on Sway or `hyprctl`
-on Hyprland. Other compositors need a focus source of their own. An
+on Hyprland, `niri` on Niri or local EWMH properties through `xprop` on X11.
+Flatpak audio clients are matched by their portal instance and process namespace.
+Other compositors need a focus source of their own. An
 unavailable GlobalShortcuts portal leaves the Deck focus service available;
 PC shortcuts still need that portal. See
 [Desktop keys](manual.md#desktop-keys) and

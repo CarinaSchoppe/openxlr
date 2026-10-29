@@ -24,18 +24,18 @@ internal sealed class DesktopFocus(DesktopBus bus) : IPathMethodHandler
         {
             context.ReplyIntrospectXml(["""
                 <interface name="org.openxlr.Desktop">
-                  <method name="GetFocusedProcess"><arg type="u" direction="out"/></method>
+                  <method name="GetFocusedAudioProcesses"><arg type="s" direction="in"/><arg type="s" direction="out"/></method>
                   <method name="ReportFocus"><arg type="s" direction="in"/><arg type="s" direction="in"/></method>
                 </interface>
                 """u8.ToArray()]);
         }
-        else if (context.Request.InterfaceAsString == Service && context.Request.MemberAsString == "GetFocusedProcess"
-            && context.Request.SignatureAsString == "")
+        else if (context.Request.InterfaceAsString == Service && context.Request.MemberAsString == "GetFocusedAudioProcesses"
+            && context.Request.SignatureAsString == "s")
         {
-            // KWin reports back on this same connection. Do not hold its
-            // message reader while waiting for that callback.
+            var reader = context.Request.GetBodyReader();
+            string candidates = reader.ReadString();
             context.DisposesAsynchronously = true;
-            _ = ReplyFocusAsync(context);
+            _ = ReplyFocusAsync(context, candidates);
         }
         else if (context.Request.InterfaceAsString == Service && context.Request.MemberAsString == "ReportFocus"
             && context.Request.SignatureAsString == "ss")
@@ -52,13 +52,16 @@ internal sealed class DesktopFocus(DesktopBus bus) : IPathMethodHandler
         return ValueTask.CompletedTask;
     }
 
-    private async Task ReplyFocusAsync(MethodContext context)
+    private async Task ReplyFocusAsync(MethodContext context, string candidates)
     {
         try
         {
-            uint pid = await ReadAsync(context.RequestAborted);
-            using var reply = context.CreateReplyWriter("u");
-            reply.WriteUInt32(pid);
+            var requested = FocusProcesses.ParseKeys(candidates);
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+            deadline.CancelAfter(TimeSpan.FromSeconds(4));
+            string matches = await FocusProcesses.MatchKeysAsync(checked((int)await ReadAsync(deadline.Token)), requested, deadline.Token);
+            using var reply = context.CreateReplyWriter("s");
+            reply.WriteString(matches);
             context.Reply(reply.CreateMessage());
         }
         catch (Exception ex)

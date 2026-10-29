@@ -499,15 +499,24 @@ public sealed class SoundboardViewModel : ViewModelBase
         for (int i = Clips.Count - 1; i >= 0; i--)
             if (!seen.Contains(Clips[i].Id)) Clips.RemoveAt(i);
         RaiseClips();
-        LibraryReported?.Invoke();
+        bool fresh = _freshConnection;
+        _freshConnection = false;
+        LibraryReported?.Invoke(fresh);
     }
 
+    // No board was reported on the daemon connection yet. Reset runs on the
+    // UI thread in order with the states, so a state still queued from the
+    // connection before cannot count for the new one.
+    private bool _freshConnection = true;
+
     /// <summary>
-    /// The daemon reported the board's clips, changed or not. Raised only
-    /// for a reported board, so a listener never takes a daemon without a
-    /// board, or a stopped mixer, for an empty library.
+    /// The daemon reported the board's clips, changed or not; true for the
+    /// first report on a daemon connection, which says what the library
+    /// holds and nothing about what was deleted from it. Raised only for a
+    /// reported board, so a listener never takes a daemon without a board,
+    /// or a stopped mixer, for an empty library.
     /// </summary>
-    internal event Action? LibraryReported;
+    internal event Action<bool>? LibraryReported;
 
     private void RaiseClips()
     {
@@ -531,6 +540,7 @@ public sealed class SoundboardViewModel : ViewModelBase
     public void Reset()
     {
         _connected = false;
+        _freshConnection = true;
         Raise(nameof(Notice));
         MixerRunning = false;
         RaiseBoard();

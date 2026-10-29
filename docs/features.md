@@ -1064,7 +1064,10 @@ it toggles the sink's native mute. A key can also play a soundboard clip
 chosen in the list, or stop every clip. A clip's key carries its name and
 follows its renames and its deletion. A hold clip plays while its key is
 down on KDE Plasma, GNOME and Hyprland, whose portals report the key coming
-up, and as overlap elsewhere. Focus
+up; on Plasma any key coming up or another shortcut ends it. Elsewhere it
+plays as overlap until the desktop first reports a key coming up. A clip
+keeps its key unless the daemon is seen deleting it, so an unreadable
+library drops no binding. Focus
 identity comes from KWin on KDE Plasma, `swaymsg` on Sway or `hyprctl`
 on Hyprland, `niri` on Niri or local EWMH properties through `xprop` on X11.
 GNOME Shell uses the optional [OpenXLR Focus extension](gnome-focus.md),

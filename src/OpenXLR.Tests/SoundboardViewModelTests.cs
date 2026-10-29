@@ -468,7 +468,12 @@ public sealed class SoundboardViewModelTests
         await using var client = new DaemonClient("ws://127.0.0.1:1/ws");
         var model = new MainViewModel(client);
         var reports = new List<string[]>();
-        model.Soundboard.LibraryReported += () => reports.Add([.. model.Soundboard.Clips.Select(c => $"{c.Id}:{c.Name}:{c.Mode}")]);
+        var fresh = new List<bool>();
+        model.Soundboard.LibraryReported += first =>
+        {
+            fresh.Add(first);
+            reports.Add([.. model.Soundboard.Clips.Select(c => $"{c.Id}:{c.Name}:{c.Mode}")]);
+        };
         string state = InputBindingModelTests.ProState(Channels, mixerExtra: ",\"soundboard\":" + Board().ToJsonString());
         Apply(model, state);
         Assert.Equal(["airhorn:Airhorn:overlap", "drumroll:Drum roll:hold", "broken:Broken:restart"], Assert.Single(reports));
@@ -491,6 +496,12 @@ public sealed class SoundboardViewModelTests
         Apply(model, InputBindingModelTests.ProState(Channels, mixerExtra: ",\"soundboard\":" + empty.ToJsonString()));
         Assert.Empty(reports[^1]);
         Assert.Equal(2, reports.Count);
+
+        // Only the first report on a daemon connection is fresh: it cannot say what was deleted.
+        Apply(model, state);
+        model.Soundboard.Reset();
+        Apply(model, state);
+        Assert.Equal([true, true, false, true], fresh); // the reset before the empty board made it fresh too
     }
 
     [Fact]

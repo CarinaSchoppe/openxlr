@@ -49,8 +49,8 @@ public partial class MainWindow : Window
             Activated += (_, _) => _volumeRange.Refresh();
         }
         _desktopKeys = new DesktopKeys(_client);
-        _vm.Soundboard.LibraryReported += () => _desktopKeys.SetClips(
-            _vm.Soundboard.Clips.Select(c => new DesktopKeys.SoundClip(c.Id, c.Name, c.Mode)));
+        _vm.Soundboard.LibraryReported += fresh => _desktopKeys.SetClips(_vm.Soundboard.Clips.Select(c =>
+            new DesktopKeys.SoundClip(c.Id, c.Name, c.Mode, c.Seconds, c.Loop, c.Playing)), fresh);
         _ = _desktopKeys.StartAsync();
         DataContext = _vm;
         _client.Start();          // connects, and keeps retrying if the daemon isn't up yet

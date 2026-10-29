@@ -3609,12 +3609,15 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
     <value>Idugang ang key nga mohunong sa tanang clip</value>
   </data>
   <data name="SoundboardKeysNote" xml:space="preserve">
-    <value>Ang matag soundboard clip nga imong i-tsek makabaton og kaugalingong key, nga ginganlan sunod sa clip. Ang clip nga Kupot motokar samtang gipugngan ang key niini kon ang desktop mosulti nga gibuhian na ang key, sama sa Plasma, GNOME ug Hyprland; sa uban, motokar kini isip Patong.</value>
+    <value>Ang matag soundboard clip nga imong i-tsek makabaton og kaugalingong key, nga ginganlan sunod sa clip. Ang clip nga Kupot motokar samtang gipugngan ang key niini kon ang desktop mosulti nga gibuhian na ang key, sama sa Plasma, GNOME ug Hyprland; sa uban, motokar kini isip Patong. Sa Plasma, ang pagbuhi sa bisan unsang key o ang pagpindot sa laing shortcut motapos niini, ug ang window nga mokuha sa keyboard, sama sa virtual machine o remote desktop, makapugong nga moabot ang pagbuhi.</value>
   </data>
   <data name="ClipKeyUnavailable" xml:space="preserve">
     <value>Patokara ang clip {0} (wala kini i-report sa daemon karon)</value>
   </data>
   <data name="DesktopKeyClipNoRelease" xml:space="preserve">
     <value>Gitokar ang {0} isip Patong: dili mosulti kining desktop kon gibuhian na ang key, busa dili matapos sa key niini ang clip nga Kupot.</value>
+  </data>
+  <data name="DesktopKeysBindUnanswered" xml:space="preserve">
+    <value>wala motubag ang desktop sa bag-ong listahan sa mga key. Molihok gihapon ang mga key nga gi-bind kaniadto.</value>
   </data>
 </root>

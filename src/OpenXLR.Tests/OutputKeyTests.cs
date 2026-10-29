@@ -94,7 +94,7 @@ public sealed class OutputKeyTests
         using var keys = new DesktopKeys(client);
         var actions = keys.Actions(new DesktopKeySettings { MonitorControls = true, OutputControls = true, OutputDevice = "headset", MainOutputs = ["speakers", "@monitor"] });
         foreach (string id in new[] { "output_up", "output_down", "output_mute", DesktopKeySettings.MainKey("speakers"), DesktopKeySettings.MainKey("@monitor"), "monitor_mute" })
-            Assert.Null(await actions[id].Invoke());
+            Assert.Null(await actions[id].Invoke!());
         Assert.Equal(["adjustOutputVolume", "adjustOutputVolume", "toggleOutputMute", "setMainOutput", "setMainOutput", "toggleMonitorMuted"], received.Select(n => n["cmd"]!.GetValue<string>()));
         Assert.Equal(.05, received[0]["value"]!.GetValue<double>());
         Assert.Equal(-.05, received[1]["value"]!.GetValue<double>());

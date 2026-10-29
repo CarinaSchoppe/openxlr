@@ -78,7 +78,7 @@ internal sealed class DesktopBus(DBusConnection connection)
         => Call(destination, path, iface, method, signature, body, static (_, _) => true, cancel);
 
     internal async Task<Dictionary<string, VariantValue>> Request(string method, string signature,
-        Func<string, Body> body, CancellationToken cancel, string iface = Shortcuts)
+        Func<string, Body> body, CancellationToken cancel, string iface = Shortcuts, TimeSpan? timeout = null)
     {
         string token = "openxlr_" + Guid.NewGuid().ToString("N");
         string path = "/org/freedesktop/portal/desktop/request/" + connection.UniqueName![1..].Replace('.', '_') + "/" + token;
@@ -101,7 +101,7 @@ internal sealed class DesktopBus(DBusConnection connection)
             string actual = await Call(Portal, PortalPath, iface, method, signature, body(token),
                 static (message, _) => message.GetBodyReader().ReadObjectPath().ToString(), cancel);
             if (actual != path) throw new InvalidOperationException("the desktop portal returned an unexpected request path");
-            var result = await done.Task.WaitAsync(TimeSpan.FromMinutes(2), cancel);
+            var result = await done.Task.WaitAsync(timeout ?? TimeSpan.FromMinutes(2), cancel);
             if (result.Code != 0) throw new PortalResponseException(result.Code, result.Code == 1
                 ? (iface == Shortcuts ? "Shortcut configuration was cancelled." : "Background configuration was cancelled.")
                 : (iface == Shortcuts ? "The desktop refused the shortcut request." : "The desktop refused the background request."));

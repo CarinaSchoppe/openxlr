@@ -24,18 +24,13 @@ internal sealed class DesktopKeysWindow : Window
         var enabled = new CheckBox { Content = Localizer.Text("EnableDesktopIntegration"), IsChecked = saved.Enabled };
         var choices = vm.Channels.Where(c => c.IsApplication).Select(c => (c.Id,
             Box: new CheckBox { Content = c.Name, IsChecked = saved.FocusChannels.Contains(c.Id) })).ToArray();
-        // One key per clip the user ticks, named after the clip. A chosen
-        // clip the daemon does not report now keeps its tick, so Apply
-        // before the daemon is up does not drop its binding; once the daemon
-        // reports the board, a clip it no longer lists was deleted.
+        // One key per clip the user ticks, named after the clip. A ticked
+        // clip the daemon does not report now keeps its tick unless it was
+        // seen deleted, so an Apply while the daemon is down or cannot read
+        // the library drops no binding.
         SoundboardViewModel board = vm.Soundboard;
-        var clipChoices = board.Clips.Select(c => (c.Id, Box: new CheckBox
-            { Content = new TextBlock { Text = Localizer.Format("KeyPlayClip", c.Name), TextWrapping = TextWrapping.Wrap },
-              IsChecked = saved.Clips.Contains(c.Id) })).ToList();
-        if (!board.IsReported)
-            foreach (string missing in saved.Clips.Where(id => board.Clips.All(c => c.Id != id)))
-                clipChoices.Add((missing, new CheckBox { Content = new TextBlock
-                    { Text = Localizer.Format("ClipKeyUnavailable", missing), TextWrapping = TextWrapping.Wrap }, IsChecked = true }));
+        var clipChoices = keys.ClipChoices(saved, board.Clips.Select(c => (c.Id, c.Name))).Select(c => (c.Id, Box: new CheckBox
+            { Content = new TextBlock { Text = c.Label, TextWrapping = TextWrapping.Wrap }, IsChecked = c.Ticked })).ToList();
         var clipsStop = new CheckBox { Content = Localizer.Text("AddStopClipsKey"), IsChecked = saved.ClipsStop };
         bool showsClips = board.IsReported || clipChoices.Count > 0 || saved.ClipsStop;
         var outputControls = new CheckBox { Content = Localizer.Text("AddVolumeAndMuteKeys"), IsChecked = saved.OutputControls };

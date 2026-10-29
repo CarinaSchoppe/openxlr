@@ -233,6 +233,7 @@ internal sealed class NativePluginHost : IDisposable
         "level" => ["level"],
         "eq" => insert.Plugin is "eq" or "4" ? ["eq"] : ["eq-bands", insert.Plugin],
         "duck" => ["duck"],
+        "player" => ["player"],
         "clap" => ["clap", bundle ?? throw new InvalidOperationException("A CLAP insert needs the bundle it lives in."), insert.Plugin],
         "vst3" => ["vst3", bundle ?? throw new InvalidOperationException("A VST3 insert needs the bundle it lives in."), insert.Plugin],
         _ => ["lv2", insert.Plugin],
@@ -298,6 +299,10 @@ internal sealed class NativePluginHost : IDisposable
             Interlocked.Exchange(ref _latencySamples, ParseLatency(line, _sampleRate));
         else if (line.StartsWith("ui ", StringComparison.Ordinal))
             Volatile.Read(ref _uiReply)?.TrySetResult(line == "ui opened" ? null : line[3..]);
+        else if (line.StartsWith("clip ", StringComparison.Ordinal))
+        {
+            if (ParseClip(line) is { } reply) ClipReplied?.Invoke(reply);
+        }
         else
         {
             string[] parts = line.Split(' ', 3);
@@ -322,6 +327,41 @@ internal sealed class NativePluginHost : IDisposable
             && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int rate) && rate == sampleRate
             && uint.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out uint samples) && samples < uint.MaxValue
             ? samples : -1;
+    }
+
+    /// <summary>
+    /// A soundboard player's answer to <c>load</c> or <c>unload</c>, raised on
+    /// the reader's thread. Handlers must not block.
+    /// </summary>
+    public event Action<ClipReply>? ClipReplied;
+
+    /// <summary>
+    /// A <c>clip SLOT ok FRAMES CHANNELS</c>, <c>clip SLOT error MESSAGE</c>
+    /// or <c>clip SLOT unloaded</c> line, or null for anything else. The
+    /// message is the helper's own sentence, kept to 200 characters.
+    /// </summary>
+    internal static ClipReply? ParseClip(string line)
+    {
+        string[] parts = line.Split(' ', 4);
+        if (parts.Length < 3 || parts[0] != "clip"
+            || !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out int slot) || slot is < 0 or >= SoundboardLibrary.MaxClips)
+            return null;
+        switch (parts[2])
+        {
+            case "unloaded" when parts.Length == 3:
+                return new ClipReply(slot, ClipOutcome.Unloaded, 0, 0, null);
+            case "ok" when parts.Length == 4:
+                string[] numbers = parts[3].Split(' ');
+                return numbers.Length == 2
+                    && long.TryParse(numbers[0], NumberStyles.None, CultureInfo.InvariantCulture, out long frames)
+                    && int.TryParse(numbers[1], NumberStyles.None, CultureInfo.InvariantCulture, out int channels) && channels is 1 or 2
+                    ? new ClipReply(slot, ClipOutcome.Loaded, frames, channels, null) : null;
+            case "error" when parts.Length == 4 && parts[3].Trim() is { Length: > 0 } message:
+                return new ClipReply(slot, ClipOutcome.Failed, 0, 0,
+                    new string([.. (message.Length > 200 ? message[..200] : message).Where(c => !char.IsControl(c))]));
+            default:
+                return null;
+        }
     }
 
     private static void StoreValue(ConcurrentDictionary<string, double> values, string symbol, double value)
@@ -461,6 +501,27 @@ internal sealed class NativePluginHost : IDisposable
         }
     }
 
+    /// <summary>
+    /// Hand the helper one line of a backend's own, such as the soundboard
+    /// player's <c>play 3 restart</c>. The line must not hold a line break.
+    /// </summary>
+    public void Send(string line)
+    {
+        if (line.Contains('\n') || line.Contains('\r'))
+            throw new ArgumentException("A helper line holds no line break.", nameof(line));
+        try
+        {
+            // A helper already disposed has a disposed token source too.
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(1));
+            SendAsync(line, timeout.Token).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or IOException or ObjectDisposedException)
+        {
+            throw new InvalidOperationException("The plugin host did not take the command.", ex);
+        }
+    }
+
     public void ShowUi()
     {
         if (EditorStalled)
@@ -513,3 +574,8 @@ internal sealed class NativePluginHost : IDisposable
         _writes.Dispose();
     }
 }
+
+internal enum ClipOutcome { Loaded, Failed, Unloaded }
+
+/// <summary>One <c>clip</c> line from the soundboard player: the slot, what happened, and the clip's length at the helper's rate.</summary>
+internal sealed record ClipReply(int Slot, ClipOutcome Outcome, long Frames, int Channels, string? Message);

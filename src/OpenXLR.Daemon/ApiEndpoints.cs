@@ -63,7 +63,7 @@ internal static class ApiEndpoints
         app.MapGet("/healthz", () => Results.Json(new { status = "alive" }));
         api.MapGet("", () => Results.Json(new { apiVersion = "1", state = "/api/v1/state",
             devices = "/api/v1/devices", profiles = "/api/v1/profiles", mixer = "/api/v1/mixer",
-            channels = "/api/v1/channels", mixes = "/api/v1/mixes", inserts = "/api/v1/inserts",
+            channels = "/api/v1/channels", mixes = "/api/v1/mixes", inserts = "/api/v1/inserts", soundboard = "/api/v1/soundboard",
             plugins = "/api/v1/plugins", pluginSetup = "/api/v1/plugin-setup",
             pluginDiagnostics = "/api/v1/plugin-diagnostics", diagnostics = "/api/v1/diagnostics",
             editorRules = "/api/v1/editor-rules", commands = "/api/v1/commands", events = "/api/v1/events" }));
@@ -89,6 +89,7 @@ internal static class ApiEndpoints
         api.MapGet("/inserts", (WebSocketHub hub) => MixerResource(hub.Snapshot().Mixer, m => m.Inserts));
         api.MapGet("/inserts/{id}", (string id, WebSocketHub hub) =>
             MixerResource(hub.Snapshot().Mixer, m => m.Inserts.GetValueOrDefault(id)));
+        api.MapGet("/soundboard", (WebSocketHub hub) => MixerResource(hub.Snapshot().Mixer, m => m.Soundboard));
         // Reads answered by an existing command, in the same result envelope
         // as POST /commands. They take the command slot because some of them
         // scan plugins or start helpers.

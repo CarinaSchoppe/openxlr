@@ -338,6 +338,23 @@ the key to `xlr1`. A new channel or mix is not added to the setup; a new
 channel starts muted in every mix anyway. A rename keeps the id, so the
 setup is unchanged.
 
+The [soundboard](api.md#soundboard) plays its clips into the application
+channel with the id `sfx`, so SFX's fader, mutes and sends carry them.
+Renaming SFX keeps the board working, since the id stays; hiding it keeps
+its audio, so the clips still play; reordering changes nothing. Deleting it
+stops the soundboard's player and unlinks it from the graph, turns the
+board off and leaves `mixer.soundboard.channel` null with a sentence in its
+`error`. `setSoundboard {enabled: true}` then creates an application channel
+named SFX, whose id is `sfx` unless a channel already has it, muted in every
+mix like any created channel, and links the player into it; an application
+channel that already has the id `sfx` is used as it is. Deleting SFX
+removes it from `ducking.channels` like any channel, and recreating it does
+not add it back. The board's library is `soundboard.json` beside
+`mixer.json`, and its clips are copied into
+`$XDG_DATA_HOME/openxlr/soundboard/` (default
+`~/.local/share/openxlr/soundboard/`); neither is part of this file or of a
+profile.
+
 Every added channel or mix costs pipewire-pulse a few dozen open files;
 the daemon refuses an addition the server has no room for, and the packages
 raise the server's limit ([manual: open-file limit](manual.md#open-files)).

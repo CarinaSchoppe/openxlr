@@ -139,6 +139,20 @@ modules or custom drivers:
   latency and editor requests, never audio. Exposed parameters are persisted; opaque plugin state and
   presets are not. See [native/README.md](../native/README.md) for editor
   recovery, size constraints and LSP renderer defaults.
+- The soundboard's player is one `openxlr-lv2-host player` process with a
+  stereo filter node, `OpenXLR_player_sfx`, its two outputs linked by
+  port into the SFX channel's sink, the way a capture source is linked
+  into its channel; its inputs stay unlinked. It holds the clips decoded
+  in memory; the daemon loads them one at a time over the command pipe,
+  and a press is one line on it, so playing changes nothing in the graph.
+  A port link is placed by the daemon, not the session manager, so no
+  routing setting applies to it, and while SFX's sink is away during a
+  rename the unlinked node falls silent instead of being parked on the
+  default output. The healing sweep links it again when the link breaks
+  and restarts the process under the restart policy, keyed `soundboard`;
+  the player stops and starts with the graph. The daemon checks each clip
+  file with `openxlr-lv2-host probe`, in a process of its own, before the
+  player opens it. See [api.md](api.md#soundboard).
 - With latency compensation on, a mix that needs a delay gets a stereo
   filter-chain of two builtin delay lines (`OpenXLR_delay_<mix>_in` and
   `_out`) after its inserts, and its consumers read that. The delay is set

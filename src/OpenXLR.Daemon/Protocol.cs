@@ -128,8 +128,23 @@ public sealed record Command
     [JsonPropertyName("gain")] public double? Gain { get; init; }
     [JsonPropertyName("q")] public double? Q { get; init; }
 
-    /// <summary>Plugin installs and folder management: the file or directory the user picked, absolute.</summary>
+    /// <summary>Plugin installs and folder management, and importClip: the file or directory the user picked, absolute.</summary>
     [JsonPropertyName("path")] public string? Path { get; init; }
+
+    /// <summary>Soundboard commands: the clip's id.</summary>
+    [JsonPropertyName("clip")] public string? Clip { get; init; }
+
+    /// <summary>setClipOrder: every clip id once, in the order clients draw them.</summary>
+    [JsonPropertyName("clips")] public List<string>? Clips { get; init; }
+
+    /// <summary>playClip and updateClip: overlap, restart, toggle or hold.</summary>
+    [JsonPropertyName("mode")] public string? Mode { get; init; }
+
+    /// <summary>updateClip: start over at the end instead of stopping.</summary>
+    [JsonPropertyName("loop")] public bool? Loop { get; init; }
+
+    /// <summary>updateClip: #RRGGBB, or empty to clear it.</summary>
+    [JsonPropertyName("colour")] public string? Colour { get; init; }
 
     /// <summary>
     /// Plugin format: native-editor compatibility rules identify a plugin by
@@ -208,6 +223,22 @@ public sealed record PluginInstallMessage(bool Ok, string Message, IReadOnlyList
     /// <summary>Plugins in the catalogue now that were not before.</summary>
     [JsonPropertyName("added")] public int Added { get; } = Added;
     [JsonPropertyName("total")] public int Total { get; } = Total;
+}
+
+/// <summary>Reply to "getSoundboard": the same object the state carries as <c>mixer.soundboard</c>.</summary>
+public sealed record SoundboardMessage(
+    [property: JsonPropertyName("soundboard")] SoundboardState Soundboard)
+{
+    [JsonPropertyName("type")] public string Type => "soundboard";
+}
+
+/// <summary>Reply to "importClip": whether the clip was added, a sentence, and the new clip's id.</summary>
+public sealed record ClipImportMessage(
+    [property: JsonPropertyName("ok")] bool Ok,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("clip"), JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Clip)
+{
+    [JsonPropertyName("type")] public string Type => "clipImport";
 }
 
 /// <summary>Reply to "listPlugins": everything the insert picker can offer.</summary>

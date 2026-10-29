@@ -227,6 +227,9 @@ public sealed partial class Mixer
             }
             _appearance.Remove("channel:" + id);
             _meters.Remove($"ch:{id}");
+            // The soundboard's clips play into SFX by its id; without it the
+            // board is off, its player unlinked before the sink goes.
+            if (id == SoundboardChannel) SoundboardChannelDeletedLocked();
             RemoveCaptureFeedLocked(id);
             if (_soundCheckChannel == id)
                 StopSoundCheckLocked(restore: false, error: "Sound Check stopped because the capture input was deleted.");
@@ -528,6 +531,9 @@ public sealed partial class Mixer
             catch (InvalidOperationException) { /* the stream ended meanwhile */ }
         }
         _meters.Add($"ch:{channel.Id}", channel.SinkName);
+        // The soundboard's player is linked to the sink's ports, which went
+        // with the old sink.
+        if (channel.Id == SoundboardChannel) RelinkPlayerLocked();
         if (!complete)
             throw new InvalidOperationException(
                 "the name was saved, but not every send of the reloaded channel came up within 3 s; check its sends, or restart the daemon");

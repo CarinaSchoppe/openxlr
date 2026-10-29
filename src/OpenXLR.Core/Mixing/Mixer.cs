@@ -86,17 +86,19 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     /// <summary>
     /// Live stereo channel and mix levels, plus one reduction value in dB per
     /// running duck stage, each microphone meter before its chain that a
-    /// client asked for, and the Sound Check loop's playhead.
+    /// client asked for, the Sound Check loop's playhead, and where each
+    /// playing soundboard clip is.
     /// </summary>
     public IReadOnlyDictionary<string, double[]> ReadMeters()
     {
         IReadOnlyDictionary<string, double[]> levels = _meters.Read();
-        if (_duckMeterHosts.IsEmpty && _inputMeterHosts.IsEmpty && _soundCheckProbe is null) return levels;
+        if (_duckMeterHosts.IsEmpty && _inputMeterHosts.IsEmpty && _soundCheckProbe is null && _player is null) return levels;
         var meters = new Dictionary<string, double[]>(levels);
         foreach ((string mix, NativePluginHost host) in _duckMeterHosts)
             if (host.IsHealthy) meters[DuckKey(mix)] = [host.Meters.GetValueOrDefault("reduction")];
         AddInputLevels(meters);
         AddSoundCheckPosition(meters);
+        AddClipPositions(meters);
         return meters;
     }
 
@@ -235,6 +237,9 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             if (monitorOutputSink is not null) SetMonitorOutputsLocked([monitorOutputSink]);
             WireAuxRouteLocked();
             foreach (MixDefinition mix in config.Mixes) WireMixChainLocked(mix);
+            // The soundboard's player went with the last graph; it starts
+            // again here and loads its clips anew.
+            StartSoundboardIfWantedLocked();
         }
     }
 
@@ -674,6 +679,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             if (!_built) return false;
             EnsureInputMetersLocked();
             bool soundCheckChanged = EnsureSoundCheckLocked();
+            soundCheckChanged |= EnsureSoundboardLocked();
             soundCheckChanged |= HealEqStagesLocked();
             soundCheckChanged |= TrackNoiseReportsLocked();
             soundCheckChanged |= HealDuckBusesLocked();
@@ -3234,6 +3240,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 MixDelayMilliseconds = new Dictionary<string, double>(_mixDelayValues),
                 MixLatencyError = _mixLatencyError,
                 SoundCheck = SoundCheckSnapshotLocked(),
+                Soundboard = SoundboardSnapshotLocked(),
                 Inserts = InsertStatusLocked(),
                 EnforcedDefaultSink = _enforcedSink,
                 EnforcedDefaultSource = _enforcedSource,
@@ -3486,6 +3493,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         foreach (PortLink feed in _inputFeeds.Values) _pw.Unlink(feed);
         _inputFeeds.Clear();
         foreach (string id in _captureFeeds.Keys.ToArray()) RemoveCaptureFeedLocked(id);
+        StopPlayerLocked();
         RemoveEqStagesLocked();
         RemoveDuckBusesLocked();
         RemoveInputChainsLocked();

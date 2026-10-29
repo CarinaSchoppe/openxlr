@@ -117,8 +117,10 @@ Messages from the daemon, each a JSON object with a `type` field:
 |---|---|---|
 | `state` | on connect and on every change | `daemonVersion`, device state, capabilities, mixer state, the device list, the app registry, profile names, `activeProfile` (the profile last recalled or saved for the active device; not cleared by later manual changes), `recallOnConnect` (the profile recalled when the device connects, or null), `warning` (one sentence the user should see, or null: the mixer waiting for the audio server, which did not answer when the daemon built the graph (see `mixerWaiting`), mixer settings that cannot be written to disk, which the daemon keeps retrying with backoff, a device set aside after three hung USB transfers in one run, a device that does not answer USB reads (named, with the error, until a read succeeds or the unit leaves the bus), hardware input strips left silent because the capture node's name matches two units or because several interfaces are attached and none is driven, a hardware strip bound to a source that is missing, named twice, lacks the selected port or is not linked yet, one sentence per strip with the strip's name in front, or additional interface choices that could not be read or saved). In the mixer state, each channel carries `hardware` (true for the fixed input channels), `captureSource` (exact external source name or null), `capturePair` (zero-based pair), `captureMonoChannel` (the one zero-based source port fed to both sides, or null for a pair), `captureConnected` (its direct or chained capture route exists), `microphone` (true for `xlr1`, `xlr2` and a capture input with `captureMonoChannel` set), `chainWidth` (1 for those microphone inputs, 2 for a capture pair, null for Aux In, Line In and application channels; the binding decides this while unplugged too), `binding`, `bindingConnected`, `bindingWarning` and `unitInput` (see [input bindings](#input-bindings)), `present` (whether a client should draw the strip, see [input bindings](#input-bindings); `xlr2`, `aux` and `line` are absent on every model but the Wave XLR Pro, and `line` also needs the Pro's capture source in its 18-channel layout), `exclusiveGroup` (the id of the exclusive group the channel is in, or null), `volume` (the channel's own volume, 0 to 1, which `setChannelVolume` sets; every channel has one, `xlr1`, `xlr2`, `aux` and `line` included; an older daemon reports null for a hardware input), `captureGain` (on a capture input whose source OpenXLR does not drive, `{gainDb, minDb, maxDb, hardware}`, which `setCaptureGain` sets; absent on every other channel, on a capture input that takes a Wave unit's input, while the source is missing, and from an older daemon; see [capture input gain](#capture-input-gain)), and on a microphone channel, `xlr1`, `xlr2` and a capture input whose `microphone` is true, `eq` (see [microphone EQ](#microphone-eq)) and `noise` (see [noise removal](#noise-removal)), both absent on every other channel, a capture input on a stereo pair included, and from an older daemon. An absent channel stays in the list and keeps its levels, so a client leaves it out of its strips rather than forgetting it. A capture channel is editable but cannot receive application assignments; `renamedSinceStart` says a user mix was renamed since the daemon started (its PipeWire device keeps the old name until a restart), and `layoutWarning` is a sentence for the layout editor when pipewire-pulse nears its open-file limit, or null. Every channel and mix also carries `appearance {icon, colour, hidden, defaultIcon}`: the first three as `setLayoutAppearance` set them (`icon` empty, `colour` null and `hidden` false by default), and `defaultIcon`, read-only, the built-in icon name the daemon chose for the item's kind, never empty (see [mixer-layout.md](mixer-layout.md#appearance) for the rule). A client draws `icon` when it is a text glyph or a name it can draw, nothing when it is `none`, and `defaultIcon` otherwise, which covers an empty `icon` and a name only a skin defines. The built-in names, their text characters and their path data are in `plugin/com.emaspa.openxlr.sdPlugin/icons.json`, generated from `src/OpenXLR.Core/Mixing/LayoutIcons.cs`. A client draws a hidden channel's sends and applications as usual and only leaves out its strip; for a hidden mix it leaves out the mix's master and the sends into it from its full mixer, and keeps the mix in output and monitor feed choices. The mixer state's `outputAppearance` maps the headphone outputs `phones1` and `phones2` to `{icon, colour, hidden, defaultIcon}` in the same form, `hidden` always false and `defaultIcon` `headset`; a model with one headphone output still carries both entries. Each mix carries `id`, `name`, `volume`, `muted`, `editable` (true for every monitor mix and virtual microphone, including Monitor A/B; false for Aux), `deletable` (editable and not the last remaining monitor) and `kind` (`monitor`, `virtualMic` or `auxPort`; a monitor mix the user added is `monitor` and editable), which gives a client the mix's volume ceiling. `defaultMonitorMix` names the implicit feed for outputs without an entry in `monitorFeeds`, independent of display order; `outputVolume` is the first selected output's volume, 0 to 1.5, or null with no output selected. In `devices`, every entry that is a sink carries `volume` (desktop scale, 1.0 = 100%) and `muted`; sources and the Wave XLR Pro pseudo-outputs omit both. A source carries `channels` and `positions` when PipeWire reports them, and any entry can carry `drivenUnit` (see below). A state is pushed whenever a sink's volume or mute changes |
 | `diagnostics` | in answer to `getDiagnostics` | `blocks`, mapping vendor block names to hex strings or read errors. An XLR Dock adds `paths`, the card number and the path each of its gain, mute and headphone controls takes (`Alsa` through the card's mixer, `Block` through the dock's config block when the card lacks the control, `None` when the USB handle is closed too, so the control is unavailable), and `alsa`, the values read through the card. `usbFault` carries the last USB fault of this run and `error` a dump that failed |
-| `meters` | 15 Hz while the mixer is built | live stereo levels per channel (`ch:<id>`) and mix (`mix:<id>`), and `duck:<id>` for each mix with a running software [ducking](#ducking) stage: one value, the reduction in dB now (0 while the key is quiet). While a client keeps a [meter before the chain](#meter-before-the-chain) running, `in:<id>` carries that microphone's `[rms, peak, clip]`, and while a [Sound Check](#sound-check) take loops, `take:<id>` carries one value, where the loop is across the take from 0 to 1 |
+| `meters` | 15 Hz while the mixer is built | live stereo levels per channel (`ch:<id>`) and mix (`mix:<id>`), and `duck:<id>` for each mix with a running software [ducking](#ducking) stage: one value, the reduction in dB now (0 while the key is quiet). While a client keeps a [meter before the chain](#meter-before-the-chain) running, `in:<id>` carries that microphone's `[rms, peak, clip]`, and while a [Sound Check](#sound-check) take loops, `take:<id>` carries one value, where the loop is across the take from 0 to 1. While a [soundboard](#soundboard) clip plays, `clip:<id>` carries `[position, voices]`: how far its newest voice is, 0 to 1, and how many voices play it; the key is absent while the clip is silent |
 | `soundCheckTake` | once, when the Sound Check helper finishes a take, and in answer to `getSoundCheckTake` | `channel`, `take` (the take's number in the session, from 1), `seconds` (its length) and `peaks` (200 values from 0 to 1, the peak of each stretch of the take in order); without a take `channel` is null, `take` 0 and `peaks` empty. See [Sound Check](#sound-check) |
+| `soundboard` | in answer to `getSoundboard` | `soundboard`, the same object as the state's `mixer.soundboard`. See [Soundboard](#soundboard) |
+| `clipImport` | in answer to `importClip` | `ok`, `message` (a sentence for the user) and `clip`, the new clip's id, or null when the file was refused. See [Soundboard](#soundboard) |
 | `plugins` | in answer to `listPlugins` | the installed LV2, CLAP and VST3 plugins with their controls, within the message size limit above and always including the plugins the saved chains use; `supported` is false, with `unsupportedFeatures` listed, for a plugin that needs a host feature the PipeWire chain lacks. `audioIns` and `audioOuts` are the plugin's own port counts, or for VST3 its main buses' default width; a VST3 entry also carries `widths`, the chain widths in channels (1 and 2 are the ones the host carries) its main buses accepted when the helper asked the way the host asks at load, so a plugin that reports 2 and lists 1 in `widths` can be inserted on a mono input. An entry without `widths` (LV2, CLAP, or a description an older helper wrote) fits a mono input with one port each way and a stereo input or mix with two or more |
 | `pluginSetup` | in answer to `getPluginSetup` or `setPluginWineTrace` | where installs go (`lv2Directory`, `clapDirectory`, `vst3Directory`), `hostInstalled`, `wineTrace` (deep tracing enabled in the running daemon), `yabridge` (its version, or null when not installed), `wine`, `windowsDirectories` (the folders yabridge bridges) and `wineFolders` (Wine's own plugin folders that hold a plugin and are not bridged yet, offered as one press since a file dialog hides them), `memoryLockLimitBytes` (the running daemon's soft limit in bytes; -1 means unlimited, null means unknown) and `memoryLockNote` (recovery advice when Windows plugin support is available and the limit is below 256 MiB, otherwise null), `searchDirectories` (every folder searched, see [Plugin search paths](#plugin-search-paths)) and `searchPathWarning` |
 | `windowsPluginFiles` | in answer to `getWindowsPluginFiles` | `ok`, `message` and `plugins`; each plugin file carries `path`, `name`, `format`, `enabled`, `canDelete`, `winePrefix` and `inUse`. Excluded files remain listed |
@@ -196,7 +198,8 @@ to a source, or the driven unit lacks the control, so `lowCutHz` and
 (chains by insert key, `xlr1`, `xlr2`, a capture channel id or `mix:<id>`; each entry carries
 `insert`, `error`, `meters`, `nativeHostRunning`, `nativeUiBlocked`,
 `nativeUiBlockReason`, `filterChainError` and `latencyMilliseconds`),
-`soundCheck` (see [Sound Check](#sound-check)),
+`soundCheck` (see [Sound Check](#sound-check)), `soundboard` (see
+[Soundboard](#soundboard)),
 `exclusiveGroups` (`id`, `name`, `channels`; see
 [exclusive groups](mixer-layout.md#exclusive-groups)), `enforcedDefaultSink`, `enforcedDefaultSource`, `streams` (`id`, `serial`,
 `label`, `identity`, `channelId`, `active`, `running`, and `icon`; see
@@ -305,6 +308,16 @@ that final acknowledgement (or an `error` without a request id):
 | `setSoundCheckHearMyself` | `channel`, `value` | `true` opens the channel's send into every monitor mix that plays on a selected monitor output, whatever its mute, for the rest of the session; `false` lets the sends' own mutes decide again. Starts a session on the live microphone when none runs. The channel and the host rules are those of `soundCheck`. Never saved; the session's end turns it off |
 | `watchInputMeter` | `channel` | run the [meter before the chain](#meter-before-the-chain) of a channel whose `microphone` is true for the next 15 seconds, starting it when none runs. Send it again to keep the meter running. Refused at once when the native plugin host is not installed. Nothing in the channel's route changes, and nothing is saved |
 | `getSoundCheckTake` | none | answered with `soundCheckTake`: the waveform of the take the running session holds |
+| `setSoundboard` | `enabled` | `true` starts the soundboard's player and links it into SFX, the application channel with the id `sfx`, creating that channel first, muted in every mix, when the layout has none; `false` stops the player. Saved in `soundboard.json`. `true` is refused at once when the native plugin host is not installed. See [Soundboard](#soundboard) |
+| `importClip` | `path`, `name?` | copy the file the user picked, an absolute path, into the clip directory, check it in a helper process of its own and add it to the library under an id made from `name`, or from the file's name. Answered with `clipImport`. Refused, with a sentence, past 64 clips, for a path that is not a regular file, a file over 64 MiB, a clip over 30 s, a file this build cannot decode, and without the native plugin host |
+| `updateClip` | `clip`, at least one of `name`, `gain`, `mode`, `loop`, `icon`, `colour` | change a clip's library entry; an absent field keeps its value. `gain` is 0 to 1, `mode` one of `overlap`, `restart`, `toggle` and `hold`, `icon` as `setLayoutAppearance` takes it, `colour` `#RRGGBB` or empty to clear it. `gain` and `loop` reach a playing clip at once |
+| `deleteClip` | `clip` | stop the clip, remove it from the library and delete its copy |
+| `setClipOrder` | `clips` | every clip id once, in the order clients draw them |
+| `playClip` | `clip`, `mode?` | press the clip's key: the clip's own `mode` unless `mode` gives another for this press. Refused while the board is off, SFX is missing or the clip has not loaded. Never saved; no state of its own beyond the start of the clip |
+| `releaseClip` | `clip` | the key came up: end the clip's `hold` voices |
+| `stopClip` | `clip` | fade the clip's voices out |
+| `stopClips` | none | fade every voice out; no error while the board is off |
+| `getSoundboard` | none | answered with `soundboard`, for a client that wants the board without the whole state |
 | `setEq` | `channel`, `eq` | replace a microphone's whole EQ: `eq` is `{enabled, bands}` with 1 to 16 bands, each `{enabled, type, frequency, gain, q}` with every field. `channel` is `xlr1`, `xlr2` or a capture input whose `microphone` is true; any other channel is refused. See [microphone EQ](#microphone-eq) |
 | `setEqEnabled` | `channel`, `value` | the EQ's own switch, a boolean. Off bypasses inside the running stage, so on and off compare at once |
 | `setEqBand` | `channel`, `band`, at least one of `enabled`, `type`, `frequency`, `gain`, `q` | change part of one existing band, numbered from 1 to 16; an absent field keeps its value. Values outside the ranges are refused, not clamped, and what is taken is snapped onto the EQ's steps. Switching the EQ on, here or through `setEq`, is refused at once when the native plugin host is not installed and no unit runs the channel's EQ |
@@ -1238,6 +1251,14 @@ All under `~/.config/openxlr/` (or `$XDG_CONFIG_HOME/openxlr/`):
 - `devices/<vid-pid>/defaults.json`: the settings such a device answered
   with after a power cycle, what `resetDevice` writes back
 - `gainlock.json`: which devices have the gain lock set
+- `soundboard.json`: the [soundboard](#soundboard) library, `{enabled,
+  clips}`, each clip `{id, name, file, gain, mode, loop, icon, colour,
+  seconds}`, where `file` is a bare name in
+  `$XDG_DATA_HOME/openxlr/soundboard/` (default
+  `~/.local/share/openxlr/soundboard/`), the clip directory. An entry that
+  breaks a rule is dropped with a log line; a file that cannot be read is
+  copied to `soundboard.json.corrupt` before the next save. Written by the
+  daemon, never part of a profile.
 - `$XDG_RUNTIME_DIR/openxlr/control.sock` (or `control.sock` here without a
   runtime directory): the private control socket, 0600, see the
   top of this page
@@ -1525,6 +1546,80 @@ name and its `bindingWarning`. A source missing the selected port refuses
 with "The microphone's capture port is unavailable." `loop` with no session
 is refused with "Record a sample first." An older UI has
 only its XLR Sound Check views and does not show a capture session.
+
+### Soundboard
+
+The soundboard plays short clips into the SFX channel, the application
+channel with the id `sfx`, so the clips take SFX's fader, mutes and sends
+into every mix, together with whatever applications play into SFX. A
+helper process, the native plugin host's player, holds the clips decoded
+in memory and mixes up to eight voices; the daemon links its output into
+SFX's sink with a port link of its own. A press is one line to that
+helper, and nothing in the graph changes when a clip plays.
+
+`mixer.soundboard` is `{channel, enabled, available, error, formats,
+clips, playing}`:
+
+- `channel` is `sfx` while that channel exists, and null after it was
+  deleted. A client finds the strip whose fader and sends carry the clips
+  by this id and draws the channel's own name.
+- `enabled` is whether the board is on, as `soundboard.json` says.
+- `available` is false when the native plugin host is not installed.
+- `error` is the last failure or notice, or null: the helper that stopped,
+  a player that kept failing, or the deletion of SFX.
+- `formats` lists what this build decodes, from `wav`, `flac`, `ogg`,
+  `opus` and `mp3`. MP3 needs libsndfile 1.1 or newer.
+- `clips` holds each clip in library order: `{id, name, seconds, gain,
+  mode, loop, icon, colour, loaded, error, playing}`. `loaded` is true once
+  the player holds the clip; while the board is on and `loaded` is false
+  with no `error`, the clip is still loading. `error` says why a clip is
+  not held. `playing` is true while a voice plays it.
+- `playing` lists the ids of the clips playing now.
+
+A clip starting or ending, by a press or by itself, pushes a state at the
+next meter frame, within about 70 ms. Where a clip is lies in `meters` as
+`clip:<id>`, never in the state.
+
+The press modes are `overlap`, the default, which starts another voice;
+`restart`, which fades out the clip's voices and starts one; `toggle`, which
+fades them out when one plays and otherwise starts one; and `hold`, which
+plays until `releaseClip`. A ninth voice fades out the oldest, of any clip.
+Every start and stop fades over 5 ms. A clip with `loop` starts over at its
+end until it is stopped; turning `loop` off lets the current pass finish.
+
+The daemon copies clips into `$XDG_DATA_HOME/openxlr/soundboard/` (default
+`~/.local/share/openxlr/soundboard/`) as `<id>.<format>`, private to the
+user, and the daemon never opens a clip anywhere else. `importClip` follows
+a link to a regular file, refuses a pipe, a device or a directory, copies at
+most 64 MiB, and hands the copy to `openxlr-lv2-host probe` in a process of
+its own before the player sees it, so a file that crashes the decoder never
+stops the running player. The refusal is the helper's own sentence, such as
+"The clip is 31.0 s long; the limit is 30 s." The limits are 64 clips, 30
+seconds a clip, 64 MiB a file, 8 voices and 96 MiB of decoded audio in the
+player; a clip past that last limit stays in the library with `loaded`
+false and the reason in `error`.
+
+When the player starts, it loads the clips one at a time in library order.
+If it stops on its own, the daemon starts it again and loads them again; a
+clip it was loading when it stopped is left out and marked with an
+`error`. A player that stops three times in five minutes turns the board
+off with the reason in `error`. The player stops and starts again with the
+audio graph.
+
+SFX is an ordinary application channel. Renaming it keeps the board's
+binding, since the id does not change; hiding it keeps its audio, so the
+clips still play. Deleting it stops the player and unlinks it, turns the
+board off and leaves `channel` null, with `error` "The soundboard is off
+because the SFX channel was deleted. Turn it on again to create SFX, muted
+in every mix." The library and the clip files stay. `setSoundboard` with
+`enabled: true` then creates an application channel named SFX, whose id is
+`sfx`, muted in every mix like every created channel, so its sends have to
+be opened before the clips are heard. An application channel that already
+has the id `sfx` is used as it is.
+
+The library is machine data, like the input bindings: profiles carry SFX's
+sends, mutes and volume as they carry any channel's, and nothing of the
+board.
 
 ### Meter before the chain
 

@@ -20,7 +20,7 @@ PROJECT = "src/OpenXLR.Tests/OpenXLR.Tests.csproj"
 DEFAULT_FILTER = ("FullyQualifiedName~MonitorVolumeIntegrationTests|FullyQualifiedName~FilterStateIntegrationTests"
                   "|FullyQualifiedName~ProfileStartupTests|FullyQualifiedName~DspAudioIntegrationTests"
                   "|FullyQualifiedName~MixDelayIntegrationTests|FullyQualifiedName~PluginLatencyIntegrationTests"
-                  "|FullyQualifiedName~SoundCheckIntegrationTests")
+                  "|FullyQualifiedName~SoundCheckIntegrationTests|FullyQualifiedName~SoundboardIntegrationTests")
 
 
 def shard_filter(test_filter, shard, arguments):

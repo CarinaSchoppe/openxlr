@@ -242,6 +242,9 @@ public sealed record MixerState
     /// <summary>The running Sound Check session, or idle. Never saved.</summary>
     public SoundCheckState SoundCheck { get; init; } = new(null, "idle", 0);
 
+    /// <summary>The soundboard: its channel, whether it is on, and its clips. The library is saved in soundboard.json.</summary>
+    public SoundboardState Soundboard { get; init; } = SoundboardState.Off;
+
     /// <summary>Plugin insert chains by channel id, with live load status.</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<InsertStatus>> Inserts { get; init; }
         = new Dictionary<string, IReadOnlyList<InsertStatus>>();

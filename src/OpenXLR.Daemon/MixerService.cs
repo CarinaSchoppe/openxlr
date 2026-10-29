@@ -280,6 +280,15 @@ public sealed class MixerService : IHostedService, IDisposable
         return used;
     }
 
+    private void PushMeters()
+    {
+        MetersUpdated?.Invoke();
+        // A clip that started, ended or finished loading is in the state at
+        // once, not at the next sweep, so a key lights and goes dark with it.
+        try { if (_mixer.SoundboardActivityChanged()) Changed?.Invoke(); }
+        catch (Exception ex) { _log.LogDebug("soundboard activity: {msg}", ex.Message); }
+    }
+
     /// <summary>Raised at the meter refresh rate so the hub can push levels.</summary>
     public event Action? MetersUpdated;
 
@@ -482,6 +491,11 @@ public sealed class MixerService : IHostedService, IDisposable
         SyncOutputSelectors();
 
         if (_mixer.MigrateCaptureInputs(source => _devices.SupportedUnitFor(source)?.Id)) ScheduleSave();
+        // The soundboard's library, and its player when the board is on. A
+        // later rebuild starts the player again by itself.
+        SoundboardLibrary board = SoundboardLibrary.Load(null, out string? boardWarning);
+        if (boardWarning is not null) _log.LogWarning("soundboard: {warning}", boardWarning);
+        _mixer.UseSoundboard(board);
         _log.LogInformation("submix graph built ({mixes} mixes, {channels} channels){route}",
             _mixer.Config.Mixes.Count, _mixer.Config.Channels.Count,
             output is null ? "" : $", monitor -> {output}");
@@ -493,7 +507,7 @@ public sealed class MixerService : IHostedService, IDisposable
 
         // Meters refresh far more often than state; 15 Hz looks smooth
         // without flooding clients.
-        _meterPush = new Timer(_ => MetersUpdated?.Invoke(), null,
+        _meterPush = new Timer(_ => PushMeters(), null,
             TimeSpan.FromMilliseconds(200), TimeSpan.FromMilliseconds(66));
 
         Changed?.Invoke();
@@ -805,10 +819,38 @@ public sealed class MixerService : IHostedService, IDisposable
         catch (InvalidOperationException ex) { return ex.Message; }
     }
 
+    /// <summary>Why a mixer command cannot run while the graph is not built.</summary>
+    internal string NotBuiltError => WaitingForAudio ? WaitingWarning : "mixer not built (start the daemon with --mixer)";
+
+    /// <summary>The soundboard's state, or null while the graph is not built.</summary>
+    public SoundboardState? Soundboard() => _mixer.Built ? _mixer.Soundboard() : null;
+
+    /// <summary>
+    /// Import a clip into the soundboard: the file is copied, checked by the
+    /// helper in a process of its own and added to the library. Slow enough
+    /// (a copy and a decode) that callers run it off the socket loop.
+    /// </summary>
+    public ClipImportMessage ImportClip(Command cmd)
+    {
+        if (!_mixer.Built) return new(false, NotBuiltError, null);
+        if (CommandValidation.Check(cmd, _mixer, OpenXLR.Core.Mixing.PluginCatalog.Find) is { } invalid) return new(false, invalid, null);
+        try
+        {
+            SoundboardClip clip = _mixer.ImportClip(cmd.Path!, cmd.Name);
+            _log.LogInformation("soundboard: imported {id} ({seconds:0.0} s)", clip.Id, clip.Seconds);
+            Changed?.Invoke();
+            return new(true, $"{clip.Name} was added to the soundboard.", clip.Id);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            return new(false, ex.Message, null);
+        }
+    }
+
     /// <summary>Apply a mixer command. Returns null on success, else an error.</summary>
     public string? Apply(Command cmd)
     {
-        if (!_mixer.Built) return WaitingForAudio ? WaitingWarning : "mixer not built (start the daemon with --mixer)";
+        if (!_mixer.Built) return NotBuiltError;
         string? invalid = CommandValidation.Check(cmd, _mixer, OpenXLR.Core.Mixing.PluginCatalog.Find);
         if (invalid is not null) return invalid;
         try
@@ -1059,6 +1101,38 @@ public sealed class MixerService : IHostedService, IDisposable
                         _mixer.SetDuckingSetup(next, settings => settings.Save());
                     });
                     Changed?.Invoke();
+                    return null;
+                case "setSoundboard":
+                    // Turning the board on can create SFX, which saves the
+                    // layout under the same gate as every layout command.
+                    _saves.RunSaved(() => _mixer.SetSoundboard(cmd.Enabled!.Value, settings => settings.Save()));
+                    Changed?.Invoke();
+                    return null;
+                case "updateClip":
+                    _mixer.UpdateClip(cmd.Clip!, new SoundboardClipChange(cmd.Name, cmd.Gain, cmd.Mode, cmd.Loop, cmd.Icon, cmd.Colour));
+                    Changed?.Invoke();
+                    return null;   // soundboard.json is saved before this returns; mixer.json is untouched
+                case "deleteClip":
+                    _mixer.DeleteClip(cmd.Clip!);
+                    Changed?.Invoke();
+                    return null;
+                case "setClipOrder":
+                    _mixer.SetClipOrder(cmd.Clips!);
+                    Changed?.Invoke();
+                    return null;
+                // A press is one line to the player and nothing saved. The
+                // meter push sends the state when a clip starts or ends.
+                case "playClip":
+                    _mixer.PlayClip(cmd.Clip!, cmd.Mode);
+                    return null;
+                case "releaseClip":
+                    _mixer.ReleaseClip(cmd.Clip!);
+                    return null;
+                case "stopClip":
+                    _mixer.StopClip(cmd.Clip!);
+                    return null;
+                case "stopClips":
+                    _mixer.StopClips();
                     return null;
                 case "showInsertUi":
                     if (cmd.Channel is null || cmd.InsertId is null) return "showInsertUi: need 'channel' and 'insertId'";

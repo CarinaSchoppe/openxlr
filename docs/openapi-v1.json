@@ -282,6 +282,34 @@
         }
       }
     },
+    "/api/v1/soundboard": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The state's mixer.soundboard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Soundboard"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credential required"
+          },
+          "403": {
+            "description": "Foreign Origin"
+          },
+          "429": {
+            "description": "Request budget exhausted"
+          },
+          "503": {
+            "description": "Mixer off"
+          }
+        }
+      }
+    },
     "/api/v1/plugins": {
       "get": {
         "responses": {
@@ -634,6 +662,130 @@
               "type": "object",
               "additionalProperties": true
             }
+          }
+        }
+      },
+      "Soundboard": {
+        "type": "object",
+        "required": [
+          "channel",
+          "enabled",
+          "available",
+          "error",
+          "formats",
+          "clips",
+          "playing"
+        ],
+        "properties": {
+          "channel": {
+            "type": "string",
+            "nullable": true,
+            "description": "sfx while that channel exists, null after it was deleted"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean",
+            "description": "False without the native plugin host"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "formats": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "wav",
+                "flac",
+                "ogg",
+                "opus",
+                "mp3"
+              ]
+            }
+          },
+          "clips": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/SoundboardClip"
+            }
+          },
+          "playing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids of the clips playing now"
+          }
+        }
+      },
+      "SoundboardClip": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "seconds",
+          "gain",
+          "mode",
+          "loop",
+          "icon",
+          "colour",
+          "loaded",
+          "error",
+          "playing"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,39}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "seconds": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 30
+          },
+          "gain": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "overlap",
+              "restart",
+              "toggle",
+              "hold"
+            ]
+          },
+          "loop": {
+            "type": "boolean"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "colour": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          },
+          "loaded": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "playing": {
+            "type": "boolean"
           }
         }
       }

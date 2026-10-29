@@ -3413,4 +3413,172 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   <data name="NoiseButtonNameUnavailable" xml:space="preserve">
     <value>Уклањање шума на {0}, недоступно</value>
   </data>
+  <data name="Soundboard" xml:space="preserve">
+    <value>Звучна табла</value>
+  </data>
+  <data name="SoundboardButtonTip" xml:space="preserve">
+    <value>Кратки клипови који се пуштају у SFX: тастери, њихови начини притиска, Заустави све и додавање клипова.</value>
+  </data>
+  <data name="SoundboardSwitch" xml:space="preserve">
+    <value>Звучна табла укључена</value>
+  </data>
+  <data name="SoundboardSwitchTip" xml:space="preserve">
+    <value>Искључено зауставља плејер и оставља клипове у библиотеци.</value>
+  </data>
+  <data name="SoundboardMasterHint" xml:space="preserve">
+    <value>Јачина канала {0} је мастер звучне табле. Клипови свирају кроз {0}, па његова утишавања и слања у сваки микс одлучују где се чују.</value>
+  </data>
+  <data name="SoundboardStopAll" xml:space="preserve">
+    <value>Заустави све</value>
+  </data>
+  <data name="SoundboardStopAllTip" xml:space="preserve">
+    <value>Постепено утишај сваки клип који свира.</value>
+  </data>
+  <data name="SoundboardAddFiles" xml:space="preserve">
+    <value>Додај клипове</value>
+  </data>
+  <data name="SoundboardAddFilesTip" xml:space="preserve">
+    <value>Копирај звучне фајлове у звучну таблу: WAV, FLAC, Ogg, Opus или MP3, до 30 секунди и 64 MiB сваки.</value>
+  </data>
+  <data name="SoundboardAddFolder" xml:space="preserve">
+    <value>Додај фасциклу</value>
+  </data>
+  <data name="SoundboardAddFolderTip" xml:space="preserve">
+    <value>Додај један по један сваки звучни фајл из фасцикле; подфасцикле се изостављају.</value>
+  </data>
+  <data name="SoundboardTurnOn" xml:space="preserve">
+    <value>Укључи</value>
+  </data>
+  <data name="SoundboardTurnOnCreate" xml:space="preserve">
+    <value>Укључи и направи SFX</value>
+  </data>
+  <data name="SoundboardTurnOnTip" xml:space="preserve">
+    <value>Покрени плејер. Без SFX канала демон прави један, утишан у сваком миксу; отвори његова слања да би чуо клипове.</value>
+  </data>
+  <data name="SoundboardEmpty" xml:space="preserve">
+    <value>Још нема клипова. Додај WAV, FLAC, Ogg, Opus или MP3 фајл до 30 секунди.</value>
+  </data>
+  <data name="SoundboardNotReported" xml:space="preserve">
+    <value>Демон који сада ради нема звучну таблу. Поново га покрени након ажурирања OpenXLR-а.</value>
+  </data>
+  <data name="SoundboardImporting" xml:space="preserve">
+    <value>Додаје се клип {0} од {1}.</value>
+  </data>
+  <data name="SoundboardImported" xml:space="preserve">
+    <value>Додато {0} од {1} клипова.</value>
+  </data>
+  <data name="SoundboardFolderEmpty" xml:space="preserve">
+    <value>{0} нема звучни фајл који звучна табла може да пусти.</value>
+  </data>
+  <data name="SoundboardPickFiles" xml:space="preserve">
+    <value>Додај клипове у звучну таблу</value>
+  </data>
+  <data name="SoundboardPickFolder" xml:space="preserve">
+    <value>Додај фасциклу са клиповима</value>
+  </data>
+  <data name="SoundboardFileType" xml:space="preserve">
+    <value>Звучни фајлови</value>
+  </data>
+  <data name="SoundClipModeOverlap" xml:space="preserve">
+    <value>Преклапање</value>
+  </data>
+  <data name="SoundClipModeRestart" xml:space="preserve">
+    <value>Изнова</value>
+  </data>
+  <data name="SoundClipModeToggle" xml:space="preserve">
+    <value>Наизменично</value>
+  </data>
+  <data name="SoundClipModeHold" xml:space="preserve">
+    <value>Држање</value>
+  </data>
+  <data name="SoundClipModeOverlapHint" xml:space="preserve">
+    <value>Сваки притисак поново пушта клип преко оних који још свирају.</value>
+  </data>
+  <data name="SoundClipModeRestartHint" xml:space="preserve">
+    <value>Сваки притисак покреће клип изнова од почетка.</value>
+  </data>
+  <data name="SoundClipModeToggleHint" xml:space="preserve">
+    <value>Један притисак пушта клип, следећи га зауставља.</value>
+  </data>
+  <data name="SoundClipModeHoldHint" xml:space="preserve">
+    <value>Клип свира док је тастер притиснут и стаје кад се пусти.</value>
+  </data>
+  <data name="SoundClipLoading" xml:space="preserve">
+    <value>Учитава се</value>
+  </data>
+  <data name="SoundClipDetail" xml:space="preserve">
+    <value>{0:0.0} s, {1}</value>
+  </data>
+  <data name="SoundClipDetailLoop" xml:space="preserve">
+    <value>{0:0.0} s, {1}, у петљи</value>
+  </data>
+  <data name="SoundPadName" xml:space="preserve">
+    <value>Клип {0}, {1}</value>
+  </data>
+  <data name="SoundPadNamePlaying" xml:space="preserve">
+    <value>Клип {0}, {1}, свира</value>
+  </data>
+  <data name="SoundClipGainTip" xml:space="preserve">
+    <value>Појачање {0}%</value>
+  </data>
+  <data name="SoundClipMenuName" xml:space="preserve">
+    <value>Опције за {0}</value>
+  </data>
+  <data name="SoundClipMenuTip" xml:space="preserve">
+    <value>Уреди, заустави, премести или обриши овај клип</value>
+  </data>
+  <data name="SoundClipEdit" xml:space="preserve">
+    <value>Уреди</value>
+  </data>
+  <data name="SoundClipStop" xml:space="preserve">
+    <value>Заустави</value>
+  </data>
+  <data name="SoundClipMoveEarlier" xml:space="preserve">
+    <value>Помери раније</value>
+  </data>
+  <data name="SoundClipMoveLater" xml:space="preserve">
+    <value>Помери касније</value>
+  </data>
+  <data name="SoundClipDeleted" xml:space="preserve">
+    <value>{0} је обрисан из звучне табле.</value>
+  </data>
+  <data name="SoundClipDeleteTitle" xml:space="preserve">
+    <value>Обриши клип</value>
+  </data>
+  <data name="SoundClipDeleteMessage" xml:space="preserve">
+    <value>Обрисати {0} из звучне табле? OpenXLR брише своју копију; фајл из ког си га додао остаје где јесте.</value>
+  </data>
+  <data name="SoundClipEditTitle" xml:space="preserve">
+    <value>Уреди {0}</value>
+  </data>
+  <data name="SoundClipName" xml:space="preserve">
+    <value>Име</value>
+  </data>
+  <data name="SoundClipNameHint" xml:space="preserve">
+    <value>Име клипа има од 1 до 60 знакова.</value>
+  </data>
+  <data name="SoundClipGain" xml:space="preserve">
+    <value>Појачање</value>
+  </data>
+  <data name="SoundClipGainHint" xml:space="preserve">
+    <value>Сопствени ниво клипа, пре SFX фејдера. Промена одмах стиже до клипа који свира.</value>
+  </data>
+  <data name="SoundClipMode" xml:space="preserve">
+    <value>Притисак</value>
+  </data>
+  <data name="SoundClipLoop" xml:space="preserve">
+    <value>Почни изнова на крају док се не заустави</value>
+  </data>
+  <data name="SoundClipColourPlaceholder" xml:space="preserve">
+    <value>#RRGGBB или празно за ниједну</value>
+  </data>
+  <data name="SoundsButton" xml:space="preserve">
+    <value>Звуци</value>
+  </data>
+  <data name="SoundsButtonTip" xml:space="preserve">
+    <value>Отвори звучну таблу, чији клипови свирају у овај канал.</value>
+  </data>
+  <data name="SoundsButtonName" xml:space="preserve">
+    <value>Звучна табла за {0}</value>
+  </data>
 </root>

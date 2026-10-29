@@ -392,11 +392,16 @@
                     ToolTip.Tip="{loc:Text Key=DragOntoAnotherChannelYouCanEdit}"/>
             <layout:StripPanel Spec="{Binding Spec}" Spacing="6">
               <StackPanel layout:StripPanel.Part="identity" Spacing="2">
-                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                <!-- on the channel the soundboard plays into, its Sounds button after the name -->
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
                   <vm:LayoutIconBlock Icon="{Binding Channel.Appearance.Icon}" Fallback="{Binding Channel.Appearance.DefaultIcon}" Classes="strip" Classes.layoutAccent="{Binding Channel.Appearance.HasColour}"
                              IsVisible="{Binding ShowsIcon}" AutomationProperties.Name="{Binding Channel.Name}" ToolTip.Tip="{Binding Channel.Name}"/>
                   <TextBlock Grid.Column="1" Text="{Binding Channel.Name}" Classes="strip" Classes.layoutAccent="{Binding Channel.Appearance.HasColour}"
                              TextTrimming="CharacterEllipsis" IsVisible="{Binding ShowsName}" ToolTip.Tip="{Binding Channel.Name}"/>
+                  <Button Grid.Column="2" Name="RackSounds" Content="{loc:Text Key=SoundsButton}" Classes="fx" Classes.fxOn="{Binding Channel.SoundsPlaying}"
+                          Padding="6,1" BorderThickness="0" FontSize="11" MinWidth="0" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"
+                          VerticalAlignment="Center" VerticalContentAlignment="Center" IsVisible="{Binding Channel.ShowsSounds}" Click="OnSounds"
+                          AutomationProperties.Name="{Binding Channel.SoundsName}" ToolTip.Tip="{loc:Text Key=SoundsButtonTip}"/>
                 </Grid>
                 <!-- the connection line, while the skin leaves the source chip out -->
                 <TextBlock Text="{Binding Channel.CaptureLabel}" Classes="h" FontSize="11" TextTrimming="CharacterEllipsis"

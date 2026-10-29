@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using OpenXLR.UI;
 
 namespace OpenXLR.Tests;
@@ -400,6 +401,75 @@ public sealed class DaemonClientTests
         Assert.False((await read)!["wineTrace"]!.GetValue<bool>());
         Assert.True((await enable)!["wineTrace"]!.GetValue<bool>());
         Assert.False((await disable)!["wineTrace"]!.GetValue<bool>());
+    }
+
+    /// <summary>
+    /// The soundboard's commands as the daemon reads them, each answered by
+    /// its own commandResult; two imports started together each get their
+    /// own clipImport, the refused one with its sentence.
+    /// </summary>
+    [Fact]
+    public async Task SoundboardCommandsAreSentAsTheDaemonReadsThemAndImportsDoNotShareAnAnswer()
+    {
+        var commands = new System.Collections.Concurrent.ConcurrentQueue<JsonNode>();
+        await using var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            while (!stop.IsCancellationRequested)
+            {
+                var command = await SocketTestServer.Receive(socket, stop);
+                commands.Enqueue(command);
+                string id = command["requestId"]!.GetValue<string>();
+                if (command["cmd"]!.GetValue<string>() == "importClip")
+                {
+                    bool ok = command["path"]!.GetValue<string>().EndsWith(".wav", StringComparison.Ordinal);
+                    await SocketTestServer.Send(socket, new { type = "clipImport", ok, message = ok ? "Airhorn was added to the soundboard." : "This build cannot decode the file.",
+                        clip = ok ? "airhorn" : null }, stop);
+                    await SocketTestServer.Send(socket, new { type = "commandResult", requestId = id, error = ok ? null : "This build cannot decode the file." }, stop);
+                }
+                else
+                {
+                    string? error = command["cmd"]!.GetValue<string>() == "playClip" ? "playClip: the soundboard is off" : null;
+                    await SocketTestServer.Send(socket, new { type = "commandResult", requestId = id, error }, stop);
+                }
+            }
+        });
+        await using var client = new DaemonClient(server.Url);
+        var connected = Completion();
+        client.ConnectionChanged += up => { if (up) connected.TrySetResult(); };
+        client.Start();
+        await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Task<ClipImportResult?> wav = client.ImportClipAsync("/music/airhorn.wav"), mod = client.ImportClipAsync("/music/song.mod");
+        Assert.Equal(new ClipImportResult(true, "Airhorn was added to the soundboard.", "airhorn"), await wav);
+        Assert.Equal(new ClipImportResult(false, "This build cannot decode the file.", null), await mod);
+        Assert.Null(await client.SetSoundboardAsync(true));
+        Assert.Null(await client.UpdateClipAsync("airhorn", new Dictionary<string, object> { ["gain"] = 0.5, ["mode"] = "hold" }));
+        Assert.Null(await client.SetClipOrderAsync(["b", "airhorn"]));
+        Assert.Equal("playClip: the soundboard is off", await client.PlayClipAsync("airhorn"));
+        Assert.Null(await client.ReleaseClipAsync("airhorn"));
+        Assert.Null(await client.StopClipAsync("airhorn"));
+        Assert.Null(await client.StopClipsAsync());
+        Assert.Null(await client.DeleteClipAsync("airhorn"));
+
+        static string Wire(JsonNode command)
+        {
+            var copy = command.DeepClone().AsObject();
+            copy.Remove("requestId");
+            return copy.ToJsonString();
+        }
+        Assert.Equal(new[]
+        {
+            """{"path":"/music/airhorn.wav","cmd":"importClip"}""",
+            """{"path":"/music/song.mod","cmd":"importClip"}""",
+            """{"cmd":"setSoundboard","enabled":true}""",
+            """{"gain":0.5,"mode":"hold","cmd":"updateClip","clip":"airhorn"}""",
+            """{"cmd":"setClipOrder","clips":["b","airhorn"]}""",
+            """{"cmd":"playClip","clip":"airhorn"}""",
+            """{"cmd":"releaseClip","clip":"airhorn"}""",
+            """{"cmd":"stopClip","clip":"airhorn"}""",
+            """{"cmd":"stopClips"}""",
+            """{"cmd":"deleteClip","clip":"airhorn"}""",
+        }, commands.Select(Wire));
     }
 
     private static TaskCompletionSource Completion()

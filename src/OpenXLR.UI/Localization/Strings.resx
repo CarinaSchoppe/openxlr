@@ -3412,4 +3412,172 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   <data name="NoiseButtonNameUnavailable" xml:space="preserve">
     <value>{0} noise removal, unavailable</value>
   </data>
+  <data name="Soundboard" xml:space="preserve">
+    <value>Soundboard</value>
+  </data>
+  <data name="SoundboardButtonTip" xml:space="preserve">
+    <value>Short clips played into SFX: pads, their press modes, Stop all and adding clips.</value>
+  </data>
+  <data name="SoundboardSwitch" xml:space="preserve">
+    <value>Soundboard on</value>
+  </data>
+  <data name="SoundboardSwitchTip" xml:space="preserve">
+    <value>Off stops the player and leaves the clips in the library.</value>
+  </data>
+  <data name="SoundboardMasterHint" xml:space="preserve">
+    <value>{0}'s volume is the board's master. The clips play through {0}, so its mutes and its sends into each mix decide where they are heard.</value>
+  </data>
+  <data name="SoundboardStopAll" xml:space="preserve">
+    <value>Stop all</value>
+  </data>
+  <data name="SoundboardStopAllTip" xml:space="preserve">
+    <value>Fade out every clip that is playing.</value>
+  </data>
+  <data name="SoundboardAddFiles" xml:space="preserve">
+    <value>Add clips</value>
+  </data>
+  <data name="SoundboardAddFilesTip" xml:space="preserve">
+    <value>Copy sound files into the soundboard: WAV, FLAC, Ogg, Opus or MP3, up to 30 seconds and 64 MiB each.</value>
+  </data>
+  <data name="SoundboardAddFolder" xml:space="preserve">
+    <value>Add folder</value>
+  </data>
+  <data name="SoundboardAddFolderTip" xml:space="preserve">
+    <value>Add every sound file in a folder, one at a time; its subfolders are left out.</value>
+  </data>
+  <data name="SoundboardTurnOn" xml:space="preserve">
+    <value>Turn on</value>
+  </data>
+  <data name="SoundboardTurnOnCreate" xml:space="preserve">
+    <value>Turn on and create SFX</value>
+  </data>
+  <data name="SoundboardTurnOnTip" xml:space="preserve">
+    <value>Start the player. Without an SFX channel the daemon creates one, muted in every mix, so open its sends to hear the clips.</value>
+  </data>
+  <data name="SoundboardEmpty" xml:space="preserve">
+    <value>No clips yet. Add a WAV, FLAC, Ogg, Opus or MP3 file of up to 30 seconds.</value>
+  </data>
+  <data name="SoundboardNotReported" xml:space="preserve">
+    <value>The daemon running now has no soundboard. Restart it after updating OpenXLR.</value>
+  </data>
+  <data name="SoundboardImporting" xml:space="preserve">
+    <value>Adding clip {0} of {1}.</value>
+  </data>
+  <data name="SoundboardImported" xml:space="preserve">
+    <value>{0} of {1} clips added.</value>
+  </data>
+  <data name="SoundboardFolderEmpty" xml:space="preserve">
+    <value>{0} has no sound file the soundboard can play.</value>
+  </data>
+  <data name="SoundboardPickFiles" xml:space="preserve">
+    <value>Add clips to the soundboard</value>
+  </data>
+  <data name="SoundboardPickFolder" xml:space="preserve">
+    <value>Add a folder of clips</value>
+  </data>
+  <data name="SoundboardFileType" xml:space="preserve">
+    <value>Sound files</value>
+  </data>
+  <data name="SoundClipModeOverlap" xml:space="preserve">
+    <value>Overlap</value>
+  </data>
+  <data name="SoundClipModeRestart" xml:space="preserve">
+    <value>Restart</value>
+  </data>
+  <data name="SoundClipModeToggle" xml:space="preserve">
+    <value>Toggle</value>
+  </data>
+  <data name="SoundClipModeHold" xml:space="preserve">
+    <value>Hold</value>
+  </data>
+  <data name="SoundClipModeOverlapHint" xml:space="preserve">
+    <value>Each press plays the clip again over any that still play.</value>
+  </data>
+  <data name="SoundClipModeRestartHint" xml:space="preserve">
+    <value>Each press starts the clip again from the top.</value>
+  </data>
+  <data name="SoundClipModeToggleHint" xml:space="preserve">
+    <value>A press plays the clip, and the next press stops it.</value>
+  </data>
+  <data name="SoundClipModeHoldHint" xml:space="preserve">
+    <value>The clip plays while the pad is held down and stops when it is let go.</value>
+  </data>
+  <data name="SoundClipLoading" xml:space="preserve">
+    <value>Loading</value>
+  </data>
+  <data name="SoundClipDetail" xml:space="preserve">
+    <value>{0:0.0} s, {1}</value>
+  </data>
+  <data name="SoundClipDetailLoop" xml:space="preserve">
+    <value>{0:0.0} s, {1}, loop</value>
+  </data>
+  <data name="SoundPadName" xml:space="preserve">
+    <value>Clip {0}, {1}</value>
+  </data>
+  <data name="SoundPadNamePlaying" xml:space="preserve">
+    <value>Clip {0}, {1}, playing</value>
+  </data>
+  <data name="SoundClipGainTip" xml:space="preserve">
+    <value>Gain {0}%</value>
+  </data>
+  <data name="SoundClipMenuName" xml:space="preserve">
+    <value>{0} options</value>
+  </data>
+  <data name="SoundClipMenuTip" xml:space="preserve">
+    <value>Edit, stop, move or delete this clip</value>
+  </data>
+  <data name="SoundClipEdit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="SoundClipStop" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="SoundClipMoveEarlier" xml:space="preserve">
+    <value>Move earlier</value>
+  </data>
+  <data name="SoundClipMoveLater" xml:space="preserve">
+    <value>Move later</value>
+  </data>
+  <data name="SoundClipDeleted" xml:space="preserve">
+    <value>{0} was deleted from the soundboard.</value>
+  </data>
+  <data name="SoundClipDeleteTitle" xml:space="preserve">
+    <value>Delete clip</value>
+  </data>
+  <data name="SoundClipDeleteMessage" xml:space="preserve">
+    <value>Delete {0} from the soundboard? OpenXLR deletes its own copy; the file you added it from stays where it is.</value>
+  </data>
+  <data name="SoundClipEditTitle" xml:space="preserve">
+    <value>Edit {0}</value>
+  </data>
+  <data name="SoundClipName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="SoundClipNameHint" xml:space="preserve">
+    <value>A clip's name is 1 to 60 characters.</value>
+  </data>
+  <data name="SoundClipGain" xml:space="preserve">
+    <value>Gain</value>
+  </data>
+  <data name="SoundClipGainHint" xml:space="preserve">
+    <value>The clip's own level, before the SFX fader. A change reaches a clip that is playing at once.</value>
+  </data>
+  <data name="SoundClipMode" xml:space="preserve">
+    <value>Press</value>
+  </data>
+  <data name="SoundClipLoop" xml:space="preserve">
+    <value>Start over at the end until stopped</value>
+  </data>
+  <data name="SoundClipColourPlaceholder" xml:space="preserve">
+    <value>#RRGGBB, or empty for none</value>
+  </data>
+  <data name="SoundsButton" xml:space="preserve">
+    <value>Sounds</value>
+  </data>
+  <data name="SoundsButtonTip" xml:space="preserve">
+    <value>Open the soundboard, whose clips play into this channel.</value>
+  </data>
+  <data name="SoundsButtonName" xml:space="preserve">
+    <value>{0} soundboard</value>
+  </data>
 </root>

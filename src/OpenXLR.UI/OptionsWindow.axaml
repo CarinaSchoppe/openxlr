@@ -79,9 +79,14 @@
                   IsChecked="{Binding Submixer, Mode=TwoWay}"
                   IsEnabled="{Binding Main.DaemonRestart.CanRestart}"
                   ToolTip.Tip="{loc:Text Key=OffOpenXLRControlsTheHardwareOnlyAndLeaves}"/>
-        <!-- the ducking setup, on any device: the same window the layout editor opens -->
-        <Button Name="DuckingButton" Content="{loc:Text Key=Ducking}" Padding="14,5" HorizontalAlignment="Left"
-                IsVisible="{Binding Main.Ducking.IsReported}" Click="OnDucking" ToolTip.Tip="{loc:Text Key=DuckingButtonTip}"/>
+        <!-- the ducking setup, on any device: the same window the layout editor opens; and the soundboard,
+             the window the SFX strip's Sounds button opens, so a hidden strip or a matrix never hides it -->
+        <WrapPanel Name="AudioWindows" ItemSpacing="6" LineSpacing="4">
+          <Button Name="DuckingButton" Content="{loc:Text Key=Ducking}" Padding="14,5"
+                  IsVisible="{Binding Main.Ducking.IsReported}" Click="OnDucking" ToolTip.Tip="{loc:Text Key=DuckingButtonTip}"/>
+          <Button Name="SoundboardButton" Content="{loc:Text Key=Soundboard}" Padding="14,5"
+                  IsVisible="{Binding Main.Soundboard.IsReported}" Click="OnSoundboard" ToolTip.Tip="{loc:Text Key=SoundboardButtonTip}"/>
+        </WrapPanel>
         <!-- what feeds XLR 1 and XLR 2: the interface's jacks or other capture sources, one chip each -->
         <StackPanel Name="InputBindings" Spacing="4" IsVisible="{Binding Main.HasMixer}">
           <TextBlock Text="{loc:Text Key=InputBindings}" Classes="h"/>

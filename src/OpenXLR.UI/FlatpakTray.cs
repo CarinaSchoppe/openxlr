@@ -20,6 +20,7 @@ internal sealed class FlatpakTray : IDisposable, IAsyncDisposable, IPathMethodHa
     internal const string Watcher = "org.kde.StatusNotifierWatcher";
     private const string ItemInterface = "org.kde.StatusNotifierItem", MenuInterface = "com.canonical.dbusmenu";
     private readonly Action _show, _quit;
+    private readonly Action? _soundboard;
     private readonly CancellationTokenSource _stop = new();
     private readonly Task _run;
     private Task? _disposing;
@@ -27,9 +28,14 @@ internal sealed class FlatpakTray : IDisposable, IAsyncDisposable, IPathMethodHa
     public string Path => "/";
     public bool HandlesChildPaths => true;
 
-    internal FlatpakTray(Action show, Action quit, Action<Action>? post = null)
+    // Entry ids: 0 the root, 1 Show mixer, 2 the separator, 3 Quit, 4 Soundboard,
+    // which stands after Show mixer.
+    private const int LastEntry = 4;
+    private static readonly int[] Children = [1, 4, 2, 3];
+
+    internal FlatpakTray(Action show, Action quit, Action<Action>? post = null, Action? soundboard = null)
     {
-        _show = show; _quit = quit;
+        _show = show; _quit = quit; _soundboard = soundboard;
         _post = post ?? (action => Avalonia.Threading.Dispatcher.UIThread.Post(action));
         _run = RunAsync();
     }
@@ -102,6 +108,7 @@ internal sealed class FlatpakTray : IDisposable, IAsyncDisposable, IPathMethodHa
         1 => new() { ["label"] = Localizer.Text("ShowMixer"), ["enabled"] = true, ["visible"] = true },
         2 => new() { ["type"] = "separator", ["visible"] = true },
         3 => new() { ["label"] = Localizer.Text("QuitOpenXLR"), ["enabled"] = true, ["visible"] = true },
+        4 => new() { ["label"] = Localizer.Text("Soundboard"), ["enabled"] = true, ["visible"] = true },
         _ => new(),
     };
 
@@ -110,7 +117,7 @@ internal sealed class FlatpakTray : IDisposable, IAsyncDisposable, IPathMethodHa
         writer.WriteStructureStart(); writer.WriteInt32(id); writer.WriteDictionary(Entry(id));
         var children = writer.WriteArrayStart(DBusType.Variant);
         if (id == 0 && depth != 0)
-            for (int child = 1; child <= 3; child++)
+            foreach (int child in Children)
             {
                 writer.WriteSignature("(ia{sv}av)");
                 Layout(ref writer, child, 0);
@@ -190,7 +197,7 @@ internal sealed class FlatpakTray : IDisposable, IAsyncDisposable, IPathMethodHa
         else if (iface == MenuInterface && member == "GetLayout")
         {
             int id = reader.ReadInt32(), depth = reader.ReadInt32();
-            if (id is < 0 or > 3) context.ReplyError("com.canonical.dbusmenu.Error.InvalidMenuId", "Unknown menu entry.");
+            if (id is < 0 or > LastEntry) context.ReplyError("com.canonical.dbusmenu.Error.InvalidMenuId", "Unknown menu entry.");
             else
             {
                 var reply = context.CreateReplyWriter("u(ia{sv}av)");
@@ -202,10 +209,10 @@ internal sealed class FlatpakTray : IDisposable, IAsyncDisposable, IPathMethodHa
         {
             if (ReadMenuIds(ref reader) is not { } ids)
             { context.ReplyError("org.freedesktop.DBus.Error.InvalidArgs", "Too many tray entries."); return ValueTask.CompletedTask; }
-            if (ids.Length == 0) ids = [0, 1, 2, 3];
+            if (ids.Length == 0) ids = [0, .. Children];
             using var reply = context.CreateReplyWriter("a(ia{sv})");
             var array = reply.WriteArrayStart(DBusType.Struct);
-            foreach (int id in ids.Where(id => id is >= 0 and <= 3).Distinct())
+            foreach (int id in ids.Where(id => id is >= 0 and <= LastEntry).Distinct())
             { reply.WriteStructureStart(); reply.WriteInt32(id); reply.WriteDictionary(Entry(id)); }
             reply.WriteArrayEnd(array); context.Reply(reply.CreateMessage());
         }
@@ -221,7 +228,7 @@ internal sealed class FlatpakTray : IDisposable, IAsyncDisposable, IPathMethodHa
             if (ReadMenuIds(ref reader) is not { } ids)
             { context.ReplyError("org.freedesktop.DBus.Error.InvalidArgs", "Too many tray entries."); return ValueTask.CompletedTask; }
             using var reply = context.CreateReplyWriter("aiai");
-            reply.WriteArray(System.Array.Empty<int>()); reply.WriteArray(ids.Where(id => id is < 0 or > 3));
+            reply.WriteArray(System.Array.Empty<int>()); reply.WriteArray(ids.Where(id => id is < 0 or > LastEntry));
             context.Reply(reply.CreateMessage());
         }
         else if (iface == MenuInterface && member == "EventGroup")
@@ -234,8 +241,8 @@ internal sealed class FlatpakTray : IDisposable, IAsyncDisposable, IPathMethodHa
                 { context.ReplyError("org.freedesktop.DBus.Error.InvalidArgs", "Too many tray events."); return ValueTask.CompletedTask; }
                 reader.AlignStruct(); int id = reader.ReadInt32(); string kind = reader.ReadString();
                 reader.ReadVariantValue(); reader.ReadUInt32();
-                if (id is < 0 or > 3) errors.Add(id);
-                else if (kind == "clicked" && id is 1 or 3) grouped.Add(id == 1 ? _show : _quit);
+                if (id is < 0 or > LastEntry) errors.Add(id);
+                else if (kind == "clicked" && Clicked(id) is { } clicked) grouped.Add(clicked);
             }
             using var reply = context.CreateReplyWriter("ai"); reply.WriteArray(errors); context.Reply(reply.CreateMessage());
         }
@@ -244,7 +251,7 @@ internal sealed class FlatpakTray : IDisposable, IAsyncDisposable, IPathMethodHa
         else if (iface == MenuInterface && member == "Event")
         {
             int id = reader.ReadInt32(); string kind = reader.ReadString();
-            if (kind == "clicked") action = id == 1 ? _show : id == 3 ? _quit : null;
+            if (kind == "clicked") action = Clicked(id);
             using var reply = context.CreateReplyWriter(null); context.Reply(reply.CreateMessage());
         }
         else context.ReplyUnknownMethodError();
@@ -252,6 +259,8 @@ internal sealed class FlatpakTray : IDisposable, IAsyncDisposable, IPathMethodHa
         if (grouped is { Count: > 0 }) _post(() => { foreach (var item in grouped) item(); });
         return ValueTask.CompletedTask;
     }
+
+    private Action? Clicked(int id) => id switch { 1 => _show, 3 => _quit, 4 => _soundboard, _ => null };
 
     public void Dispose() => _ = StopAsync();
     public ValueTask DisposeAsync() => new(StopAsync());

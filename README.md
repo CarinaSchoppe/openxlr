@@ -77,6 +77,8 @@ untested device, open an issue with a diagnostics archive
   tune them.
 - **Noise removal** first in each microphone's chain, RNNoise or
   DeepFilterNet 3, built into every package.
+- **Soundboard**: short clips played into the SFX channel from pads in
+  the UI, each with its own gain, press mode and loop, and Stop all.
 - **Plugin inserts**: LV2, CLAP and VST3 chains on each microphone input
   and each mix, with native editors, generated controls and bypass.
   Windows VST3 and CLAP plugins run through `openxlr-yabridge`.

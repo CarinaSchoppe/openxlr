@@ -3085,4 +3085,172 @@ Von OpenXLR gesteuertes Interface wählen</value>
   <data name="NoiseButtonNameUnavailable" xml:space="preserve">
     <value>Rauschentfernung für {0}, nicht verfügbar</value>
   </data>
+  <data name="Soundboard" xml:space="preserve">
+    <value>Soundboard</value>
+  </data>
+  <data name="SoundboardButtonTip" xml:space="preserve">
+    <value>Kurze Clips, die in SFX gespielt werden: Pads, ihre Tastenmodi, Alle stoppen und Clips hinzufügen.</value>
+  </data>
+  <data name="SoundboardSwitch" xml:space="preserve">
+    <value>Soundboard an</value>
+  </data>
+  <data name="SoundboardSwitchTip" xml:space="preserve">
+    <value>Aus stoppt den Player und lässt die Clips in der Bibliothek.</value>
+  </data>
+  <data name="SoundboardMasterHint" xml:space="preserve">
+    <value>Die Lautstärke von {0} ist der Master des Soundboards. Die Clips laufen über {0}, also entscheiden seine Stummschaltungen und Sends in jeden Mix, wo sie zu hören sind.</value>
+  </data>
+  <data name="SoundboardStopAll" xml:space="preserve">
+    <value>Alle stoppen</value>
+  </data>
+  <data name="SoundboardStopAllTip" xml:space="preserve">
+    <value>Jeden laufenden Clip ausblenden.</value>
+  </data>
+  <data name="SoundboardAddFiles" xml:space="preserve">
+    <value>Clips hinzufügen</value>
+  </data>
+  <data name="SoundboardAddFilesTip" xml:space="preserve">
+    <value>Tondateien ins Soundboard kopieren: WAV, FLAC, Ogg, Opus oder MP3, je bis 30 Sekunden und 64 MiB.</value>
+  </data>
+  <data name="SoundboardAddFolder" xml:space="preserve">
+    <value>Ordner hinzufügen</value>
+  </data>
+  <data name="SoundboardAddFolderTip" xml:space="preserve">
+    <value>Jede Tondatei eines Ordners nacheinander hinzufügen; Unterordner bleiben außen vor.</value>
+  </data>
+  <data name="SoundboardTurnOn" xml:space="preserve">
+    <value>Einschalten</value>
+  </data>
+  <data name="SoundboardTurnOnCreate" xml:space="preserve">
+    <value>Einschalten und SFX anlegen</value>
+  </data>
+  <data name="SoundboardTurnOnTip" xml:space="preserve">
+    <value>Den Player starten. Ohne SFX-Kanal legt der Daemon einen an, in jedem Mix stummgeschaltet; öffne seine Sends, um die Clips zu hören.</value>
+  </data>
+  <data name="SoundboardEmpty" xml:space="preserve">
+    <value>Noch keine Clips. Füge eine WAV-, FLAC-, Ogg-, Opus- oder MP3-Datei mit bis zu 30 Sekunden hinzu.</value>
+  </data>
+  <data name="SoundboardNotReported" xml:space="preserve">
+    <value>Der laufende Daemon hat kein Soundboard. Starte ihn nach dem Update von OpenXLR neu.</value>
+  </data>
+  <data name="SoundboardImporting" xml:space="preserve">
+    <value>Clip {0} von {1} wird hinzugefügt.</value>
+  </data>
+  <data name="SoundboardImported" xml:space="preserve">
+    <value>{0} von {1} Clips hinzugefügt.</value>
+  </data>
+  <data name="SoundboardFolderEmpty" xml:space="preserve">
+    <value>{0} enthält keine Tondatei, die das Soundboard abspielen kann.</value>
+  </data>
+  <data name="SoundboardPickFiles" xml:space="preserve">
+    <value>Clips zum Soundboard hinzufügen</value>
+  </data>
+  <data name="SoundboardPickFolder" xml:space="preserve">
+    <value>Einen Ordner mit Clips hinzufügen</value>
+  </data>
+  <data name="SoundboardFileType" xml:space="preserve">
+    <value>Tondateien</value>
+  </data>
+  <data name="SoundClipModeOverlap" xml:space="preserve">
+    <value>Überlagern</value>
+  </data>
+  <data name="SoundClipModeRestart" xml:space="preserve">
+    <value>Neu starten</value>
+  </data>
+  <data name="SoundClipModeToggle" xml:space="preserve">
+    <value>Umschalten</value>
+  </data>
+  <data name="SoundClipModeHold" xml:space="preserve">
+    <value>Halten</value>
+  </data>
+  <data name="SoundClipModeOverlapHint" xml:space="preserve">
+    <value>Jeder Druck spielt den Clip erneut, über alle, die noch laufen.</value>
+  </data>
+  <data name="SoundClipModeRestartHint" xml:space="preserve">
+    <value>Jeder Druck startet den Clip wieder von vorn.</value>
+  </data>
+  <data name="SoundClipModeToggleHint" xml:space="preserve">
+    <value>Ein Druck spielt den Clip, der nächste stoppt ihn.</value>
+  </data>
+  <data name="SoundClipModeHoldHint" xml:space="preserve">
+    <value>Der Clip spielt, solange das Pad gedrückt ist, und stoppt beim Loslassen.</value>
+  </data>
+  <data name="SoundClipLoading" xml:space="preserve">
+    <value>Wird geladen</value>
+  </data>
+  <data name="SoundClipDetail" xml:space="preserve">
+    <value>{0:0.0} s, {1}</value>
+  </data>
+  <data name="SoundClipDetailLoop" xml:space="preserve">
+    <value>{0:0.0} s, {1}, Schleife</value>
+  </data>
+  <data name="SoundPadName" xml:space="preserve">
+    <value>Clip {0}, {1}</value>
+  </data>
+  <data name="SoundPadNamePlaying" xml:space="preserve">
+    <value>Clip {0}, {1}, läuft</value>
+  </data>
+  <data name="SoundClipGainTip" xml:space="preserve">
+    <value>Pegel {0}%</value>
+  </data>
+  <data name="SoundClipMenuName" xml:space="preserve">
+    <value>Optionen für {0}</value>
+  </data>
+  <data name="SoundClipMenuTip" xml:space="preserve">
+    <value>Diesen Clip bearbeiten, stoppen, verschieben oder löschen</value>
+  </data>
+  <data name="SoundClipEdit" xml:space="preserve">
+    <value>Bearbeiten</value>
+  </data>
+  <data name="SoundClipStop" xml:space="preserve">
+    <value>Stoppen</value>
+  </data>
+  <data name="SoundClipMoveEarlier" xml:space="preserve">
+    <value>Nach vorn</value>
+  </data>
+  <data name="SoundClipMoveLater" xml:space="preserve">
+    <value>Nach hinten</value>
+  </data>
+  <data name="SoundClipDeleted" xml:space="preserve">
+    <value>{0} wurde aus dem Soundboard gelöscht.</value>
+  </data>
+  <data name="SoundClipDeleteTitle" xml:space="preserve">
+    <value>Clip löschen</value>
+  </data>
+  <data name="SoundClipDeleteMessage" xml:space="preserve">
+    <value>{0} aus dem Soundboard löschen? OpenXLR löscht seine eigene Kopie; die Datei, aus der du den Clip hinzugefügt hast, bleibt, wo sie ist.</value>
+  </data>
+  <data name="SoundClipEditTitle" xml:space="preserve">
+    <value>{0} bearbeiten</value>
+  </data>
+  <data name="SoundClipName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="SoundClipNameHint" xml:space="preserve">
+    <value>Der Name eines Clips hat 1 bis 60 Zeichen.</value>
+  </data>
+  <data name="SoundClipGain" xml:space="preserve">
+    <value>Pegel</value>
+  </data>
+  <data name="SoundClipGainHint" xml:space="preserve">
+    <value>Der eigene Pegel des Clips, vor dem SFX-Fader. Eine Änderung erreicht einen laufenden Clip sofort.</value>
+  </data>
+  <data name="SoundClipMode" xml:space="preserve">
+    <value>Tastendruck</value>
+  </data>
+  <data name="SoundClipLoop" xml:space="preserve">
+    <value>Am Ende von vorn beginnen, bis er gestoppt wird</value>
+  </data>
+  <data name="SoundClipColourPlaceholder" xml:space="preserve">
+    <value>#RRGGBB oder leer für keine</value>
+  </data>
+  <data name="SoundsButton" xml:space="preserve">
+    <value>Sounds</value>
+  </data>
+  <data name="SoundsButtonTip" xml:space="preserve">
+    <value>Das Soundboard öffnen, dessen Clips in diesen Kanal spielen.</value>
+  </data>
+  <data name="SoundsButtonName" xml:space="preserve">
+    <value>Soundboard von {0}</value>
+  </data>
 </root>

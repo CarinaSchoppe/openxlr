@@ -40,6 +40,9 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <summary>The ducking setup the Ducking window edits; reported by every daemon that has it, on any device.</summary>
     public DuckingViewModel Ducking { get; }
 
+    /// <summary>The soundboard the Soundboard window plays; reported by every daemon that has one.</summary>
+    public SoundboardViewModel Soundboard { get; }
+
     private readonly DaemonClient _client;
     private bool _applying;
 
@@ -50,6 +53,8 @@ public sealed partial class MainViewModel : ViewModelBase
         _client = client;
         DaemonRestart = daemonRestart;
         Ducking = new DuckingViewModel(client);
+        Soundboard = new SoundboardViewModel(client);
+        Soundboard.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(SoundboardViewModel.AnyPlaying)) RefreshSoundsButtons(); };
         LoadMixerView();
         OutputVolumeRange = new VolumeRangeViewModel(() => OutputVolume = Math.Min(OutputVolume, 1));
         OutputVolumeRange.Changed += RequestDesktopVolumeBoost;
@@ -66,6 +71,8 @@ public sealed partial class MainViewModel : ViewModelBase
                 ResetWaveInterfaces();
                 ResetBrowserTabs();
                 ResetAppRouting();
+                Soundboard.Reset();
+                RefreshSoundsButtons();
                 Inserts.ResetForNewConnection(); Inserts2.ResetForNewConnection();
                 foreach (MixViewModel mv in Mixes) mv.Inserts.ResetForNewConnection();
                 foreach (ChannelViewModel channel in Channels) channel.Inserts?.ResetForNewConnection();
@@ -972,6 +979,8 @@ public sealed partial class MainViewModel : ViewModelBase
             ApplyBrowserTabs(node["mixer"]);
             ApplyAppRouting(node["mixer"]);
             Ducking.Apply(node["ducking"], node["mixer"]);
+            Soundboard.Apply(node["mixer"]?["soundboard"], Channels);
+            RefreshSoundsButtons();
             // The daemon says whether XLR 1's signal has a hardware low cut and
             // ClipGuard in front of it; an older daemon leaves the window to
             // work it out from the interface's capabilities.
@@ -1247,6 +1256,7 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         if (levels is not JsonObject obj) return;
         Ducking.ApplyMeters(obj);
+        Soundboard.ApplyMeters(obj);
         foreach (KeyValuePair<string, JsonNode?> kv in obj)
         {
             double l = 0, r = 0;
@@ -1269,6 +1279,17 @@ public sealed partial class MainViewModel : ViewModelBase
                 MicSetupOf(kv.Key[3..])?.ApplyInputLevel(level);
             else if (kv.Key.StartsWith("take:", StringComparison.Ordinal) && kv.Value is JsonArray position)
                 MicSetupOf(kv.Key[5..])?.ApplyPosition(position);
+        }
+    }
+
+    /// <summary>The channel the soundboard plays into carries the Sounds button; every other channel loses it.</summary>
+    private void RefreshSoundsButtons()
+    {
+        string? target = Soundboard.IsReported ? Soundboard.ChannelId : null;
+        foreach (ChannelViewModel channel in Channels)
+        {
+            channel.ShowsSounds = target is not null && channel.Id == target && channel.IsApplication;
+            channel.SoundsPlaying = channel.ShowsSounds && Soundboard.AnyPlaying;
         }
     }
 
@@ -1823,6 +1844,7 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
         {
             if (!Set(ref _name, value)) return;
             Raise(nameof(BindingChipName));
+            Raise(nameof(SoundsName));
             Raise(nameof(CaptureGainName));
             RefreshCaptureReadout();
             if (_showsVolumeReadout) Raise(nameof(ReadoutName));
@@ -1903,6 +1925,21 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
 
     /// <summary>The channel has noise removal, so its Denoise button shows.</summary>
     public bool HasNoise => _noise is not null;
+
+    private bool _showsSounds;
+    /// <summary>
+    /// The soundboard plays into this channel, SFX, so its strip carries the
+    /// Sounds button that opens the Soundboard window. Set by
+    /// <see cref="MainViewModel"/> from the daemon's <c>soundboard.channel</c>.
+    /// </summary>
+    public bool ShowsSounds { get => _showsSounds; internal set => Set(ref _showsSounds, value); }
+
+    private bool _soundsPlaying;
+    /// <summary>A clip plays: the Sounds button lights, as an effects button does while it runs.</summary>
+    public bool SoundsPlaying { get => _soundsPlaying; internal set => Set(ref _soundsPlaying, value); }
+
+    /// <summary>The Sounds button's name for a screen reader: whose clips it opens.</summary>
+    public string SoundsName => Localizer.Format("SoundsButtonName", Name);
 
     /// <summary>Take the channel's <c>noise</c> from a state push.</summary>
     internal void ApplyNoise(JsonNode? noise)

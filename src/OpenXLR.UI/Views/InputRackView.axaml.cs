@@ -29,6 +29,14 @@ public partial class InputRackView : UserControl
             EqWindows.Show(window, eq);
     }
 
+    /// <summary>The SFX strip's Sounds button: the Soundboard window, under the window the rack is in.</summary>
+    private void OnSounds(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is InputStripViewModel strip
+            && TopLevel.GetTopLevel((Control)sender!) is Window window)
+            SoundboardWindow.Open(window, strip.Main.Soundboard);
+    }
+
     private void OnCycleSoftLowCut(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is InputStripViewModel strip) strip.Main.CycleSoftLowCut();

@@ -150,6 +150,8 @@ public sealed class WebSocketHub
         {
             _clients.TryRemove(client.Id, out _);
             _mixer.RemoveBrowserSession(client.Id);
+            // A client that went away with a key down must not leave its clip playing.
+            _mixer.ReleaseHeldClips(client.Id);
             client.Dispose();
         }
     }
@@ -435,7 +437,9 @@ public sealed class WebSocketHub
             case "releaseClip":
             case "stopClip":
             case "stopClips":
-                error = _mixer.Apply(cmd);                     // broadcasts on success
+                // On a WebSocket, browserOwner is that connection's id: a clip
+                // pressed in hold mode belongs to it until released.
+                error = _mixer.Apply(cmd, browserOwner);       // broadcasts on success
                 stateOnError = true;
                 break;
             case "setActiveDevice":

@@ -178,8 +178,10 @@ copies and checks a file and answers with a `clipImport` message whose
 `clip` is the new id, `airhorn`; `{"cmd":"playClip","clip":"airhorn"}` plays
 it and `{"cmd":"stopClips"}` fades every clip out. `GET /api/v1/soundboard`
 reads the library and what plays; where a clip is comes only with the
-meters, as `clip:<id>` on `/api/v1/events`. A `hold` press needs a
-`releaseClip` to end it, which a script sends itself.
+meters, as `clip:<id>` on `/api/v1/events`. A press in `hold` mode, given
+or the clip's own, is refused here: a held clip belongs to the connection
+that pressed it and is released when that closes, and an HTTP request
+closes at once. A script that holds a clip uses `/api/v1/events`.
 Both transports share the dispatcher,
 validation and broadcasts. HTTP returns
 `{"apiVersion":"1","ok":true,"messages":[]}` after a successful mutation.

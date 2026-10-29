@@ -313,7 +313,7 @@ that final acknowledgement (or an `error` without a request id):
 | `updateClip` | `clip`, at least one of `name`, `gain`, `mode`, `loop`, `icon`, `colour` | change a clip's library entry; an absent field keeps its value. `gain` is 0 to 1, `mode` one of `overlap`, `restart`, `toggle` and `hold`, `icon` as `setLayoutAppearance` takes it, `colour` `#RRGGBB` or empty to clear it. `gain` and `loop` reach a playing clip at once |
 | `deleteClip` | `clip` | stop the clip, remove it from the library and delete its copy |
 | `setClipOrder` | `clips` | every clip id once, in the order clients draw them |
-| `playClip` | `clip`, `mode?` | press the clip's key: the clip's own `mode` unless `mode` gives another for this press. Refused while the board is off, SFX is missing or the clip has not loaded. Never saved; no state of its own beyond the start of the clip |
+| `playClip` | `clip`, `mode?` | press the clip's key: the clip's own `mode` unless `mode` gives another for this press. A press in `hold` mode belongs to the WebSocket it came on: the clip plays until `releaseClip`, or until that connection closes, unless another open connection holds it too. Over HTTP, which keeps no connection, a `hold` press is refused. Refused while the board cannot play, with the board's `error`, and while the clip is not `ready`. Never saved; no state of its own beyond the start of the clip |
 | `releaseClip` | `clip` | the key came up: end the clip's `hold` voices |
 | `stopClip` | `clip` | fade the clip's voices out |
 | `stopClips` | none | fade every voice out; no error while the board is off |
@@ -1565,15 +1565,21 @@ clips, playing}`:
   by this id and draws the channel's own name.
 - `enabled` is whether the board is on, as `soundboard.json` says.
 - `available` is false when the native plugin host is not installed.
-- `error` is the last failure or notice, or null: the helper that stopped,
-  a player that kept failing, or the deletion of SFX.
+- `error` is null exactly when the board can play, and otherwise says why
+  in one sentence: the native plugin host is not installed, which it says
+  even while the board is off, SFX was deleted, the player kept failing or did not
+  start, the board is off ("The soundboard is off. Turn it on first."), or
+  the player is starting. A refused press carries the same sentence.
 - `formats` lists what this build decodes, from `wav`, `flac`, `ogg`,
   `opus` and `mp3`. MP3 needs libsndfile 1.1 or newer.
 - `clips` holds each clip in library order: `{id, name, seconds, gain,
-  mode, loop, icon, colour, loaded, error, playing}`. `loaded` is true once
-  the player holds the clip; while the board is on and `loaded` is false
-  with no `error`, the clip is still loading. `error` says why a clip is
-  not held. `playing` is true while a voice plays it.
+  mode, loop, icon, colour, loaded, error, playing, status}`. `status` is
+  one word a client can draw without working anything out: `ready` when a
+  press plays it, `loading` while the player loads it, `error` when it
+  cannot be loaded, the reason in the clip's `error`, and `off` while the
+  board cannot play at all, the reason in the board's `error`. `loaded` is
+  true exactly when `status` is `ready`, and `playing` is true while a
+  voice plays the clip.
 - `playing` lists the ids of the clips playing now.
 
 A clip starting or ending, by a press or by itself, pushes a state at the
@@ -1583,7 +1589,7 @@ next meter frame, within about 70 ms. Where a clip is lies in `meters` as
 The press modes are `overlap`, the default, which starts another voice;
 `restart`, which fades out the clip's voices and starts one; `toggle`, which
 fades them out when one plays and otherwise starts one; and `hold`, which
-plays until `releaseClip`. A ninth voice fades out the oldest, of any clip.
+plays until `releaseClip` or until the connection that pressed it closes. A ninth voice fades out the oldest, of any clip.
 Every start and stop fades over 5 ms. A clip with `loop` starts over at its
 end until it is stopped; turning `loop` off lets the current pass finish.
 

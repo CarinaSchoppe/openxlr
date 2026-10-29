@@ -6,8 +6,8 @@ namespace OpenXLR.Core.Mixing;
 /// <summary>
 /// The soundboard as clients see it: the channel its clips play into (null
 /// once that channel was deleted), whether it is on, whether this build has
-/// the helper it needs, the last failure or notice, the formats this build
-/// decodes, the clips in library order and the ones playing now.
+/// the helper it needs, why it cannot play now (null exactly when it can),
+/// the formats this build decodes, the clips in library order and the ones playing now.
 /// </summary>
 public sealed record SoundboardState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Channel,
@@ -18,10 +18,14 @@ public sealed record SoundboardState(
     IReadOnlyList<SoundboardClipState> Clips,
     IReadOnlyList<string> Playing)
 {
-    public static SoundboardState Off { get; } = new(null, false, false, null, [], [], []);
+    public static SoundboardState Off { get; } = new(null, false, false, Mixer.SoundboardOff, [], [], []);
 }
 
-/// <summary>One clip as the state publishes it: the library entry, whether the player holds it, why not, and whether it plays.</summary>
+/// <summary>
+/// One clip as the state publishes it: the library entry, whether the player
+/// holds it, why not, whether it plays, and <see cref="Status"/>, which says
+/// the same in one word so a client never has to work it out.
+/// </summary>
 public sealed record SoundboardClipState(
     string Id,
     string Name,
@@ -33,7 +37,22 @@ public sealed record SoundboardClipState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Colour,
     bool Loaded,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Error,
-    bool Playing);
+    bool Playing,
+    string Status = SoundboardClipStatus.Off);
+
+/// <summary>
+/// What a clip's <c>status</c> holds: <c>ready</c> to play, <c>loading</c>
+/// into the player, <c>error</c> with the reason in the clip's <c>error</c>,
+/// or <c>off</c> while the board cannot play at all, its reason in the
+/// board's <c>error</c>.
+/// </summary>
+public static class SoundboardClipStatus
+{
+    public const string Ready = "ready";
+    public const string Loading = "loading";
+    public const string Error = "error";
+    public const string Off = "off";
+}
 
 /// <summary>What <c>updateClip</c> changes; a null field is kept. An empty colour clears it.</summary>
 public sealed record SoundboardClipChange(string? Name = null, double? Gain = null, string? Mode = null, bool? Loop = null,
@@ -59,6 +78,16 @@ public sealed partial class Mixer
     internal const string SoundboardChannelMissing =
         "The soundboard has no SFX channel to play into. Turn it on again to create SFX, muted in every mix.";
 
+    /// <summary>Why the board cannot play while it is off by choice.</summary>
+    public const string SoundboardOff = "The soundboard is off. Turn it on first.";
+
+    /// <summary>Why the board cannot play while it is on and its player has not started yet.</summary>
+    public const string SoundboardStarting = "The soundboard is starting.";
+
+    /// <summary>Why a clip in hold mode cannot be pressed without a connection to release it from.</summary>
+    public const string SoundboardHoldNeedsConnection =
+        "A clip in hold mode plays until its key comes up, which needs a connection that stays open to send releaseClip, such as the WebSocket. Press it in another mode here.";
+
     private const string SoundboardKey = "soundboard";
 
     // The library is replaced whole, never changed in place, so a press can
@@ -76,6 +105,8 @@ public sealed partial class Mixer
     private readonly Dictionary<string, string> _crashedClips = new(StringComparer.Ordinal);
     private string? _lastBoardState;
     private string _lastBoardActivity = "";
+    // Clips pressed in hold mode, by the connection that holds them.
+    private readonly Dictionary<Guid, HashSet<string>> _holds = [];
 
     /// <summary>
     /// Take the library read at start, where it is saved, and where its clip
@@ -106,6 +137,18 @@ public sealed partial class Mixer
         lock (_gate) return SoundboardSnapshotLocked();
     }
 
+    /// <summary>
+    /// Why the board cannot play now, or null when its player runs: no
+    /// helper, the last failure or the deletion of SFX, off by choice, or
+    /// starting. Reads nothing that needs the mixer's lock.
+    /// </summary>
+    private string? SoundboardBlocker(SoundboardPlayer? player)
+        => player is not null ? null
+            : !_pw.PlayerHostInstalled ? SoundboardNeedsHost
+            : Volatile.Read(ref _boardError) is { } error ? error
+            : !_board.Enabled ? SoundboardOff
+            : SoundboardStarting;
+
     private ChannelDefinition? SoundboardTargetLocked()
         => _config.Channels.FirstOrDefault(c => c.Id == SoundboardChannel && c.IsApplication);
 
@@ -120,14 +163,17 @@ public sealed partial class Mixer
             SoundboardTargetLocked()?.Id,
             board.Enabled,
             available,
-            _boardError,
+            SoundboardBlocker(player),
             available ? _pw.PlayerFormats : [],
             [.. board.Clips.Select(c =>
             {
                 ClipLoad? load = player?.Status(c.Id);
+                string? error = _crashedClips.GetValueOrDefault(c.Id) ?? load?.Error;
+                string status = error is not null ? SoundboardClipStatus.Error
+                    : player is null || load is null ? SoundboardClipStatus.Off
+                    : load.Loaded ? SoundboardClipStatus.Ready : SoundboardClipStatus.Loading;
                 return new SoundboardClipState(c.Id, c.Name, Math.Round(load is { Loaded: true } ? load.Seconds : c.Seconds, 2),
-                    c.Gain, c.Mode, c.Loop, c.Icon, c.Colour, load?.Loaded == true,
-                    _crashedClips.GetValueOrDefault(c.Id) ?? load?.Error, playing.ContainsKey(c.Id));
+                    c.Gain, c.Mode, c.Loop, c.Icon, c.Colour, load?.Loaded == true, error, playing.ContainsKey(c.Id), status);
             })],
             [.. board.Clips.Where(c => playing.ContainsKey(c.Id)).Select(c => c.Id)]);
     }
@@ -233,7 +279,12 @@ public sealed partial class Mixer
                 }
                 _crashedClips.Remove(id);
                 try { _player?.Add(clip.Id, target, clip.Gain, clip.Loop); }
-                catch (InvalidOperationException ex) { _boardError = $"{clip.Name} was imported, but the player did not take it: {ex.Message}"; }
+                catch (InvalidOperationException ex)
+                {
+                    // A player that cannot take a line is on its way out; the
+                    // sweep starts the next one, which loads the clip.
+                    _pw.Note($"The soundboard player did not take {clip.Id}: {ex.Message}");
+                }
                 return clip;
             }
         }
@@ -338,6 +389,7 @@ public sealed partial class Mixer
             SoundboardClip clip = BoardClip(id);
             SaveBoardLocked(_board with { Clips = [.. _board.Clips.Where(c => c.Id != id)] });
             _crashedClips.Remove(id);
+            ForgetHolds(id);
             try { _player?.Remove(id); }
             catch (InvalidOperationException) { /* a player that cannot take the line is restarted without the clip */ }
             string file = Path.Combine(_clipDirectory, clip.File);
@@ -366,16 +418,30 @@ public sealed partial class Mixer
     /// another. Refused while the board is off, SFX is missing or the clip
     /// has not loaded. Never waits for the mixer's lock.
     /// </summary>
-    public void PlayClip(string id, string? mode)
+    /// <param name="holder">
+    /// The connection the press came on. A press in hold mode needs one: the
+    /// clip plays until that connection releases it or closes.
+    /// </param>
+    public void PlayClip(string id, string? mode, Guid? holder = null)
     {
         SoundboardClip clip = BoardClip(id);
-        LivePlayer().Play(id, mode ?? clip.Mode, clip.Name);
+        string press = mode ?? clip.Mode;
+        bool hold = press == "hold";
+        if (hold && holder is null) throw new InvalidOperationException(SoundboardHoldNeedsConnection);
+        LivePlayer().Play(id, press, clip.Name);
+        if (hold)
+            lock (_holds)
+            {
+                if (!_holds.TryGetValue(holder!.Value, out HashSet<string>? held)) _holds[holder.Value] = held = new(StringComparer.Ordinal);
+                held.Add(id);
+            }
     }
 
     /// <summary>The key came up: end the clip's hold voices.</summary>
     public void ReleaseClip(string id)
     {
         BoardClip(id);
+        ForgetHolds(id);
         _player?.Release(id);
     }
 
@@ -383,23 +449,59 @@ public sealed partial class Mixer
     public void StopClip(string id)
     {
         BoardClip(id);
+        ForgetHolds(id);
         _player?.Stop(id);
     }
 
     /// <summary>Fade every voice out. Nothing plays while the board is off, so that is no error.</summary>
-    public void StopClips() => _player?.StopAll();
+    public void StopClips()
+    {
+        lock (_holds) _holds.Clear();
+        _player?.StopAll();
+    }
+
+    /// <summary>
+    /// A connection closed: release the clips it pressed in hold mode and
+    /// did not release, unless another open connection holds them too, so a
+    /// client that goes away with a key down never leaves a clip playing.
+    /// Returns how many clips were released.
+    /// </summary>
+    public int ReleaseHeldClips(Guid holder)
+    {
+        string[] released;
+        lock (_holds)
+        {
+            if (!_holds.Remove(holder, out HashSet<string>? held)) return 0;
+            released = [.. held.Where(id => !_holds.Values.Any(other => other.Contains(id)))];
+        }
+        foreach (string id in released)
+        {
+            try { _player?.Release(id); }
+            catch (InvalidOperationException) { /* a player that cannot take the line is going; its voices go with it */ }
+        }
+        return released.Length;
+    }
+
+    /// <summary>The clips each open connection holds, for tests.</summary>
+    internal IReadOnlyCollection<string> HeldClips(Guid holder)
+    {
+        lock (_holds) return _holds.TryGetValue(holder, out HashSet<string>? held) ? [.. held] : [];
+    }
+
+    private void ForgetHolds(string id)
+    {
+        lock (_holds)
+            foreach (Guid holder in _holds.Keys.ToList())
+                if (_holds[holder].Remove(id) && _holds[holder].Count == 0) _holds.Remove(holder);
+    }
 
     private SoundboardClip BoardClip(string id)
         => _board.Clips.FirstOrDefault(c => c.Id == id) ?? throw new InvalidOperationException($"No clip has the id {id}.");
 
     private SoundboardPlayer LivePlayer()
     {
-        if (_player is { } player) return player;
-        SoundboardLibrary board = _board;
-        string? error = Volatile.Read(ref _boardError);
-        throw new InvalidOperationException(
-            !board.Enabled ? error ?? "The soundboard is off. Turn it on first."
-            : error is not null ? $"The soundboard is not playing. {error}" : "The soundboard is starting.");
+        SoundboardPlayer? player = _player;
+        return player ?? throw new InvalidOperationException(SoundboardBlocker(null));
     }
 
     private void SaveBoardLocked(SoundboardLibrary next)
@@ -522,7 +624,6 @@ public sealed partial class Mixer
                     if (_boardSave(off) is string error) _pw.Note($"The soundboard library could not be saved: {error}");
                     _board = off;
                 }
-                else _boardError = "The soundboard player stopped and was started again.";
             }
             else if (GraphRateChangedLocked(player) is int rate)
             {
@@ -535,13 +636,7 @@ public sealed partial class Mixer
             else if (_playerLink is null || _pw.EnsureLinks(_playerLink) == LinkHealth.Broken)
                 RelinkPlayerLocked();
         }
-        if (_player is null && _board.Enabled)
-        {
-            string? before = _boardError;
-            StartSoundboardIfWantedLocked();
-            // A restart after a death keeps its notice until the next change.
-            if (_player is not null && before is not null && before.EndsWith("started again.", StringComparison.Ordinal)) _boardError = before;
-        }
+        if (_player is null && _board.Enabled) StartSoundboardIfWantedLocked();
         string state = JsonSerializer.Serialize(SoundboardSnapshotLocked());
         bool changed = state != _lastBoardState;
         _lastBoardState = state;

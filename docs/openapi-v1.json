@@ -691,7 +691,8 @@
           },
           "error": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "Null exactly when the board can play; otherwise why not, in one sentence"
           },
           "formats": {
             "type": "array",
@@ -735,7 +736,8 @@
           "colour",
           "loaded",
           "error",
-          "playing"
+          "playing",
+          "status"
         ],
         "properties": {
           "id": {
@@ -786,6 +788,16 @@
           },
           "playing": {
             "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "loading",
+              "error",
+              "off"
+            ],
+            "description": "ready to play, loading into the player, error with the reason in error, or off while the board cannot play"
           }
         }
       }

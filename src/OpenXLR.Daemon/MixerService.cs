@@ -280,6 +280,17 @@ public sealed class MixerService : IHostedService, IDisposable
         return used;
     }
 
+    /// <summary>A WebSocket closed: release the clips it held down in hold mode.</summary>
+    public void ReleaseHeldClips(Guid connection)
+    {
+        try
+        {
+            int released = _mixer.ReleaseHeldClips(connection);
+            if (released > 0) _log.LogInformation("soundboard: released {count} held clip(s) of a closed connection", released);
+        }
+        catch (Exception ex) { _log.LogDebug("soundboard: releasing held clips: {msg}", ex.Message); }
+    }
+
     private void PushMeters()
     {
         MetersUpdated?.Invoke();
@@ -847,8 +858,12 @@ public sealed class MixerService : IHostedService, IDisposable
         }
     }
 
-    /// <summary>Apply a mixer command. Returns null on success, else an error.</summary>
-    public string? Apply(Command cmd)
+    /// <summary>
+    /// Apply a mixer command. Returns null on success, else an error.
+    /// <paramref name="connection"/> is the WebSocket the command came on,
+    /// null over HTTP; a soundboard clip pressed in hold mode belongs to it.
+    /// </summary>
+    public string? Apply(Command cmd, Guid? connection = null)
     {
         if (!_mixer.Built) return NotBuiltError;
         string? invalid = CommandValidation.Check(cmd, _mixer, OpenXLR.Core.Mixing.PluginCatalog.Find);
@@ -1123,7 +1138,7 @@ public sealed class MixerService : IHostedService, IDisposable
                 // A press is one line to the player and nothing saved. The
                 // meter push sends the state when a clip starts or ends.
                 case "playClip":
-                    _mixer.PlayClip(cmd.Clip!, cmd.Mode);
+                    _mixer.PlayClip(cmd.Clip!, cmd.Mode, connection);
                     return null;
                 case "releaseClip":
                     _mixer.ReleaseClip(cmd.Clip!);

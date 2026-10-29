@@ -101,7 +101,7 @@ public sealed class SoundboardValidationTests
     public void TheStateAndTheRepliesNameTheirFieldsAsDocumented()
     {
         var state = new SoundboardState(null, false, true, Mixer.SoundboardChannelDeleted, ["wav", "mp3"],
-            [new SoundboardClipState("airhorn", "Airhorn", 2.4, .8, "overlap", false, "", null, true, null, true)], ["airhorn"]);
+            [new SoundboardClipState("airhorn", "Airhorn", 2.4, .8, "overlap", false, "", null, true, null, true, SoundboardClipStatus.Ready)], ["airhorn"]);
         JsonNode json = JsonNode.Parse(JsonSerializer.Serialize(new SoundboardMessage(state), Wire))!;
         Assert.Equal("soundboard", json["type"]!.GetValue<string>());
         JsonObject board = json["soundboard"]!.AsObject();
@@ -110,7 +110,8 @@ public sealed class SoundboardValidationTests
         Assert.Null(board["channel"]);
         Assert.True(board.ContainsKey("channel"));
         JsonObject clip = board["clips"]![0]!.AsObject();
-        Assert.Equal(["id", "name", "seconds", "gain", "mode", "loop", "icon", "colour", "loaded", "error", "playing"], clip.Select(p => p.Key));
+        Assert.Equal(["id", "name", "seconds", "gain", "mode", "loop", "icon", "colour", "loaded", "error", "playing", "status"], clip.Select(p => p.Key));
+        Assert.Equal("ready", clip["status"]!.GetValue<string>());
         Assert.True(clip.ContainsKey("colour"));
 
         JsonNode reply = JsonNode.Parse(JsonSerializer.Serialize(new ClipImportMessage(true, "Airhorn was added to the soundboard.", "airhorn"), Wire))!;

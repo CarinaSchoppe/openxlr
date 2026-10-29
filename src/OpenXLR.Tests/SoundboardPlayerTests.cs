@@ -280,13 +280,29 @@ public sealed class SoundboardPlayerTests : IDisposable
     }
 
     [Fact]
+    public void WithoutTheHelperTheBoardSaysSoEvenWhileOff()
+    {
+        var pw = new PipeWireAdapter { PlayerHost = Path.Combine(_directory, "absent") };
+        using var mixer = new Mixer(pw);
+        mixer.UseSoundboard(new SoundboardLibrary { Clips = [new SoundboardClip { Id = "horn", Name = "Horn", File = "horn.wav" }] }, _ => null, _directory);
+        SoundboardState state = mixer.Soundboard();
+        Assert.False(state.Available);
+        Assert.Equal(Mixer.SoundboardNeedsHost, state.Error);
+        Assert.Equal(SoundboardClipStatus.Off, state.Clips.Single().Status);
+        Assert.Equal(Mixer.SoundboardNeedsHost, Assert.Throws<InvalidOperationException>(() => mixer.PlayClip("horn", null)).Message);
+    }
+
+    [Fact]
     public void PressesWhileTheBoardIsOffAreRefusedWithASentence()
     {
         var library = new SoundboardLibrary { Clips = [new SoundboardClip { Id = "horn", Name = "Horn", File = "horn.wav" }] };
         (Mixer mixer, _, _) = Board(library);
         using (mixer)
         {
-            Assert.Equal("The soundboard is off. Turn it on first.", Assert.Throws<InvalidOperationException>(() => mixer.PlayClip("horn", null)).Message);
+            Assert.Equal(Mixer.SoundboardOff, Assert.Throws<InvalidOperationException>(() => mixer.PlayClip("horn", null)).Message);
+            // A hold press with no connection to release it from never starts.
+            Assert.Equal(Mixer.SoundboardHoldNeedsConnection, Assert.Throws<InvalidOperationException>(() => mixer.PlayClip("horn", "hold")).Message);
+            Assert.Equal(0, mixer.ReleaseHeldClips(Guid.NewGuid()));
             Assert.Equal("No clip has the id gone.", Assert.Throws<InvalidOperationException>(() => mixer.PlayClip("gone", null)).Message);
             Assert.Equal("No clip has the id gone.", Assert.Throws<InvalidOperationException>(() => mixer.StopClip("gone")).Message);
             // Nothing plays, so stopping is no error.
@@ -296,8 +312,9 @@ public sealed class SoundboardPlayerTests : IDisposable
             SoundboardState state = mixer.Soundboard();
             Assert.False(state.Enabled);
             Assert.True(state.Available);
+            Assert.Equal(Mixer.SoundboardOff, state.Error);
             Assert.Equal(["wav", "flac", "mp3"], state.Formats);
-            Assert.Equal(new SoundboardClipState("horn", "Horn", 0, 1, "overlap", false, "", null, false, null, false), Assert.Single(state.Clips));
+            Assert.Equal(new SoundboardClipState("horn", "Horn", 0, 1, "overlap", false, "", null, false, null, false, SoundboardClipStatus.Off), Assert.Single(state.Clips));
             Assert.False(mixer.SoundboardActivityChanged());
         }
     }

@@ -11,7 +11,7 @@ namespace OpenXLR.Tests;
 /// layout and the helper itself change under it.
 /// </summary>
 [Collection("xdg-config")]
-public sealed class SoundboardIntegrationTests : IDisposable
+public sealed partial class SoundboardIntegrationTests : IDisposable
 {
     private readonly string _directory = Directory.CreateTempSubdirectory("openxlr-soundboard-audio-").FullName;
 
@@ -90,14 +90,17 @@ public sealed class SoundboardIntegrationTests : IDisposable
             AssertLevel(.1, "OpenXLR_stream", "SFX renamed");
 
             // A helper that dies is started again and loads its clips again.
-            var player = (SoundboardPlayer)typeof(Mixer).GetField("_player", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(mixer)!;
+            SoundboardPlayer player = Player(mixer)!;
+            Assert.Equal(SoundboardClipStatus.Ready, mixer.Soundboard().Clips.Single().Status);
             player.Host.Process.Kill();
             Assert.True(SpinWait.SpinUntil(() =>
             {
                 mixer.EnsureFilterRoutes();
                 SoundboardState state = mixer.Soundboard();
-                return state.Clips.Single().Loaded && state.Error == "The soundboard player stopped and was started again.";
+                return Player(mixer) is { } next && next != player && state.Clips.Single().Status == SoundboardClipStatus.Ready;
             }, TimeSpan.FromSeconds(15)), mixer.Soundboard().ToString());
+            // A player started again plays: the board has nothing to say.
+            Assert.Null(mixer.Soundboard().Error);
             mixer.PlayClip("tone", null);
             AssertLevel(.1, "OpenXLR_stream", "after the helper was restarted");
 
@@ -108,6 +111,7 @@ public sealed class SoundboardIntegrationTests : IDisposable
             Assert.Null(off.Channel);
             Assert.False(off.Enabled);
             Assert.Equal(Mixer.SoundboardChannelDeleted, off.Error);
+            Assert.Equal(SoundboardClipStatus.Off, off.Clips.Single().Status);
             Assert.False(saved[^1].Enabled);
             Assert.Equal(["tone"], saved[^1].Clips.Select(c => c.Id));
             Assert.True(SpinWait.SpinUntil(() => pw.FindNodeId(PipeWireAdapter.PlayerNode) is null, TimeSpan.FromSeconds(3)));

@@ -3612,4 +3612,25 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   <data name="SoundboardFileUnreadable" xml:space="preserve">
     <value>Impossibile leggere {0}: il desktop non ha fornito un percorso su questo computer.</value>
   </data>
+  <data name="KeyPlayClip" xml:space="preserve">
+    <value>Riproduci la clip {0}</value>
+  </data>
+  <data name="KeyStopClips" xml:space="preserve">
+    <value>Ferma tutte le clip</value>
+  </data>
+  <data name="AddStopClipsKey" xml:space="preserve">
+    <value>Aggiungi un tasto che ferma tutte le clip</value>
+  </data>
+  <data name="SoundboardKeysNote" xml:space="preserve">
+    <value>Ogni clip della soundboard che spunti riceve un tasto tutto suo, con il nome della clip. Una clip in Tieni premuto suona finché il tasto resta premuto se il desktop segnala il rilascio del tasto, come fanno Plasma, GNOME e Hyprland; altrove suona come Sovrapponi. Su Plasma il rilascio di un tasto qualsiasi o la pressione di un'altra scorciatoia la ferma, e una finestra che cattura la tastiera, come una macchina virtuale o un desktop remoto, può impedire che il rilascio arrivi.</value>
+  </data>
+  <data name="ClipKeyUnavailable" xml:space="preserve">
+    <value>Riproduci la clip {0} (il daemon ora non la segnala)</value>
+  </data>
+  <data name="DesktopKeyClipNoRelease" xml:space="preserve">
+    <value>{0} è stata riprodotta come Sovrapponi: questo desktop non segnala il rilascio di un tasto, quindi una clip in Tieni premuto non può finire con il suo tasto.</value>
+  </data>
+  <data name="DesktopKeysBindUnanswered" xml:space="preserve">
+    <value>il desktop non ha risposto al nuovo elenco di tasti. I tasti assegnati prima continuano a funzionare.</value>
+  </data>
 </root>

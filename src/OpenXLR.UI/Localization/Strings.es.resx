@@ -3247,4 +3247,25 @@ Selecciona la interfaz que controla OpenXLR</value>
   <data name="SoundboardFileUnreadable" xml:space="preserve">
     <value>No se pudo leer {0}: el escritorio no dio una ruta a él en este equipo.</value>
   </data>
+  <data name="KeyPlayClip" xml:space="preserve">
+    <value>Reproducir el clip {0}</value>
+  </data>
+  <data name="KeyStopClips" xml:space="preserve">
+    <value>Detener todos los clips</value>
+  </data>
+  <data name="AddStopClipsKey" xml:space="preserve">
+    <value>Añadir una tecla que detiene todos los clips</value>
+  </data>
+  <data name="SoundboardKeysNote" xml:space="preserve">
+    <value>Cada clip de la botonera que marques recibe una tecla propia, con el nombre del clip. Un clip en Mantener suena mientras su tecla está pulsada si el escritorio avisa cuando se suelta la tecla, como hacen Plasma, GNOME y Hyprland; en otros escritorios suena como Superponer. En Plasma, soltar cualquier tecla o pulsar otro atajo termina el clip, y una ventana que captura el teclado, como una máquina virtual o un escritorio remoto, puede impedir que llegue el aviso de que se soltó.</value>
+  </data>
+  <data name="ClipKeyUnavailable" xml:space="preserve">
+    <value>Reproducir el clip {0} (el daemon no lo informa ahora)</value>
+  </data>
+  <data name="DesktopKeyClipNoRelease" xml:space="preserve">
+    <value>{0} sonó como Superponer: este escritorio no avisa cuando se suelta una tecla, así que un clip en Mantener no puede terminar con su tecla.</value>
+  </data>
+  <data name="DesktopKeysBindUnanswered" xml:space="preserve">
+    <value>el escritorio no respondió a la nueva lista de teclas. Las teclas asignadas antes siguen funcionando.</value>
+  </data>
 </root>

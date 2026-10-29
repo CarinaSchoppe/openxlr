@@ -417,6 +417,7 @@ public sealed class WindowLayoutTests
 
                 for (int i = 0; i < 32; i++) vm.Channels.Add(new ChannelViewModel(new DaemonClient(), "key-channel" + i, "Shortcut channel " + i, []));
                 vm.Outputs.Add(new AudioDeviceItem("long-output", "Very long headphone and speaker output description for narrow desktop windows", false));
+                vm.Soundboard.Apply(SoundboardViewModelTests.Board(), vm.Channels);
                 using var keys = new DesktopKeys(new DaemonClient());
                 var keyWindow = new DesktopKeysWindow(keys, vm);
                 windows.Add(keyWindow);
@@ -430,6 +431,8 @@ public sealed class WindowLayoutTests
                 Assert.True(keyScroll.Extent.Width <= keyScroll.Viewport.Width + 1);
                 Assert.Contains(keyWindow.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == Localizer.Text("CurrentSystemDefaultOutput"));
                 Assert.DoesNotContain(keyWindow.GetVisualDescendants().OfType<TextBlock>(), t => t.Text?.StartsWith("AudioDeviceItem {") == true);
+                Assert.Contains(keyWindow.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == Localizer.Format("KeyPlayClip", "Drum roll"));
+                Assert.Contains(keyWindow.GetVisualDescendants().OfType<CheckBox>(), b => Equals(b.Content, Localizer.Text("AddStopClipsKey")));
                 Capture(keyWindow, "desktop-output-keys-360");
                 keyWindow.Close();
 

@@ -1060,7 +1060,14 @@ channel mutes keep their values. Microphone sends pause too when that option
 is enabled in AUDIO. A separate monitoring pause key addresses this state
 directly, without a desktop-wide mute of internal routing sinks.
 On a monitor mix sink the key toggles only that mix; on any other output
-it toggles the sink's native mute. Focus
+it toggles the sink's native mute. A key can also play a soundboard clip
+chosen in the list, or stop every clip. A clip's key carries its name and
+follows its renames and its deletion. A hold clip plays while its key is
+down on KDE Plasma, GNOME and Hyprland, whose portals report the key coming
+up; on Plasma any key coming up or another shortcut ends it. Elsewhere it
+plays as overlap until the desktop first reports a key coming up. A clip
+keeps its key unless the daemon is seen deleting it, so an unreadable
+library drops no binding. Focus
 identity comes from KWin on KDE Plasma, `swaymsg` on Sway or `hyprctl`
 on Hyprland, `niri` on Niri or local EWMH properties through `xprop` on X11.
 GNOME Shell uses the optional [OpenXLR Focus extension](gnome-focus.md),
@@ -1070,5 +1077,6 @@ when the focus source reports a host PID; X11 cannot resolve their sandbox PIDs.
 Other compositors need a focus source of their own. An
 unavailable GlobalShortcuts portal leaves the Deck focus service available;
 PC shortcuts still need that portal. See
-[Desktop keys](manual.md#desktop-keys) and
+[Desktop keys](manual.md#desktop-keys),
+[Soundboard keys](manual.md#soundboard-keys) and
 [Output keys](manual.md#output-keys).

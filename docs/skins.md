@@ -772,20 +772,21 @@ palette entries are required by an existing skin.
 These size the main mixer's controls and strips. Options offers two
 sizings, saved in `ui.json` as `"touchControls"`: Standard wears the values
 below, and Touch raises the five control minimums to 44 units, a channel
-strip to 180, a mix tile to 280, an upright strip to 96, and a mix
-matrix's name column, cell and row to 132, 200 and 52. A skin value
+strip to 180, a mix tile to 280, an upright strip to 96, a mix matrix's
+name column, cell and row to 132, 200 and 52, and a soundboard pad to 176
+by 120. A skin value
 larger than that is kept in both. While Touch is on, or while a skin sets
 `Ox.Mixer.ControlMinSize`, a slider is also made at least as tall as the
 control minimum and the `Ox.Fader.Thumb.Height` cap, so an enlarged cap
-stays inside its row. The other windows and the plugins' own editors keep
-their sizes.
+stays inside its row. The Soundboard window follows the same sizing; the
+other windows and the plugins' own editors keep their sizes.
 
 | Token | Kind | Default | Range | What it paints |
 |---|---|---|---|---|
 | `Ox.Mixer.ControlMinSize` | number | framework | 0 to 64 | the smallest width and height of a mixer button, dropdown, check box, text box, slider and fader cap |
 | `Ox.Mixer.SliderMinHeight` | number | framework | 0 to 96 | the smallest height of a mixer slider |
 | `Ox.Mixer.DeviceSliderHeight` | number | 30 | 30 to 96 | the height of a slider in the interface's control rows |
-| `Ox.Mixer.SmallControlMinSize` | number | 0 | 0 to 64 | the smallest size of the compact controls: the interface rows' buttons and sliders, the tile headers and their buttons, the Arrange buttons and drag handles, the gain lock, the binding and capture source chips, the inserts buttons, the SUBMIXER header's buttons, a send's mute and the EQ graph's handle target |
+| `Ox.Mixer.SmallControlMinSize` | number | 0 | 0 to 64 | the smallest size of the compact controls: the interface rows' buttons and sliders, the tile headers and their buttons, the Arrange buttons and drag handles, the gain lock, the binding and capture source chips, the inserts buttons, the SUBMIXER header's buttons, SFX's Sounds button, a send's mute and the EQ graph's handle target |
 | `Ox.Mixer.InsertControlMinSize` | number | 24 | 16 to 64 | the smallest width and height of an insert row's own process, bypass and controls buttons |
 | `Ox.Mixer.ChannelWidth` | number | 132 | 132 to 400 | the width of a submixer channel strip |
 | `Ox.Mixer.MixWidth` | number | 232 | 232 to 500 | the width of a mix master tile |
@@ -803,12 +804,32 @@ controls.
 
 | Token | Kind | Default | Range | What it paints |
 |---|---|---|---|---|
-| `Ox.Matrix.NameWidth` | number | 140 | 56 to 400 | the width of a row head's name column, which holds the name, the binding line under it, the **Mic** button and the gain under it |
+| `Ox.Matrix.NameWidth` | number | 140 | 56 to 400 | the width of a row head's name column, which holds the name, the binding line under it, the **Mic** button and the gain under it, or on SFX's row its **Sounds** button |
 | `Ox.Matrix.CellWidth` | number | 168 | 120 to 400 | the width of a cell, of a column head and of a row head's source controls |
 | `Ox.Matrix.RowHeight` | number | 40 | 28 to 120 | the height of a row: its head and every cell in it; a row whose head stacks a gain over the channel volume, or the **EQ** button over the chain's, is as tall as the two need, never less |
 | `Ox.Matrix.MutedBackground` | brush | #40a03434 | | the background of a cell whose send is muted, when the matrix tints muted cells. Translucent by default, so the cell's own surface shows through as a red tint |
 | `Ox.Matrix.MutedForeground` | brush | #f6dede | | the lettering of a muted send's mute in a tinted cell |
 | `Ox.Matrix.MutedOpacity` | number | 0.5 | 0.1 to 1 | how far a muted send's fader and level fade when the matrix dims muted cells; the mute keeps its own colour |
+
+### Soundboard
+
+The Soundboard window's pads, one per clip (see
+[Play sound clips](manual.md#play-sound-clips)). A pad is a key: it wears
+the face the `button` slot chooses and the button colours, so a skin with
+`"button": "cap"` raises the pads with every other key. These tokens size
+a pad and draw what it shows while its clip plays. The clip's own colour,
+which the user picks, runs along the pad's top edge and tints its icon
+and name the way a channel's colour does.
+
+| Token | Kind | Default | Range | What it paints |
+|---|---|---|---|---|
+| `Ox.Soundboard.PadWidth` | number | 152 | 96 to 400 | the width of a pad in the Soundboard window |
+| `Ox.Soundboard.PadHeight` | number | 100 | 72 to 400 | the height of a pad |
+| `Ox.Soundboard.PadCornerRadius` | radius | 8 | 0 to 48 | a pad's corners and those of the ring round a playing pad |
+| `Ox.Soundboard.Playing` | brush | #3ecf7a |  | the ring round a pad while its clip plays |
+| `Ox.Soundboard.PlayingThickness` | thickness | 2 | 0 to 16 | that ring's width |
+| `Ox.Soundboard.Progress` | brush | #3ecf7a |  | the bar along a playing pad's foot that shows how far along the clip is |
+| `Ox.Soundboard.ProgressHeight` | number | 4 | 2 to 16 | the height of that bar, and of the clip's own colour along the pad's top edge |
 
 ## Images
 

@@ -104,6 +104,8 @@ public static class SkinTokens
         ["Ox.Matrix.NameWidth"] = 132,
         ["Ox.Matrix.CellWidth"] = 200,
         ["Ox.Matrix.RowHeight"] = 52,
+        ["Ox.Soundboard.PadWidth"] = 176,
+        ["Ox.Soundboard.PadHeight"] = 120,
     };
 
     /// <summary>Corner radii and border widths are bounded so a skin cannot swallow a control.</summary>
@@ -408,6 +410,17 @@ public static class SkinTokens
         // How far a muted send's fader and level fade where the matrix dims
         // muted cells instead of tinting them. The mute keeps its own colour.
         Number("Ox.Matrix.MutedOpacity", 0.5, 0.1, 1),
+
+        // The Soundboard window's pads. A pad is a key in the skin's button
+        // face; these size it and draw what it shows while its clip plays: a
+        // ring round the face and a bar for how far along the clip is.
+        Number("Ox.Soundboard.PadWidth", 152, 96, 400),
+        Number("Ox.Soundboard.PadHeight", 100, 72, 400),
+        Radius("Ox.Soundboard.PadCornerRadius", 8),
+        Brush("Ox.Soundboard.Playing", "#3ecf7a"),
+        Thick("Ox.Soundboard.PlayingThickness", 2),
+        Brush("Ox.Soundboard.Progress", "#3ecf7a"),
+        Number("Ox.Soundboard.ProgressHeight", 4, 2, 16),
     ];
 
     private static readonly Dictionary<string, SkinToken> ByName =

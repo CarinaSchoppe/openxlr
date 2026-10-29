@@ -701,7 +701,7 @@
           "type": "number",
           "minimum": 0,
           "maximum": 64,
-          "description": "the smallest size of the compact controls: the interface rows' buttons and sliders, the tile headers and their buttons, the Arrange buttons and drag handles, the gain lock, the binding and capture source chips, the inserts buttons, the SUBMIXER header's buttons, a send's mute and the EQ graph's handle target"
+          "description": "the smallest size of the compact controls: the interface rows' buttons and sliders, the tile headers and their buttons, the Arrange buttons and drag handles, the gain lock, the binding and capture source chips, the inserts buttons, the SUBMIXER header's buttons, SFX's Sounds button, a send's mute and the EQ graph's handle target"
         },
         "Ox.Mixer.InsertControlMinSize": {
           "type": "number",
@@ -749,7 +749,7 @@
           "type": "number",
           "minimum": 56,
           "maximum": 400,
-          "description": "the width of a row head's name column, which holds the name, the binding line under it, the **Mic** button and the gain under it"
+          "description": "the width of a row head's name column, which holds the name, the binding line under it, the **Mic** button and the gain under it, or on SFX's row its **Sounds** button"
         },
         "Ox.Matrix.CellWidth": {
           "type": "number",
@@ -776,6 +776,40 @@
           "minimum": 0.1,
           "maximum": 1,
           "description": "how far a muted send's fader and level fade when the matrix dims muted cells; the mute keeps its own colour"
+        },
+        "Ox.Soundboard.PadWidth": {
+          "type": "number",
+          "minimum": 96,
+          "maximum": 400,
+          "description": "the width of a pad in the Soundboard window"
+        },
+        "Ox.Soundboard.PadHeight": {
+          "type": "number",
+          "minimum": 72,
+          "maximum": 400,
+          "description": "the height of a pad"
+        },
+        "Ox.Soundboard.PadCornerRadius": {
+          "$ref": "#/$defs/radius",
+          "description": "a pad's corners and those of the ring round a playing pad"
+        },
+        "Ox.Soundboard.Playing": {
+          "$ref": "#/$defs/brush",
+          "description": "the ring round a pad while its clip plays"
+        },
+        "Ox.Soundboard.PlayingThickness": {
+          "$ref": "#/$defs/thickness",
+          "description": "that ring's width"
+        },
+        "Ox.Soundboard.Progress": {
+          "$ref": "#/$defs/brush",
+          "description": "the bar along a playing pad's foot that shows how far along the clip is"
+        },
+        "Ox.Soundboard.ProgressHeight": {
+          "type": "number",
+          "minimum": 2,
+          "maximum": 16,
+          "description": "the height of that bar, and of the clip's own colour along the pad's top edge"
         }
       }
     },

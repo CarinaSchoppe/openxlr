@@ -16,9 +16,9 @@ public sealed class FlatpakTrayTests
         await desktop.ConnectAsync();
         await desktop.RequestNameAsync(FlatpakTray.Watcher);
         var host = new Host(); desktop.AddMethodHandler(host);
-        int shown = 0, quit = 0;
+        int shown = 0, quit = 0, soundboard = 0;
         var posted = Channel.CreateUnbounded<Action>();
-        await using var tray = new FlatpakTray(() => shown++, () => quit++, action => posted.Writer.TryWrite(action));
+        await using var tray = new FlatpakTray(() => shown++, () => quit++, action => posted.Writer.TryWrite(action), () => soundboard++);
         Assert.Equal(FlatpakTray.Service, await host.First.Task.WaitAsync(TimeSpan.FromSeconds(5)));
         var bus = new DesktopBus(desktop);
         var properties = await bus.Call(FlatpakTray.Service, "/StatusNotifierItem", "org.freedesktop.DBus.Properties", "GetAll", "s",
@@ -40,8 +40,9 @@ public sealed class FlatpakTrayTests
                 while (reader.HasNext(end)) result.Add(reader.ReadVariantValue().GetItem(0).GetInt32());
                 return result;
             });
-        Assert.Equal([1, 2, 3], ids);
-        foreach (int[] requested in new int[][] { [], [3, 3, 1, -1, 99] })
+        // Show mixer, Soundboard, the separator, Quit.
+        Assert.Equal([1, 4, 2, 3], ids);
+        foreach (int[] requested in new int[][] { [], [3, 3, 1, -1, 4, 99] })
         {
             var entries = await bus.Call(FlatpakTray.Service, "/MenuBar", "com.canonical.dbusmenu", "GetGroupProperties", "aias",
                 (ref MessageWriter writer) => { writer.WriteArray(requested); writer.WriteArray(System.Array.Empty<string>()); },
@@ -56,7 +57,7 @@ public sealed class FlatpakTrayTests
                     }
                     return result;
                 });
-            Assert.Equal(requested.Length == 0 ? [0, 1, 2, 3] : new[] { 3, 1 }, entries);
+            Assert.Equal(requested.Length == 0 ? [0, 1, 4, 2, 3] : new[] { 3, 1, 4 }, entries);
         }
         foreach (string method in new[] { "GetGroupProperties", "AboutToShowGroup" })
             await Assert.ThrowsAsync<DBusErrorReplyException>(() => bus.Empty(FlatpakTray.Service, "/MenuBar", "com.canonical.dbusmenu",
@@ -65,11 +66,11 @@ public sealed class FlatpakTrayTests
                     writer.WriteArray(Enumerable.Range(0, 33));
                     if (method == "GetGroupProperties") writer.WriteArray(System.Array.Empty<string>());
                 }));
-        foreach (int id in new[] { 2, 1, 3, 99 })
+        foreach (int id in new[] { 2, 1, 3, 4, 99 })
             await bus.Empty(FlatpakTray.Service, "/MenuBar", "com.canonical.dbusmenu", "Event", "isvu",
                 (ref MessageWriter writer) => { writer.WriteInt32(id); writer.WriteString("clicked"); writer.WriteVariantInt32(0); writer.WriteUInt32(0); });
-        await Dispatch(2);
-        Assert.Equal(1, shown); Assert.Equal(1, quit);
+        await Dispatch(3);
+        Assert.Equal(1, shown); Assert.Equal(1, quit); Assert.Equal(1, soundboard);
         var errors = await bus.Call(FlatpakTray.Service, "/MenuBar", "com.canonical.dbusmenu", "EventGroup", "a(isvu)",
             (ref MessageWriter writer) =>
             {

@@ -3413,4 +3413,190 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
   <data name="NoiseButtonNameUnavailable" xml:space="preserve">
     <value>Pagtangtang sa kasaba sa {0}, dili magamit</value>
   </data>
+  <data name="Soundboard" xml:space="preserve">
+    <value>Soundboard</value>
+  </data>
+  <data name="SoundboardButtonTip" xml:space="preserve">
+    <value>Mubong mga clip nga gipatukar sa SFX: mga pad, ang ilang press mode, Hunonga tanan ug pagdugang og clip.</value>
+  </data>
+  <data name="SoundboardSwitch" xml:space="preserve">
+    <value>Naka-on ang soundboard</value>
+  </data>
+  <data name="SoundboardSwitchTip" xml:space="preserve">
+    <value>Kon naka-off, mohunong ang player ug magpabilin ang mga clip sa library.</value>
+  </data>
+  <data name="SoundboardMasterHint" xml:space="preserve">
+    <value>Ang volume sa {0} mao ang master sa soundboard. Moagi ang mga clip sa {0}, busa ang mute ug mga send niini ngadto sa matag mix ang modesisyon asa sila madungog.</value>
+  </data>
+  <data name="SoundboardStopAll" xml:space="preserve">
+    <value>Hunonga tanan</value>
+  </data>
+  <data name="SoundboardStopAllTip" xml:space="preserve">
+    <value>Hinayhinay nga hilona ang matag clip nga nagtukar.</value>
+  </data>
+  <data name="SoundboardAddFiles" xml:space="preserve">
+    <value>Pagdugang og clip</value>
+  </data>
+  <data name="SoundboardAddFilesTip" xml:space="preserve">
+    <value>Kopyaha ang mga sound file ngadto sa soundboard: WAV, FLAC, Ogg, Opus o MP3, hangtod 30 segundos ug 64 MiB matag usa.</value>
+  </data>
+  <data name="SoundboardAddFolder" xml:space="preserve">
+    <value>Pagdugang og folder</value>
+  </data>
+  <data name="SoundboardAddFolderTip" xml:space="preserve">
+    <value>Idugang usa-usa ang matag sound file sa usa ka folder; dili apil ang mga subfolder niini.</value>
+  </data>
+  <data name="SoundboardTurnOn" xml:space="preserve">
+    <value>I-on</value>
+  </data>
+  <data name="SoundboardTurnOnCreate" xml:space="preserve">
+    <value>I-on ug paghimo og SFX</value>
+  </data>
+  <data name="SoundboardTurnOnTip" xml:space="preserve">
+    <value>Sugdi ang player. Kon walay SFX channel, maghimo ang daemon og usa, naka-mute sa matag mix; ablihi ang mga send niini aron madungog ang mga clip.</value>
+  </data>
+  <data name="SoundboardEmpty" xml:space="preserve">
+    <value>Wala pay clip. Pagdugang og WAV, FLAC, Ogg, Opus o MP3 file nga hangtod 30 segundos.</value>
+  </data>
+  <data name="SoundboardNotReported" xml:space="preserve">
+    <value>Walay soundboard ang daemon nga nagdagan karon. I-restart kini human ma-update ang OpenXLR.</value>
+  </data>
+  <data name="SoundboardImporting" xml:space="preserve">
+    <value>Gidugang ang clip {0} sa {1}.</value>
+  </data>
+  <data name="SoundboardImported" xml:space="preserve">
+    <value>{0} sa {1} ka clip ang nadugang.</value>
+  </data>
+  <data name="SoundboardFolderEmpty" xml:space="preserve">
+    <value>Walay sound file sa {0} nga matukar sa soundboard.</value>
+  </data>
+  <data name="SoundboardPickFiles" xml:space="preserve">
+    <value>Pagdugang og mga clip sa soundboard</value>
+  </data>
+  <data name="SoundboardPickFolder" xml:space="preserve">
+    <value>Pagdugang og folder sa mga clip</value>
+  </data>
+  <data name="SoundboardFileType" xml:space="preserve">
+    <value>Mga sound file</value>
+  </data>
+  <data name="SoundClipModeOverlap" xml:space="preserve">
+    <value>Patong</value>
+  </data>
+  <data name="SoundClipModeRestart" xml:space="preserve">
+    <value>Usba</value>
+  </data>
+  <data name="SoundClipModeToggle" xml:space="preserve">
+    <value>Puli-puli</value>
+  </data>
+  <data name="SoundClipModeHold" xml:space="preserve">
+    <value>Kupot</value>
+  </data>
+  <data name="SoundClipModeOverlapHint" xml:space="preserve">
+    <value>Ang matag pindot motukar pag-usab sa clip bisan adunay nagtukar pa.</value>
+  </data>
+  <data name="SoundClipModeRestartHint" xml:space="preserve">
+    <value>Ang matag pindot mosugod pag-usab sa clip gikan sa sinugdanan.</value>
+  </data>
+  <data name="SoundClipModeToggleHint" xml:space="preserve">
+    <value>Ang usa ka pindot motukar sa clip, ug ang sunod mohunong niini.</value>
+  </data>
+  <data name="SoundClipModeHoldHint" xml:space="preserve">
+    <value>Motukar ang clip samtang gipindot ang pad ug mohunong kon buhian.</value>
+  </data>
+  <data name="SoundClipLoading" xml:space="preserve">
+    <value>Nag-load</value>
+  </data>
+  <data name="SoundClipDetail" xml:space="preserve">
+    <value>{0:0.0} s, {1}</value>
+  </data>
+  <data name="SoundClipDetailLoop" xml:space="preserve">
+    <value>{0:0.0} s, {1}, balik-balik</value>
+  </data>
+  <data name="SoundPadName" xml:space="preserve">
+    <value>Clip {0}, {1}</value>
+  </data>
+  <data name="SoundPadNamePlaying" xml:space="preserve">
+    <value>Clip {0}, {1}, nagtukar</value>
+  </data>
+  <data name="SoundClipGainTip" xml:space="preserve">
+    <value>Gain {0}%</value>
+  </data>
+  <data name="SoundClipMenuName" xml:space="preserve">
+    <value>Mga opsyon sa {0}</value>
+  </data>
+  <data name="SoundClipMenuTip" xml:space="preserve">
+    <value>I-edit, hunonga, ibalhin o papasa kini nga clip</value>
+  </data>
+  <data name="SoundClipEdit" xml:space="preserve">
+    <value>I-edit</value>
+  </data>
+  <data name="SoundClipStop" xml:space="preserve">
+    <value>Hunonga</value>
+  </data>
+  <data name="SoundClipMoveEarlier" xml:space="preserve">
+    <value>Ibalhin sa una</value>
+  </data>
+  <data name="SoundClipMoveLater" xml:space="preserve">
+    <value>Ibalhin sa ulahi</value>
+  </data>
+  <data name="SoundClipDeleted" xml:space="preserve">
+    <value>Gipapas ang {0} sa soundboard.</value>
+  </data>
+  <data name="SoundClipDeleteTitle" xml:space="preserve">
+    <value>Papasa ang clip</value>
+  </data>
+  <data name="SoundClipDeleteMessage" xml:space="preserve">
+    <value>Papason ang {0} sa soundboard? Papason sa OpenXLR ang kaugalingon niining kopya; magpabilin sa iyang dapit ang file nga imong gigikanan.</value>
+  </data>
+  <data name="SoundClipEditTitle" xml:space="preserve">
+    <value>I-edit ang {0}</value>
+  </data>
+  <data name="SoundClipName" xml:space="preserve">
+    <value>Ngalan</value>
+  </data>
+  <data name="SoundClipNameHint" xml:space="preserve">
+    <value>Ang ngalan sa clip 1 hangtod 60 ka character.</value>
+  </data>
+  <data name="SoundClipGain" xml:space="preserve">
+    <value>Gain</value>
+  </data>
+  <data name="SoundClipGainHint" xml:space="preserve">
+    <value>Ang kaugalingong level sa clip, sa wala pa ang SFX fader. Diha-diha moabot ang kausaban sa clip nga nagtukar.</value>
+  </data>
+  <data name="SoundClipMode" xml:space="preserve">
+    <value>Pindot</value>
+  </data>
+  <data name="SoundClipLoop" xml:space="preserve">
+    <value>Sugdi pag-usab sa katapusan hangtod hunongon</value>
+  </data>
+  <data name="SoundClipColourPlaceholder" xml:space="preserve">
+    <value>#RRGGBB, o walay sulod alang sa wala</value>
+  </data>
+  <data name="SoundsButton" xml:space="preserve">
+    <value>Tingog</value>
+  </data>
+  <data name="SoundsButtonTip" xml:space="preserve">
+    <value>Ablihi ang soundboard, kansang mga clip motukar niining channel.</value>
+  </data>
+  <data name="SoundsButtonName" xml:space="preserve">
+    <value>Soundboard sa {0}</value>
+  </data>
+  <data name="SoundboardMixerOff" xml:space="preserve">
+    <value>Wala nagdagan ang software mixer, busa dili makatukar ang soundboard. Mobalik ang mga pad niini uban sa mixer.</value>
+  </data>
+  <data name="SoundboardCancelImport" xml:space="preserve">
+    <value>Kanselaha</value>
+  </data>
+  <data name="SoundboardCancelImportTip" xml:space="preserve">
+    <value>Hunonga ang pagdugang og clip human sa file nga gidugang karon.</value>
+  </data>
+  <data name="SoundboardImportStopped" xml:space="preserve">
+    <value>Wala nadugang ang {0} ka file: gihunong ang pag-import.</value>
+  </data>
+  <data name="SoundboardImportFull" xml:space="preserve">
+    <value>Wala giapil ang {0} ka file: hangtod {1} ka clip ra ang masulod sa soundboard.</value>
+  </data>
+  <data name="SoundboardFileUnreadable" xml:space="preserve">
+    <value>Dili mabasa ang {0}: walay gihatag nga path ang desktop alang niini niining computer.</value>
+  </data>
 </root>

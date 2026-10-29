@@ -253,7 +253,7 @@ public partial class MainWindow : Window
     {
         if (FlatpakEnvironment.IsFlatpak)
         {
-            _flatpakTray = new FlatpakTray(ShowMixer, Quit);
+            _flatpakTray = new FlatpakTray(ShowMixer, Quit, soundboard: OpenSoundboard);
             return;
         }
         try
@@ -261,9 +261,12 @@ public partial class MainWindow : Window
             var menu = new NativeMenu();
             var show = new NativeMenuItem(Localizer.Text("ShowMixer"));
             show.Click += (_, _) => Dispatcher.UIThread.Post(ShowMixer);
+            var soundboard = new NativeMenuItem(Localizer.Text("Soundboard"));
+            soundboard.Click += (_, _) => Dispatcher.UIThread.Post(OpenSoundboard);
             var quit = new NativeMenuItem(Localizer.Text("QuitOpenXLR"));
             quit.Click += (_, _) => Dispatcher.UIThread.Post(Quit);
             menu.Items.Add(show);
+            menu.Items.Add(soundboard);
             menu.Items.Add(new NativeMenuItemSeparator());
             menu.Items.Add(quit);
 
@@ -355,6 +358,18 @@ public partial class MainWindow : Window
 
     private void OnDucking(object? sender, RoutedEventArgs e)
         => DuckingWindow.Open(this, _vm.Ducking);
+
+    /// <summary>The SFX strip's Sounds button in the channel tiles, which may stand in the popped-out mixer.</summary>
+    private void OnSounds(object? sender, RoutedEventArgs e)
+        => SoundboardWindow.Open(TopLevel.GetTopLevel((Control)sender!) as Window ?? this, _vm.Soundboard);
+
+    /// <summary>The tray's Soundboard entry: under the mixer while it shows, on its own while it waits in the tray.</summary>
+    internal void OpenSoundboard()
+    {
+        if (_reallyExit) return;
+        // A window owned by a minimized or hidden mixer would stay out of sight with it.
+        SoundboardWindow.Open(IsVisible && WindowState != WindowState.Minimized ? this : null, _vm.Soundboard);
+    }
 
     private void OnAbout(object? sender, RoutedEventArgs e)
         => new AboutWindow().ShowDialog(this);

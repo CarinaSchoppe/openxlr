@@ -534,9 +534,19 @@ toggle or hold. Imported WAV, FLAC, Ogg Vorbis, Opus and MP3 files, up to
 30 seconds and 64 MiB each, are copied into OpenXLR's own data folder and
 checked in a separate process before the player opens them. Renaming or
 hiding SFX keeps the clips playing; deleting it turns the board off until it
-is turned on again, which creates SFX anew. The daemon side is in place and
-driven through the [API](api.md#soundboard), and an OpenDeck key plays a
-clip or stops them all; the UI and the terminal mixer do not offer it yet.
+is turned on again, which creates SFX anew. An OpenDeck key plays a clip
+or stops them all.
+
+In the UI, the Soundboard window opens from a Sounds button on SFX's
+strip (the classic tiles, the input rack and the mix matrix), from the tray
+menu and from Options. It shows a pad per clip with its icon, colour, name,
+length and mode, a ring while it plays and a bar for how far along it is;
+a pad plays on the pointer or on Space and Enter, and a hold pad stops when
+it comes up. Its header has the board's switch, SFX's own volume as the
+master, Stop all, and adding files or a whole folder through the desktop's
+file picker. Each pad's menu edits, stops, moves or deletes its clip. See
+[Play sound clips](manual.md#play-sound-clips). The terminal mixer does not
+offer it yet; the [API](api.md#soundboard) drives it from scripts.
 
 ## Inserts
 

@@ -3061,4 +3061,190 @@ Selecciona la interfaz que controla OpenXLR</value>
   <data name="NoiseButtonNameUnavailable" xml:space="preserve">
     <value>Eliminación de ruido en {0}, no disponible</value>
   </data>
+  <data name="Soundboard" xml:space="preserve">
+    <value>Botonera</value>
+  </data>
+  <data name="SoundboardButtonTip" xml:space="preserve">
+    <value>Clips cortos que suenan en SFX: los botones, sus modos de pulsación, Detener todo y añadir clips.</value>
+  </data>
+  <data name="SoundboardSwitch" xml:space="preserve">
+    <value>Botonera activada</value>
+  </data>
+  <data name="SoundboardSwitchTip" xml:space="preserve">
+    <value>Desactivarla detiene el reproductor y deja los clips en la biblioteca.</value>
+  </data>
+  <data name="SoundboardMasterHint" xml:space="preserve">
+    <value>El volumen de {0} es el maestro de la botonera. Los clips suenan a través de {0}, así que sus silencios y sus envíos a cada mezcla deciden dónde se oyen.</value>
+  </data>
+  <data name="SoundboardStopAll" xml:space="preserve">
+    <value>Detener todo</value>
+  </data>
+  <data name="SoundboardStopAllTip" xml:space="preserve">
+    <value>Desvanecer todos los clips que están sonando.</value>
+  </data>
+  <data name="SoundboardAddFiles" xml:space="preserve">
+    <value>Añadir clips</value>
+  </data>
+  <data name="SoundboardAddFilesTip" xml:space="preserve">
+    <value>Copiar archivos de sonido a la botonera: WAV, FLAC, Ogg, Opus o MP3, de hasta 30 segundos y 64 MiB cada uno.</value>
+  </data>
+  <data name="SoundboardAddFolder" xml:space="preserve">
+    <value>Añadir carpeta</value>
+  </data>
+  <data name="SoundboardAddFolderTip" xml:space="preserve">
+    <value>Añadir uno a uno todos los archivos de sonido de una carpeta; sus subcarpetas quedan fuera.</value>
+  </data>
+  <data name="SoundboardTurnOn" xml:space="preserve">
+    <value>Activar</value>
+  </data>
+  <data name="SoundboardTurnOnCreate" xml:space="preserve">
+    <value>Activar y crear SFX</value>
+  </data>
+  <data name="SoundboardTurnOnTip" xml:space="preserve">
+    <value>Iniciar el reproductor. Sin un canal SFX, el daemon crea uno, silenciado en todas las mezclas; abre sus envíos para oír los clips.</value>
+  </data>
+  <data name="SoundboardEmpty" xml:space="preserve">
+    <value>Aún no hay clips. Añade un archivo WAV, FLAC, Ogg, Opus o MP3 de hasta 30 segundos.</value>
+  </data>
+  <data name="SoundboardNotReported" xml:space="preserve">
+    <value>El daemon que está en marcha no tiene botonera. Reinícialo después de actualizar OpenXLR.</value>
+  </data>
+  <data name="SoundboardImporting" xml:space="preserve">
+    <value>Añadiendo el clip {0} de {1}.</value>
+  </data>
+  <data name="SoundboardImported" xml:space="preserve">
+    <value>{0} de {1} clips añadidos.</value>
+  </data>
+  <data name="SoundboardFolderEmpty" xml:space="preserve">
+    <value>{0} no tiene ningún archivo de sonido que la botonera pueda reproducir.</value>
+  </data>
+  <data name="SoundboardPickFiles" xml:space="preserve">
+    <value>Añadir clips a la botonera</value>
+  </data>
+  <data name="SoundboardPickFolder" xml:space="preserve">
+    <value>Añadir una carpeta de clips</value>
+  </data>
+  <data name="SoundboardFileType" xml:space="preserve">
+    <value>Archivos de sonido</value>
+  </data>
+  <data name="SoundClipModeOverlap" xml:space="preserve">
+    <value>Superponer</value>
+  </data>
+  <data name="SoundClipModeRestart" xml:space="preserve">
+    <value>Reiniciar</value>
+  </data>
+  <data name="SoundClipModeToggle" xml:space="preserve">
+    <value>Alternar</value>
+  </data>
+  <data name="SoundClipModeHold" xml:space="preserve">
+    <value>Mantener</value>
+  </data>
+  <data name="SoundClipModeOverlapHint" xml:space="preserve">
+    <value>Cada pulsación vuelve a reproducir el clip sobre los que aún suenan.</value>
+  </data>
+  <data name="SoundClipModeRestartHint" xml:space="preserve">
+    <value>Cada pulsación vuelve a empezar el clip desde el principio.</value>
+  </data>
+  <data name="SoundClipModeToggleHint" xml:space="preserve">
+    <value>Una pulsación reproduce el clip y la siguiente lo detiene.</value>
+  </data>
+  <data name="SoundClipModeHoldHint" xml:space="preserve">
+    <value>El clip suena mientras el botón está pulsado y se detiene al soltarlo.</value>
+  </data>
+  <data name="SoundClipLoading" xml:space="preserve">
+    <value>Cargando</value>
+  </data>
+  <data name="SoundClipDetail" xml:space="preserve">
+    <value>{0:0.0} s, {1}</value>
+  </data>
+  <data name="SoundClipDetailLoop" xml:space="preserve">
+    <value>{0:0.0} s, {1}, en bucle</value>
+  </data>
+  <data name="SoundPadName" xml:space="preserve">
+    <value>Clip {0}, {1}</value>
+  </data>
+  <data name="SoundPadNamePlaying" xml:space="preserve">
+    <value>Clip {0}, {1}, sonando</value>
+  </data>
+  <data name="SoundClipGainTip" xml:space="preserve">
+    <value>Ganancia {0}%</value>
+  </data>
+  <data name="SoundClipMenuName" xml:space="preserve">
+    <value>Opciones de {0}</value>
+  </data>
+  <data name="SoundClipMenuTip" xml:space="preserve">
+    <value>Editar, detener, mover o eliminar este clip</value>
+  </data>
+  <data name="SoundClipEdit" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="SoundClipStop" xml:space="preserve">
+    <value>Detener</value>
+  </data>
+  <data name="SoundClipMoveEarlier" xml:space="preserve">
+    <value>Mover antes</value>
+  </data>
+  <data name="SoundClipMoveLater" xml:space="preserve">
+    <value>Mover después</value>
+  </data>
+  <data name="SoundClipDeleted" xml:space="preserve">
+    <value>{0} se eliminó de la botonera.</value>
+  </data>
+  <data name="SoundClipDeleteTitle" xml:space="preserve">
+    <value>Eliminar clip</value>
+  </data>
+  <data name="SoundClipDeleteMessage" xml:space="preserve">
+    <value>¿Eliminar {0} de la botonera? OpenXLR elimina su propia copia; el archivo desde el que lo añadiste se queda donde está.</value>
+  </data>
+  <data name="SoundClipEditTitle" xml:space="preserve">
+    <value>Editar {0}</value>
+  </data>
+  <data name="SoundClipName" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="SoundClipNameHint" xml:space="preserve">
+    <value>El nombre de un clip tiene de 1 a 60 caracteres.</value>
+  </data>
+  <data name="SoundClipGain" xml:space="preserve">
+    <value>Ganancia</value>
+  </data>
+  <data name="SoundClipGainHint" xml:space="preserve">
+    <value>El nivel propio del clip, antes del fader de SFX. Un cambio llega al instante a un clip que está sonando.</value>
+  </data>
+  <data name="SoundClipMode" xml:space="preserve">
+    <value>Pulsación</value>
+  </data>
+  <data name="SoundClipLoop" xml:space="preserve">
+    <value>Volver a empezar al final hasta que se detenga</value>
+  </data>
+  <data name="SoundClipColourPlaceholder" xml:space="preserve">
+    <value>#RRGGBB, o vacío para ninguno</value>
+  </data>
+  <data name="SoundsButton" xml:space="preserve">
+    <value>Sonidos</value>
+  </data>
+  <data name="SoundsButtonTip" xml:space="preserve">
+    <value>Abrir la botonera, cuyos clips suenan en este canal.</value>
+  </data>
+  <data name="SoundsButtonName" xml:space="preserve">
+    <value>Botonera de {0}</value>
+  </data>
+  <data name="SoundboardMixerOff" xml:space="preserve">
+    <value>El mezclador por software no está en marcha, así que la botonera no puede sonar. Sus botones vuelven con el mezclador.</value>
+  </data>
+  <data name="SoundboardCancelImport" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="SoundboardCancelImportTip" xml:space="preserve">
+    <value>Dejar de añadir clips después del archivo que se está añadiendo.</value>
+  </data>
+  <data name="SoundboardImportStopped" xml:space="preserve">
+    <value>{0} archivos no se añadieron: la importación se detuvo.</value>
+  </data>
+  <data name="SoundboardImportFull" xml:space="preserve">
+    <value>{0} archivos quedaron fuera: la botonera admite como máximo {1} clips.</value>
+  </data>
+  <data name="SoundboardFileUnreadable" xml:space="preserve">
+    <value>No se pudo leer {0}: el escritorio no dio una ruta a él en este equipo.</value>
+  </data>
 </root>

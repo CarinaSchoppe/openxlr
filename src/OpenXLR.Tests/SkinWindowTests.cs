@@ -61,6 +61,7 @@ public sealed partial class SkinWindowTests
             ASkinCanLeaveTheBindingOut();
             TheInputReadoutsWearTheSkin();
             CaptureChainsUseTheRackAndMatrixParts();
+            SoundboardWindowTests.CheckSkins();
             AnAdditionalUnitsControlsFollowTheStripsOwnParts();
             AppearanceModeWindowTests.Check(main, options, flow);
             TouchControlsWindowTests.Check(main, options, flow);
@@ -882,6 +883,7 @@ public sealed partial class SkinWindowTests
             ("layout", new MixerSetupWindow { DataContext = vm }),
             ("exclusive-groups", new ExclusiveGroupsWindow(vm)),
             ("ducking", new DuckingWindow { DataContext = vm.Ducking }),
+            ("soundboard", new SoundboardWindow { DataContext = vm.Soundboard }),
             ("mix-inserts", new MixInsertsWindow { DataContext = vm.Mixes[0].Inserts }),
             ("insert-controls", new InsertControlsWindow { DataContext = vm.Inserts.Items[0] }),
             ("plugin-picker", new PluginPickerWindow { DataContext = vm.Inserts }),

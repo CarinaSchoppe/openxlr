@@ -3426,4 +3426,190 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   <data name="NoiseButtonNameUnavailable" xml:space="preserve">
     <value>Riduzione del rumore su {0}, non disponibile</value>
   </data>
+  <data name="Soundboard" xml:space="preserve">
+    <value>Soundboard</value>
+  </data>
+  <data name="SoundboardButtonTip" xml:space="preserve">
+    <value>Brevi clip suonate in SFX: i pad, le loro modalità di pressione, Ferma tutto e l'aggiunta di clip.</value>
+  </data>
+  <data name="SoundboardSwitch" xml:space="preserve">
+    <value>Soundboard attiva</value>
+  </data>
+  <data name="SoundboardSwitchTip" xml:space="preserve">
+    <value>Spenta ferma il lettore e lascia le clip nella libreria.</value>
+  </data>
+  <data name="SoundboardMasterHint" xml:space="preserve">
+    <value>Il volume di {0} è il master della soundboard. Le clip suonano attraverso {0}, quindi i suoi mute e le sue mandate verso ogni mix decidono dove si sentono.</value>
+  </data>
+  <data name="SoundboardStopAll" xml:space="preserve">
+    <value>Ferma tutto</value>
+  </data>
+  <data name="SoundboardStopAllTip" xml:space="preserve">
+    <value>Sfuma ogni clip in riproduzione.</value>
+  </data>
+  <data name="SoundboardAddFiles" xml:space="preserve">
+    <value>Aggiungi clip</value>
+  </data>
+  <data name="SoundboardAddFilesTip" xml:space="preserve">
+    <value>Copia file audio nella soundboard: WAV, FLAC, Ogg, Opus o MP3, fino a 30 secondi e 64 MiB ciascuno.</value>
+  </data>
+  <data name="SoundboardAddFolder" xml:space="preserve">
+    <value>Aggiungi cartella</value>
+  </data>
+  <data name="SoundboardAddFolderTip" xml:space="preserve">
+    <value>Aggiunge uno alla volta tutti i file audio di una cartella; le sottocartelle restano fuori.</value>
+  </data>
+  <data name="SoundboardTurnOn" xml:space="preserve">
+    <value>Attiva</value>
+  </data>
+  <data name="SoundboardTurnOnCreate" xml:space="preserve">
+    <value>Attiva e crea SFX</value>
+  </data>
+  <data name="SoundboardTurnOnTip" xml:space="preserve">
+    <value>Avvia il lettore. Senza un canale SFX il daemon ne crea uno, silenziato in ogni mix: apri le sue mandate per sentire le clip.</value>
+  </data>
+  <data name="SoundboardEmpty" xml:space="preserve">
+    <value>Nessuna clip per ora. Aggiungi un file WAV, FLAC, Ogg, Opus o MP3 lungo fino a 30 secondi.</value>
+  </data>
+  <data name="SoundboardNotReported" xml:space="preserve">
+    <value>Il daemon in esecuzione non ha una soundboard. Riavvialo dopo aver aggiornato OpenXLR.</value>
+  </data>
+  <data name="SoundboardImporting" xml:space="preserve">
+    <value>Aggiunta della clip {0} di {1}.</value>
+  </data>
+  <data name="SoundboardImported" xml:space="preserve">
+    <value>{0} clip aggiunte su {1}.</value>
+  </data>
+  <data name="SoundboardFolderEmpty" xml:space="preserve">
+    <value>{0} non contiene file audio che la soundboard possa riprodurre.</value>
+  </data>
+  <data name="SoundboardPickFiles" xml:space="preserve">
+    <value>Aggiungi clip alla soundboard</value>
+  </data>
+  <data name="SoundboardPickFolder" xml:space="preserve">
+    <value>Aggiungi una cartella di clip</value>
+  </data>
+  <data name="SoundboardFileType" xml:space="preserve">
+    <value>File audio</value>
+  </data>
+  <data name="SoundClipModeOverlap" xml:space="preserve">
+    <value>Sovrapponi</value>
+  </data>
+  <data name="SoundClipModeRestart" xml:space="preserve">
+    <value>Riavvia</value>
+  </data>
+  <data name="SoundClipModeToggle" xml:space="preserve">
+    <value>Alterna</value>
+  </data>
+  <data name="SoundClipModeHold" xml:space="preserve">
+    <value>Tieni premuto</value>
+  </data>
+  <data name="SoundClipModeOverlapHint" xml:space="preserve">
+    <value>Ogni pressione suona di nuovo la clip sopra quelle ancora in riproduzione.</value>
+  </data>
+  <data name="SoundClipModeRestartHint" xml:space="preserve">
+    <value>Ogni pressione fa ripartire la clip dall'inizio.</value>
+  </data>
+  <data name="SoundClipModeToggleHint" xml:space="preserve">
+    <value>Una pressione suona la clip, la successiva la ferma.</value>
+  </data>
+  <data name="SoundClipModeHoldHint" xml:space="preserve">
+    <value>La clip suona finché il pad resta premuto e si ferma al rilascio.</value>
+  </data>
+  <data name="SoundClipLoading" xml:space="preserve">
+    <value>Caricamento</value>
+  </data>
+  <data name="SoundClipDetail" xml:space="preserve">
+    <value>{0:0.0} s, {1}</value>
+  </data>
+  <data name="SoundClipDetailLoop" xml:space="preserve">
+    <value>{0:0.0} s, {1}, in loop</value>
+  </data>
+  <data name="SoundPadName" xml:space="preserve">
+    <value>Clip {0}, {1}</value>
+  </data>
+  <data name="SoundPadNamePlaying" xml:space="preserve">
+    <value>Clip {0}, {1}, in riproduzione</value>
+  </data>
+  <data name="SoundClipGainTip" xml:space="preserve">
+    <value>Guadagno {0}%</value>
+  </data>
+  <data name="SoundClipMenuName" xml:space="preserve">
+    <value>Opzioni di {0}</value>
+  </data>
+  <data name="SoundClipMenuTip" xml:space="preserve">
+    <value>Modifica, ferma, sposta o elimina questa clip</value>
+  </data>
+  <data name="SoundClipEdit" xml:space="preserve">
+    <value>Modifica</value>
+  </data>
+  <data name="SoundClipStop" xml:space="preserve">
+    <value>Ferma</value>
+  </data>
+  <data name="SoundClipMoveEarlier" xml:space="preserve">
+    <value>Sposta prima</value>
+  </data>
+  <data name="SoundClipMoveLater" xml:space="preserve">
+    <value>Sposta dopo</value>
+  </data>
+  <data name="SoundClipDeleted" xml:space="preserve">
+    <value>{0} è stata eliminata dalla soundboard.</value>
+  </data>
+  <data name="SoundClipDeleteTitle" xml:space="preserve">
+    <value>Elimina clip</value>
+  </data>
+  <data name="SoundClipDeleteMessage" xml:space="preserve">
+    <value>Eliminare {0} dalla soundboard? OpenXLR elimina la propria copia; il file da cui l'hai aggiunta resta dov'è.</value>
+  </data>
+  <data name="SoundClipEditTitle" xml:space="preserve">
+    <value>Modifica {0}</value>
+  </data>
+  <data name="SoundClipName" xml:space="preserve">
+    <value>Nome</value>
+  </data>
+  <data name="SoundClipNameHint" xml:space="preserve">
+    <value>Il nome di una clip ha da 1 a 60 caratteri.</value>
+  </data>
+  <data name="SoundClipGain" xml:space="preserve">
+    <value>Guadagno</value>
+  </data>
+  <data name="SoundClipGainHint" xml:space="preserve">
+    <value>Il livello proprio della clip, prima del fader di SFX. Una modifica raggiunge subito una clip in riproduzione.</value>
+  </data>
+  <data name="SoundClipMode" xml:space="preserve">
+    <value>Pressione</value>
+  </data>
+  <data name="SoundClipLoop" xml:space="preserve">
+    <value>Ricomincia alla fine finché non viene fermata</value>
+  </data>
+  <data name="SoundClipColourPlaceholder" xml:space="preserve">
+    <value>#RRGGBB, o vuoto per nessuno</value>
+  </data>
+  <data name="SoundsButton" xml:space="preserve">
+    <value>Suoni</value>
+  </data>
+  <data name="SoundsButtonTip" xml:space="preserve">
+    <value>Apri la soundboard, le cui clip suonano in questo canale.</value>
+  </data>
+  <data name="SoundsButtonName" xml:space="preserve">
+    <value>Soundboard di {0}</value>
+  </data>
+  <data name="SoundboardMixerOff" xml:space="preserve">
+    <value>Il mixer software non è in esecuzione, quindi la soundboard non può suonare. I suoi pad tornano con il mixer.</value>
+  </data>
+  <data name="SoundboardCancelImport" xml:space="preserve">
+    <value>Annulla</value>
+  </data>
+  <data name="SoundboardCancelImportTip" xml:space="preserve">
+    <value>Smetti di aggiungere clip dopo il file in corso.</value>
+  </data>
+  <data name="SoundboardImportStopped" xml:space="preserve">
+    <value>{0} file non sono stati aggiunti: l'importazione è stata fermata.</value>
+  </data>
+  <data name="SoundboardImportFull" xml:space="preserve">
+    <value>{0} file sono stati esclusi: la soundboard contiene al massimo {1} clip.</value>
+  </data>
+  <data name="SoundboardFileUnreadable" xml:space="preserve">
+    <value>Impossibile leggere {0}: il desktop non ha fornito un percorso su questo computer.</value>
+  </data>
 </root>

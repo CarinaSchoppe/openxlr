@@ -16,7 +16,7 @@ namespace OpenXLR.UI;
 /// <see cref="StateReceived"/> for every pushed state. State is handed over as a
 /// JsonNode so the UI can bind to it without duplicating the daemon's records.
 /// </summary>
-public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands, IDuckingCommands
+public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands, IDuckingCommands, ISoundboardCommands
 {
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -25,6 +25,7 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
     private ClientWebSocket? _socket;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
     private readonly SemaphoreSlim _pluginChanges = new(1, 1);
+    private readonly SemaphoreSlim _clipImports = new(1, 1);
     private readonly object _lifecycle = new();
     private Task? _runTask;
     private Task? _disposeTask;
@@ -397,7 +398,7 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
                     && node["site"] is JsonValue siteNode && siteNode.TryGetValue<string>(out string? site))
                     BrowserTabActivationReceived?.Invoke(tabId, site);
             }
-            else if (type is "pluginSetup" or "pluginInstall" or "pluginDiagnostics" or "windowsPluginFiles" or "nativeEditorRules" or "browserSession") StoreReply(type, node);
+            else if (type is "pluginSetup" or "pluginInstall" or "pluginDiagnostics" or "windowsPluginFiles" or "nativeEditorRules" or "browserSession" or "clipImport") StoreReply(type, node);
             else if (type == "commandResult" && node["requestId"]?.GetValue<string>() is string requestId)
             {
                 CompleteQuery(requestId);
@@ -690,6 +691,66 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
 
     /// <summary>A take's waveform, broadcast when the daemon finishes one or sent on request.</summary>
     public event Action<JsonNode>? SoundCheckTakeReceived;
+
+    // --- the soundboard: each change resolves to null, or the daemon's refusal ---
+
+    /// <summary>A copy of up to 64 MiB and a check in a helper process: generous, as for a plugin install.</summary>
+    private static readonly TimeSpan ClipImportTimeout = TimeSpan.FromMinutes(2);
+
+    public Task<string?> SetSoundboardAsync(bool enabled)
+        => EditLayoutAsync(new() { ["cmd"] = "setSoundboard", ["enabled"] = enabled });
+
+    /// <summary>
+    /// Import one file the user picked. Imports go one at a time, each
+    /// waiting for its own <c>clipImport</c> answer, so two windows never
+    /// share one. Null when the daemon did not answer.
+    /// </summary>
+    public async Task<ClipImportResult?> ImportClipAsync(string path)
+    {
+        CancellationToken stopping;
+        lock (_lifecycle)
+        {
+            if (_disposed) return null;
+            stopping = _cts.Token;
+        }
+        try { await _clipImports.WaitAsync(stopping); }
+        catch (OperationCanceledException) { return null; }
+        try
+        {
+            JsonNode? reply = await QueryAsync("clipImport", "importClip", ClipImportTimeout,
+                new Dictionary<string, object> { ["path"] = path });
+            if (reply is null) return null;
+            bool ok = reply["ok"] is JsonValue okValue && okValue.TryGetValue(out bool added) && added;
+            string message = reply["message"] is JsonValue text && text.TryGetValue(out string? sentence) ? sentence : "";
+            string? clip = reply["clip"] is JsonValue id && id.TryGetValue(out string? named) ? named : null;
+            return new ClipImportResult(ok, message, clip);
+        }
+        finally { _clipImports.Release(); }
+    }
+
+    public Task<string?> UpdateClipAsync(string clip, IReadOnlyDictionary<string, object> fields)
+    {
+        var payload = new Dictionary<string, object>(fields) { ["cmd"] = "updateClip", ["clip"] = clip };
+        return EditLayoutAsync(payload);
+    }
+
+    public Task<string?> DeleteClipAsync(string clip)
+        => EditLayoutAsync(new() { ["cmd"] = "deleteClip", ["clip"] = clip });
+
+    public Task<string?> SetClipOrderAsync(IReadOnlyList<string> clips)
+        => EditLayoutAsync(new() { ["cmd"] = "setClipOrder", ["clips"] = clips });
+
+    public Task<string?> PlayClipAsync(string clip)
+        => EditLayoutAsync(new() { ["cmd"] = "playClip", ["clip"] = clip });
+
+    public Task<string?> ReleaseClipAsync(string clip)
+        => EditLayoutAsync(new() { ["cmd"] = "releaseClip", ["clip"] = clip });
+
+    public Task<string?> StopClipAsync(string clip)
+        => EditLayoutAsync(new() { ["cmd"] = "stopClip", ["clip"] = clip });
+
+    public Task<string?> StopClipsAsync()
+        => EditLayoutAsync(new() { ["cmd"] = "stopClips" });
 
     /// <summary>Replace a channel's plugin insert chain (ordered).</summary>
     public Task SetInsertsAsync(string channel, IReadOnlyList<object> inserts)

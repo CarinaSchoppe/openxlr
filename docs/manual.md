@@ -3102,6 +3102,85 @@ An ordinary missing plugin path or dangling bundle link is reported
 separately. Updating or restoring a linked source causes it to be scanned
 again even when the generated Linux wrapper did not change.
 
+<a name="play-sound-clips"></a>
+### 3.14 Play sound clips
+
+The soundboard plays short clips into the SFX channel, so the clips go
+wherever SFX goes: its fader, its mute in each mix and its sends into
+Stream, Chat and the monitor mixes decide who hears them. On a fresh
+installation SFX sends into every mix at full level, so the first clip is
+heard on the stream, in the call and in your headphones at once. Check
+SFX's sends first, and mute it in the mixes that should not hear clips.
+
+The soundboard needs the native plugin host that every package ships. A
+build from source without it says so in the Soundboard window and offers
+nothing to play.
+
+1. Open the Soundboard window: the **Sounds** button on SFX's strip, the
+   tray menu's **Soundboard**, or **Soundboard** under AUDIO in Options.
+   The tray and Options open it even when the SFX strip is hidden or the
+   skin draws a mix matrix.
+2. Turn on **Soundboard on** if it is off.
+3. Press **Add clips** and pick one or more files, or **Add folder** for
+   every sound file in a folder (its subfolders are left out). WAV, FLAC,
+   Ogg Vorbis, Opus and MP3 are read, up to 30 seconds and 64 MiB a
+   file and 64 clips in all; files past the 64th are left out and
+   counted, and **Cancel** stops a long import after the file it is on.
+   OpenXLR copies each file into its own data folder, so moving or
+   deleting the original later changes nothing. A file it refuses is named
+   under the pads with the reason, such as "The clip is 31.0 s long; the
+   limit is 30 s."
+4. Press a pad to play its clip. Space or Enter plays the focused pad.
+   On a touch screen a pad plays when your finger lifts without having
+   moved, so a scroll that starts on a pad plays nothing; a **Hold** pad
+   plays as soon as it is touched. A screen reader's press on a Hold pad
+   plays the clip and releases it at once. The pad's ring lights while
+   the clip plays and the bar along its foot shows how far along it is;
+   SFX's Sounds button lights too. **Stop all** fades out every clip. A
+   Hold clip also stops when the Soundboard window loses focus while its
+   pad is held.
+
+A pad whose clip cannot be loaded says why in its second line; Edit
+shows the whole sentence at the top. Each pad's **⋯** button opens its menu: **Edit**, **Stop**, **Move
+earlier**, **Move later** and **Delete**. Edit holds:
+
+| Field | What it does |
+|---|---|
+| Name | what the pad and a Deck key show; renaming keeps the clip's id, so keys keep working |
+| Gain | the clip's own level before SFX's fader; a change reaches a playing clip at once |
+| Press | **Overlap** plays the clip again over any that still play; **Restart** starts it again from the top; **Toggle** plays it and the next press stops it; **Hold** plays it while the pad is held down |
+| Start over at the end | loops the clip until it is stopped; turning it off lets the current pass finish |
+| Icon, Colour | the pad's icon, and a colour along its top edge that also tints its icon and name |
+
+The fader at the top of the Soundboard window is SFX's own channel volume, the same
+fader as on the strip: it is the board's master. Up to eight clips play
+at once; a ninth press fades out the oldest.
+
+Some things follow from the clips sharing SFX:
+
+- Applications routed to SFX share the fader, the mutes and the meter
+  with the clips. Route loud applications to System or a channel of
+  their own in the layout editor.
+- With ducking on, SFX is lowered by default while the key microphone is
+  loud, and the clips with it. Untick SFX in the Ducking window to keep
+  the clips at their level.
+- Renaming or hiding SFX keeps the board playing. Deleting SFX turns the
+  board off; the Soundboard window says so and offers **Turn on and create SFX**,
+  which makes a new SFX channel, muted in every mix. Open its sends
+  before you expect to hear anything. The clips stay in the library
+  meanwhile.
+- While the software mixer is off, or waiting for the audio server, the
+  Soundboard window keeps its pads and says the mixer is not running;
+  nothing plays until it is.
+- A clip starts within one block of audio. At the 256 frames most setups
+  use that is about 5 ms; with a forced block of 2048 frames it is about
+  43 ms.
+
+The library lives in `~/.config/openxlr/soundboard.json` and the copied
+files in `~/.local/share/openxlr/soundboard/` (see
+[section 6](#files)). Profiles do not carry the library; they recall
+SFX's sends and volume like any channel's.
+
 <a name="stream-deck"></a>
 ## 4. Stream Deck (OpenDeck)
 

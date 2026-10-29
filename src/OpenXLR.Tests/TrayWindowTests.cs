@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using OpenXLR.UI;
+using OpenXLR.UI.Localization;
 
 namespace OpenXLR.Tests;
 
@@ -163,7 +164,8 @@ public sealed class TrayWindowTests
                     Assert.NotNull(icon.Icon);
                     Assert.Equal("OpenXLR", icon.ToolTipText);
                     Assert.NotNull(icon.Menu);
-                    Assert.Equal(3, icon.Menu.Items.Count);
+                    Assert.Equal(4, icon.Menu.Items.Count);
+                    Assert.Equal(Localizer.Text("Soundboard"), Assert.IsType<NativeMenuItem>(icon.Menu.Items[1]).Header);
                     window.ShowMixer();
                     window.Close();
                     Dispatcher.UIThread.RunJobs();

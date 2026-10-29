@@ -1142,6 +1142,12 @@
                         </ItemsControl.ItemTemplate>
                       </ItemsControl>
                     </Grid>
+                    <!-- on the channel the soundboard plays into, its Sounds button under the sends,
+                         the whole tile wide, so every row above stays level with the other tiles -->
+                    <Button Name="ChannelSounds" Content="{loc:Text Key=SoundsButton}" Classes="fx" Classes.fxOn="{Binding SoundsPlaying}"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8,2" FontSize="{DynamicResource Ox.Label.FontSize}"
+                            MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}" IsVisible="{Binding ShowsSounds}" Click="OnSounds"
+                            AutomationProperties.Name="{Binding SoundsName}" ToolTip.Tip="{loc:Text Key=SoundsButtonTip}"/>
                   </StackPanel>
                 </Border>
               </DataTemplate>

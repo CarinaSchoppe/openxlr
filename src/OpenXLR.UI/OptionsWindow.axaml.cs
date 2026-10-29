@@ -174,6 +174,12 @@ public partial class OptionsWindow : Window
         if (DataContext is OptionsViewModel vm) DuckingWindow.Open(this, vm.Main.Ducking);
     }
 
+    private void OnSoundboard(object? sender, RoutedEventArgs e)
+    {
+        // Under the mixer, not Options: the board stays open when Options closes.
+        if (DataContext is OptionsViewModel vm) SoundboardWindow.Open(Owner as Window, vm.Main.Soundboard);
+    }
+
     private void OnWaveInterfaces(object? sender, RoutedEventArgs e)
     {
         if (DataContext is OptionsViewModel vm) new WaveInterfacesWindow(vm.Main).Show(this);

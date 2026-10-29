@@ -1579,7 +1579,7 @@ public sealed class TuiViewTests
     {
         (App app, _) = Ready();
         Screen screen = new(width, height);
-        for (int tab = 1; tab < 8; tab++)
+        for (int tab = 1; tab < 9; tab++)
         {
             app.ShowTab(tab);
             app.Draw(screen);
@@ -1747,10 +1747,10 @@ public sealed class TuiViewTests
         app.Draw(screen);
         string frame = Frame(screen);
         // A compact terminal scrolls the full table, including plugin controls.
-        for (int i = 0; i < 4; i++) app.Handle(new KeyPress(Key.Down));
+        for (int i = 0; i < 9; i++) app.Handle(new KeyPress(Key.Down));
         app.Draw(screen);
         frame += Frame(screen);
-        foreach (string command in new[] { "Ctrl+Left/Right", "c capture input", "m sink mute", "f forget",
+        foreach (string command in new[] { "Ctrl+Left/Right", "c capture input", "S stop all", "m sink mute", "f forget",
             "e open editor", "r defaults", "Space/Enter toggle/choice", "s overwrite", "R reload skins", "Ctrl+C" })
             Assert.Contains(command, frame, StringComparison.Ordinal);
         app.Handle(new KeyPress(Key.Char, 'q'));

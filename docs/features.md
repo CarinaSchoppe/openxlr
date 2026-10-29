@@ -545,8 +545,9 @@ a pad plays on the pointer or on Space and Enter, and a hold pad stops when
 it comes up. Its header has the board's switch, SFX's own volume as the
 master, Stop all, and adding files or a whole folder through the desktop's
 file picker. Each pad's menu edits, stops, moves or deletes its clip. See
-[Play sound clips](manual.md#play-sound-clips). The terminal mixer does not
-offer it yet; the [API](api.md#soundboard) drives it from scripts.
+[Play sound clips](manual.md#play-sound-clips). The terminal mixer has the
+board in its Sounds tab ([manual](manual.md#terminal-sounds)); the
+[API](api.md#soundboard) drives it from scripts.
 
 ## Inserts
 
@@ -868,9 +869,10 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   meters, hold markers and fifteen seconds of level history for the chosen
   mix. The scale is RMS dBFS; the hold lasts one second, then falls by
   18 dB per second. Meter colours belong to positions on the scale
-- Eight keyboard sections: the desk, the matrix of every send into every
+- Nine keyboard sections: the desk, the matrix of every send into every
   mix, hardware inputs, outputs and defaults,
-  application routing, inserts, profiles and options. Wide terminals have
+  application routing, inserts, profiles, options and the
+  soundboard. Wide terminals have
   a section rail and grouped hardware cards with gain arcs. At 80x24 the
   rail becomes a top row and the strips shorten. Both banks scroll to keep
   the selection visible. F1 or `?` lists all keys. A plugin is added from
@@ -890,6 +892,12 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   switch. Enter on a number asks for an exact value. The shared EQ model
   supplies the ranges, steps and defaults; reset keeps the EQ's on/off
   state and changes only that microphone
+- The soundboard in Sounds: the board's switch, SFX's volume as its
+  master, and a row per clip with its length, mode, loop, gain, status or
+  reason, and a bar while it plays. Keys play, stop, stop all, step the
+  gain, mode and loop, reorder, rename and delete, and `i` imports a file
+  by its typed path. A Hold clip plays on one press and stops on the next,
+  since a terminal sends no key-up ([manual](manual.md#terminal-sounds))
 - Insert editing opens the plugin's native editor. A blocked or refused
   editor falls back to terminal controls with the reason shown. Controls
   follow the catalogue's order, defaults, switches, named scale points and

@@ -525,6 +525,57 @@ internal sealed record MixerSnapshot
     public List<StreamEntry> Streams { get; init; } = [];
     public Dictionary<string, List<InsertEntry>> Inserts { get; init; } = [];
     public string? LayoutWarning { get; init; }
+
+    /// <summary>The soundboard, or null from a daemon that predates it.</summary>
+    public SoundboardEntry? Soundboard { get; init; }
+}
+
+/// <summary>
+/// The soundboard as the daemon reports it (docs/api.md, soundboard): the
+/// channel its clips play into, its switch, why it cannot play, and the
+/// clips in library order.
+/// </summary>
+internal sealed record SoundboardEntry
+{
+    /// <summary><c>sfx</c> while that channel exists, null after it was deleted.</summary>
+    public string? Channel { get; init; }
+    public bool Enabled { get; init; }
+
+    /// <summary>False without the native plugin host.</summary>
+    public bool Available { get; init; }
+
+    /// <summary>Null exactly when the board can play; otherwise why not, in one sentence.</summary>
+    public string? Error { get; init; }
+    public List<string> Formats { get; init; } = [];
+    public List<ClipEntry> Clips { get; init; } = [];
+    public List<string> Playing { get; init; } = [];
+}
+
+/// <summary>One clip of the soundboard's library.</summary>
+internal sealed record ClipEntry
+{
+    public string Id { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    public double Seconds { get; init; }
+    public double Gain { get; init; } = 1;
+
+    /// <summary>One of <see cref="Modes"/>.</summary>
+    public string Mode { get; init; } = "overlap";
+    public bool Loop { get; init; }
+    public string Icon { get; init; } = string.Empty;
+    public string? Colour { get; init; }
+    public bool Loaded { get; init; }
+
+    /// <summary><c>ready</c>, <c>loading</c>, <c>error</c> (the reason in <see cref="Error"/>) or <c>off</c> (the board's error says why).</summary>
+    public string Status { get; init; } = "off";
+    public string? Error { get; init; }
+    public bool Playing { get; init; }
+
+    /// <summary>The press modes in the order a key steps through them.</summary>
+    public static readonly string[] Modes = ["overlap", "restart", "toggle", "hold"];
+
+    [JsonIgnore]
+    public bool Hold => Mode == "hold";
 }
 
 /// <summary>

@@ -34,6 +34,7 @@ internal sealed class DaemonLink : IAsyncDisposable
     private readonly Lock _meterGate = new();
     private readonly Dictionary<string, MeterTrace> _meters = [];
     private readonly Dictionary<string, (double Decibels, double At)> _reductions = [];
+    private readonly Dictionary<string, (double Position, int Voices, double At)> _clips = [];
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
     private ClientWebSocket? _socket;
     private Task? _pump;
@@ -77,6 +78,47 @@ internal sealed class DaemonLink : IAsyncDisposable
     /// <summary>A local lifetime for a channel id and its numbered EQ table.</summary>
     internal long ChannelRevision(string channel) => _channelRevisions.GetValueOrDefault(channel).Revision;
 
+    /// <summary>The answer to the last clip import, or null before the first.</summary>
+    public ClipImportOutcome? LastImport { get; private set; }
+
+    /// <summary>True from an import's request until its answer, a timeout or a closed connection.</summary>
+    public bool Importing => Volatile.Read(ref _importing) != 0;
+
+    private int _importing;
+    private long _importSerial;
+    private (string? Clip, string? Message) _importReply;
+
+    /// <summary>
+    /// Import a file into the soundboard. The outcome lands in
+    /// <see cref="LastImport"/> whichever tab is shown, with the clip id from
+    /// the daemon's <c>clipImport</c> answer. Without a connection it fails
+    /// at once rather than waiting for the timeout.
+    /// </summary>
+    public void ImportClip(string path)
+    {
+        if (!Connected)
+        {
+            Finish(false, "Not connected to the daemon, so the file was not imported", null);
+            return;
+        }
+        if (Interlocked.Exchange(ref _importing, 1) != 0) return;
+        _importReply = (null, null);
+        // Copying and checking a long file can take longer than a fader write.
+        Request("importClip", body => body["path"] = path, TimeSpan.FromMinutes(2)).ContinueWith(task =>
+        {
+            string? error = task.IsCompletedSuccessfully ? task.Result : "The import did not finish";
+            (string? clip, string? message) = _importReply;
+            Volatile.Write(ref _importing, 0);
+            Finish(error is null, error ?? message ?? "The clip was added to the soundboard.", error is null ? clip : null);
+        }, TaskScheduler.Default);
+    }
+
+    private void Finish(bool ok, string message, string? clip)
+    {
+        LastImport = new ClipImportOutcome(Interlocked.Increment(ref _importSerial), ok, message, clip);
+        Changed?.Invoke();
+    }
+
     /// <summary>The last error the daemon sent back, shown once and then cleared.</summary>
     public string? LastError { get; private set; }
 
@@ -111,6 +153,20 @@ internal sealed class DaemonLink : IAsyncDisposable
             double now = _clock.Elapsed.TotalSeconds;
             return _reductions.Values.Where(reading => now - reading.At < 1)
                 .Select(reading => reading.Decibels).DefaultIfEmpty(0).Max();
+        }
+    }
+
+    /// <summary>
+    /// How far a soundboard clip's newest voice is, 0 to 1, and how many
+    /// voices play it, from its <c>clip:&lt;id&gt;</c> meter; null while the
+    /// clip is silent and once a reading is a second old.
+    /// </summary>
+    public (double Position, int Voices)? ClipProgress(string id)
+    {
+        lock (_meterGate)
+        {
+            return _clips.TryGetValue($"clip:{id}", out var reading) && _clock.Elapsed.TotalSeconds - reading.At < 1
+                ? (reading.Position, reading.Voices) : null;
         }
     }
 
@@ -175,19 +231,20 @@ internal sealed class DaemonLink : IAsyncDisposable
     }
 
     /// <summary>Match a command outcome to its request, never to an unrelated error.</summary>
-    public Task<string?> Request(string command, Action<JsonObject> fill)
+    /// <param name="timeout">How long the daemon has to answer; 20 seconds unless the command takes longer.</param>
+    public Task<string?> Request(string command, Action<JsonObject> fill, TimeSpan? timeout = null)
     {
         string id = Guid.NewGuid().ToString("N");
         TaskCompletionSource<string?> result = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _requests[id] = result;
-        _ = ExpireRequest(id, result);
+        _ = ExpireRequest(id, result, timeout ?? TimeSpan.FromSeconds(20));
         Send(command, body => { fill(body); body["requestId"] = id; });
         return result.Task;
     }
 
-    private async Task ExpireRequest(string id, TaskCompletionSource<string?> result)
+    private async Task ExpireRequest(string id, TaskCompletionSource<string?> result, TimeSpan timeout)
     {
-        try { await result.Task.WaitAsync(TimeSpan.FromSeconds(20), _stopping.Token).ConfigureAwait(false); }
+        try { await result.Task.WaitAsync(timeout, _stopping.Token).ConfigureAwait(false); }
         catch (TimeoutException) { result.TrySetResult("The daemon did not answer the request"); }
         catch (OperationCanceledException) { result.TrySetResult("Disconnected from the daemon"); }
         finally { _requests.TryRemove(id, out _); }
@@ -390,6 +447,11 @@ internal sealed class DaemonLink : IAsyncDisposable
                 Changed?.Invoke();
                 break;
 
+            case "clipImport":
+                // The commandResult that follows ends the request; this names the clip.
+                _importReply = (Message(json, "clip"), Message(json));
+                break;
+
             case "nativeEditorRulesChanged":
                 RefreshPlugins();
                 Changed?.Invoke();
@@ -435,6 +497,13 @@ internal sealed class DaemonLink : IAsyncDisposable
                         _reductions[entry.Name] = (Math.Clamp(pair[0], 0, 120), now);
                         continue;
                     }
+                    // A soundboard clip reports where it is and how many voices play it, not a level.
+                    if (entry.Name.StartsWith("clip:", StringComparison.Ordinal))
+                    {
+                        int voices = pair.Length > 1 ? (int)Math.Clamp(pair[1], 0, 64) : 1;
+                        _clips[entry.Name] = (Math.Clamp(pair[0], 0, 1), voices, now);
+                        continue;
+                    }
                     if (!_meters.TryGetValue(entry.Name, out MeterTrace? trace))
                         _meters[entry.Name] = trace = new MeterTrace();
                     trace.Push(pair[0], pair.Length > 1 ? pair[1] : pair[0], now);
@@ -443,6 +512,8 @@ internal sealed class DaemonLink : IAsyncDisposable
                     _meters.Remove(missing);
                 foreach (string missing in _reductions.Keys.Where(key => !present.Contains(key)).ToArray())
                     _reductions.Remove(missing);
+                foreach (string missing in _clips.Keys.Where(key => !present.Contains(key)).ToArray())
+                    _clips.Remove(missing);
             }
         }
         catch (JsonException) { }
@@ -458,3 +529,6 @@ internal sealed class DaemonLink : IAsyncDisposable
         _stopping.Dispose();
     }
 }
+
+/// <summary>How a clip import ended: <see cref="Serial"/> counts imports, so a client sees each answer once.</summary>
+internal sealed record ClipImportOutcome(long Serial, bool Ok, string Message, string? Clip);

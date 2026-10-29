@@ -406,7 +406,8 @@ public sealed class DaemonClientTests
     /// <summary>
     /// The soundboard's commands as the daemon reads them, each answered by
     /// its own commandResult; two imports started together each get their
-    /// own clipImport, the refused one with its sentence.
+    /// own clipImport, the refused one with its sentence, and a library
+    /// export and import read their own replies.
     /// </summary>
     [Fact]
     public async Task SoundboardCommandsAreSentAsTheDaemonReadsThemAndImportsDoNotShareAnAnswer()
@@ -426,6 +427,14 @@ public sealed class DaemonClientTests
                         clip = ok ? "airhorn" : null }, stop);
                     await SocketTestServer.Send(socket, new { type = "commandResult", requestId = id, error = ok ? null : "This build cannot decode the file." }, stop);
                 }
+                else if (command["cmd"]!.GetValue<string>() is "exportSoundboard" or "importSoundboard")
+                {
+                    bool export = command["cmd"]!.GetValue<string>() == "exportSoundboard";
+                    await SocketTestServer.Send(socket, export
+                        ? new { type = "soundboardExport", ok = true, message = "2 clips were exported to board.zip.", clips = 2, skipped = Array.Empty<string>() }
+                        : (object)new { type = "soundboardImport", ok = true, message = "1 clip was added from the archive.", clips = new[] { "a" }, skipped = new[] { "b: the file is empty" } }, stop);
+                    await SocketTestServer.Send(socket, new { type = "commandResult", requestId = id, error = (string?)null }, stop);
+                }
                 else
                 {
                     string? error = command["cmd"]!.GetValue<string>() == "playClip" ? "playClip: the soundboard is off" : null;
@@ -439,7 +448,7 @@ public sealed class DaemonClientTests
         client.Start();
         await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Task<ClipImportResult?> wav = client.ImportClipAsync("/music/airhorn.wav"), mod = client.ImportClipAsync("/music/song.mod");
+        Task<ClipImportResult?> wav = client.ImportClipAsync("/music/airhorn.wav", "Intro"), mod = client.ImportClipAsync("/music/song.mod", "");
         Assert.Equal(new ClipImportResult(true, "Airhorn was added to the soundboard.", "airhorn"), await wav);
         Assert.Equal(new ClipImportResult(false, "This build cannot decode the file.", null), await mod);
         Assert.Null(await client.SetSoundboardAsync(true));
@@ -450,6 +459,9 @@ public sealed class DaemonClientTests
         Assert.Null(await client.StopClipAsync("airhorn"));
         Assert.Null(await client.StopClipsAsync());
         Assert.Null(await client.DeleteClipAsync("airhorn"));
+        Assert.Null(await client.RenameClipPageAsync("Intro", ""));
+        Assert.Equal(new SoundboardTransferResult(true, "2 clips were exported to board.zip."), await client.ExportSoundboardAsync("/home/me/board.zip"));
+        Assert.Equal(new SoundboardTransferResult(true, "1 clip was added from the archive.", Partial: true), await client.ImportSoundboardAsync("/home/me/board.zip", merge: true));
 
         static string Wire(JsonNode command)
         {
@@ -459,7 +471,7 @@ public sealed class DaemonClientTests
         }
         Assert.Equal(new[]
         {
-            """{"path":"/music/airhorn.wav","cmd":"importClip"}""",
+            """{"path":"/music/airhorn.wav","page":"Intro","cmd":"importClip"}""",
             """{"path":"/music/song.mod","cmd":"importClip"}""",
             """{"cmd":"setSoundboard","enabled":true}""",
             """{"gain":0.5,"mode":"hold","cmd":"updateClip","clip":"airhorn"}""",
@@ -469,6 +481,9 @@ public sealed class DaemonClientTests
             """{"cmd":"stopClip","clip":"airhorn"}""",
             """{"cmd":"stopClips"}""",
             """{"cmd":"deleteClip","clip":"airhorn"}""",
+            """{"cmd":"renameClipPage","page":"Intro","name":""}""",
+            """{"path":"/home/me/board.zip","cmd":"exportSoundboard"}""",
+            """{"path":"/home/me/board.zip","merge":true,"cmd":"importSoundboard"}""",
         }, commands.Select(Wire));
     }
 

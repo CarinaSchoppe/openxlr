@@ -5,7 +5,7 @@
         x:Class="OpenXLR.UI.SoundClipWindow" x:DataType="vm:SoundClipEditViewModel"
         Title="{Binding Title}" Width="460" SizeToContent="Height" CanResize="False"
         WindowStartupLocation="CenterOwner" Classes="dialog">
-  <!-- One clip's name, gain, press mode, loop, icon and colour. Save sends what changed. -->
+  <!-- One clip's name, gain, press mode, loop, icon, colour and page. Save sends what changed. -->
   <StackPanel Margin="18" Spacing="10">
     <!-- why the player cannot hold the clip, in full -->
     <TextBlock Name="SoundClipError" Text="{Binding ClipError}" IsVisible="{Binding HasClipError}" Classes="warn" TextWrapping="Wrap"/>
@@ -34,6 +34,11 @@
     <TextBlock Text="{loc:Text Key=Colour}" Classes="h"/>
     <TextBox Name="SoundClipColour" Text="{Binding Colour, Mode=TwoWay}" MaxLength="7"
              PlaceholderText="{loc:Text Key=SoundClipColourPlaceholder}" AutomationProperties.Name="{loc:Text Key=Colour}"/>
+
+    <TextBlock Text="{loc:Text Key=SoundClipPage}" Classes="h"/>
+    <TextBox Name="SoundClipPage" Text="{Binding Page, Mode=TwoWay}" MaxLength="40" PlaceholderText="{Binding MainPage}"
+             AutomationProperties.Name="{loc:Text Key=SoundClipPage}"/>
+    <TextBlock Name="SoundClipPageHint" Text="{Binding PageHint}" Classes="hint" TextWrapping="Wrap"/>
 
     <TextBlock Name="SoundClipNote" Text="{Binding Note}" IsVisible="{Binding HasNote}" Classes="warn" TextWrapping="Wrap"/>
     <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">

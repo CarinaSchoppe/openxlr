@@ -3457,7 +3457,7 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
     <value>Aggiungi cartella</value>
   </data>
   <data name="SoundboardAddFolderTip" xml:space="preserve">
-    <value>Aggiunge uno alla volta tutti i file audio di una cartella; le sottocartelle restano fuori.</value>
+    <value>Aggiunge uno alla volta tutti i file audio di una cartella in una pagina con il nome della cartella; le sottocartelle restano fuori.</value>
   </data>
   <data name="SoundboardTurnOn" xml:space="preserve">
     <value>Attiva</value>
@@ -3644,5 +3644,80 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   </data>
   <data name="DesktopKeysBindUnanswered" xml:space="preserve">
     <value>il desktop non ha risposto al nuovo elenco di tasti. I tasti assegnati prima continuano a funzionare.</value>
+  </data>
+  <data name="SoundboardMainPage" xml:space="preserve">
+    <value>Principale</value>
+  </data>
+  <data name="SoundboardPages" xml:space="preserve">
+    <value>Pagine</value>
+  </data>
+  <data name="SoundboardPageMenu" xml:space="preserve">
+    <value>Menu della pagina</value>
+  </data>
+  <data name="SoundboardPageMenuTip" xml:space="preserve">
+    <value>Rinomina la pagina mostrata o sposta le sue clip nella pagina principale.</value>
+  </data>
+  <data name="SoundboardRenamePage" xml:space="preserve">
+    <value>Rinomina pagina</value>
+  </data>
+  <data name="SoundboardRenamePageTitle" xml:space="preserve">
+    <value>Rinomina {0}</value>
+  </data>
+  <data name="SoundboardRenamePageHint" xml:space="preserve">
+    <value>Fino a 40 caratteri. Il nome di un'altra pagina riunisce le clip in quella pagina.</value>
+  </data>
+  <data name="SoundboardRemovePage" xml:space="preserve">
+    <value>Sposta le sue clip in {0}</value>
+  </data>
+  <data name="SoundboardExportLibrary" xml:space="preserve">
+    <value>Esporta libreria</value>
+  </data>
+  <data name="SoundboardExportLibraryTip" xml:space="preserve">
+    <value>Salva tutte le clip e le loro impostazioni in un file zip, da conservare o da importare su un altro computer con gli stessi id.</value>
+  </data>
+  <data name="SoundboardImportLibrary" xml:space="preserve">
+    <value>Importa libreria</value>
+  </data>
+  <data name="SoundboardImportLibraryTip" xml:space="preserve">
+    <value>Aggiunge le clip da un file zip di libreria, o sostituisce con esse le clip presenti. Ogni file viene controllato come con Aggiungi clip.</value>
+  </data>
+  <data name="SoundboardPickExport" xml:space="preserve">
+    <value>Esporta la libreria della soundboard</value>
+  </data>
+  <data name="SoundboardPickImport" xml:space="preserve">
+    <value>Importa una libreria della soundboard</value>
+  </data>
+  <data name="SoundboardArchiveType" xml:space="preserve">
+    <value>Libreria della soundboard</value>
+  </data>
+  <data name="SoundboardExporting" xml:space="preserve">
+    <value>Esportazione della libreria.</value>
+  </data>
+  <data name="SoundboardImportingLibrary" xml:space="preserve">
+    <value>Importazione della libreria. Ogni clip viene controllata all'arrivo.</value>
+  </data>
+  <data name="SoundboardTransferNoAnswer" xml:space="preserve">
+    <value>Nessuna risposta dal daemon. Controlla la soundboard prima di riprovare.</value>
+  </data>
+  <data name="SoundboardImportAdd" xml:space="preserve">
+    <value>Aggiungi</value>
+  </data>
+  <data name="SoundboardImportReplace" xml:space="preserve">
+    <value>Sostituisci</value>
+  </data>
+  <data name="SoundboardImportModeMessage" xml:space="preserve">
+    <value>Aggiungere le clip di {0} alle {1} clip presenti, o sostituirle? Sostituisci elimina le clip presenti e mantiene gli id del file, così i tasti legati a quegli id riproducono le clip importate.</value>
+  </data>
+  <data name="SoundboardDropHint" xml:space="preserve">
+    <value>Rilascia i file audio per aggiungerli a {0}. I file audio di una cartella vanno in una pagina con il nome della cartella.</value>
+  </data>
+  <data name="SoundClipPage" xml:space="preserve">
+    <value>Pagina</value>
+  </data>
+  <data name="SoundClipPageHint" xml:space="preserve">
+    <value>Vuoto mette la clip in {0}. Un nome che nessuna pagina ha ancora crea una pagina nuova. Una clip spostata in una pagina va in fondo.</value>
+  </data>
+  <data name="SoundClipPageInvalid" xml:space="preserve">
+    <value>Il nome di una pagina ha al massimo 40 caratteri e nessun carattere di controllo.</value>
   </data>
 </root>

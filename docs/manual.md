@@ -3122,7 +3122,10 @@ nothing to play.
    skin draws a mix matrix.
 2. Turn on **Soundboard on** if it is off.
 3. Press **Add clips** and pick one or more files, or **Add folder** for
-   every sound file in a folder (its subfolders are left out). WAV, FLAC,
+   every sound file in a folder (its subfolders are left out), or drag
+   files and folders from a file manager onto the Soundboard window.
+   Files go onto the page shown; a folder's files go onto a page named
+   after the folder (see [pages](#soundboard-pages) below). WAV, FLAC,
    Ogg Vorbis, Opus and MP3 are read, up to 30 seconds and 64 MiB a
    file and 64 clips in all; files past the 64th are left out and
    counted, and **Cancel** stops a long import after the file it is on.
@@ -3152,6 +3155,7 @@ the monitor mix**, **Stop**, **Move earlier**, **Move later** and **Delete**. Ed
 | Press | **Overlap** plays the clip again over any that still play; **Restart** starts it again from the top; **Toggle** plays it and the next press stops it; **Hold** plays it while the pad is held down |
 | Start over at the end | loops the clip until it is stopped; turning it off lets the current pass finish |
 | Icon, Colour | the pad's icon, and a colour along its top edge that also tints its icon and name |
+| Page | the page the pad is on; empty puts it on **Main**, and a name no page has yet makes a new page. A clip moved to a page goes last on it |
 
 The fader at the top of the Soundboard window is SFX's own channel volume, the same
 fader as on the strip: it is the board's master. Up to eight clips play
@@ -3197,6 +3201,33 @@ Some things follow from the clips sharing SFX:
 - A clip starts within one block of audio. At the 256 frames most setups
   use that is about 5 ms; with a forced block of 2048 frames it is about
   43 ms.
+
+<a name="soundboard-pages"></a>
+**Pages.** Every clip is on a page, **Main** unless you choose another.
+Once a clip is on a named page, the pages stand as tabs over the pads,
+**Main** first and then each page in the order its first clip comes, and
+the pads show the page whose tab is lit. A page exists while a clip is on
+it: give a clip a page in its Edit window, add a folder, or drop one on
+the window. The **⋯** button beside the tabs renames the page shown, or
+moves its clips to **Main**, which ends the page. Renaming a page to the
+name of another puts the clips together on it. **Move earlier** and
+**Move later** move a pad among the pads of its own page. Pages change
+nothing about how a clip plays, and Deck keys and desktop keys find a
+clip by its id whatever page it is on.
+
+**Export and import the library.** **Export library** saves every clip
+and its settings, pages included, in one zip file you pick. **Import
+library** reads one back, on this computer or another. With clips already
+on the board it asks whether to **Add** the archive's clips to them or
+**Replace** them. Replace deletes the clips here and keeps the ids from
+the file, so Deck keys and desktop keys set up for those clips on the
+other computer play them here too. Add keeps the clips here and gives an
+imported clip a new id when its id is taken, and the line under the pads
+names each one that changed. OpenXLR checks every file in the archive
+the way it checks a file from **Add clips**. A clip that fails is left out
+and named, and the others come in. An archive that is not a soundboard library, holds
+anything but its library file and its clips, or is over 512 MiB is
+refused whole and nothing changes.
 
 To play clips from the keyboard, tick them in Options, DESKTOP,
 **Desktop keys**. Each one gets a global shortcut of its own, and a Hold

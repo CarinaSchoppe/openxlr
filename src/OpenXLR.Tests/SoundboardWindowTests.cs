@@ -81,7 +81,15 @@ internal static class SoundboardWindowTests
                 ["formats"] = Available ? new JsonArray("wav", "flac", "ogg", "opus", "mp3") : new JsonArray(),
                 ["clips"] = clips, ["playing"] = new JsonArray([.. Playing.Select(p => (JsonNode)p)]),
                 ["auditioning"] = Auditioning,
+                ["pages"] = new JsonArray([.. Pages().Select(p => (JsonNode)p)]),
             };
+        }
+
+        /// <summary>The pages as the daemon orders them: the default page first while it has a clip, then by first clip.</summary>
+        private List<string> Pages()
+        {
+            List<string> pages = [.. Clips.Select(c => c["page"]?.GetValue<string>() ?? "").Distinct()];
+            return [.. pages.Where(p => p.Length == 0), .. pages.Where(p => p.Length > 0)];
         }
 
         public JsonNode State()
@@ -127,12 +135,16 @@ internal static class SoundboardWindowTests
                     Auditioning = null;
                     return null;
                 case "updateClip":
-                    foreach (string field in new[] { "name", "gain", "mode", "loop", "icon", "colour" })
+                    foreach (string field in new[] { "name", "gain", "mode", "loop", "icon", "colour", "page" })
                         if (cmd[field] is { } value) entry![field] = field == "colour" && value.GetValue<string>() == "" ? null : value.DeepClone();
                     return null;
                 case "setClipOrder":
                     List<string> order = [.. cmd["clips"]!.AsArray().Select(c => c!.GetValue<string>())];
                     Clips.Sort((a, b) => order.IndexOf(a["id"]!.GetValue<string>()).CompareTo(order.IndexOf(b["id"]!.GetValue<string>())));
+                    return null;
+                case "renameClipPage":
+                    foreach (JsonObject onPage in Clips.Where(c => (c["page"]?.GetValue<string>() ?? "") == cmd["page"]!.GetValue<string>()))
+                        onPage["page"] = cmd["name"]!.GetValue<string>();
                     return null;
                 case "deleteClip":
                     Clips.Remove(entry!);
@@ -458,6 +470,51 @@ internal static class SoundboardWindowTests
             Assert.Equal("The clip is 31.0 s long; the limit is 30 s.", status.Text);
             await main.Soundboard.ImportAsync(["/home/user/applause.wav"]);
             await Until(() => main.Soundboard.Clips.Count == 4 && status.Text == "Applause was added to the soundboard." && !status.Classes.Contains("warn"));
+
+            // The library's export and import stand with the other actions, and fit at both widths.
+            Assert.True(Find<Button>(board, "SoundboardExportLibrary").IsEffectivelyEnabled);
+            Assert.True(Find<Button>(board, "SoundboardImportLibrary").IsEffectivelyEnabled);
+            Grid pageBar = Find<Grid>(board, "SoundboardPageBar");
+            Assert.False(pageBar.IsEffectivelyVisible);
+
+            // Pages: a tab each, the pads of the page shown, the menu for a named page.
+            daemon.Clips.Single(c => c["id"]!.GetValue<string>() == "drumroll")["page"] = "Jingles with a long page name for the tab";
+            await live.Push(daemon.State());
+            await Until(() => pageBar.IsEffectivelyVisible);
+            Button[] Tabs() => [.. board.GetVisualDescendants().OfType<Button>().Where(b => b.Name == "SoundboardPageTab")];
+            Assert.Equal([Localizer.Text("SoundboardMainPage"), "Jingles with a long page name for the tab"],
+                Tabs().Select(t => ((SoundPageViewModel)t.DataContext!).Title));
+            Assert.Contains("fxOn", Tabs()[0].Classes);
+            Assert.DoesNotContain(board.GetVisualDescendants().OfType<SoundPad>(), p => ((SoundClipViewModel)p.DataContext!).Id == "drumroll");
+            Assert.False(Find<Button>(board, "SoundboardPageMenu").IsEffectivelyEnabled);
+            Tabs()[1].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Until(() => board.GetVisualDescendants().OfType<SoundPad>().Select(p => ((SoundClipViewModel)p.DataContext!).Id).SequenceEqual(["drumroll"]));
+            Assert.Contains("fxOn", Tabs()[1].Classes);
+            Assert.True(Find<Button>(board, "SoundboardPageMenu").IsEffectivelyEnabled);
+            Assert.Equal(["SoundboardRenamePage", "SoundboardRemovePage"], board.PageMenu(main.Soundboard).Items.OfType<MenuItem>().Select(i => i.Name));
+            foreach (double width in new[] { 440d, 2400 })
+            {
+                Layout(board, width, 900);
+                AssertFits(board, $"with pages at {width}");
+                Capture(board, $"soundboard-pages-{(int)width}");
+            }
+            Layout(board, 760, 620);
+            JsonNode renamed = await Sent(() => _ = main.Soundboard.RenamePageAsync("Beats"));
+            Assert.Equal(("Jingles with a long page name for the tab", "Beats"), (renamed["page"]!.GetValue<string>(), renamed["name"]!.GetValue<string>()));
+            await Until(() => Tabs().Length == 2 && ((SoundPageViewModel)Tabs()[1].DataContext!).Title == "Beats" && Tabs()[1].Classes.Contains("fxOn"));
+            JsonNode emptied = await Sent(() => _ = main.Soundboard.RemovePageAsync());
+            Assert.Equal("", emptied["name"]!.GetValue<string>());
+            await Until(() => !pageBar.IsEffectivelyVisible && board.GetVisualDescendants().OfType<SoundPad>().Count() == 4);
+
+            // A drag of files over the window says where a drop puts them.
+            TextBlock dropHint = Find<TextBlock>(board, "SoundboardDropHint");
+            Assert.False(dropHint.IsEffectivelyVisible);
+            main.Soundboard.Dropping = true;
+            await Until(() => dropHint.IsEffectivelyVisible && dropHint.Text == Localizer.Format("SoundboardDropHint", Localizer.Text("SoundboardMainPage")));
+            Layout(board, 440, 700);
+            AssertFits(board, "while files are dragged over it");
+            main.Soundboard.Dropping = false;
+            Layout(board, 760, 620);
 
             // SFX deleted: the daemon's sentence, no strip button, and the button that creates SFX again.
             const string deleted = "The soundboard is off because the SFX channel was deleted. Turn it on again to create SFX, muted in every mix.";

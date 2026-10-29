@@ -92,6 +92,45 @@ internal static class Dialogs
         return result;
     }
 
+    /// <summary>
+    /// How to import a library archive over the clips there are: true adds
+    /// its clips, false replaces the clips with them, null cancels.
+    /// </summary>
+    public static async Task<bool?> ImportModeAsync(Window owner, string file, int clips)
+    {
+        var add = new Button { Name = "SoundboardImportAdd", Content = Localizer.Text("SoundboardImportAdd"), IsDefault = true };
+        var replace = new Button { Name = "SoundboardImportReplace", Content = Localizer.Text("SoundboardImportReplace"), Classes = { "danger" } };
+        var cancel = new Button { Content = Localizer.Text("Cancel"), IsCancel = true };
+        var dialog = new Window
+        {
+            Title = Localizer.Text("SoundboardImportLibrary"),
+            SizeToContent = SizeToContent.WidthAndHeight,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Classes = { "dialog" },
+            Content = new StackPanel
+            {
+                Margin = new Avalonia.Thickness(18), Spacing = 14, MaxWidth = 420,
+                Children =
+                {
+                    new TextBlock { Text = Localizer.Format("SoundboardImportModeMessage", file, clips), TextWrapping = TextWrapping.Wrap },
+                    new StackPanel
+                    {
+                        Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Children = { cancel, replace, add },
+                    },
+                },
+            },
+        };
+        bool? result = null;
+        add.Click += (_, _) => { result = true; dialog.Close(); };
+        replace.Click += (_, _) => { result = false; dialog.Close(); };
+        cancel.Click += (_, _) => dialog.Close();
+        await dialog.ShowDialog(owner);
+        return result;
+    }
+
     /// <summary>True when the user accepts; closing the dialog any other way is a no.</summary>
     public static async Task<bool> ConfirmAsync(Window owner, string title, string message, string yesLabel)
     {

@@ -3444,7 +3444,7 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
     <value>Magdagdag ng folder</value>
   </data>
   <data name="SoundboardAddFolderTip" xml:space="preserve">
-    <value>Idagdag isa-isa ang bawat sound file sa isang folder; hindi kasama ang mga subfolder nito.</value>
+    <value>Idagdag isa-isa ang bawat sound file sa isang folder sa pahinang ipinangalan sa folder; hindi kasama ang mga subfolder nito.</value>
   </data>
   <data name="SoundboardTurnOn" xml:space="preserve">
     <value>I-on</value>
@@ -3631,5 +3631,80 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
   </data>
   <data name="DesktopKeysBindUnanswered" xml:space="preserve">
     <value>hindi sumagot ang desktop sa bagong listahan ng mga key. Gumagana pa rin ang mga key na naka-bind dati.</value>
+  </data>
+  <data name="SoundboardMainPage" xml:space="preserve">
+    <value>Pangunahin</value>
+  </data>
+  <data name="SoundboardPages" xml:space="preserve">
+    <value>Mga pahina</value>
+  </data>
+  <data name="SoundboardPageMenu" xml:space="preserve">
+    <value>Menu ng pahina</value>
+  </data>
+  <data name="SoundboardPageMenuTip" xml:space="preserve">
+    <value>Palitan ang pangalan ng ipinapakitang pahina, o ilipat ang mga clip nito sa pangunahing pahina.</value>
+  </data>
+  <data name="SoundboardRenamePage" xml:space="preserve">
+    <value>Palitan ang pangalan ng pahina</value>
+  </data>
+  <data name="SoundboardRenamePageTitle" xml:space="preserve">
+    <value>Palitan ang pangalan ng {0}</value>
+  </data>
+  <data name="SoundboardRenamePageHint" xml:space="preserve">
+    <value>Hanggang 40 character. Ang pangalan ng ibang pahina ay pinagsasama ang mga clip sa pahinang iyon.</value>
+  </data>
+  <data name="SoundboardRemovePage" xml:space="preserve">
+    <value>Ilipat ang mga clip nito sa {0}</value>
+  </data>
+  <data name="SoundboardExportLibrary" xml:space="preserve">
+    <value>I-export ang library</value>
+  </data>
+  <data name="SoundboardExportLibraryTip" xml:space="preserve">
+    <value>I-save ang bawat clip at ang mga setting nito sa isang zip file, para itago o i-import sa ibang computer na may parehong mga id.</value>
+  </data>
+  <data name="SoundboardImportLibrary" xml:space="preserve">
+    <value>I-import ang library</value>
+  </data>
+  <data name="SoundboardImportLibraryTip" xml:space="preserve">
+    <value>Idagdag ang mga clip mula sa isang zip file ng library, o palitan ng mga ito ang mga clip dito. Sinusuri ang bawat file gaya ng sa pagdagdag ng mga clip.</value>
+  </data>
+  <data name="SoundboardPickExport" xml:space="preserve">
+    <value>I-export ang library ng soundboard</value>
+  </data>
+  <data name="SoundboardPickImport" xml:space="preserve">
+    <value>Mag-import ng library ng soundboard</value>
+  </data>
+  <data name="SoundboardArchiveType" xml:space="preserve">
+    <value>Library ng soundboard</value>
+  </data>
+  <data name="SoundboardExporting" xml:space="preserve">
+    <value>Ine-export ang library.</value>
+  </data>
+  <data name="SoundboardImportingLibrary" xml:space="preserve">
+    <value>Ini-import ang library. Sinusuri ang bawat clip pagpasok nito.</value>
+  </data>
+  <data name="SoundboardTransferNoAnswer" xml:space="preserve">
+    <value>Walang sagot mula sa daemon. Suriin ang soundboard bago subukan muli.</value>
+  </data>
+  <data name="SoundboardImportAdd" xml:space="preserve">
+    <value>Idagdag</value>
+  </data>
+  <data name="SoundboardImportReplace" xml:space="preserve">
+    <value>Palitan</value>
+  </data>
+  <data name="SoundboardImportModeMessage" xml:space="preserve">
+    <value>Idagdag ang mga clip mula sa {0} sa {1} clip dito, o palitan ang mga ito? Binubura ng Palitan ang mga clip dito at pinapanatili ang mga id mula sa file, kaya ang mga key na nakatali sa mga id na iyon ay magpapatugtog ng mga na-import na clip.</value>
+  </data>
+  <data name="SoundboardDropHint" xml:space="preserve">
+    <value>I-drop ang mga sound file para idagdag sa {0}. Ang mga sound file ng isang folder ay mapupunta sa pahinang ipinangalan sa folder.</value>
+  </data>
+  <data name="SoundClipPage" xml:space="preserve">
+    <value>Pahina</value>
+  </data>
+  <data name="SoundClipPageHint" xml:space="preserve">
+    <value>Kapag walang laman, ilalagay ang clip sa {0}. Ang pangalang wala pang pahina ay gagawa ng bagong pahina. Ang clip na inilipat sa isang pahina ay mapupunta sa huli nito.</value>
+  </data>
+  <data name="SoundClipPageInvalid" xml:space="preserve">
+    <value>Ang pangalan ng pahina ay hanggang 40 character at walang control character.</value>
   </data>
 </root>

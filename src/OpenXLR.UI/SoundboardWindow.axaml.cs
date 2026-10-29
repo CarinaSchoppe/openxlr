@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -30,6 +31,34 @@ public partial class SoundboardWindow : Window
         UpdateControlSizing();
         Skinning.SkinService.Changed += UpdateControlSizing;
         Closed += (_, _) => Skinning.SkinService.Changed -= UpdateControlSizing;
+        // Sound files and folders from a file manager go through the same import as Add clips.
+        AddHandler(DragDrop.DragEnterEvent, OnDragOver);
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
+        AddHandler(DragDrop.DropEvent, OnDrop);
+    }
+
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        bool takes = Board is { CanAdd: true } && e.DataTransfer.Contains(DataFormat.File);
+        e.DragEffects = takes ? DragDropEffects.Copy : DragDropEffects.None;
+        if (Board is { } board) board.Dropping = takes;
+    }
+
+    private void OnDragLeave(object? sender, DragEventArgs e)
+    {
+        if (Board is { } board) board.Dropping = false;
+    }
+
+    private async void OnDrop(object? sender, DragEventArgs e)
+    {
+        if (Board is not { } board) return;
+        board.Dropping = false;
+        if (!board.CanAdd || e.DataTransfer.TryGetFiles() is not { Length: > 0 } items) return;
+        e.DragEffects = DragDropEffects.Copy;
+        // An item the desktop hands over without a path on this machine cannot be copied; say so by name.
+        await board.ImportDroppedAsync([.. items.Select(LocalPath).OfType<string>()],
+            [.. items.Where(i => LocalPath(i) is null).Select(i => i.Name)]);
     }
 
     private void UpdateControlSizing() => Classes.Set("large-targets", Skinning.SkinService.LargeTargets);
@@ -119,6 +148,87 @@ public partial class SoundboardWindow : Window
         if (LocalPath(folders[0]) is { } folder) await board.ImportFolderAsync(folder);
         else await board.ImportAsync([], [folders[0].Name]);
     }
+
+    private void OnPage(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is SoundPageViewModel page) Board?.ShowPage(page);
+    }
+
+    /// <summary>The shown page's menu: rename it, or move its clips to the default page.</summary>
+    private void OnPageMenu(object? sender, RoutedEventArgs e)
+    {
+        if (Board is not { CanEditPage: true } board) return;
+        PageMenu(board).ShowAt((Control)sender!);
+    }
+
+    internal MenuFlyout PageMenu(SoundboardViewModel board)
+    {
+        var menu = new MenuFlyout();
+        var rename = new MenuItem { Name = "SoundboardRenamePage", Header = Localizer.Text("SoundboardRenamePage") };
+        rename.Click += async (_, _) =>
+        {
+            if (await Dialogs.NameAsync(this, Localizer.Format("SoundboardRenamePageTitle", board.SelectedPageTitle), board.SelectedPage,
+                    Localizer.Text("SoundboardRenamePageHint"), SoundboardViewModel.MaxPageLength) is { } name)
+                await board.RenamePageAsync(name);
+        };
+        var remove = new MenuItem { Name = "SoundboardRemovePage", Header = Localizer.Format("SoundboardRemovePage", SoundboardViewModel.PageTitle("")) };
+        remove.Click += async (_, _) => await board.RemovePageAsync();
+        menu.Items.Add(rename);
+        menu.Items.Add(remove);
+        return menu;
+    }
+
+    private async void OnExportLibrary(object? sender, RoutedEventArgs e)
+    {
+        if (Board is not { CanExport: true } board) return;
+        IStorageFolder? start = await StorageProvider.TryGetWellKnownFolderAsync(WellKnownFolder.Documents);
+        IStorageFile? file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = Localizer.Text("SoundboardPickExport"),
+            SuggestedStartLocation = start,
+            SuggestedFileName = "soundboard.zip",
+            DefaultExtension = "zip",
+            ShowOverwritePrompt = true,
+            FileTypeChoices = [ArchiveType()],
+        });
+        if (file is null) return;
+        if (LocalPath(file) is not { } path)
+        {
+            board.ShowReport(Localizer.Format("SoundboardFileUnreadable", file.Name), true);
+            return;
+        }
+        // The daemon writes archives that end in .zip only.
+        if (!path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) path += ".zip";
+        await board.ExportLibraryAsync(path);
+    }
+
+    private async void OnImportLibrary(object? sender, RoutedEventArgs e)
+    {
+        if (Board is not { CanAdd: true } board) return;
+        IStorageFolder? start = await StorageProvider.TryGetWellKnownFolderAsync(WellKnownFolder.Documents);
+        IReadOnlyList<IStorageFile> files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = Localizer.Text("SoundboardPickImport"),
+            AllowMultiple = false,
+            SuggestedStartLocation = start,
+            FileTypeFilter = [ArchiveType(), FilePickerFileTypes.All],
+        });
+        if (files.Count == 0) return;
+        if (LocalPath(files[0]) is not { } path)
+        {
+            board.ShowReport(Localizer.Format("SoundboardFileUnreadable", files[0].Name), true);
+            return;
+        }
+        // An empty board has nothing to keep, so the clips are added without asking.
+        bool? merge = board.HasClips ? await Dialogs.ImportModeAsync(this, files[0].Name, board.Clips.Count) : true;
+        if (merge is bool adding) await board.ImportLibraryAsync(path, adding);
+    }
+
+    private static FilePickerFileType ArchiveType() => new(Localizer.Text("SoundboardArchiveType"))
+    {
+        Patterns = ["*.zip"],
+        MimeTypes = ["application/zip"],
+    };
 
     private static string? LocalPath(IStorageItem item)
     {

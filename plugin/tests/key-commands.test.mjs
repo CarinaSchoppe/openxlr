@@ -224,3 +224,14 @@ test("a soundboard press answers only a failure, so no check mark covers the cli
   h.ack();
   assert.deepEqual(h.notices.at(-1), {context: "focus", failed: false}, "other immediate keys still confirm");
 });
+
+test("clip presses are never swallowed as repeats, and enqueue says whether a press went out", () => {
+  const h = harness();
+  assert.equal(h.keys.enqueue("clip", {cmd: "playClip", clip: "airhorn"}), true);
+  assert.equal(h.keys.enqueue("clip", {cmd: "playClip", clip: "airhorn"}), true);
+  assert.equal(h.sent.length, 2);
+  assert.equal(h.keys.enqueue("focus", {cmd: "routeFocusedApp", channel: "game"}), true);
+  assert.equal(h.keys.enqueue("focus", {cmd: "routeFocusedApp", channel: "game"}), false, "other keys still ignore a repeat");
+  h.offline();
+  assert.equal(h.keys.enqueue("clip", {cmd: "playClip", clip: "airhorn"}), false);
+});

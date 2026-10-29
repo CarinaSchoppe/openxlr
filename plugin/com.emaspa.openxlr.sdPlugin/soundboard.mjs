@@ -63,11 +63,15 @@ export function pressMode(clip, override) {
 }
 
 // The command a press sends, and whether the key's release ends the clip.
-export function clipPress(key, settings) {
+// Inside a multi-action OpenDeck sends the key up 100 ms after the key down,
+// so a hold there would cut the clip off: it plays as overlap instead.
+export function clipPress(key, settings, inMultiAction = false) {
   if (key.stop) return { payload: { cmd: STOP_ALL }, hold: false };
-  const override = MODES.includes(settings?.mode) ? settings.mode : null;
+  let override = MODES.includes(settings?.mode) ? settings.mode : null;
+  const hold = pressMode(key.clip, override) === "hold";
+  if (hold && inMultiAction) override = "overlap";
   return { payload: { cmd: "playClip", clip: key.id, ...(override ? { mode: override } : {}) },
-           hold: pressMode(key.clip, override) === "hold" };
+           hold: hold && !inMultiAction };
 }
 
 // Where the clip is, from the meters frame: {position, voices}, or null
@@ -78,9 +82,9 @@ export function clipProgress(levels, id) {
   return { position: Math.max(0, Math.min(1, value[0])), voices: Number.isFinite(value[1]) ? value[1] : 1 };
 }
 
-// The progress bar moves in steps of two pixels on a key; a meters frame
+// The progress bar moves in steps of four pixels on a key; a meters frame
 // that does not move it draws nothing. -1 is no bar.
-export const progressBucket = (progress) => progress ? Math.round(progress.position * 50) : -1;
+export const progressBucket = (progress) => progress ? Math.round(progress.position * 25) : -1;
 
 // The clip's own icon and colour, each falling back to SFX's from the
 // layout, as a channel key shows its channel's. "none" draws no clip icon.
@@ -103,9 +107,11 @@ export function boardNotice(mixer, daemonUp) {
 }
 
 // What the inspector lists: every clip by id with its name, own mode and
-// error, and the board's notice.
+// error, the board's notice, and whether the list is the daemon's (known),
+// so a clip absent from it is missing rather than not yet heard of.
 export function clipChoices(mixer, daemonUp) {
   return {
+    known: daemonUp && !!mixer?.soundboard,
     clips: (mixer?.soundboard?.clips ?? []).map((c) => ({ id: c.id, name: c.name, mode: c.mode, error: c.error ?? null })),
     notice: boardNotice(mixer, daemonUp),
   };

@@ -123,6 +123,16 @@ test("a clip key plays, holds, stops all and draws the board's state and the cli
     assert.equal(images("horn").length, drawn, "a frame within the same step is not redrawn");
     await meters({"ch:sfx": [.4, .4], "clip:airhorn": [.75, 2]});
     assert.match(image("horn"), /<rect x="22" y="124" width="75" height="6"/);
+    // A title the user typed is drawn over the key: no bar under it, and no
+    // redraw for a frame that only moves the bar.
+    host.receive({event: "titleParametersDidChange", context: "horn", payload: {title: "Boom"}});
+    assert.ok(!image("horn").includes('y="124"'));
+    assert.ok(image("horn").includes('<circle cx="120" cy="24" r="8" fill="#3ecf7a"'), "still lit");
+    const titled = images("horn").length;
+    await meters({"ch:sfx": [.4, .4], "clip:airhorn": [.95, 2]});
+    assert.equal(images("horn").length, titled);
+    host.receive({event: "titleParametersDidChange", context: "horn", payload: {title: ""}});
+    assert.match(image("horn"), /<rect x="22" y="124" width="95" height="6"/);
     // The clip ends: its key leaves the meters and the bar goes.
     await meters({"ch:sfx": [0, 0]});
     assert.ok(!image("horn").includes('y="124"'));
@@ -202,6 +212,59 @@ test("a clip key plays, holds, stops all and draws the board's state and the cli
     assert.ok(!image("horn").includes(">offline<"));
     down("horn"); await flush();
     assert.equal(sent().at(-1).cmd, "playClip");
+    await answer();
+    const releases = () => sent().filter(m => m.cmd === "releaseClip");
+
+    // Two keys holding one clip: the clip ends when the last of them lets go,
+    // since releaseClip ends every hold voice of the clip on this connection.
+    appear("hold-a", {target: "clip:drum-roll"});
+    appear("hold-b", {target: "clip:airhorn", mode: "hold"});
+    appear("hold-c", {target: "clip:airhorn", mode: "hold"});
+    down("hold-b"); await flush(); await answer();
+    down("hold-c"); await flush(); await answer();
+    let released = releases().length;
+    up("hold-b"); await flush();
+    assert.equal(releases().length, released, "the other key still holds the clip");
+    up("hold-c"); await flush();
+    assert.deepEqual(releases().at(-1), {cmd: "releaseClip", clip: "airhorn"});
+    assert.equal(releases().length, released + 1);
+
+    // Inside a multi-action OpenDeck sends the key up 100 ms after the key
+    // down: a hold key plays as overlap there and its key up sends nothing.
+    released = releases().length;
+    host.receive({event: "keyDown", context: "hold-a", payload: {isInMultiAction: true}}); await flush();
+    assert.equal(sent().at(-1).cmd, "playClip");
+    assert.equal(sent().at(-1).mode, "overlap", "the clip's own hold mode is overridden");
+    await answer();
+    host.receive({event: "keyDown", context: "hold-b", payload: {isInMultiAction: true}}); await flush();
+    assert.equal(sent().at(-1).mode, "overlap", "so is the key's own");
+    await answer();
+    host.receive({event: "keyDown", context: "horn", payload: {isInMultiAction: true}}); await flush();
+    assert.equal(sent().at(-1).mode, undefined, "a clip that does not hold plays as it is");
+    await answer();
+    up("hold-a"); up("hold-b"); await flush();
+    assert.equal(releases().length, released);
+
+    // Quick taps inside one round trip all play, and each hold key up follows its press.
+    let plays = sent().filter(m => m.cmd === "playClip").length;
+    down("horn"); up("horn"); down("horn"); up("horn"); await flush();
+    down("hold-a"); up("hold-a"); down("hold-a"); up("hold-a"); await flush();
+    assert.equal(sent().filter(m => m.cmd === "playClip").length, plays + 4, "no press is dropped");
+    assert.deepEqual(sent().slice(-4).map(m => m.cmd), ["playClip", "releaseClip", "playClip", "releaseClip"]);
+    for (const message of sent().filter(m => m.requestId))
+      daemon.receive({type: "commandResult", requestId: message.requestId, error: null});
+    await flush();
+
+    // A press dropped at the outstanding limit holds nothing, so its key up sends no release.
+    for (let i = 0; i < 64; i++) down("horn");
+    await flush();
+    plays = sent().length;
+    released = releases().length;
+    down("hold-a"); await flush();
+    assert.equal(sent().length, plays, "the 65th unanswered press is dropped");
+    assert.ok(alerts("hold-a") >= 1);
+    up("hold-a"); await flush();
+    assert.equal(releases().length, released);
   } finally {
     control.restore();
     for (const interval of intervals) clearInterval(interval);

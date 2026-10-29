@@ -818,10 +818,10 @@ inspector lists clips by name and the key keeps the clip's id, so a rename
 does not break it. A press uses the clip's own mode or one set on the key,
 and in hold mode the clip ends when the key comes up. The key wears the
 clip's icon and colour, or SFX's where the clip has none, lights while the
-clip plays and draws its progress along the bottom from the meters. A deleted clip, a
-deleted SFX, the board turned off and a missing native host each read as
-one grey word on the key, and as the daemon's sentence in the key's
-settings.
+clip plays and draws its progress along the bottom from the meters. A
+deleted clip, a deleted SFX, the board turned off and a missing native host
+each read as one grey word on the key, and as the daemon's sentence in the
+key's settings.
 
 Profiles: a key can recall one of the active device's saved profiles,
 listed live in the property inspector; it lights while that profile is

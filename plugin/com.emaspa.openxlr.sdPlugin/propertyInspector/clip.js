@@ -5,7 +5,9 @@
 "use strict";
 
 let ws = null, piUuid = null, actionContext = null;
-let library = { clips: [], notice: null };
+// The last list from the plugin; known is false until the daemon's own
+// library arrives, and while the daemon is offline.
+let library = { known: false, clips: [], notice: null };
 
 function connect(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inActionInfo) {
   piUuid = inPropertyInspectorUUID;
@@ -22,11 +24,14 @@ function connect(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inAct
     modeSel.value = settings.mode ?? "";
     showChoice(settings);
     const save = () => {
-      settings.target = clipSel.value;
+      // Before the first list the saved clip has no option yet and the
+      // select reads empty: a change of mode then keeps the clip.
+      settings.target = clipSel.value || (library.known ? "" : settings.target ?? "");
       settings.mode = modeSel.value;
       // The name goes with the key, so a clip deleted later still reads as itself.
       const name = clipSel.selectedOptions[0]?.dataset.name;
-      if (name) settings.name = name; else delete settings.name;
+      if (name) settings.name = name;
+      else if (!settings.target.startsWith("clip:")) delete settings.name;
       showChoice(settings);
       ws.send(JSON.stringify({ event: "setSettings", context: piUuid, payload: settings }));
     };
@@ -47,7 +52,8 @@ function connect(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inAct
 
 // Replace the listed clips, keeping the key's choice selected. A clip that
 // is no longer in the library stays selected as missing, under the name the
-// key saved, and comes back as itself once a clip with its id returns.
+// key saved, and comes back as itself once a clip with its id returns. While
+// the daemon is offline nothing is known to be missing.
 function fillClips(board, settings) {
   const sel = document.getElementById("clip");
   const wanted = sel.value || settings.target || "";
@@ -69,7 +75,9 @@ function fillClips(board, settings) {
     const missing = document.createElement("option");
     missing.id = "missing-clip";
     missing.value = wanted;
-    missing.textContent = "Missing: " + (settings.name || wanted.slice(5));
+    const name = settings.name || wanted.slice(5);
+    missing.textContent = board.known ? "Missing: " + name : name + " (unknown while OpenXLR is offline)";
+    if (settings.name) missing.dataset.name = settings.name;
     missing.disabled = true;
     sel.appendChild(missing);
   }
@@ -88,7 +96,7 @@ function showChoice(settings) {
   mode.disabled = target === "stopClips";
   const clip = (library.clips ?? []).find(c => "clip:" + c.id === target);
   const lines = [library.notice, clip?.error].filter(Boolean);
-  if (target.startsWith("clip:") && !clip && library.notice === null)
+  if (target.startsWith("clip:") && !clip && library.known && library.notice === null)
     lines.push("This clip is no longer in the soundboard. Choose another.");
   document.getElementById("notice").textContent = lines.join(" ");
 }

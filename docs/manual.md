@@ -3245,20 +3245,28 @@ key. A press plays the clip in its own press mode, set in the library:
 overlap starts another voice, restart plays it again from the top, toggle
 stops it when it is playing, and hold plays it while the key is down and
 ends it when the key comes up. **When pressed** in the key's settings gives
-the key a mode of its own instead. The key shows the clip's name, icon and
-colour, or SFX's icon and colour from the layout editor where the clip has
-none. Its light is green while the clip plays, and a bar along the bottom
-shows how far it is. With a clip played over itself, the bar follows the
-newest voice. **Stop every clip** fades every clip out and is lit while
-any clip plays. A key reads in grey why it cannot play: off when the
-soundboard is off, no SFX when the SFX channel was deleted, unavailable
-without the native plugin host, stopped while the player starts or after
-it failed, loading while the clip is being loaded, error when the clip
-could not be loaded, gone when the clip was deleted, and update with an
-OpenXLR older than the plugin. A press on a grey key
-only flashes an alert, as does a press OpenXLR refuses. The key's settings
-show OpenXLR's own sentence for why. A deleted clip stays selected there as
-missing. The clips play wherever SFX's sends and fader put them, together
+the key a mode of its own instead. Every press plays, however fast they
+come. With two hold keys on the same clip, the clip ends when the last of
+them comes up. Inside a multi-action a hold key plays its clip as overlap,
+because OpenDeck lets the key up a tenth of a second after pressing it. If
+the Deck goes away while a hold key is down and no key up arrives, a looping
+clip keeps playing until **Stop every clip** ends it.
+
+The key shows the clip's name, icon and colour, or SFX's icon and colour
+from the layout editor where the clip has none. Its light is green while the
+clip plays, and a bar along the bottom shows how far it is. With a clip
+played over itself, the bar follows the newest voice. A title typed in the
+key's settings covers that part of the key, so a titled key shows only the
+light. **Stop every clip** fades every clip out and is lit while any clip
+plays. A key reads in grey why it cannot play: off when the soundboard is
+off, no SFX when the SFX channel was deleted, unavailable without the native
+plugin host, stopped while the player starts or after it failed, loading
+while the clip is being loaded, error when the clip could not be loaded,
+gone when the clip was deleted, and update with an OpenXLR older than the
+plugin. A press on a grey key only flashes an alert, as does a press
+OpenXLR refuses. The key's settings show OpenXLR's own sentence for why. A
+deleted clip stays selected there as missing, and while OpenXLR is offline
+as unknown. The clips play wherever SFX's sends and fader put them, together
 with any application routed to SFX.
 
 Installing: the plugin zip from the release through OpenDeck's

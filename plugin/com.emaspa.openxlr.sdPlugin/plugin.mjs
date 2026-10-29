@@ -133,6 +133,8 @@ function connectDaemon() {
     clearEqTurns();
     meterLevels = {};
     keyCommands.disconnect();
+    // The daemon releases this connection's held clips when it closes.
+    heldClips.clear(); holdCount.clear();
     refreshAll();
     refreshMeters();
     publishClips();
@@ -337,7 +339,7 @@ host.onmessage = (e) => {
       }
       break;
     case "keyDown":
-      if (inst?.action === CLIP_ACTION) onClipDown(m.context, inst);
+      if (inst?.action === CLIP_ACTION) onClipDown(m.context, inst, m.payload?.isInMultiAction === true);
       else if (inst) onKeyDown(m.context, inst);
       break;
     case "keyUp":
@@ -863,19 +865,28 @@ function dialValue(target, inst) {
 // A clip key plays its clip on the press; in hold mode the release ends it.
 // The press goes beside the ordered queue and alerts only when refused. The
 // release is sent as it is, never dropped behind an unanswered press.
+// releaseClip ends every hold voice of the clip on this connection, so with
+// two keys holding one clip it is sent when the last of them lets go.
 const heldClips = new Map();   // context -> clip id held down in hold mode
-function onClipDown(context, inst) {
+const holdCount = new Map();   // clip id -> keys holding it
+function onClipDown(context, inst, inMultiAction) {
   const key = clipKey(mixer(), inst.settings);
   if (!daemonUp || key.word !== null) { send({ event: "showAlert", context }); return; }
   releaseHeldClip(context);
-  const press = clipPress(key, inst.settings);
-  keyCommands.enqueue(context, press.payload);
-  if (press.hold) heldClips.set(context, key.id);
+  const press = clipPress(key, inst.settings, inMultiAction);
+  // A press that was not sent holds nothing, so its key up releases nothing.
+  if (keyCommands.enqueue(context, press.payload) && press.hold) {
+    heldClips.set(context, key.id);
+    holdCount.set(key.id, (holdCount.get(key.id) ?? 0) + 1);
+  }
 }
 function releaseHeldClip(context) {
   const id = heldClips.get(context);
   if (id === undefined) return;
   heldClips.delete(context);
+  const left = (holdCount.get(id) ?? 1) - 1;
+  if (left > 0) { holdCount.set(id, left); return; }
+  holdCount.delete(id);
   cmd({ cmd: "releaseClip", clip: id });
 }
 
@@ -1381,7 +1392,7 @@ function refreshMeters(contextOnly) {
     if (contextOnly !== undefined && context !== contextOnly) continue;
     // A clip key redraws when its bar moves a step, not on every frame.
     if (inst.action === CLIP_ACTION) {
-      if (lastMeter.get(context) !== progressBucket(clipProgress(meterLevels, clipIdOf(inst.settings.target)))) refresh(context);
+      if (lastMeter.get(context) !== clipBucket(context, clipProgress(meterLevels, clipIdOf(inst.settings.target)))) refresh(context);
       continue;
     }
     if (inst.action !== "com.emaspa.openxlr.dial") continue;
@@ -1400,6 +1411,10 @@ function refreshMeters(contextOnly) {
     send({ event: "setFeedback", context, payload: { meter: meterSvg(level) } });
   }
 }
+
+// What a clip key's face shows of its progress: the bar's step, or under a
+// title typed by the user, which hides the bar, only whether the clip plays.
+const clipBucket = (context, progress) => !progress ? -1 : emptyTitle.has(context) ? progressBucket(progress) : 0;
 
 // The title is rendered as our own pixmap so the scroll is pixel-exact
 // across the full strip width, the way Wave Link's plugin uses it. Text
@@ -1481,13 +1496,16 @@ function refresh(context) {
     const word = !daemonUp ? daemonNotice ?? "offline" : key.word;
     const known = word === null;
     const progress = clipProgress(meterLevels, key.id);
-    lastMeter.set(context, progressBucket(progress));
-    const label = emptyTitle.has(context) ? (word === null ? key.label : `${key.label}\n${word}`) : "";
+    lastMeter.set(context, clipBucket(context, progress));
+    const own = emptyTitle.has(context);
+    const label = own ? (word === null ? key.label : `${key.label}\n${word}`) : "";
     // Lit while the clip plays; the meters say so before the state does.
     const playing = known && (key.playing || !key.stop && progress !== null);
     send({ event: "setImage", context,
            payload: { image: keySvg(playing, false, known, key.stop ? "stop" : "play", "", label, null,
-             key.stop ? {} : clipAppearance(mixer(), key.clip), known && !key.stop && progress ? progress.position : null) } });
+             key.stop ? {} : clipAppearance(mixer(), key.clip),
+             // A title typed by the user is drawn over the key, where the bar would be.
+             own && known && !key.stop && progress ? progress.position : null) } });
   } else if (inst.action === "com.emaspa.openxlr.dial") {
     const d = dialValue(t, inst);
     const isDb = t === "gain" || t === "gain2" || t?.startsWith("chgain:");

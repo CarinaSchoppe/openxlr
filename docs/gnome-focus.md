@@ -49,9 +49,20 @@ is part of this feature; the OpenXLR Flatpak still cannot query the compositor.
 The extension exports `/org/openxlr/Focus` on GNOME Shell's own session-bus
 connection. The UI calls `org.gnome.Shell`, using the `org.openxlr.Focus`
 interface; the extension owns no separate service name. A process owning
-`org.openxlr.Focus` cannot replace that endpoint. A desktop without the
-Shell service reports that the focus source is unavailable instead of
-suggesting a Shell extension for Budgie or GNOME Flashback.
+`org.openxlr.Focus` cannot replace that endpoint. A session without the
+Shell service reports that it has no GNOME Shell focus source.
+
+GNOME Flashback and Budgie 10.9 and earlier also own `org.gnome.Shell` and
+list GNOME in `XDG_CURRENT_DESKTOP`, but run no GNOME Shell, so the
+extension cannot load there. OpenXLR recognises a `GNOME-Flashback` or
+`Budgie` entry in `XDG_CURRENT_DESKTOP` or `XDG_SESSION_DESKTOP` and never
+asks for the extension. In an X11 session it reads focus through the X11
+source, as on other X11 desktops. In any other session focused routing
+reports that the desktop has no focus source.
+
+GNOME Shell on X11 uses the X11 source too, which supports native
+applications only. The extension is the focus source for GNOME Shell on
+Wayland.
 
 The extension endpoint accepts only the session-bus connection owning
 `org.openxlr.Desktop`. Other direct callers receive AccessDenied before

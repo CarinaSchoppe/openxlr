@@ -18,6 +18,36 @@ public sealed class GnomeFocusTests
         Assert.Equal(FocusCompositor.Unavailable, CompositorFocus.Select(key => key == "XDG_CURRENT_DESKTOP" ? "GNOME:Hyprland" : null));
     }
 
+    [Theory]
+    [InlineData("GNOME-Flashback:GNOME", null, "wayland")]
+    [InlineData("GNOME-Flashback:GNOME", "gnome-flashback-metacity", null)]
+    [InlineData("gnome-flashback:gnome", null, null)]
+    [InlineData("Budgie:GNOME", "budgie-desktop", "wayland")]
+    [InlineData("Budgie:GNOME", null, null)]
+    [InlineData("GNOME", "gnome-flashback-metacity", null)]
+    [InlineData("GNOME", "budgie-desktop", "wayland")]
+    [InlineData(null, "gnome-flashback-compiz", null)]
+    [InlineData(null, "budgie-desktop", "wayland")]
+    public void DesktopsThatOnlyImitateGnomeShellNeverAskForTheExtension(string? current, string? session, string? type)
+    {
+        string? Env(string key) => key switch
+        {
+            "XDG_CURRENT_DESKTOP" => current, "XDG_SESSION_DESKTOP" => session, "XDG_SESSION_TYPE" => type,
+            "SWAYSOCK" => "/stale", "HYPRLAND_INSTANCE_SIGNATURE" => "stale_hypr", _ => null,
+        };
+        Assert.Equal(FocusCompositor.Unavailable, CompositorFocus.Select(Env));
+        // The same sessions on X11 keep the EWMH source, which needs no extension.
+        Assert.Equal(FocusCompositor.X11, CompositorFocus.Select(key => key == "XDG_SESSION_TYPE" ? "x11" : Env(key)));
+    }
+
+    [Theory]
+    [InlineData("GNOME-Classic:GNOME")]
+    [InlineData("ubuntu:GNOME")]
+    [InlineData("pop:GNOME")]
+    public void OtherGnomeShellSessionsStillUseTheExtension(string current) =>
+        Assert.Equal(FocusCompositor.Gnome, CompositorFocus.Select(key => key switch
+        { "XDG_CURRENT_DESKTOP" => current, "XDG_SESSION_TYPE" => "wayland", _ => null }));
+
     [DesktopBusFact]
     public async Task AudioProcessQueriesReadGnomeOnTheDesktopOwnerConnection()
     {

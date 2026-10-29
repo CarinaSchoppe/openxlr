@@ -3935,6 +3935,8 @@ routing is requested:
 - GNOME Shell on Wayland: the optional [OpenXLR Focus extension](gnome-focus.md).
   Its D-Bus endpoint answers only the running OpenXLR desktop service.
   A GNOME X11 session uses the X11 source described above.
+  GNOME Flashback and Budgie run no GNOME Shell and cannot load it; they
+  use the X11 source in an X11 session and have no focus source otherwise.
 
 Hyprland routing has been run on a live session. Sway, Niri, the new X11
 source and GNOME still need owner desktop acceptance.

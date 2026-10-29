@@ -31,7 +31,8 @@ internal static class CompositorFocus
         if (kde) return FocusCompositor.KWin;
         if (sway) return FocusCompositor.Sway;
         if (hyprland) return FocusCompositor.Hyprland;
-        if (gnome) return x11 ? FocusCompositor.X11 : FocusCompositor.Gnome;
+        if (gnome) return x11 ? FocusCompositor.X11
+            : WithoutShell(env) ? FocusCompositor.Unavailable : FocusCompositor.Gnome;
         if (niri) return FocusCompositor.Niri;
         // Never let stale IPC variables select a different compositor on an
         // explicitly named desktop, such as GNOME.
@@ -47,6 +48,23 @@ internal static class CompositorFocus
         // Source launches on Plasma did not always carry a desktop marker.
         // KWin still has to own its bus name before its script can run.
         return FocusCompositor.KWin;
+    }
+
+    // GNOME Flashback and Budgie 10.9 and earlier own org.gnome.Shell and
+    // list GNOME in their desktop names, but run no GNOME Shell, so the
+    // focus extension cannot load there. Either session variable may say so.
+    // Select asks only once a GNOME entry is present, so this skips only
+    // Budgie sessions that also name GNOME. No Budgie release runs GNOME
+    // Shell, so matching any Budgie entry here, including the session name
+    // budgie-desktop, cannot turn away a session the extension would serve.
+    private static bool WithoutShell(Func<string, string?> env)
+    {
+        foreach (string key in (string[])["XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP"])
+            foreach (string name in (env(key) ?? "").Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                if (name.StartsWith("GNOME-Flashback", StringComparison.OrdinalIgnoreCase)
+                    || name.StartsWith("Budgie", StringComparison.OrdinalIgnoreCase))
+                    return true;
+        return false;
     }
 
     internal static async Task<uint> ReadAsync(FocusCompositor source, CancellationToken cancel,

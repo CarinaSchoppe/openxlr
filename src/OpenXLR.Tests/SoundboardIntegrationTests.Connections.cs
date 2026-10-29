@@ -112,6 +112,153 @@ public sealed partial class SoundboardIntegrationTests
         finally { Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", previous); }
     }
 
+    /// <summary>
+    /// The whole daemon on a private graph, with the real player. One
+    /// connection holds a clip and lets it play out with its key still down;
+    /// another then holds it and lets go, and its voice ends at once instead
+    /// of playing to the clip's end. Then a key comes up while an import on
+    /// the same connection is still checking its file, and the release is
+    /// taken before the import's reply.
+    /// </summary>
+    [MonitorPipeWireFact]
+    public async Task AKeyUpEndsItsVoiceAfterAnEndedHoldAndDuringAnImport()
+    {
+        string? previous = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", Path.Combine(_directory, "config"));
+        try
+        {
+            new DaemonSettings { Submixer = true }.Save();
+            var config = new ConfigurationBuilder().Build();
+            using var devices = new DeviceManager(NullLogger<DeviceManager>.Instance, config, () => []);
+            using var service = new MixerService(NullLogger<MixerService>.Instance, config, devices);
+            using var lifetime = new SocketLifetime();
+            var hub = new WebSocketHub(devices, service, NullLogger<WebSocketHub>.Instance, lifetime);
+            // The real helper, except that a probe waits while the gate file
+            // exists, so an import stays in flight for as long as the test needs.
+            string gate = Path.Combine(_directory, "probe-gate");
+            var pipeWire = (PipeWireAdapter)typeof(MixerService).GetField("_pipeWire", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(service)!;
+            pipeWire.PlayerHost = ExecutableScript.Write(Path.Combine(_directory, "gated-host"), $$"""
+                if [ "$1" = probe ] && [ -e '{{gate}}' ]; then
+                  touch '{{gate}}.waiting'
+                  while [ -e '{{gate}}' ]; do sleep 0.05; done
+                fi
+                exec '{{NativePluginHost.Executable}}' "$@"
+                """);
+            await service.StartAsync(CancellationToken.None);
+            try
+            {
+                Assert.True(service.Built);
+                await using var server = await SocketTestServer.Start(async (socket, _) => await hub.HandleAsync(socket));
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+                using var terminal = new ClientWebSocket();
+                using var deck = new ClientWebSocket();
+                await terminal.ConnectAsync(new Uri(server.Url), deadline.Token);
+                Assert.Null(await Ask(terminal, new { cmd = "setSoundboard", enabled = true }, deadline.Token));
+                string drum = Path.Combine(_directory, "drum-roll.wav");
+                WriteConstantWav(drum, .1, seconds: 3);
+                Assert.Null(await Ask(terminal, new { cmd = "importClip", path = drum, name = "Drum roll" }, deadline.Token));
+                Assert.True(SpinWait.SpinUntil(() => hub.Snapshot().Mixer!.Soundboard.Clips.Single().Status == SoundboardClipStatus.Ready,
+                    TimeSpan.FromSeconds(10)), hub.Snapshot().Mixer!.Soundboard.ToString());
+                IReadOnlyList<string> Playing() => hub.Snapshot().Mixer!.Soundboard.Playing;
+
+                // The terminal holds the clip and keeps its key down while the
+                // clip plays out. It reads what the daemon pushes all along,
+                // so its connection stays open and its hold stays recorded.
+                Assert.Null(await Ask(terminal, new { cmd = "playClip", clip = "drum-roll", mode = "hold" }, deadline.Token));
+                using var terminalDone = new CancellationTokenSource();
+                Task terminalReads = ReadUntil(terminal, terminalDone.Token, deadline.Token);
+                AssertLevel(.1, "OpenXLR_stream", "held from the terminal");
+                Assert.True(SpinWait.SpinUntil(() => Playing().Count == 0, TimeSpan.FromSeconds(6)), "the clip ended by itself");
+
+                // A Deck key holds the clip and comes up: its voice ends now,
+                // not when the clip would have ended. It connects only now, so
+                // its queue never fills while nothing reads it.
+                await deck.ConnectAsync(new Uri(server.Url), deadline.Token);
+                Assert.Null(await Ask(deck, new { cmd = "playClip", clip = "drum-roll", mode = "hold" }, deadline.Token));
+                Task deckReads = Drain(deck, TimeSpan.FromMilliseconds(500), deadline.Token);
+                AssertLevel(.1, "OpenXLR_stream", "held from the Deck");
+                await deckReads;
+                Assert.Null(await Ask(deck, new { cmd = "releaseClip", clip = "drum-roll" }, deadline.Token));
+                Assert.True(SpinWait.SpinUntil(() => Playing().Count == 0, TimeSpan.FromSeconds(1)),
+                    "the Deck's key up ended its voice although the terminal's key never came up");
+                deckReads = Drain(deck, TimeSpan.FromSeconds(1), deadline.Token);
+                AssertLevel(0, "OpenXLR_stream", "released from the Deck");
+                await deckReads;
+
+                // The Deck holds the clip again and starts an import whose
+                // check is held at the gate. Its key coming up is taken at
+                // once, before the import answers.
+                Assert.Null(await Ask(deck, new { cmd = "playClip", clip = "drum-roll", mode = "hold" }, deadline.Token));
+                deckReads = Drain(deck, TimeSpan.FromMilliseconds(500), deadline.Token);
+                AssertLevel(.1, "OpenXLR_stream", "held from the Deck again");
+                await deckReads;
+                string snare = Path.Combine(_directory, "snare.wav");
+                WriteConstantWav(snare, .1, seconds: 1);
+                File.WriteAllText(gate, "");
+                await SocketTestServer.Send(deck, new { cmd = "importClip", path = snare, name = "Snare", requestId = "import" }, deadline.Token);
+                Assert.True(SpinWait.SpinUntil(() => File.Exists(gate + ".waiting"), TimeSpan.FromSeconds(10)), "the import reached its check");
+                (string? released, List<string> before) = await AskCollecting(deck, new { cmd = "releaseClip", clip = "drum-roll" }, deadline.Token);
+                Assert.Null(released);
+                Assert.DoesNotContain("clipImport", before);
+                Assert.True(SpinWait.SpinUntil(() => Playing().Count == 0, TimeSpan.FromSeconds(1)), "the key up was taken while the import ran");
+                Assert.True(File.Exists(gate), "the import was still at its check");
+
+                // Let the import finish: its reply and its commandResult follow.
+                File.Delete(gate);
+                JsonNode? imported = null;
+                while (true)
+                {
+                    JsonNode message = await SocketTestServer.Receive(deck, deadline.Token);
+                    if (message["type"]?.GetValue<string>() == "clipImport") imported = message;
+                    if (message["type"]?.GetValue<string>() == "commandResult" && message["requestId"]?.GetValue<string>() == "import")
+                    {
+                        Assert.Null(message["error"]?.GetValue<string>());
+                        break;
+                    }
+                }
+                Assert.True(imported?["ok"]?.GetValue<bool>(), imported?.ToJsonString());
+                Assert.Equal("snare", imported!["clip"]?.GetValue<string>());
+
+                await terminalDone.CancelAsync();
+                await terminalReads;
+                await terminal.CloseAsync(WebSocketCloseStatus.NormalClosure, "", deadline.Token);
+                await deck.CloseAsync(WebSocketCloseStatus.NormalClosure, "", deadline.Token);
+            }
+            finally
+            {
+                lifetime.StopApplication();
+                await service.StopAsync(CancellationToken.None);
+            }
+        }
+        finally { Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", previous); }
+    }
+
+    /// <summary>Send one command with a request id; return its error and the types of the messages that came before its answer.</summary>
+    private static async Task<(string? Error, List<string> Before)> AskCollecting(WebSocket socket, object command, CancellationToken stop)
+    {
+        string request = Guid.NewGuid().ToString("N");
+        JsonObject body = JsonSerializer.SerializeToNode(command)!.AsObject();
+        body["requestId"] = request;
+        await SocketTestServer.Send(socket, body, stop);
+        var before = new List<string>();
+        while (true)
+        {
+            JsonNode message = await SocketTestServer.Receive(socket, stop);
+            string? type = message["type"]?.GetValue<string>();
+            if (type == "commandResult" && message["requestId"]?.GetValue<string>() == request)
+                return (message["error"]?.GetValue<string>(), before);
+            before.Add(type ?? "");
+        }
+    }
+
+    /// <summary>Read what the daemon pushes until <paramref name="done"/> is cancelled, as a client does.</summary>
+    private static async Task ReadUntil(WebSocket socket, CancellationToken done, CancellationToken stop)
+    {
+        // A receive is never cancelled, which would abort the socket: meters
+        // come fifteen times a second, so the loop looks at the flag soon.
+        while (!done.IsCancellationRequested) await SocketTestServer.Receive(socket, stop);
+    }
+
     /// <summary>Send one command with a request id and return its error, null on success.</summary>
     private static async Task<string?> Ask(WebSocket socket, object command, CancellationToken stop)
     {

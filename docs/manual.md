@@ -3127,7 +3127,8 @@ nothing to play.
    file and 64 clips in all; files past the 64th are left out and
    counted, and **Cancel** stops a long import after the file it is on.
    OpenXLR copies each file into its own data folder, so moving or
-   deleting the original later changes nothing. A file it refuses is named
+   deleting the original later changes nothing. Pads and Deck keys keep
+   playing and stopping clips while files are copied and checked. A file it refuses is named
    under the pads with the reason, such as "The clip is 31.0 s long; the
    limit is 30 s."
 4. Press a pad to play its clip. Space or Enter plays the focused pad.

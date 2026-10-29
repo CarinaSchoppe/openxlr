@@ -847,7 +847,7 @@ public sealed class MixerService : IHostedService, IDisposable
         if (CommandValidation.Check(cmd, _mixer, OpenXLR.Core.Mixing.PluginCatalog.Find) is { } invalid) return new(false, invalid, null);
         try
         {
-            SoundboardClip clip = _mixer.ImportClip(cmd.Path!, cmd.Name);
+            SoundboardClip clip = _mixer.ImportClip(cmd.Path!, cmd.Name, cmd.Page);
             _log.LogInformation("soundboard: imported {id} ({seconds:0.0} s)", clip.Id, clip.Seconds);
             Changed?.Invoke();
             return new(true, $"{clip.Name} was added to the soundboard.", clip.Id);
@@ -855,6 +855,60 @@ public sealed class MixerService : IHostedService, IDisposable
         catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
         {
             return new(false, ex.Message, null);
+        }
+    }
+
+    /// <summary>
+    /// Write the soundboard's library and clips into a zip archive. Slow
+    /// enough (up to an archive's worth of files) that callers run it off the
+    /// socket loop.
+    /// </summary>
+    public SoundboardExportMessage ExportSoundboard(Command cmd)
+    {
+        if (!_mixer.Built) return new(false, NotBuiltError, 0, []);
+        if (CommandValidation.Check(cmd, _mixer, OpenXLR.Core.Mixing.PluginCatalog.Find) is { } invalid) return new(false, invalid, 0, []);
+        try
+        {
+            SoundboardExport export = _mixer.ExportSoundboard(cmd.Path!);
+            _log.LogInformation("soundboard: exported {count} clips", export.Clips);
+            string message = export.Clips == 1 ? $"1 clip was exported to {Path.GetFileName(cmd.Path)}."
+                : $"{export.Clips} clips were exported to {Path.GetFileName(cmd.Path)}.";
+            if (export.Skipped.Count > 0) message += $" Left out: {string.Join("; ", export.Skipped)}";
+            return new(true, message, export.Clips, export.Skipped);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            return new(false, ex.Message, 0, []);
+        }
+    }
+
+    /// <summary>
+    /// Import a soundboard archive, adding its clips or replacing the
+    /// library. Each clip is unpacked and checked by the helper, so callers
+    /// run it off the socket loop.
+    /// </summary>
+    public SoundboardImportMessage ImportSoundboard(Command cmd)
+    {
+        static SoundboardImportMessage Refused(string message) => new(false, message, [], new Dictionary<string, string>(), [], false);
+        if (!_mixer.Built) return Refused(NotBuiltError);
+        if (CommandValidation.Check(cmd, _mixer, OpenXLR.Core.Mixing.PluginCatalog.Find) is { } invalid) return Refused(invalid);
+        try
+        {
+            SoundboardImport import = _mixer.ImportSoundboard(cmd.Path!, cmd.Merge!.Value);
+            _log.LogInformation("soundboard: imported {count} clips from an archive ({mode})", import.Added.Count, import.Replaced ? "replace" : "merge");
+            Changed?.Invoke();
+            string message = import.Replaced
+                ? (import.Added.Count == 1 ? "The soundboard now holds the 1 clip from the archive." : $"The soundboard now holds the {import.Added.Count} clips from the archive.")
+                : (import.Added.Count == 1 ? "1 clip was added from the archive." : $"{import.Added.Count} clips were added from the archive.");
+            if (import.Renamed.Count > 0)
+                message += $" {(import.Renamed.Count == 1 ? "1 clip took a new id" : $"{import.Renamed.Count} clips took new ids")}, since theirs were in use: "
+                    + string.Join(", ", import.Renamed.Select(r => $"{r.Key} is now {r.Value}")) + ".";
+            if (import.Skipped.Count > 0) message += $" Left out: {string.Join("; ", import.Skipped)}.";
+            return new(true, message, import.Added, import.Renamed, import.Skipped, import.Replaced);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            return Refused(ex.Message);
         }
     }
 
@@ -1124,9 +1178,13 @@ public sealed class MixerService : IHostedService, IDisposable
                     Changed?.Invoke();
                     return null;
                 case "updateClip":
-                    _mixer.UpdateClip(cmd.Clip!, new SoundboardClipChange(cmd.Name, cmd.Gain, cmd.Mode, cmd.Loop, cmd.Icon, cmd.Colour));
+                    _mixer.UpdateClip(cmd.Clip!, new SoundboardClipChange(cmd.Name, cmd.Gain, cmd.Mode, cmd.Loop, cmd.Icon, cmd.Colour, cmd.Page));
                     Changed?.Invoke();
                     return null;   // soundboard.json is saved before this returns; mixer.json is untouched
+                case "renameClipPage":
+                    _mixer.RenameClipPage(cmd.Page!.Trim(), cmd.Name!);
+                    Changed?.Invoke();
+                    return null;
                 case "deleteClip":
                     _mixer.DeleteClip(cmd.Clip!);
                     Changed?.Invoke();

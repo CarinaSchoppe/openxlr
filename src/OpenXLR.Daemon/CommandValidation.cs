@@ -88,6 +88,9 @@ public static class CommandValidation
             case "stopAudition":
             case "setClipOrder":
             case "getSoundboard":
+            case "renameClipPage":
+            case "exportSoundboard":
+            case "importSoundboard":
                 return CheckSoundboard(cmd, nativeHostInstalled ?? PluginCatalog.HostInstalled);
             case "setDucking":
                 return CheckDucking(cmd, layout, out _);
@@ -550,11 +553,24 @@ public static class CommandValidation
                 if (cmd.Path is not { Length: > 0 and <= 4096 } path || path.Any(char.IsControl) || !System.IO.Path.IsPathFullyQualified(path))
                     return "importClip: need 'path', an absolute path to the file";
                 if (cmd.Name is not null && BadName(cmd.Name)) return "importClip: name must contain 1 to 60 printable characters";
+                if (BadPage(cmd.Page)) return PageError("importClip");
                 return nativeHostInstalled ? null : Mixer.SoundboardNeedsHost;
+            case "exportSoundboard":
+                if (BadArchivePath(cmd.Path)) return "exportSoundboard: need 'path', an absolute path to the archive";
+                return cmd.Path!.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ? null : "exportSoundboard: path must end in .zip";
+            case "importSoundboard":
+                if (BadArchivePath(cmd.Path)) return "importSoundboard: need 'path', an absolute path to the archive";
+                if (cmd.Merge is null) return "importSoundboard: need 'merge', a boolean: true adds the archive's clips, false replaces the library";
+                return nativeHostInstalled ? null : Mixer.SoundboardNeedsHost;
+            case "renameClipPage":
+                if (cmd.Page is null || BadPage(cmd.Page)) return "renameClipPage: need 'page', the page to rename, empty for the default page";
+                if (cmd.Name is null || BadPage(cmd.Name)) return PageError("renameClipPage", "name");
+                return null;
             case "updateClip":
                 if (NeedClip() is { } missing) return missing;
-                if (cmd.Name is null && cmd.Gain is null && cmd.Mode is null && cmd.Loop is null && cmd.Icon is null && cmd.Colour is null)
-                    return "updateClip: give at least one of name, gain, mode, loop, icon and colour";
+                if (cmd.Name is null && cmd.Gain is null && cmd.Mode is null && cmd.Loop is null && cmd.Icon is null && cmd.Colour is null && cmd.Page is null)
+                    return "updateClip: give at least one of name, gain, mode, loop, icon, colour and page";
+                if (BadPage(cmd.Page)) return PageError("updateClip");
                 if (cmd.Name is not null && BadName(cmd.Name)) return "updateClip: name must contain 1 to 60 printable characters";
                 if (cmd.Gain is double gain && (!double.IsFinite(gain) || gain is < 0 or > 1)) return "updateClip: gain must be from 0 to 1";
                 if (cmd.Mode is not null && !SoundboardLibrary.Modes.Contains(cmd.Mode)) return "updateClip: mode must be overlap, restart, toggle or hold";
@@ -580,6 +596,12 @@ public static class CommandValidation
     }
 
     private static bool TooLong(string? s, int max) => s is not null && s.Length > max;
+    private static bool BadArchivePath(string? path)
+        => path is not { Length: > 0 and <= 4096 } || path.Any(char.IsControl) || !System.IO.Path.IsPathFullyQualified(path);
+    /// <summary>An absent page is kept; a present one, trimmed, is empty or a page name.</summary>
+    private static bool BadPage(string? page) => page is not null && !SoundboardLibrary.IsValidPage(page.Trim());
+    private static string PageError(string command, string field = "page")
+        => $"{command}: {field} must be empty, for the default page, or at most {SoundboardLibrary.MaxPageLength} printable characters";
     private static bool BadName(string? name)
         => name is null || name.Length > 60 || string.IsNullOrWhiteSpace(name) || name.Any(char.IsControl);
     /// <summary>An absent icon takes the default; a present one has the shape setLayoutAppearance accepts.</summary>

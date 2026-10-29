@@ -134,6 +134,12 @@ public sealed record Command
     /// <summary>Soundboard commands: the clip's id.</summary>
     [JsonPropertyName("clip")] public string? Clip { get; init; }
 
+    /// <summary>importClip, updateClip and renameClipPage: a soundboard page, empty for the default page.</summary>
+    [JsonPropertyName("page")] public string? Page { get; init; }
+
+    /// <summary>importSoundboard: add the archive's clips to the library (true) or replace the library with them (false).</summary>
+    [JsonPropertyName("merge")] public bool? Merge { get; init; }
+
     /// <summary>setClipOrder: every clip id once, in the order clients draw them.</summary>
     [JsonPropertyName("clips")] public List<string>? Clips { get; init; }
 
@@ -239,6 +245,32 @@ public sealed record ClipImportMessage(
     [property: JsonPropertyName("clip"), JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Clip)
 {
     [JsonPropertyName("type")] public string Type => "clipImport";
+}
+
+/// <summary>Reply to "exportSoundboard": whether the archive was written, a sentence, how many clips it holds and each clip left out.</summary>
+public sealed record SoundboardExportMessage(
+    [property: JsonPropertyName("ok")] bool Ok,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("clips")] int Clips,
+    [property: JsonPropertyName("skipped")] IReadOnlyList<string> Skipped)
+{
+    [JsonPropertyName("type")] public string Type => "soundboardExport";
+}
+
+/// <summary>
+/// Reply to "importSoundboard": whether any clip was imported, a sentence,
+/// the ids added, the clips that took a new id (the archive's id to the new
+/// one), each clip left out, and whether the library was replaced.
+/// </summary>
+public sealed record SoundboardImportMessage(
+    [property: JsonPropertyName("ok")] bool Ok,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("clips")] IReadOnlyList<string> Clips,
+    [property: JsonPropertyName("renamed")] IReadOnlyDictionary<string, string> Renamed,
+    [property: JsonPropertyName("skipped")] IReadOnlyList<string> Skipped,
+    [property: JsonPropertyName("replaced")] bool Replaced)
+{
+    [JsonPropertyName("type")] public string Type => "soundboardImport";
 }
 
 /// <summary>Reply to "listPlugins": everything the insert picker can offer.</summary>

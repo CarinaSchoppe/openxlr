@@ -41,6 +41,18 @@ public sealed class SoundboardValidationTests
     [InlineData("""{"cmd":"setClipOrder","clips":["b","a"]}""")]
     [InlineData("""{"cmd":"setClipOrder","clips":[]}""")]
     [InlineData("""{"cmd":"getSoundboard"}""")]
+    [InlineData("""{"cmd":"importClip","path":"/home/me/a.wav","page":"Intro"}""")]
+    [InlineData("""{"cmd":"importClip","path":"/home/me/a.wav","page":""}""")]
+    [InlineData("""{"cmd":"updateClip","clip":"airhorn","page":"Memes"}""")]
+    [InlineData("""{"cmd":"updateClip","clip":"airhorn","page":" Memes "}""")]
+    [InlineData("""{"cmd":"updateClip","clip":"airhorn","page":""}""")]
+    [InlineData("""{"cmd":"renameClipPage","page":"Memes","name":"Jokes"}""")]
+    [InlineData("""{"cmd":"renameClipPage","page":"","name":"Intro"}""")]
+    [InlineData("""{"cmd":"renameClipPage","page":"Memes","name":""}""")]
+    [InlineData("""{"cmd":"exportSoundboard","path":"/home/me/board.zip"}""")]
+    [InlineData("""{"cmd":"exportSoundboard","path":"/home/me/Board.ZIP"}""")]
+    [InlineData("""{"cmd":"importSoundboard","path":"/home/me/board.zip","merge":true}""")]
+    [InlineData("""{"cmd":"importSoundboard","path":"/home/me/board.zip","merge":false}""")]
     public void WellFormedCommandsPass(string json) => Assert.Null(Check(json));
 
     [Theory]
@@ -49,7 +61,7 @@ public sealed class SoundboardValidationTests
     [InlineData("""{"cmd":"importClip","path":"airhorn.mp3"}""", "importClip: need 'path', an absolute path to the file")]
     [InlineData("""{"cmd":"importClip","path":"/tmp/a\nb.mp3"}""", "importClip: need 'path', an absolute path to the file")]
     [InlineData("""{"cmd":"importClip","path":"/tmp/a.mp3","name":""}""", "importClip: name must contain 1 to 60 printable characters")]
-    [InlineData("""{"cmd":"updateClip","clip":"airhorn"}""", "updateClip: give at least one of name, gain, mode, loop, icon and colour")]
+    [InlineData("""{"cmd":"updateClip","clip":"airhorn"}""", "updateClip: give at least one of name, gain, mode, loop, icon, colour and page")]
     [InlineData("""{"cmd":"updateClip","name":"Horn"}""", "updateClip: need 'clip', a clip id")]
     [InlineData("""{"cmd":"updateClip","clip":"../etc","name":"Horn"}""", "updateClip: need 'clip', a clip id")]
     [InlineData("""{"cmd":"updateClip","clip":"airhorn","gain":1.01}""", "updateClip: gain must be from 0 to 1")]
@@ -67,6 +79,16 @@ public sealed class SoundboardValidationTests
     [InlineData("""{"cmd":"auditionClip","clip":"Airhorn"}""", "auditionClip: need 'clip', a clip id")]
     [InlineData("""{"cmd":"setClipOrder"}""", "setClipOrder: need 'clips', at most 64 clip ids")]
     [InlineData("""{"cmd":"setClipOrder","clips":["a","B"]}""", "setClipOrder: need 'clips', at most 64 clip ids")]
+    [InlineData("""{"cmd":"updateClip","clip":"airhorn","page":"a\u0001b"}""", "updateClip: page must be empty, for the default page, or at most 40 printable characters")]
+    [InlineData("""{"cmd":"updateClip","clip":"airhorn","page":"0123456789012345678901234567890123456789x"}""", "updateClip: page must be empty, for the default page, or at most 40 printable characters")]
+    [InlineData("""{"cmd":"importClip","path":"/tmp/a.wav","page":"a\nb"}""", "importClip: page must be empty, for the default page, or at most 40 printable characters")]
+    [InlineData("""{"cmd":"renameClipPage","name":"Jokes"}""", "renameClipPage: need 'page', the page to rename, empty for the default page")]
+    [InlineData("""{"cmd":"renameClipPage","page":"Memes"}""", "renameClipPage: name must be empty, for the default page, or at most 40 printable characters")]
+    [InlineData("""{"cmd":"exportSoundboard"}""", "exportSoundboard: need 'path', an absolute path to the archive")]
+    [InlineData("""{"cmd":"exportSoundboard","path":"board.zip"}""", "exportSoundboard: need 'path', an absolute path to the archive")]
+    [InlineData("""{"cmd":"exportSoundboard","path":"/home/me/.bashrc"}""", "exportSoundboard: path must end in .zip")]
+    [InlineData("""{"cmd":"importSoundboard","path":"/home/me/board.zip"}""", "importSoundboard: need 'merge', a boolean: true adds the archive's clips, false replaces the library")]
+    [InlineData("""{"cmd":"importSoundboard","path":"relative.zip","merge":true}""", "importSoundboard: need 'path', an absolute path to the archive")]
     public void MalformedCommandsAreRefusedWithASentence(string json, string error) => Assert.Equal(error, Check(json));
 
     [Fact]
@@ -81,6 +103,10 @@ public sealed class SoundboardValidationTests
     {
         Assert.Equal(Mixer.SoundboardNeedsHost, Check("""{"cmd":"setSoundboard","enabled":true}""", host: false));
         Assert.Equal(Mixer.SoundboardNeedsHost, Check("""{"cmd":"importClip","path":"/tmp/a.wav"}""", host: false));
+        Assert.Equal(Mixer.SoundboardNeedsHost, Check("""{"cmd":"importSoundboard","path":"/tmp/a.zip","merge":true}""", host: false));
+        // An export copies files and needs no helper; pages are library edits.
+        Assert.Null(Check("""{"cmd":"exportSoundboard","path":"/tmp/a.zip"}""", host: false));
+        Assert.Null(Check("""{"cmd":"renameClipPage","page":"a","name":"b"}""", host: false));
         // Turning off, stopping and editing the library need nothing running.
         Assert.Null(Check("""{"cmd":"setSoundboard","enabled":false}""", host: false));
         Assert.Null(Check("""{"cmd":"stopClips"}""", host: false));
@@ -93,24 +119,30 @@ public sealed class SoundboardValidationTests
     public void TheCommandCarriesTheSoundboardFields()
     {
         Command command = JsonSerializer.Deserialize<Command>(
-            """{"cmd":"updateClip","clip":"airhorn","clips":["a"],"mode":"hold","loop":false,"colour":"#000000","gain":0.25}""", Wire)!;
+            """{"cmd":"updateClip","clip":"airhorn","clips":["a"],"mode":"hold","loop":false,"colour":"#000000","gain":0.25,"page":"Intro","merge":true}""", Wire)!;
         Assert.Equal("airhorn", command.Clip);
         Assert.Equal(["a"], command.Clips);
         Assert.Equal("hold", command.Mode);
         Assert.False(command.Loop);
         Assert.Equal("#000000", command.Colour);
         Assert.Equal(.25, command.Gain);
+        Assert.Equal("Intro", command.Page);
+        Assert.True(command.Merge);
     }
 
     [Fact]
     public void TheStateAndTheRepliesNameTheirFieldsAsDocumented()
     {
         var state = new SoundboardState(null, false, true, Mixer.SoundboardChannelDeleted, ["wav", "mp3"],
-            [new SoundboardClipState("airhorn", "Airhorn", 2.4, .8, "overlap", false, "", null, true, null, true, SoundboardClipStatus.Ready)], ["airhorn"]);
+            [new SoundboardClipState("airhorn", "Airhorn", 2.4, .8, "overlap", false, "", null, true, null, true, SoundboardClipStatus.Ready, "Intro")], ["airhorn"])
+        {
+            Pages = ["Intro"],
+        };
         JsonNode json = JsonNode.Parse(JsonSerializer.Serialize(new SoundboardMessage(state), Wire))!;
         Assert.Equal("soundboard", json["type"]!.GetValue<string>());
         JsonObject board = json["soundboard"]!.AsObject();
-        Assert.Equal(["channel", "enabled", "available", "error", "formats", "clips", "playing", "auditioning"], board.Select(p => p.Key));
+        Assert.Equal(["channel", "enabled", "available", "error", "formats", "clips", "playing", "auditioning", "pages"], board.Select(p => p.Key));
+        Assert.Equal(["Intro"], board["pages"]!.AsArray().Select(p => p!.GetValue<string>()));
         // Null is said, not left out: a client tells a deleted SFX by it,
         // and a pad that is not auditioned by the other.
         Assert.Null(board["channel"]);
@@ -119,7 +151,8 @@ public sealed class SoundboardValidationTests
         Assert.True(board.ContainsKey("auditioning"));
         Assert.Equal("airhorn", JsonNode.Parse(JsonSerializer.Serialize(state with { Auditioning = "airhorn" }, Wire))!["auditioning"]!.GetValue<string>());
         JsonObject clip = board["clips"]![0]!.AsObject();
-        Assert.Equal(["id", "name", "seconds", "gain", "mode", "loop", "icon", "colour", "loaded", "error", "playing", "status"], clip.Select(p => p.Key));
+        Assert.Equal(["id", "name", "seconds", "gain", "mode", "loop", "icon", "colour", "loaded", "error", "playing", "status", "page"], clip.Select(p => p.Key));
+        Assert.Equal("Intro", clip["page"]!.GetValue<string>());
         Assert.Equal("ready", clip["status"]!.GetValue<string>());
         Assert.True(clip.ContainsKey("colour"));
 
@@ -128,6 +161,17 @@ public sealed class SoundboardValidationTests
         Assert.Equal("airhorn", reply["clip"]!.GetValue<string>());
         Assert.Equal("The file is empty.", WebSocketHub.OperationError(new ClipImportMessage(false, "The file is empty.", null)));
         Assert.Null(WebSocketHub.OperationError(new ClipImportMessage(true, "Fine.", "a")));
+
+        JsonNode export = JsonNode.Parse(JsonSerializer.Serialize(new SoundboardExportMessage(true, "2 clips were exported to board.zip.", 2, []), Wire))!;
+        Assert.Equal(["ok", "message", "clips", "skipped", "type"], export.AsObject().Select(p => p.Key));
+        Assert.Equal("soundboardExport", export["type"]!.GetValue<string>());
+        JsonNode import = JsonNode.Parse(JsonSerializer.Serialize(new SoundboardImportMessage(true, "Fine.", ["a-2"],
+            new Dictionary<string, string> { ["a"] = "a-2" }, ["b: the file is empty"], false), Wire))!;
+        Assert.Equal(["ok", "message", "clips", "renamed", "skipped", "replaced", "type"], import.AsObject().Select(p => p.Key));
+        Assert.Equal("soundboardImport", import["type"]!.GetValue<string>());
+        Assert.Equal("a-2", import["renamed"]!["a"]!.GetValue<string>());
+        Assert.Equal("Too big.", WebSocketHub.OperationError(new SoundboardExportMessage(false, "Too big.", 0, [])));
+        Assert.Equal("Not a zip.", WebSocketHub.OperationError(new SoundboardImportMessage(false, "Not a zip.", [], new Dictionary<string, string>(), [], false)));
 
         // The state carries the board under mixer.soundboard.
         var mixer = new MixerState { Mixes = [], Channels = [], Soundboard = state };

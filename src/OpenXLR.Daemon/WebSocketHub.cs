@@ -190,13 +190,16 @@ public sealed class WebSocketHub
     {
         PluginInstallMessage { Ok: false } result => result.Message,
         ClipImportMessage { Ok: false } result => result.Message,
+        SoundboardExportMessage { Ok: false } result => result.Message,
+        SoundboardImportMessage { Ok: false } result => result.Message,
         WindowsPluginFilesMessage { Ok: false } result => result.Message,
         _ => null,
     };
 
     /// <param name="connection">
     /// The WebSocket the command came on, null over HTTP. A slow command it
-    /// sends, <c>importClip</c>, runs beside the connection's later commands.
+    /// sends, <c>importClip</c>, <c>exportSoundboard</c> or
+    /// <c>importSoundboard</c>, runs beside the connection's later commands.
     /// </param>
     private async Task DispatchAsync(Func<object, Task> reply, string text, Guid? browserOwner = null, Client? connection = null)
     {
@@ -272,6 +275,23 @@ public sealed class WebSocketHub
             case "importClip":
                 // Copying and checking the file runs a helper; keep it off the socket loop's thread.
                 await ReplyOperationAsync(await Task.Run(() => _mixer.ImportClip(cmd)));
+                break;
+            case "exportSoundboard" or "importSoundboard" when connection is not null:
+                // A library archive is written or read clip by clip, each
+                // clip checked by the helper on import: the connection's
+                // later commands go on beside it, as for importClip.
+                await connection.RunImportAsync(async () =>
+                {
+                    await ReplyOperationAsync(await Task.Run<object>(() => cmd.Cmd == "exportSoundboard"
+                        ? _mixer.ExportSoundboard(cmd) : _mixer.ImportSoundboard(cmd)));
+                    await FinishAsync();
+                }, ex => _log.LogWarning(ex, "soundboard: a library {command} failed", cmd.Cmd));
+                return;
+            case "exportSoundboard":
+                await ReplyOperationAsync(await Task.Run(() => _mixer.ExportSoundboard(cmd)));
+                break;
+            case "importSoundboard":
+                await ReplyOperationAsync(await Task.Run(() => _mixer.ImportSoundboard(cmd)));
                 break;
             case "listPlugins":
                 // The first call may block on lilv's scan; keep it off the socket loop's thread.
@@ -448,6 +468,7 @@ public sealed class WebSocketHub
             case "setDuckingProcessing":
             case "setSoundboard":
             case "updateClip":
+            case "renameClipPage":
             case "deleteClip":
             case "setClipOrder":
             case "playClip":

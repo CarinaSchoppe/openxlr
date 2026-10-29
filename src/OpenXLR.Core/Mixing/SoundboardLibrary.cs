@@ -28,6 +28,8 @@ public sealed record SoundboardClip
     public string? Colour { get; init; }
     /// <summary>The clip's length, as the helper measured it when the clip was imported.</summary>
     public double Seconds { get; init; }
+    /// <summary>The page clients draw the clip on, or empty for the default page.</summary>
+    public string Page { get; init; } = "";
 }
 
 /// <summary>
@@ -52,6 +54,8 @@ public sealed record SoundboardLibrary
     public const int MaxIdLength = 40;
     /// <summary>The longest clip name, in characters.</summary>
     public const int MaxNameLength = 60;
+    /// <summary>The longest page name, in characters.</summary>
+    public const int MaxPageLength = 40;
 
     /// <summary>The press behaviours, in the player's words.</summary>
     public static IReadOnlyList<string> Modes { get; } = ["overlap", "restart", "toggle", "hold"];
@@ -108,6 +112,31 @@ public sealed record SoundboardLibrary
         => name is not null && name.Trim() is { Length: > 0 and <= MaxNameLength } trimmed && !trimmed.Any(char.IsControl);
 
     /// <summary>
+    /// A page name: empty for the default page, or up to 40 characters with
+    /// no control character and no space at either end.
+    /// </summary>
+    public static bool IsValidPage(string? page)
+        => page is { Length: <= MaxPageLength } && page == page.Trim() && !page.Any(char.IsControl);
+
+    /// <summary>
+    /// The pages in the order clients draw them: the default page first while
+    /// it holds a clip, then each named page where its first clip stands in
+    /// the library. A page exists while a clip is on it.
+    /// </summary>
+    public static IReadOnlyList<string> PagesOf(IEnumerable<SoundboardClip> clips)
+    {
+        var pages = new List<string>();
+        bool hasDefault = false;
+        foreach (SoundboardClip clip in clips)
+        {
+            if (clip.Page.Length == 0) hasDefault = true;
+            else if (!pages.Contains(clip.Page, StringComparer.Ordinal)) pages.Add(clip.Page);
+        }
+        if (hasDefault) pages.Insert(0, "");
+        return pages;
+    }
+
+    /// <summary>
     /// A bare file name the daemon may open inside the clip directory: no
     /// separator, no <c>..</c>, no control character, not hidden, at most
     /// 255 bytes, ending in one of <see cref="Extensions"/>.
@@ -130,6 +159,7 @@ public sealed record SoundboardLibrary
         if (!Modes.Contains(clip.Mode, StringComparer.Ordinal)) return "the mode must be overlap, restart, toggle or hold";
         if (!LayoutAppearance.IsValid(new LayoutAppearance(clip.Icon ?? "\0", clip.Colour))) return "the icon or colour is not valid";
         if (!double.IsFinite(clip.Seconds) || clip.Seconds is < 0 or > MaxSeconds + 1) return "the length is not valid";
+        if (!IsValidPage(clip.Page)) return $"the page must have at most {MaxPageLength} printable characters";
         return null;
     }
 
@@ -152,28 +182,9 @@ public sealed record SoundboardLibrary
             JsonElement root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object) throw new JsonException("the file does not hold an object");
             bool enabled = root.TryGetProperty("enabled", out JsonElement on) && on.ValueKind == JsonValueKind.True;
-            var clips = new List<SoundboardClip>();
             var dropped = new List<string>();
-            var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var files = new HashSet<string>(StringComparer.Ordinal);
-            if (root.TryGetProperty("clips", out JsonElement list) && list.ValueKind == JsonValueKind.Array)
-            {
-                int index = 0;
-                foreach (JsonElement entry in list.EnumerateArray())
-                {
-                    index++;
-                    SoundboardClip? clip;
-                    try { clip = entry.Deserialize<SoundboardClip>(Json); }
-                    catch (JsonException) { clip = null; }
-                    string label = clip is not null && IsValidId(clip.Id) ? clip.Id : $"#{index}";
-                    string? problem = clip is null ? "the entry is not a clip" : Problem(clip);
-                    if (problem is null && !ids.Add(clip!.Id)) problem = "the id is used twice";
-                    if (problem is null && !files.Add(clip!.File)) problem = "the file is used twice";
-                    if (problem is null && clips.Count >= MaxClips) problem = $"a library holds at most {MaxClips} clips";
-                    if (problem is not null) { dropped.Add($"{label} ({problem})"); continue; }
-                    clips.Add(clip! with { Name = clip.Name.Trim() });
-                }
-            }
+            List<SoundboardClip> clips = ReadClips(root, dropped);
+            var ids = new HashSet<string>(clips.Select(c => c.Id), StringComparer.OrdinalIgnoreCase);
             var retired = new List<string>();
             if (root.TryGetProperty("retired", out JsonElement gone) && gone.ValueKind == JsonValueKind.Array)
                 foreach (JsonElement entry in gone.EnumerateArray())
@@ -199,6 +210,38 @@ public sealed record SoundboardLibrary
             }
             return Empty;
         }
+    }
+
+    /// <summary>
+    /// The clips of a library object's <c>clips</c> list that keep every rule,
+    /// in order. Each one that breaks a rule is named in
+    /// <paramref name="dropped"/> with the reason, and the list stops taking
+    /// clips at <see cref="MaxClips"/>.
+    /// </summary>
+    internal static List<SoundboardClip> ReadClips(JsonElement root, List<string> dropped)
+    {
+        var clips = new List<SoundboardClip>();
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var files = new HashSet<string>(StringComparer.Ordinal);
+        if (!root.TryGetProperty("clips", out JsonElement list) || list.ValueKind != JsonValueKind.Array) return clips;
+        int index = 0;
+        foreach (JsonElement entry in list.EnumerateArray())
+        {
+            index++;
+            SoundboardClip? clip;
+            try { clip = entry.Deserialize<SoundboardClip>(Json); }
+            catch (JsonException) { clip = null; }
+            // A file from before pages has none; spaces around a page are not part of it.
+            if (clip is not null) clip = clip with { Page = clip.Page?.Trim() ?? "" };
+            string label = clip is not null && IsValidId(clip.Id) ? clip.Id : $"#{index}";
+            string? problem = clip is null ? "the entry is not a clip" : Problem(clip);
+            if (problem is null && !ids.Add(clip!.Id)) problem = "the id is used twice";
+            if (problem is null && !files.Add(clip!.File)) problem = "the file is used twice";
+            if (problem is null && clips.Count >= MaxClips) problem = $"a library holds at most {MaxClips} clips";
+            if (problem is not null) { dropped.Add($"{label} ({problem})"); continue; }
+            clips.Add(clip! with { Name = clip.Name.Trim() });
+        }
+        return clips;
     }
 
     /// <summary>Write the library atomically. Returns the reason when it could not be written, else null.</summary>

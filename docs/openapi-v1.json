@@ -675,7 +675,8 @@
           "formats",
           "clips",
           "playing",
-          "auditioning"
+          "auditioning",
+          "pages"
         ],
         "properties": {
           "channel": {
@@ -726,6 +727,15 @@
             "type": "string",
             "nullable": true,
             "description": "The clip auditioned in the monitor mixes now, or null"
+          },
+          "pages": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "description": "Every page a clip is on, in the order clients draw them: the default page, empty, first while it holds a clip, then each named page where its first clip stands"
           }
         }
       },
@@ -743,7 +753,8 @@
           "loaded",
           "error",
           "playing",
-          "status"
+          "status",
+          "page"
         ],
         "properties": {
           "id": {
@@ -804,6 +815,11 @@
               "off"
             ],
             "description": "ready to play, loading into the player, error with the reason in error, or off while the board cannot play"
+          },
+          "page": {
+            "type": "string",
+            "maxLength": 40,
+            "description": "The page the clip is on; empty for the default page"
           }
         }
       }

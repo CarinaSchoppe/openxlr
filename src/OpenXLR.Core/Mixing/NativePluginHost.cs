@@ -374,6 +374,9 @@ internal sealed class NativePluginHost : IDisposable
         foreach (string symbol in symbols) _meters.TryRemove(symbol, out _);
     }
 
+    /// <summary>One meter as the helper last reported it, or null before it did.</summary>
+    internal double? Meter(string symbol) => _meters.TryGetValue(symbol, out double value) ? value : null;
+
     private static void StoreValue(ConcurrentDictionary<string, double> values, string symbol, double value)
     {
         // Only the output reader adds keys; the mixer can only remove them.

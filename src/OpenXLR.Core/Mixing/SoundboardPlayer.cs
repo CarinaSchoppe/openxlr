@@ -24,6 +24,10 @@ internal sealed class SoundboardPlayer : IDisposable
     private readonly TimeSpan _loadTimeout;
     private readonly TimeSpan _loadGap;
     private readonly Task _loader;
+    // Presses are numbered in the order they reach the helper, so the
+    // number the helper reports back as ended covers every earlier one.
+    private readonly object _presses = new();
+    private uint _lastPress;
     private TaskCompletionSource<ClipReply>? _pending;
     private int _pendingSlot = -1;
     private uint _pendingToken;
@@ -34,6 +38,12 @@ internal sealed class SoundboardPlayer : IDisposable
     private int _disposed;
 
     public NativePluginHost Host { get; }
+
+    /// <summary>
+    /// The largest press number, the largest whole number a float meter
+    /// holds exactly. The count starts over at 1 past it.
+    /// </summary>
+    internal const uint MaxPress = 16777215;
 
     /// <summary>The clip a load is waiting on, or null.</summary>
     public string? Loading => _loading;
@@ -93,7 +103,7 @@ internal sealed class SoundboardPlayer : IDisposable
             _slots[id] = slot;
             _loads[id] = new ClipLoad(false, 0, null);
         }
-        Host.ForgetMeters(Playing(slot), Position(slot));
+        Host.ForgetMeters(Playing(slot), Position(slot), Ended(slot));
         Host.SetControl(Gain(slot), gain);
         Host.SetControl(Loop(slot), loop ? 1 : 0);
         lock (_lock) _queue.Enqueue((id, slot, path));
@@ -112,7 +122,7 @@ internal sealed class SoundboardPlayer : IDisposable
             _loads.Remove(id);
         }
         Interlocked.Increment(ref _version);
-        Host.ForgetMeters(Playing(slot), Position(slot));
+        Host.ForgetMeters(Playing(slot), Position(slot), Ended(slot));
         Host.Send($"stop {slot}");
         Host.Send($"unload {slot}");
     }
@@ -120,9 +130,10 @@ internal sealed class SoundboardPlayer : IDisposable
     /// <summary>
     /// Press the clip's key: <paramref name="mode"/> is one of
     /// <see cref="SoundboardLibrary.Modes"/>. Refused while the clip has not
-    /// loaded, with <paramref name="name"/> in the sentence.
+    /// loaded, with <paramref name="name"/> in the sentence. Returns the
+    /// press's number, which <see cref="HoldEnded"/> takes.
     /// </summary>
-    public void Play(string id, string mode, string name)
+    public uint Play(string id, string mode, string name)
     {
         if (!SoundboardLibrary.Modes.Contains(mode, StringComparer.Ordinal)) throw new ArgumentException("Unknown press mode.", nameof(mode));
         int slot;
@@ -133,8 +144,35 @@ internal sealed class SoundboardPlayer : IDisposable
             if (!load.Loaded)
                 throw new InvalidOperationException(load.Error is null ? $"{name} is still loading." : $"{name} could not be loaded: {load.Error}");
         }
-        Host.Send($"play {slot} {mode}");
+        lock (_presses)
+        {
+            uint press = _lastPress = _lastPress >= MaxPress ? 1 : _lastPress + 1;
+            Host.Send($"play {slot} {mode} {press.ToString(CultureInfo.InvariantCulture)}");
+            return press;
+        }
     }
+
+    /// <summary>
+    /// Whether the voice a hold press started has ended, by a release, a
+    /// stop, the clip's own end or a steal, or never started: the helper's
+    /// <c>ended_N</c> meter names the newest press on the slot whose hold
+    /// voice, and every older one's, is over. False until the helper has
+    /// reported on the press, so a press it has not taken yet counts as
+    /// playing. True for a clip the player no longer holds.
+    /// </summary>
+    public bool HoldEnded(string id, uint press)
+    {
+        if (SlotOf(id) is not int slot) return true;
+        if (Host.Meter(Ended(slot)) is not double reported || reported < 1 || reported > MaxPress) return false;
+        return Covers((uint)reported, press);
+    }
+
+    /// <summary>
+    /// Whether press <paramref name="press"/> is at or before
+    /// <paramref name="ended"/> in a count that starts over at 1 past
+    /// <see cref="MaxPress"/>: within the half of the count behind it.
+    /// </summary>
+    internal static bool Covers(uint ended, uint press) => ((ended - press) & MaxPress) < (MaxPress + 1) / 2;
 
     /// <summary>The key came up: end the clip's hold voices.</summary>
     public void Release(string id) => SendFor(id, "release");
@@ -181,6 +219,7 @@ internal sealed class SoundboardPlayer : IDisposable
     internal static string Loop(int slot) => "loop_" + slot.ToString(CultureInfo.InvariantCulture);
     internal static string Playing(int slot) => "playing_" + slot.ToString(CultureInfo.InvariantCulture);
     internal static string Position(int slot) => "pos_" + slot.ToString(CultureInfo.InvariantCulture);
+    internal static string Ended(int slot) => "ended_" + slot.ToString(CultureInfo.InvariantCulture);
 
     private void OnReply(ClipReply reply)
     {

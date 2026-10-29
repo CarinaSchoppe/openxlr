@@ -50,6 +50,10 @@ enum {
 // not running, unlinked or waiting for its graph, and a press that late
 // would play out of time, with every other one queued behind it.
 #define PLAYER_STALE_NS 250000000ull
+// A press may carry a number, 1 to this, which the `ended_N` meter reports
+// back. The daemon counts its presses and starts over at 1 past this, the
+// largest whole number a float meter holds exactly.
+#define PLAYER_MAX_PRESS 16777215u
 
 enum { MODE_OVERLAP, MODE_RESTART, MODE_TOGGLE, MODE_HOLD };
 // What `play SLOT` does without a mode word.
@@ -81,8 +85,9 @@ enum { EVENT_SWAP, EVENT_PLAY, EVENT_RELEASE, EVENT_STOP, EVENT_STOP_ALL };
 
 typedef struct {
   uint8_t type, slot, mode;
-  Clip *clip;   // EVENT_SWAP: the slot's new clip, or NULL to empty it
-  uint64_t at;  // EVENT_PLAY: when the main thread queued it, CLOCK_MONOTONIC
+  uint32_t press;  // EVENT_PLAY: the press's number, or 0 when it came without one
+  Clip *clip;      // EVENT_SWAP: the slot's new clip, or NULL to empty it
+  uint64_t at;     // EVENT_PLAY: when the main thread queued it, CLOCK_MONOTONIC
 } Event;
 
 static uint64_t monotonic_ns(void) {
@@ -111,6 +116,7 @@ typedef struct {
   bool releasing;    // fading out, then free
   bool held;         // started by a `hold` press: a release ends it
   bool loop_pass;    // this pass wraps instead of ending
+  uint32_t press;    // the number of the press that started it, or 0
   uint64_t order;    // when it started, for stealing the oldest
 } Voice;
 
@@ -125,6 +131,7 @@ typedef struct {
   Clip *current[PLAYER_SLOTS];
   Clip *fading[PHYSICAL_VOICES];  // replaced clips a fading voice still reads
   Voice voices[PHYSICAL_VOICES];
+  uint32_t pressed[PLAYER_SLOTS];  // the number of the last numbered press each slot took
   uint64_t started;
   float ramp_step;
   // Main thread only.
@@ -143,8 +150,8 @@ typedef struct {
   Job job;
   // Controls and meters.
   Control *gain[PLAYER_SLOTS], *loop[PLAYER_SLOTS];
-  Control *playing[PLAYER_SLOTS], *position[PLAYER_SLOTS];
-  char names[PLAYER_SLOTS][4][16];
+  Control *playing[PLAYER_SLOTS], *position[PLAYER_SLOTS], *ended[PLAYER_SLOTS];
+  char names[PLAYER_SLOTS][5][16];
 } Player;
 
 // --- the audio thread -------------------------------------------------------
@@ -190,7 +197,7 @@ static void retire(Player *p, Clip *clip) {
 
 static void release_voice(Voice *v) { v->releasing = true; }
 
-static void start_voice(Player *p, unsigned slot, bool held) {
+static void start_voice(Player *p, unsigned slot, bool held, uint32_t press) {
   const Clip *clip = p->current[slot];
   if (!clip) return;
   unsigned playing = 0;
@@ -217,6 +224,7 @@ static void start_voice(Player *p, unsigned slot, bool held) {
       .clip = clip,
       .slot = slot,
       .held = held,
+      .press = press,
       .gain = atomic_load(&p->gain[slot]->desired),
       .loop_pass = atomic_load(&p->loop[slot]->desired) >= 0.5f,
       .order = ++p->started,
@@ -243,13 +251,16 @@ static void apply(Player *p, const Event *e, uint64_t now) {
     break;
   }
   case EVENT_PLAY:
+    // Taken even when it is dropped or starts nothing: a press the slot has
+    // taken and that left no hold voice behind has ended, as `ended_N` says.
+    if (e->press) p->pressed[e->slot] = e->press;
     if (now - e->at > PLAYER_STALE_NS) break;
     if (e->mode == MODE_RESTART || (e->mode == MODE_TOGGLE && slot_playing(p, e->slot))) {
       for (unsigned i = 0; i < PHYSICAL_VOICES; i++)
         if (p->voices[i].clip && p->voices[i].slot == e->slot) release_voice(&p->voices[i]);
       if (e->mode == MODE_TOGGLE) break;
     }
-    start_voice(p, e->slot, e->mode == MODE_HOLD);
+    start_voice(p, e->slot, e->mode == MODE_HOLD, e->press);
     break;
   case EVENT_RELEASE:
     for (unsigned i = 0; i < PHYSICAL_VOICES; i++) {
@@ -338,20 +349,34 @@ static void player_process(Host *h, uint32_t frames, float *const *in, float *co
     render(v, p->ramp_step, gain, loop, frames, out[0], out[1]);
   }
   sweep_fading(p);
-  // The meters: voices playing each slot, and how far its newest one is.
+  // The meters: voices playing each slot, how far its newest one is, and
+  // the newest press whose hold voice, and every older one's, has ended.
+  // Hold voices of a slot end in the order they started: they play the same
+  // clip, a release or a stop ends them all, and a steal takes the oldest.
+  // So while one plays, every press before the oldest of them has ended,
+  // and once none plays, every press the slot has taken has. Only loop
+  // turned off under looping voices can end a newer one first, which this
+  // reports late, never early. One value, stored once a block, so a reader
+  // never sees a press counted as taken with the voices of an earlier block.
   unsigned counts[PLAYER_SLOTS] = {0};
   const Voice *newest[PLAYER_SLOTS] = {0};
+  const Voice *oldest_held[PLAYER_SLOTS] = {0};
   for (unsigned i = 0; i < PHYSICAL_VOICES; i++) {
     const Voice *v = &p->voices[i];
     if (!v->clip || v->releasing) continue;
     counts[v->slot]++;
     if (!newest[v->slot] || v->order > newest[v->slot]->order) newest[v->slot] = v;
+    if (v->held && v->press && (!oldest_held[v->slot] || v->order < oldest_held[v->slot]->order))
+      oldest_held[v->slot] = v;
   }
   for (unsigned s = 0; s < PLAYER_SLOTS; s++) {
     const Voice *v = newest[s];
+    const Voice *held = oldest_held[s];
     atomic_store(&p->playing[s]->observed, (float)counts[s]);
     atomic_store(&p->position[s]->observed,
                  v ? (float)v->cursor / (float)v->clip->frames : 0.0f);
+    uint32_t ended = !held ? p->pressed[s] : held->press == 1 ? PLAYER_MAX_PRESS : held->press - 1;
+    atomic_store(&p->ended[s]->observed, (float)ended);
   }
 }
 
@@ -791,6 +816,7 @@ static void finish_load(Player *p) {
       // were, so a reader never keeps a value from the clip it held before.
       p->playing[slot]->reported = NAN;
       p->position[slot]->reported = NAN;
+      p->ended[slot]->reported = NAN;
       printf("clip %u %lu ok %u %u\n", slot, job->token, clip->frames, clip->channels);
       return;
     }
@@ -829,6 +855,19 @@ static bool parse_token(const char *text, unsigned long *token, const char **res
   return true;
 }
 
+// A press's number, 1 to PLAYER_MAX_PRESS, and nothing after it.
+static bool parse_press(const char *text, uint32_t *press) {
+  unsigned long value = 0;
+  unsigned digits = 0;
+  while (text[digits] >= '0' && text[digits] <= '9') {
+    if (digits == 8) return false;
+    value = value * 10 + (unsigned long)(text[digits++] - '0');
+  }
+  if (!digits || text[digits] || value == 0 || value > PLAYER_MAX_PRESS) return false;
+  *press = (uint32_t)value;
+  return true;
+}
+
 static const char *after(const char *line, const char *word) {
   size_t n = strlen(word);
   return strncmp(line, word, n) == 0 && line[n] == ' ' ? line + n + 1 : NULL;
@@ -861,15 +900,19 @@ static bool player_command(Host *h, char *line) {
   } else if ((rest = after(line, "play"))) {
     const char *word;
     int mode = -1;
+    uint32_t press = 0;
     if (parse_slot(rest, &slot, &word)) {
       if (!*word) mode = PLAYER_DEFAULT_MODE;
-      for (int m = 0; m < 4 && mode < 0; m++)
-        if (!strcmp(word, mode_words[m])) mode = m;
+      for (int m = 0; m < 4 && mode < 0; m++) {
+        size_t n = strlen(mode_words[m]);
+        if (strncmp(word, mode_words[m], n)) continue;
+        if (!word[n] || (word[n] == ' ' && parse_press(word + n + 1, &press))) mode = m;
+      }
     }
     if (mode < 0) invalid(line);
     else if (!p->assigned[slot]) fprintf(stderr, "note: slot %u holds no clip\n", slot);
     else if (!push_event(p, (Event){.type = EVENT_PLAY, .slot = (uint8_t)slot, .mode = (uint8_t)mode,
-                                    .at = monotonic_ns()}))
+                                    .press = press, .at = monotonic_ns()}))
       fprintf(stderr, "note: the player is busy; a press was dropped\n");
   } else if ((rest = after(line, "release")) || (rest = after(line, "stop"))) {
     bool stop = line[0] == 's';
@@ -901,15 +944,16 @@ static bool player_load(Host *h, char **arguments) {
   if (pthread_cond_init(&p->wake, NULL) != 0) return false;
   if (pthread_create(&p->worker, NULL, worker_main, p) != 0) return false;
   p->worker_started = true;
-  static const char *const prefixes[] = {"gain_", "loop_", "playing_", "pos_"};
+  static const char *const prefixes[] = {"gain_", "loop_", "playing_", "pos_", "ended_"};
   for (unsigned s = 0; s < PLAYER_SLOTS; s++) {
-    for (unsigned k = 0; k < 4; k++)
+    for (unsigned k = 0; k < 5; k++)
       snprintf(p->names[s][k], sizeof(p->names[s][k]), "%s%u", prefixes[k], s);
     p->gain[s] = host_add_control(h, p->names[s][0], 0, 1, 1, false, NULL);
     p->loop[s] = host_add_control(h, p->names[s][1], 0, 1, 0, false, NULL);
     p->playing[s] = host_add_control(h, p->names[s][2], 0, PLAYER_VOICES, 0, true, NULL);
     p->position[s] = host_add_control(h, p->names[s][3], 0, 1, 0, true, NULL);
-    if (!p->gain[s] || !p->loop[s] || !p->playing[s] || !p->position[s]) return false;
+    p->ended[s] = host_add_control(h, p->names[s][4], 0, PLAYER_MAX_PRESS, 0, true, NULL);
+    if (!p->gain[s] || !p->loop[s] || !p->playing[s] || !p->position[s] || !p->ended[s]) return false;
   }
   return true;
 }

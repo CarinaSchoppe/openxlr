@@ -1104,9 +1104,9 @@ public sealed class PipeWireAdapter
     /// <summary>The soundboard player's node: one per daemon, named after the channel it plays into.</summary>
     internal const string PlayerNode = "OpenXLR_player_" + Mixer.SoundboardChannel;
 
-    /// <summary>The player's meters: voices playing each slot, and how far the newest is.</summary>
+    /// <summary>The player's meters: voices playing each slot, how far the newest is, and the newest press whose hold voice has ended.</summary>
     internal static readonly IReadOnlySet<string> PlayerMeters = new HashSet<string>(
-        Enumerable.Range(0, SoundboardLibrary.MaxClips).SelectMany(i => new[] { $"playing_{i}", $"pos_{i}" }), StringComparer.Ordinal);
+        Enumerable.Range(0, SoundboardLibrary.MaxClips).SelectMany(i => new[] { $"playing_{i}", $"pos_{i}", $"ended_{i}" }), StringComparer.Ordinal);
 
     /// <summary>
     /// The soundboard player: the helper's stereo "player" backend under

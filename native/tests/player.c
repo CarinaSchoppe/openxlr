@@ -306,10 +306,11 @@ static void check_backend(void) {
   assert(!player_load(mono, NULL) && mono->impl == NULL);
   free(mono);
   Host *h = fresh();
-  assert(h->control_count == 4 * PLAYER_SLOTS);
+  assert(h->control_count == 5 * PLAYER_SLOTS);
   const struct { const char *name; float minimum, maximum, initial; bool output; } controls[] = {
       {"gain_0", 0, 1, 1, false}, {"loop_0", 0, 1, 0, false}, {"playing_0", 0, 8, 0, true},
       {"pos_0", 0, 1, 0, true},   {"gain_63", 0, 1, 1, false}, {"pos_63", 0, 1, 0, true},
+      {"ended_0", 0, PLAYER_MAX_PRESS, 0, true}, {"ended_63", 0, PLAYER_MAX_PRESS, 0, true},
   };
   for (size_t i = 0; i < sizeof(controls) / sizeof(controls[0]); i++) {
     const Control *found = NULL;
@@ -319,7 +320,9 @@ static void check_backend(void) {
     assert(atomic_load(&found->desired) == controls[i].initial && found->output == controls[i].output);
   }
   assert(set_control(h, "gain_7", 2) && atomic_load(&((Player *)h->impl)->gain[7]->desired) == 1);
-  assert(!set_control(h, "playing_7", 1) && !set_control(h, "gain_64", 1));
+  assert(!set_control(h, "playing_7", 1) && !set_control(h, "ended_7", 1) && !set_control(h, "gain_64", 1));
+  // The largest press number is the largest whole number a float holds exactly.
+  assert(PLAYER_MAX_PRESS == (1u << 24) - 1 && (uint32_t)(float)PLAYER_MAX_PRESS == PLAYER_MAX_PRESS);
   // Lines the player does not know stay unknown, and `set` still reaches it.
   quiet(h, "set loop_3 1");
   assert(atomic_load(&((Player *)h->impl)->loop[3]->desired) == 1);
@@ -537,7 +540,9 @@ static void check_refusals(void) {
   // Lines that are not commands of the player reply nothing on stdout.
   const char *bad[] = {"load 64 7 /x", "load -1 7 /x", "load 1", "load 1 ", "load 1 7", "load 1 7 ",
                        "load 1 /x", "load 1 x /x", "load 1 12345678901 /x", "load 1 4294967296 /x", "load 007 7 /x",
-                       "play 3 sideways", "play abc", "play", "stop 999", "stop",
+                       "play 3 sideways", "play abc", "play", "play 3 holdx", "play 3 hold ", "play 3 hold 0",
+                       "play 3 hold 16777216", "play 3 hold 123456789", "play 3 hold -1", "play 3 hold 5 6",
+                       "play 3 hold x", "play 3 5", "stop 999", "stop",
                        "stop every", "unload 3 extra", "release", "release x", "probe"};
   for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) quiet(h, bad[i]);
   release(h);
@@ -703,6 +708,78 @@ static void check_presses(void) {
   assert(meter(h, "pos_0") == 0);
   release(h);
   puts("PASS: overlap, restart, toggle and hold, release, stop, gain and position ramp without a jump");
+}
+
+// `ended_N`: the newest press whose hold voice, and every older one's, has
+// ended, so the daemon can tell a hold that is over from one still playing.
+static void check_ended(void) {
+  Host *h = dc_board("dc.wav", RATE);
+  assert(meter(h, "ended_0") == 0);
+  // A hold voice plays: every press before it has ended, its own has not.
+  quiet(h, "play 0 hold 5");
+  run(h, BLOCK);
+  assert(meter(h, "playing_0") == 1 && meter(h, "ended_0") == 4);
+  // A second hold voice and an overlap voice: the oldest hold voice decides.
+  quiet(h, "play 0 hold 6");
+  quiet(h, "play 0 overlap 7");
+  run(h, BLOCK);
+  assert(meter(h, "playing_0") == 3 && meter(h, "ended_0") == 4);
+  // A release ends both hold voices; the overlap voice plays on and holds
+  // nothing, so every press the slot took has ended.
+  quiet(h, "release 0");
+  run(h, 2 * BLOCK);
+  assert(meter(h, "playing_0") == 1 && meter(h, "ended_0") == 7);
+  quiet(h, "stop all");
+  run(h, 2 * BLOCK);
+  // A hold voice of a clip that ends by itself ends with the clip, and a
+  // newer one still playing keeps its own press open.
+  quiet(h, "play 0 hold 8");
+  run(h, RATE / 2);
+  quiet(h, "play 0 hold 9");
+  run(h, BLOCK);
+  assert(meter(h, "playing_0") == 2 && meter(h, "ended_0") == 7);
+  run(h, RATE / 2);
+  assert(meter(h, "playing_0") == 1 && meter(h, "ended_0") == 8);
+  run(h, RATE / 2);
+  assert(meter(h, "playing_0") == 0 && meter(h, "ended_0") == 9);
+  // The number and the voices are of one block: a press taken in the block
+  // whose voice starts there counts as playing, never as ended.
+  quiet(h, "play 0 hold 10");
+  quiet(h, "play 0 hold 11");
+  run(h, BLOCK);
+  assert(meter(h, "playing_0") == 2 && meter(h, "ended_0") == 9);
+  // A stop ends hold voices too, and a press that starts no voice, here a
+  // toggle that stops the slot, has ended once it is taken.
+  quiet(h, "play 0 toggle 12");
+  run(h, 2 * BLOCK);
+  assert(meter(h, "playing_0") == 0 && meter(h, "ended_0") == 12);
+  // A press dropped for arriving late has ended too.
+  quiet(h, "play 0 hold 13");
+  nanosleep(&(struct timespec){0, 300000000}, NULL);
+  run(h, BLOCK);
+  assert(meter(h, "playing_0") == 0 && meter(h, "ended_0") == 13);
+  // A press without a number moves nothing.
+  quiet(h, "play 0 hold");
+  run(h, BLOCK);
+  assert(meter(h, "playing_0") == 1 && meter(h, "ended_0") == 13);
+  quiet(h, "release 0");
+  run(h, 2 * BLOCK);
+  assert(meter(h, "ended_0") == 13);
+  // The daemon's count starts over at 1 past the largest number: the press
+  // before 1 is the largest.
+  quiet(h, "play 0 hold 1");
+  run(h, BLOCK);
+  assert(meter(h, "ended_0") == (float)PLAYER_MAX_PRESS);
+  quiet(h, "release 0");
+  run(h, 2 * BLOCK);
+  assert(meter(h, "ended_0") == 1);
+  // The slot's meters are printed again after a load, this one included.
+  char line[1024];
+  snprintf(line, sizeof(line), "load 0 8 %s", named("dc.wav"));
+  expect(h, line, "clip 0 8 ok 48000 2\n");
+  assert(isnan(((Player *)h->impl)->ended[0]->reported));
+  release(h);
+  puts("PASS: ended_N says which hold presses have ended, by a release, a stop, the clip's end or a drop");
 }
 
 static void check_voice_limit(void) {
@@ -932,6 +1009,7 @@ int main(int argc, char **argv) {
   check_refusals();
   check_damaged();
   check_presses();
+  check_ended();
   check_voice_limit();
   check_ends_and_loops();
   check_replacing();

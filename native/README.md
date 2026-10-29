@@ -520,7 +520,7 @@ graph, and a press sent before then waits in a queue of 256 lines. A press
 the audio thread reaches more than a quarter of a second after it was sent
 is dropped, so presses that waited for a link never sound late, all at once.
 
-Each slot has two controls and two meters, for N from 0 to 63:
+Each slot has two controls and three meters, for N from 0 to 63:
 
 | Symbol | Range | Default | Meaning |
 |---|---|---|---|
@@ -528,6 +528,7 @@ Each slot has two controls and two meters, for N from 0 to 63:
 | `loop_N` | 0 or 1 | 0 | Start over at the end instead of stopping |
 | `playing_N` | 0 to 8 | 0 | Read-only: voices now playing the slot, not counting ones fading out |
 | `pos_N` | 0 to 1 | 0 | Read-only: how far through the clip the newest of them is |
+| `ended_N` | 0 to 16777215 | 0 | Read-only: the newest numbered press on the slot whose `hold` voice has ended, together with every earlier press's; 0 before the slot took a numbered press |
 
 `set SYMBOL VALUE` moves a control as for every backend, and both apply to
 voices already playing. The other lines are the player's own:
@@ -536,14 +537,27 @@ voices already playing. The other lines are the player's own:
 |---|---|
 | `load SLOT TOKEN PATH` | Decode the file into the slot, replacing what it held. Answered with one line that repeats TOKEN |
 | `unload SLOT` | Empty the slot, and drop a load for it still decoding. Answered with `clip SLOT unloaded` |
-| `play SLOT [MODE]` | `overlap`, the default, starts another voice; `restart` fades out the slot's voices and starts one; `toggle` fades them out when one plays, else starts one; `hold` starts one that `release` ends |
+| `play SLOT [MODE [PRESS]]` | `overlap`, the default, starts another voice; `restart` fades out the slot's voices and starts one; `toggle` fades them out when one plays, else starts one; `hold` starts one that `release` ends. `PRESS` numbers the press for `ended_N` |
 | `release SLOT` | End the slot's `hold` voices |
 | `stop SLOT`, `stop all` | Fade out the slot's voices, or every voice |
 | `probe PATH` | Check a file as `load` would and keep nothing. Answered with one line |
 
 `SLOT` is 0 to 63. `TOKEN` is 0 to 4294967295, chosen by the sender and
 repeated in the answer, so an answer that comes after its sender gave up
-waiting is never taken for a later load's. `PATH` is the rest of the line,
+waiting is never taken for a later load's. `PRESS` is 1 to 16777215, the
+largest whole number a float meter holds exactly; the daemon counts its
+presses in the order it sends them and starts over at 1 past the largest.
+A hold voice has ended once it was released, stopped, stolen or replaced,
+or once its clip played out. A press that started no voice, such as one
+dropped for coming late or a toggle that stopped the slot, has ended once
+the audio thread took it. Hold voices of a slot end in the order they
+started. While one plays, `ended_N` is the press before the oldest of them;
+with none playing it is the slot's last numbered press. Turning loop off
+under looping voices can end a newer one first, and then `ended_N` reports
+it late, never early. The audio thread computes the value from the same
+block as the voices, so it never reports a press it has not reached yet.
+The daemon reads it to tell a key held past the end of its clip from one
+whose voice still plays. `PATH` is the rest of the line,
 spaces included. A load is answered with `clip SLOT TOKEN ok FRAMES
 CHANNELS`, the length at the helper's rate and 1 or 2, or with `clip SLOT
 TOKEN error MESSAGE`, after which the slot is empty. One load runs at a
@@ -627,6 +641,8 @@ three channels, 4000 Hz, a path that is too long, the memory budget and
 malformed lines; 150 damaged and truncated copies each of a WAV, FLAC, Ogg
 and MP3 file, each answered with one line and played with finite output; each
 press mode, release, stop and stop all with no step larger than the ramp's;
+`ended_N` through a release, a stop, a toggle, a clip's own end, a dropped
+press, an unnumbered press and the count starting over;
 the voice limit and stealing across slots; a clip's end, a loop's wrap and
 loop turned off on a running voice; a clip replaced or unloaded while it
 plays, and freed once its voices have faded; a stop and a gain change taken

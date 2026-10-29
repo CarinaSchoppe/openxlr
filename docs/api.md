@@ -309,12 +309,12 @@ that final acknowledgement (or an `error` without a request id):
 | `watchInputMeter` | `channel` | run the [meter before the chain](#meter-before-the-chain) of a channel whose `microphone` is true for the next 15 seconds, starting it when none runs. Send it again to keep the meter running. Refused at once when the native plugin host is not installed. Nothing in the channel's route changes, and nothing is saved |
 | `getSoundCheckTake` | none | answered with `soundCheckTake`: the waveform of the take the running session holds |
 | `setSoundboard` | `enabled` | `true` starts the soundboard's player and links it into SFX, the application channel with the id `sfx`, creating that channel first, muted in every mix, when the layout has none; `false` stops the player. Saved in `soundboard.json`. `true` is refused at once when the native plugin host is not installed. See [Soundboard](#soundboard) |
-| `importClip` | `path`, `name?` | copy the file the user picked, an absolute path, into the clip directory, check it in a helper process of its own and add it to the library under an id made from `name`, or from the file's name. Answered with `clipImport`. Refused, with a sentence, past 64 clips, for a path that is not a regular file, a file over 64 MiB, a clip over 30 s, a file this build cannot decode, and without the native plugin host |
+| `importClip` | `path`, `name?` | copy the file the user picked, an absolute path, into the clip directory, check it in a helper process of its own and add it to the library under an id made from `name`, or from the file's name. Answered with `clipImport`. Refused, with a sentence, past 64 clips, for a path that is not a regular file, a file over 64 MiB, a clip over 30 s, a file this build cannot decode, and without the native plugin host. |
 | `updateClip` | `clip`, at least one of `name`, `gain`, `mode`, `loop`, `icon`, `colour` | change a clip's library entry; an absent field keeps its value. `gain` is 0 to 1, `mode` one of `overlap`, `restart`, `toggle` and `hold`, `icon` as `setLayoutAppearance` takes it, `colour` `#RRGGBB` or empty to clear it. `gain` and `loop` reach a playing clip at once |
 | `deleteClip` | `clip` | stop the clip, remove it from the library and delete its copy |
 | `setClipOrder` | `clips` | every clip id once, in the order clients draw them |
-| `playClip` | `clip`, `mode?` | press the clip's key: the clip's own `mode` unless `mode` gives another for this press. A press in `hold` mode belongs to the WebSocket it came on: the clip plays until `releaseClip`, or until that connection closes, unless another open connection holds it too. Over HTTP, which keeps no connection, a `hold` press is refused. Refused while the board cannot play, with the board's `error`, while the clip is not `ready`, and for the moment the player's link into SFX is being made again, with "The soundboard is reconnecting to SFX. Press the clip again in a moment." Never saved; no state of its own beyond the start of the clip |
-| `releaseClip` | `clip` | the key came up: this connection's hold on the clip ends, and the clip's `hold` voices end unless another open connection still holds it |
+| `playClip` | `clip`, `mode?` | press the clip's key: the clip's own `mode` unless `mode` gives another for this press. A press in `hold` mode belongs to the WebSocket it came on: the clip plays until `releaseClip`, or until that connection closes, unless another open connection holds it too. A hold lasts as long as its voice. Once the clip ends by itself, or a stop, a toggle or a ninth voice ends it, the connection holds nothing, even with its key still down. Over HTTP, which keeps no connection, a `hold` press is refused. Refused while the board cannot play, with the board's `error`, while the clip is not `ready`, and for the moment the player's link into SFX is being made again, with "The soundboard is reconnecting to SFX. Press the clip again in a moment." Never saved; no state of its own beyond the start of the clip |
+| `releaseClip` | `clip` | the key came up: this connection's hold on the clip ends, and the clip's `hold` voices end unless another open connection still holds it with a voice that plays. A hold whose voice has ended keeps no other connection's release from ending that connection's voice |
 | `stopClip` | `clip` | fade the clip's voices out |
 | `stopClips` | none | fade every voice out; no error while the board is off |
 | `getSoundboard` | none | answered with `soundboard`, for a client that wants the board without the whole state |
@@ -1591,7 +1591,13 @@ next meter frame, within about 70 ms. Where a clip is lies in `meters` as
 The press modes are `overlap`, the default, which starts another voice;
 `restart`, which fades out the clip's voices and starts one; `toggle`, which
 fades them out when one plays and otherwise starts one; and `hold`, which
-plays until `releaseClip` or until the connection that pressed it closes. A ninth voice fades out the oldest, of any clip.
+plays until `releaseClip` or until the connection that pressed it closes. A
+hold ends with its voice: a key still down after its clip ended by itself,
+or after a stop, a toggle or a ninth voice ended it, holds nothing, so when
+another connection holds the clip later, that connection's `releaseClip`
+ends its voice at once. The daemon numbers each press, and the player
+reports the newest press whose hold voice has ended. A press the player has
+not taken yet still holds, such as one sent just as the last voice ends. A ninth voice fades out the oldest, of any clip.
 Every start and stop fades over 5 ms. A clip with `loop` starts over at its
 end until it is stopped; turning `loop` off lets the current pass finish.
 

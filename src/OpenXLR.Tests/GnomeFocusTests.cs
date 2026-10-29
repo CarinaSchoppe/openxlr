@@ -19,6 +19,50 @@ public sealed class GnomeFocusTests
     }
 
     [DesktopBusFact]
+    public async Task AudioProcessQueriesReadGnomeOnTheDesktopOwnerConnection()
+    {
+        string[] names = ["XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE"];
+        var saved = names.ToDictionary(name => name, Environment.GetEnvironmentVariable);
+        try
+        {
+            await using var session = await PrivateBus.Start();
+            Environment.SetEnvironmentVariable("XDG_CURRENT_DESKTOP", "GNOME");
+            Environment.SetEnvironmentVariable("XDG_SESSION_TYPE", "wayland");
+            using var desktop = new DBusConnection(session.Address);
+            await desktop.ConnectAsync();
+            desktop.AddMethodHandler(new DesktopFocus(new DesktopBus(desktop)));
+            await desktop.RequestNameAsync(DesktopFocus.Service);
+            using var shell = new DBusConnection(session.Address);
+            await shell.ConnectAsync();
+            var source = new Source(desktop.UniqueName!) { Pid = 42 };
+            shell.AddMethodHandler(source);
+            await shell.RequestNameAsync(GnomeFocus.Service);
+            using var requester = new DBusConnection(session.Address);
+            await requester.ConnectAsync();
+            var client = new DesktopBus(requester);
+            Task<string> Query() => client.Call(DesktopFocus.Service, "/org/openxlr/Desktop", DesktopFocus.Service,
+                "GetFocusedAudioProcesses", "s", (ref MessageWriter writer) => writer.WriteString("42,73"),
+                static (message, _) => message.GetBodyReader().ReadString());
+
+            Assert.Equal("42", await Query());
+            source.Error = true;
+            var failure = await Assert.ThrowsAsync<DBusErrorReplyException>(Query);
+            Assert.Contains("could not read", failure.Message);
+            source.Error = false;
+            source.Pid = 73;
+            Assert.Equal("73", await Query());
+            Assert.Equal(3, source.Reads);
+            var obsolete = await Assert.ThrowsAsync<DBusErrorReplyException>(() =>
+                client.Empty(DesktopFocus.Service, "/org/openxlr/Desktop", DesktopFocus.Service, "GetFocusedProcess"));
+            Assert.Equal("org.freedesktop.DBus.Error.UnknownMethod", obsolete.ErrorName);
+        }
+        finally
+        {
+            foreach (var pair in saved) Environment.SetEnvironmentVariable(pair.Key, pair.Value);
+        }
+    }
+
+    [DesktopBusFact]
     public async Task OnlyTheDesktopOwnerConnectionReadsFreshFocusAndCanRecoverAnExtensionRestart()
     {
         await using var session = await PrivateBus.Start();
@@ -26,7 +70,7 @@ public sealed class GnomeFocusTests
         await owner.ConnectAsync();
         await owner.RequestNameAsync(DesktopFocus.Service);
         var focus = new GnomeFocus(new DesktopBus(owner));
-        Assert.Contains("GNOME Shell extension", (await Assert.ThrowsAsync<InvalidOperationException>(() => focus.ReadAsync(CancellationToken.None))).Message);
+        Assert.Contains("no running GNOME Shell", (await Assert.ThrowsAsync<InvalidOperationException>(() => focus.ReadAsync(CancellationToken.None))).Message);
         using (var shell = new DBusConnection(session.Address))
         {
             await shell.ConnectAsync();
@@ -41,12 +85,62 @@ public sealed class GnomeFocusTests
             var denied = await Assert.ThrowsAsync<InvalidOperationException>(() => new GnomeFocus(new DesktopBus(stranger)).ReadAsync(CancellationToken.None));
             Assert.Contains("restricted", denied.Message);
             Assert.Equal(2, source.Reads);
+            source.Pid = 1;
+            await Assert.ThrowsAsync<InvalidOperationException>(() => focus.ReadAsync(CancellationToken.None));
             source.Pid = 0;
             await Assert.ThrowsAsync<InvalidOperationException>(() => focus.ReadAsync(CancellationToken.None));
             source.Pid = uint.MaxValue;
             await Assert.ThrowsAsync<InvalidOperationException>(() => focus.ReadAsync(CancellationToken.None));
         }
         await Assert.ThrowsAsync<InvalidOperationException>(() => focus.ReadAsync(CancellationToken.None));
+    }
+
+    [DesktopBusFact]
+    public async Task AnUnrelatedFocusServiceCannotSpoofShellAndMissingShellDoesNotSuggestAnExtension()
+    {
+        await using var session = await PrivateBus.Start();
+        using var owner = new DBusConnection(session.Address);
+        await owner.ConnectAsync();
+        await owner.RequestNameAsync(DesktopFocus.Service);
+        using var imposter = new DBusConnection(session.Address);
+        await imposter.ConnectAsync();
+        var fake = new Source(owner.UniqueName!) { Pid = 99 };
+        imposter.AddMethodHandler(fake);
+        await imposter.RequestNameAsync("org.openxlr.Focus");
+        var focus = new GnomeFocus(new DesktopBus(owner));
+        var missing = await Assert.ThrowsAsync<InvalidOperationException>(() => focus.ReadAsync(CancellationToken.None));
+        Assert.Contains("no running GNOME Shell", missing.Message);
+        Assert.DoesNotContain("Enable", missing.Message);
+        Assert.Equal(0, fake.Reads);
+
+        using var shell = new DBusConnection(session.Address);
+        await shell.ConnectAsync();
+        await shell.RequestNameAsync("org.gnome.Shell");
+        var extension = await Assert.ThrowsAsync<InvalidOperationException>(() => focus.ReadAsync(CancellationToken.None));
+        Assert.Contains("Enable the OpenXLR Focus GNOME Shell extension", extension.Message);
+        shell.AddMethodHandler(new Source(owner.UniqueName!) { Pid = 42 });
+        Assert.Equal(42u, await focus.ReadAsync(CancellationToken.None));
+        Assert.Equal(0, fake.Reads);
+    }
+
+    [DesktopBusFact]
+    public async Task AFocusReadErrorDoesNotRetainThePendingRequest()
+    {
+        await using var session = await PrivateBus.Start();
+        using var owner = new DBusConnection(session.Address);
+        await owner.ConnectAsync();
+        await owner.RequestNameAsync(DesktopFocus.Service);
+        using var shell = new DBusConnection(session.Address);
+        await shell.ConnectAsync();
+        var source = new Source(owner.UniqueName!) { Error = true };
+        shell.AddMethodHandler(source);
+        await shell.RequestNameAsync(GnomeFocus.Service);
+        var focus = new GnomeFocus(new DesktopBus(owner));
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => focus.ReadAsync(CancellationToken.None));
+        Assert.Contains("could not read", failure.Message);
+        source.Error = false;
+        source.Pid = 42;
+        Assert.Equal(42u, await focus.ReadAsync(CancellationToken.None));
     }
 
     [DesktopBusTheory]
@@ -119,21 +213,22 @@ public sealed class GnomeFocusTests
     {
         public uint Pid;
         public string Signature = "u";
-        public bool Hold;
+        public bool Hold, Error;
         public int Reads;
         public List<MethodContext> Held { get; } = [];
         public string Path => GnomeFocus.Path;
         public bool HandlesChildPaths => false;
         public ValueTask HandleMethodAsync(MethodContext context)
         {
-            if (context.Request.InterfaceAsString != GnomeFocus.Service || context.Request.MemberAsString != "GetFocusedProcess")
+            if (context.Request.InterfaceAsString != GnomeFocus.Interface || context.Request.MemberAsString != "GetFocusedProcess")
                 context.ReplyUnknownMethodError();
             else if (context.Request.SenderAsString != owner)
                 context.ReplyError("org.freedesktop.DBus.Error.AccessDenied", "Only the desktop owner may read focus.");
             else
             {
                 Reads++;
-                if (Hold) { context.DisposesAsynchronously = true; Held.Add(context); }
+                if (Error) context.ReplyError("org.openxlr.Focus.Unavailable", "GNOME Shell could not read the focused application.");
+                else if (Hold) { context.DisposesAsynchronously = true; Held.Add(context); }
                 else Reply(context);
             }
             return ValueTask.CompletedTask;

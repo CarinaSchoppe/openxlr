@@ -23,10 +23,10 @@ async function wait(checkReady) {
   throw new Error('The private service did not become ready.');
 }
 async function main() {
-  let reads = 0, pid = 42;
-  const service = new FocusService(() => { ++reads; return pid; });
-  const owner = connection(), stranger = connection();
-  const focus = bus => call(bus, 'org.openxlr.Focus', '/org/openxlr/Focus', 'org.openxlr.Focus', 'GetFocusedProcess');
+  let reads = 0, pid = 42, broken = false;
+  const service = new FocusService(() => { ++reads; if (broken) throw new Error('Focus was destroyed.'); return pid; });
+  const owner = connection(), stranger = connection(), shell = connection();
+  const focus = bus => call(bus, 'org.gnome.Shell', '/org/openxlr/Focus', 'org.openxlr.Focus', 'GetFocusedProcess');
   async function refused(bus) {
     const before = reads;
     try { await focus(bus); } catch (error) {
@@ -41,13 +41,22 @@ async function main() {
       new GLib.Variant(method === 'RequestName' ? '(su)' : '(s)', method === 'RequestName' ? ['org.openxlr.Desktop', 4] : ['org.openxlr.Desktop']));
   }
   try {
-    service.enable();
+    await call(shell, 'org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus',
+      'RequestName', new GLib.Variant('(su)', ['org.gnome.Shell', 4]));
+    service.enable(shell);
     await wait(() => !!service._object);
     await refused(owner);
     await name(owner, 'RequestName');
     await wait(() => service._desktopOwner === owner.get_unique_name());
     await refused(stranger);
     check((await focus(owner))[0] === 42, 'The owner did not receive focus.');
+    broken = true;
+    try { await focus(owner); throw new Error('A focus exception was accepted.'); }
+    catch (error) {
+      check(Gio.DBusError.get_remote_error(error) === 'org.openxlr.Focus.Unavailable',
+        `A focus exception did not receive a bounded D-Bus error: ${error}`);
+    }
+    broken = false;
     pid = 73;
     check((await focus(owner))[0] === 73, 'Focus was cached.');
     const beforeRelease = reads;
@@ -66,7 +75,7 @@ async function main() {
     check((await focus(stranger))[0] === 73, 'The replacement owner was refused.');
     service.disable();
     check(!service._desktopOwner && !service._watch && !service._object, 'Disabled service retained an export or owner.');
-    service.enable();
+    service.enable(shell);
     await wait(() => service._desktopOwner === stranger.get_unique_name());
     await refused(owner);
     check((await focus(stranger))[0] === 73, 'Re-enabled service did not recover.');
@@ -75,6 +84,7 @@ async function main() {
     service.disable();
     owner.close_sync(null);
     stranger.close_sync(null);
+    shell.close_sync(null);
   }
 }
 const loop = new GLib.MainLoop(null, false);

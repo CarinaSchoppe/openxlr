@@ -9,5 +9,5 @@ export function focusedProcess(display, sessionMode, overview) {
   const window = display.focus_window;
   if (!window || window.minimized || !window.has_focus()) return 0;
   const pid = window.get_pid();
-  return Number.isSafeInteger(pid) && pid > 0 && pid <= 2147483647 ? pid : 0;
+  return Number.isSafeInteger(pid) && pid > 1 && pid <= 2147483647 ? pid : 0;
 }

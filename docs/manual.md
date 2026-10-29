@@ -3932,8 +3932,9 @@ routing is requested:
   supports native applications: a Flatpak window reports a sandbox PID in
   `_NET_WM_PID`, which cannot be resolved to a host process from X11 alone.
   Xwayland cannot identify focused Wayland windows.
-- GNOME Shell: the optional [OpenXLR Focus extension](gnome-focus.md). Its
-  D-Bus endpoint answers only the running OpenXLR desktop service.
+- GNOME Shell on Wayland: the optional [OpenXLR Focus extension](gnome-focus.md).
+  Its D-Bus endpoint answers only the running OpenXLR desktop service.
+  A GNOME X11 session uses the X11 source described above.
 
 Hyprland routing has been run on a live session. Sway, Niri, the new X11
 source and GNOME still need owner desktop acceptance.
@@ -3945,8 +3946,9 @@ ask the UI. Other compositors have no focus source yet. Routing reports an
 error when the required extension or UI is unavailable, and inside the
 Flatpak, which has no access to the compositor.
 
-With a host PID from KWin, Sway, Hyprland, Niri or GNOME Shell, native OpenXLR can also
-match Flatpak audio clients using their portal instance ids, `flatpak ps`
+With a host PID from KWin, Sway, Hyprland, Niri or GNOME Shell, native
+OpenXLR can also match Flatpak audio clients using their portal instance
+ids, `flatpak ps`
 and the host process namespace. A missing or
 failed Flatpak query leaves those candidates unavailable and keeps native
 application matching working. It never treats a sandbox PID as a host PID.

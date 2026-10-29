@@ -8,7 +8,8 @@ namespace OpenXLR.UI;
 /// <summary>Read focus on the connection owning org.openxlr.Desktop.</summary>
 internal sealed class GnomeFocus(DesktopBus bus)
 {
-    internal const string Service = "org.openxlr.Focus";
+    internal const string Service = "org.gnome.Shell";
+    internal const string Interface = "org.openxlr.Focus";
     internal const string Path = "/org/openxlr/Focus";
     private readonly object _gate = new();
     private Task<uint?>? _pending;
@@ -29,18 +30,25 @@ internal sealed class GnomeFocus(DesktopBus bus)
         {
             uint? pid = await pending.WaitAsync(deadline.Token);
             if (pid is null) throw new InvalidOperationException("GNOME returned an invalid focus reply.");
-            if (pid is 0 or > int.MaxValue) throw new InvalidOperationException("GNOME has no focused application window.");
+            if (pid is <= 1 or > int.MaxValue) throw new InvalidOperationException("GNOME has no focused application window.");
             return pid.Value;
         }
         catch (DBusErrorReplyException ex) when (ex.ErrorName is "org.freedesktop.DBus.Error.ServiceUnknown"
             or "org.freedesktop.DBus.Error.NameHasNoOwner" or "org.freedesktop.DBus.Error.UnknownMethod"
             or "org.freedesktop.DBus.Error.UnknownObject")
         {
-            throw new InvalidOperationException("Enable the OpenXLR Focus GNOME Shell extension to route the focused application.", ex);
+            string message = ex.ErrorName is "org.freedesktop.DBus.Error.ServiceUnknown" or "org.freedesktop.DBus.Error.NameHasNoOwner"
+                ? "This session has no running GNOME Shell focus source."
+                : "Enable the OpenXLR Focus GNOME Shell extension to route the focused application.";
+            throw new InvalidOperationException(message, ex);
         }
         catch (DBusErrorReplyException ex) when (ex.ErrorName == "org.freedesktop.DBus.Error.AccessDenied")
         {
             throw new InvalidOperationException("GNOME focus is restricted to the running OpenXLR desktop service; enable Desktop keys and retry.", ex);
+        }
+        catch (DBusErrorReplyException ex) when (ex.ErrorName == "org.openxlr.Focus.Unavailable")
+        {
+            throw new InvalidOperationException("GNOME Shell could not read the focused application; try again.", ex);
         }
         catch (OperationCanceledException ex) when (!cancel.IsCancellationRequested)
         {
@@ -51,7 +59,7 @@ internal sealed class GnomeFocus(DesktopBus bus)
     private Task<uint?> BeginRead()
     {
         using var writer = bus.Connection.GetMessageWriter();
-        writer.WriteMethodCallHeader(Service, Path, Service, "GetFocusedProcess");
+        writer.WriteMethodCallHeader(Service, Path, Interface, "GetFocusedProcess");
         Task<uint?> pending = bus.Connection.CallMethodAsync<uint?>(writer.CreateMessage(), static (message, _) =>
             message.SignatureAsString == "u" ? message.GetBodyReader().ReadUInt32() : null);
         // This must keep the UI's bus owner. The protocol cannot cancel a

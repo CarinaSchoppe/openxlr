@@ -1,10 +1,13 @@
 # GNOME focused application routing
 
-The optional OpenXLR Focus extension supplies GNOME's current application
-PID when a routing key is pressed. It is not a focus monitor: it keeps no
+The optional OpenXLR Focus extension supplies GNOME Shell's current
+application PID on Wayland when a routing key is pressed. A GNOME X11
+session uses the native X11 focus source described in the manual. It is not a focus monitor: it keeps no
 history, reads no titles or application names and emits no focus signals.
-The method returns no application on the lock screen, login screen,
-overview or when the focused window is minimized or gone.
+The extension stays enabled in the regular user session and its unlock
+dialog. It returns no application while locked, in the overview or when
+the focused window is minimized or gone. It does not run in the login
+screen session.
 
 ## Enable and remove
 
@@ -43,15 +46,25 @@ is part of this feature; the OpenXLR Flatpak still cannot query the compositor.
 
 ## Access and compatibility
 
-Only the session-bus connection owning `org.openxlr.Desktop` may call the
-extension. Other callers receive AccessDenied before focus is read. When
-the owner exits or changes, the previous owner loses access. The UI queries
-on its existing desktop connection. A stalled extension retains at most
-one unanswered request, preserves desktop shortcuts and retries after the
+The extension exports `/org/openxlr/Focus` on GNOME Shell's own session-bus
+connection. The UI calls `org.gnome.Shell`, using the `org.openxlr.Focus`
+interface; the extension owns no separate service name. A process owning
+`org.openxlr.Focus` cannot replace that endpoint. A desktop without the
+Shell service reports that the focus source is unavailable instead of
+suggesting a Shell extension for Budgie or GNOME Flashback.
+
+The extension endpoint accepts only the session-bus connection owning
+`org.openxlr.Desktop`. Other direct callers receive AccessDenied before
+focus is read. This is not a session-wide focus privacy guarantee: the
+UI's existing desktop interface can itself be called by other session
+processes, as on the other compositors. When the owner exits or changes,
+the previous owner loses access. The UI queries on its existing desktop
+connection. A stalled extension retains at most one unanswered request, preserves desktop shortcuts and retries after the
 reply arrives or the UI's desktop connection is recreated. A late reply
-is never reused as a fresh focus result. Only the declared unsigned PID
-reply is accepted; a different D-Bus signature is refused without closing
-the desktop connection.
+is never reused as a fresh focus result. If reading focus throws, the
+extension returns a D-Bus error so the next request can run. Only the
+declared unsigned PID reply is accepted; a different D-Bus signature is
+refused without closing the desktop connection.
 
 The metadata currently names only Shell 46. A private headless Shell 46
 run does not count as owner desktop acceptance. Before merge, test focus

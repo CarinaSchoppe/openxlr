@@ -723,8 +723,8 @@ restores the split profile when it stops.
   audio process keys over D-Bus; the UI matches host processes, including
   Flatpak instances on sources that report host PIDs, and the daemon rechecks
   their identity before routing. The X11 source supports native clients only.
-  Sway, Niri, X11 and GNOME still need owner desktop acceptance. An application
-  that cannot be identified without guessing is refused
+  Sway, Niri, X11 and GNOME still need owner desktop acceptance. An
+  application that cannot be identified without guessing is refused
 
 ## Profiles
 

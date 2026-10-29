@@ -3,5 +3,6 @@
   "name": "OpenXLR Focus",
   "description": "Supply the focused application process to the running OpenXLR desktop service on demand.",
   "shell-version": ["46"],
+  "session-modes": ["user", "unlock-dialog"],
   "url": "https://github.com/emaspa/openxlr"
 }

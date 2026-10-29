@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {readFile} from 'node:fs/promises';
 import {focusedProcess, interfaceXml} from '../openxlr-focus@emaspa.github.com/focus.mjs';
 
 test('the GNOME source exports only an on-demand process id', () => {
@@ -14,7 +15,7 @@ test('the GNOME source exports only an on-demand process id', () => {
   assert.equal(focusedProcess(display, {currentMode: 'gdm', isGreeter: true}, overview), 0);
   pid = 73;
   assert.equal(focusedProcess(display, session, overview), 73);
-  for (const bad of [0, -1, null, '42', NaN, Infinity, 1.5, 2147483648]) {
+  for (const bad of [1, 0, -1, null, '42', NaN, Infinity, 1.5, 2147483648]) {
     pid = bad;
     assert.equal(focusedProcess(display, session, overview), 0);
   }
@@ -31,4 +32,12 @@ test('no previous application is reported on the overview, lock screen or after 
   assert.equal(focusedProcess(display, {currentMode: 'user'}, {visible: false}), 0);
   display.focus_window = null;
   assert.equal(focusedProcess(display, {currentMode: 'user'}, {visible: false}), 0);
+});
+
+test('the extension remains available in the locked user session', async () => {
+  const metadata = JSON.parse(await readFile(new URL('../openxlr-focus@emaspa.github.com/metadata.json', import.meta.url)));
+  assert.deepEqual(metadata['session-modes'], ['user', 'unlock-dialog']);
+  assert.ok(metadata['shell-version'].length > 0);
+  assert.equal(new Set(metadata['shell-version']).size, metadata['shell-version'].length);
+  for (const version of metadata['shell-version']) assert.match(version, /^[0-9]+$/);
 });

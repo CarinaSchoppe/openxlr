@@ -117,13 +117,13 @@ public sealed class DesktopKeysTests
         fake.Activate("focus_browser", "/not_the_session");
         await Task.Delay(80);
         Assert.Single(commands);
-        Assert.Equal(4242, await Task.Run(DesktopFocusQuery.Read));
+        Assert.Equal(["4242"], await Task.Run(() => DesktopFocusQuery.ReadAudioProcesses(["4242", "4343"])));
         Assert.True(fake.Unloads >= 2);
         Assert.False(File.Exists(OpenXLR.Core.OpenXlrPaths.ConfigFile("desktop-focus.js")));
         Directory.CreateDirectory(OpenXLR.Core.OpenXlrPaths.ConfigFile("desktop-keys.json"));
         await keys.ConfigureAsync(new DesktopKeySettings { Enabled = false });
         Assert.StartsWith("Desktop keys:", keys.Status);
-        Assert.Equal(4242, await Task.Run(DesktopFocusQuery.Read)); // failed save kept the running service
+        Assert.Equal(["4242"], await Task.Run(() => DesktopFocusQuery.ReadAudioProcesses(["4242", "4343"]))); // failed save kept the running service
         Directory.Delete(OpenXLR.Core.OpenXlrPaths.ConfigFile("desktop-keys.json"));
         fake.CloseSession();
         await Wait(() => keys.Status.StartsWith("Shortcut session closed", StringComparison.Ordinal));
@@ -133,7 +133,7 @@ public sealed class DesktopKeysTests
         fake.CancelBinding = true;
         await keys.ConfigureAsync(new DesktopKeySettings { Enabled = true, FocusChannels = ["music"] }, save: false);
         Assert.Contains("cancelled", keys.Status);
-        Assert.Throws<InvalidOperationException>(() => DesktopFocusQuery.Read());
+        Assert.Throws<InvalidOperationException>(() => DesktopFocusQuery.ReadAudioProcesses(["4242"]));
         await keys.ConfigureAsync(new DesktopKeySettings(), save: false);
         Assert.Equal("Desktop keys are disabled.", keys.Status);
     }
@@ -438,7 +438,7 @@ public sealed class DesktopKeysTests
         fake.Activate("focus_music");
         await Wait(() => commands.Count == 3);
         Assert.Equal(["toggleMonitorMuted", "toggleOutputMute", "routeFocusedApp"], commands.ToArray());
-        Assert.Equal(4242, await Task.Run(DesktopFocusQuery.Read));
+        Assert.Equal(["4242"], await Task.Run(() => DesktopFocusQuery.ReadAudioProcesses(["4242", "4343"])));
     }
 
     [DesktopBusFact]
@@ -476,7 +476,7 @@ public sealed class DesktopKeysTests
         await keys.ConfigureAsync(new DesktopKeySettings { Enabled = true, FocusChannels = ["music"] }, save: false);
         Assert.Contains("focus routing is enabled", keys.Status);
         Assert.Contains("does not offer global shortcuts", keys.Status);
-        Assert.Equal(4242, await Task.Run(DesktopFocusQuery.Read));
+        Assert.Equal(["4242"], await Task.Run(() => DesktopFocusQuery.ReadAudioProcesses(["4242", "4343"])));
         Assert.Equal(["CreateSession"], fake.ShortcutMethods);
     }
 

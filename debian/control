@@ -27,7 +27,7 @@ Depends: ${misc:Depends},
  libx11-6,
  libice6,
  libsm6
-Recommends: alsa-utils, pulseaudio-utils, xdg-utils, libgdk-pixbuf-2.0-0, librsvg2-common
+Recommends: alsa-utils, pulseaudio-utils, xdg-utils, libgdk-pixbuf-2.0-0, librsvg2-common, x11-utils
 Suggests: swh-plugins, lsp-plugins-lv2, openxlr-yabridge
 Description: Linux Wave Link replacement for Elgato XLR interfaces and Wave microphones
  A Wave Link replacement for Linux. It controls Elgato XLR interfaces

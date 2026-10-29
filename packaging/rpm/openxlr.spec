@@ -64,6 +64,7 @@ Requires:       glib2
 Recommends:     alsa-utils
 Recommends:     pulseaudio-utils
 Recommends:     xdg-utils
+Recommends:     /usr/bin/xprop
 # SVG application icons in the window are drawn through GdkPixbuf and its
 # librsvg loader; without them the window falls back to PNG icons.
 Recommends:     gdk-pixbuf2

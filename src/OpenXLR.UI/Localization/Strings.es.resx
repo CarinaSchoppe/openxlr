@@ -568,10 +568,10 @@
     <value>El enrutamiento de la aplicación enfocada desde OpenDeck está activado. Selecciona los canales debajo para asignar atajos del ordenador.</value>
   </data>
   <data name="DesktopKeysIntro" xml:space="preserve">
-    <value>El enrutamiento de la aplicación enfocada usa KDE Plasma, Sway o Hyprland. Actívalo para las teclas de OpenDeck y selecciona los canales debajo para asignar atajos del ordenador mediante el diálogo de permisos del escritorio. Mantén OpenXLR en ejecución, aunque esté en la bandeja.</value>
+    <value>El enrutamiento de la aplicación enfocada usa KDE Plasma, Sway, Hyprland, Niri o X11. Actívalo para las teclas de OpenDeck y selecciona los canales debajo para asignar atajos del ordenador mediante el diálogo de permisos del escritorio. Mantén OpenXLR en ejecución, aunque esté en la bandeja.</value>
   </data>
   <data name="DesktopKeysNote" xml:space="preserve">
-    <value>Atajos de teclado para canales de aplicaciones, volumen y salida del sistema, y enrutamiento de la aplicación enfocada desde OpenDeck, que requiere KDE Plasma, Sway o Hyprland.</value>
+    <value>Atajos de teclado para canales de aplicaciones, volumen y salida del sistema, y enrutamiento de la aplicación enfocada desde OpenDeck, que requiere KDE Plasma, Sway, Hyprland, Niri o X11.</value>
   </data>
   <data name="DesktopKeysShortcutsUnavailable" xml:space="preserve">
     <value>Este escritorio no ofrece atajos globales mediante el portal. El enrutamiento de la aplicación enfocada desde OpenDeck sigue disponible.</value>

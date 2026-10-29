@@ -1,5 +1,6 @@
 using OpenXLR.Core;
 using OpenXLR.Core.Mixing;
+using FocusProcesses = OpenXLR.UI.FocusProcesses;
 
 namespace OpenXLR.Tests;
 
@@ -33,7 +34,10 @@ public sealed partial class MonitorVolumeIntegrationTests
             // A key can arrive before the daemon's first stream sweep. Keep
             // running that sweep while waiting, as the daemon does in service.
             Assert.Empty(mixer.Streams);
-            mixer.RouteFocusedApplication(stream!.ProcessId, "music");
+            string[] Focus(int pid) => FocusProcesses.MatchKeysAsync(pid,
+                FocusProcesses.ParseKeys(string.Join(',', mixer.FocusedAudioCandidates())), CancellationToken.None)
+                .GetAwaiter().GetResult().Split(',');
+            mixer.RouteFocusedAudioProcesses(Focus(stream!.ProcessId), "music");
             void WaitForChannel(string channel)
             {
                 Assert.True(SpinWait.SpinUntil(() =>
@@ -46,11 +50,11 @@ public sealed partial class MonitorVolumeIntegrationTests
             WaitForChannel("music");
             Assert.Equal("music", mixer.Matcher.Overrides["focus-test"]);
             // Once discovered, the same command must move the existing stream.
-            mixer.RouteFocusedApplication(stream.ProcessId, "system");
+            mixer.RouteFocusedAudioProcesses(Focus(stream.ProcessId), "system");
             WaitForChannel("system");
             Assert.Equal("system", mixer.Matcher.Overrides["focus-test"]);
-            Assert.Throws<InvalidOperationException>(() => mixer.RouteFocusedApplication(stream.ProcessId, "missing"));
-            Assert.Throws<InvalidOperationException>(() => mixer.RouteFocusedApplication(int.MaxValue, "system"));
+            Assert.Throws<InvalidOperationException>(() => mixer.RouteFocusedAudioProcesses(Focus(stream.ProcessId), "missing"));
+            Assert.Throws<InvalidOperationException>(() => mixer.RouteFocusedAudioProcesses(Focus(int.MaxValue), "system"));
             Assert.Equal("OpenXLR_ch_system", pw.StreamSinkName(stream.Serial));
         }
         finally { stop.Cancel(); play.GetAwaiter().GetResult(); }

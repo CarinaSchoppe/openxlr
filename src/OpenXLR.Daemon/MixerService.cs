@@ -936,7 +936,7 @@ public sealed class MixerService : IHostedService, IDisposable
                     break;
                 case "setMainOutput": _mixer.SetMainOutput(cmd.Device!); break;
                 case "routeFocusedApp":
-                    _mixer.RouteFocusedApplication(DesktopFocusQuery.Read(), cmd.Channel!);
+                    _mixer.RouteFocusedAudioProcesses(DesktopFocusQuery.ReadAudioProcesses(_mixer.FocusedAudioCandidates()), cmd.Channel!);
                     break;
                 case "assignStream":
                     if (cmd.Channel is null || cmd.StreamId is null) return "assignStream: need 'channel' and 'streamId'";

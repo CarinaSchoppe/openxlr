@@ -134,7 +134,7 @@ public sealed class CompositorFocusTests
     });
 
     [Fact]
-    public Task ConcurrentAndCancelledQueriesReleaseTheServiceGate() => WithHelpers(async directory =>
+    public Task CancelledProvidersCanBeReadAgain() => WithHelpers(async directory =>
     {
         Environment.SetEnvironmentVariable("XDG_CURRENT_DESKTOP", "sway");
         string script = Path.Combine(directory, "swaymsg");
@@ -145,7 +145,6 @@ public sealed class CompositorFocusTests
         Task<uint> pending = focus.ReadAsync(cancel.Token);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         while (!File.Exists(Path.Combine(directory, "arguments"))) await Task.Delay(10, timeout.Token);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => focus.ReadAsync(CancellationToken.None));
         cancel.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
         ExecutableScript.Write(script, "#!/bin/sh\nprintf '%s' \"$OPENXLR_FOCUS_REPLY\"\n");
@@ -178,13 +177,13 @@ public sealed class CompositorFocusTests
             using var keys = new DesktopKeys(client);
             await keys.ConfigureAsync(new DesktopKeySettings { Enabled = true }, save: false);
             Assert.Contains("focus routing is enabled", keys.Status);
-            Assert.Equal(4242, await Task.Run(DesktopFocusQuery.Read));
+            Assert.Equal(["4242"], await Task.Run(() => DesktopFocusQuery.ReadAudioProcesses(["4242", "4343"])));
             SetReply(name, 4343);
-            Assert.Equal(4343, await Task.Run(DesktopFocusQuery.Read));
+            Assert.Equal(["4343"], await Task.Run(() => DesktopFocusQuery.ReadAudioProcesses(["4242", "4343"])));
             Assert.False(File.Exists(OpenXLR.Core.OpenXlrPaths.ConfigFile("desktop-focus.js")));
             File.Delete(Path.Combine(directory, name == "sway" ? "swaymsg" : "hyprctl"));
             Environment.SetEnvironmentVariable("PATH", directory + ":/usr/bin:/bin");
-            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(DesktopFocusQuery.Read));
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => DesktopFocusQuery.ReadAudioProcesses(["4242", "4343"])));
             Assert.Contains(name == "sway" ? "swaymsg" : "hyprctl", error.Message);
         });
     }

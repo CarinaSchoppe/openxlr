@@ -577,10 +577,10 @@
     <value>L'instradamento dell'app attiva per OpenDeck è attivo. Seleziona i canali qui sotto per assegnare scorciatoie del PC.</value>
   </data>
   <data name="DesktopKeysIntro" xml:space="preserve">
-    <value>L'instradamento dell'app attiva usa KDE Plasma, Sway o Hyprland. Attivalo per i tasti di OpenDeck, poi seleziona i canali qui sotto per assegnare scorciatoie del PC tramite la finestra dei permessi del desktop. Lascia OpenXLR in esecuzione, anche nel vassoio di sistema.</value>
+    <value>L'instradamento dell'app attiva usa KDE Plasma, Sway, Hyprland, Niri o X11. Attivalo per i tasti di OpenDeck, poi seleziona i canali qui sotto per assegnare scorciatoie del PC tramite la finestra dei permessi del desktop. Lascia OpenXLR in esecuzione, anche nel vassoio di sistema.</value>
   </data>
   <data name="DesktopKeysNote" xml:space="preserve">
-    <value>Scorciatoie da tastiera per i canali applicazione, il volume e l'uscita di sistema, e l'instradamento dell'app attiva di OpenDeck, che richiede KDE Plasma, Sway o Hyprland.</value>
+    <value>Scorciatoie da tastiera per i canali applicazione, il volume e l'uscita di sistema, e l'instradamento dell'app attiva di OpenDeck, che richiede KDE Plasma, Sway, Hyprland, Niri o X11.</value>
   </data>
   <data name="DesktopKeysShortcutsUnavailable" xml:space="preserve">
     <value>Questo desktop non offre scorciatoie globali tramite il portale. L'instradamento dell'app attiva di OpenDeck resta disponibile.</value>

@@ -3001,10 +3001,10 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
     <value>This desktop cannot reopen the shortcut editor. Change bindings in the desktop's shortcut settings.</value>
   </data>
   <data name="DesktopKeysIntro" xml:space="preserve">
-    <value>Focused application routing uses KDE Plasma, Sway or Hyprland. Enable it for OpenDeck keys, then select channels below to request PC shortcuts from the desktop portal. Keep OpenXLR running, including in the tray.</value>
+    <value>Focused application routing uses KDE Plasma, Sway, Hyprland, Niri or X11. Enable it for OpenDeck keys, then select channels below to request PC shortcuts from the desktop portal. Keep OpenXLR running, including in the tray.</value>
   </data>
   <data name="DesktopKeysNote" xml:space="preserve">
-    <value>Keyboard shortcuts for application channels, volume and the system output, plus focused application routing from OpenDeck on KDE Plasma, Sway and Hyprland.</value>
+    <value>Keyboard shortcuts for application channels, volume and the system output, plus focused application routing from OpenDeck on KDE Plasma, Sway, Hyprland, Niri and X11.</value>
   </data>
   <data name="DesktopKeysShortcutsUnavailable" xml:space="preserve">
     <value>This desktop does not offer global shortcuts through the portal. OpenDeck focus routing remains available.</value>

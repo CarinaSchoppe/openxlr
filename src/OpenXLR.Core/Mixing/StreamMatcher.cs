@@ -151,6 +151,10 @@ public sealed record AudioStream(int Id, string? AppName, string? Binary, string
     public int Serial { get; init; }
     /// <summary>Owning application process, when the live PipeWire client supplies it.</summary>
     public int ProcessId { get; init; }
+    /// <summary>PipeWire portal instance for a process ID inside a Flatpak namespace.</summary>
+    public string? FlatpakInstanceId { get; init; }
+    internal string FocusProcessKey => ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        + (FlatpakInstanceId is null ? "" : "@" + FlatpakInstanceId);
     /// <summary>The <c>application.icon_name</c> the application published, or null.</summary>
     public string? IconName { get; init; }
     /// <summary>The desktop application id: the Flatpak portal's, else <c>application.id</c>; or null.</summary>

@@ -92,8 +92,12 @@ void free(void *p) {
 // --- the player ---------------------------------------------------------------
 
 static char directory[256];
+// The main pair, and the audition pair the host hands over as its two taps.
 static float left[RECORDING], right[RECORDING];
+static float heard_left[RECORDING], heard_right[RECORDING];
 static size_t recorded;
+// Run with no tap buffers, as a host that gave the player none.
+static bool untapped;
 
 static Host *fresh(void) {
   Host *h = calloc(1, sizeof(*h));
@@ -180,16 +184,22 @@ static void run(Host *h, size_t count) {
     uint32_t frames = (uint32_t)(count - done < BLOCK ? count - done : BLOCK);
     float *in[] = {silence, silence};
     float *out[] = {left + recorded, right + recorded};
+    h->taps[0] = untapped ? NULL : heard_left + recorded;
+    h->taps[1] = untapped ? NULL : heard_right + recorded;
+    if (untapped) memset(heard_left + recorded, 0, frames * sizeof(float)), memset(heard_right + recorded, 0, frames * sizeof(float));
     counting = true;
     h->backend->process(h, frames, in, out);
     counting = false;
-    for (uint32_t i = 0; i < frames; i++) assert(isfinite(out[0][i]) && isfinite(out[1][i]));
+    for (uint32_t i = 0; i < frames; i++)
+      assert(isfinite(out[0][i]) && isfinite(out[1][i]) && isfinite(heard_left[recorded + i]) &&
+             isfinite(heard_right[recorded + i]));
     recorded += frames;
   }
   assert(allocations == 0);
 }
 
 static float *last(size_t count) { return left + recorded - count; }
+static float *heard(size_t count) { return heard_left + recorded - count; }
 
 static float largest_step(const float *x, size_t count, float before) {
   float step = 0;
@@ -294,8 +304,12 @@ static void check_backend(void) {
   puts("skip: allocations are not counted under AddressSanitizer");
 #endif
   assert(backend_named("player") == &player_backend);
-  assert(player_backend.command == player_command && player_backend.tap_outputs == 0 &&
-         player_backend.key_inputs == 0);
+  assert(player_backend.command == player_command && player_backend.key_inputs == 0);
+  // The audition pair: two taps beside the main pair, left and right.
+  const TapOutput *taps = player_backend.tap_outputs;
+  assert(taps && !strcmp(taps[0].port, "audition_0") && !strcmp(taps[0].channel, "FL"));
+  assert(!strcmp(taps[1].port, "audition_1") && !strcmp(taps[1].channel, "FR") && !taps[2].port);
+  assert(PLAYER_AUDITIONS == 1);
   // The limits the plan names, each one constant.
   assert(PLAYER_SLOTS == 64 && PLAYER_VOICES == 8 && PLAYER_MAX_SECONDS == 30);
   assert(PLAYER_MAX_FILE_BYTES == 64 * 1024 * 1024);
@@ -306,11 +320,12 @@ static void check_backend(void) {
   assert(!player_load(mono, NULL) && mono->impl == NULL);
   free(mono);
   Host *h = fresh();
-  assert(h->control_count == 5 * PLAYER_SLOTS);
+  assert(h->control_count == 5 * PLAYER_SLOTS + 1);
   const struct { const char *name; float minimum, maximum, initial; bool output; } controls[] = {
       {"gain_0", 0, 1, 1, false}, {"loop_0", 0, 1, 0, false}, {"playing_0", 0, 8, 0, true},
       {"pos_0", 0, 1, 0, true},   {"gain_63", 0, 1, 1, false}, {"pos_63", 0, 1, 0, true},
       {"ended_0", 0, PLAYER_MAX_PRESS, 0, true}, {"ended_63", 0, PLAYER_MAX_PRESS, 0, true},
+      {"audition", 0, PLAYER_SLOTS, 0, true},
   };
   for (size_t i = 0; i < sizeof(controls) / sizeof(controls[0]); i++) {
     const Control *found = NULL;
@@ -321,6 +336,7 @@ static void check_backend(void) {
   }
   assert(set_control(h, "gain_7", 2) && atomic_load(&((Player *)h->impl)->gain[7]->desired) == 1);
   assert(!set_control(h, "playing_7", 1) && !set_control(h, "ended_7", 1) && !set_control(h, "gain_64", 1));
+  assert(!set_control(h, "audition", 1));
   // The largest press number is the largest whole number a float holds exactly.
   assert(PLAYER_MAX_PRESS == (1u << 24) - 1 && (uint32_t)(float)PLAYER_MAX_PRESS == PLAYER_MAX_PRESS);
   // Lines the player does not know stay unknown, and `set` still reaches it.
@@ -543,7 +559,9 @@ static void check_refusals(void) {
                        "play 3 sideways", "play abc", "play", "play 3 holdx", "play 3 hold ", "play 3 hold 0",
                        "play 3 hold 16777216", "play 3 hold 123456789", "play 3 hold -1", "play 3 hold 5 6",
                        "play 3 hold x", "play 3 5", "stop 999", "stop",
-                       "stop every", "unload 3 extra", "release", "release x", "probe"};
+                       "stop every", "unload 3 extra", "release", "release x", "probe",
+                       "audition", "audition ", "audition 64", "audition x", "audition 3 extra", "audition -1",
+                       "stop auditions", "stop audition 3", "audition 3"};
   for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) quiet(h, bad[i]);
   release(h);
   puts("PASS: missing, special, empty, foreign, oversize, overlong, surround and slow files, "
@@ -998,6 +1016,143 @@ static void check_worker(void) {
        "cancels a load, and a late press is dropped");
 }
 
+// The audition: one voice of its own on the audition pair, never in the
+// main pair, beside the pool and out of its reach.
+static void check_audition(void) {
+  Host *h = dc_board("dc.wav", RATE);
+  Player *p = h->impl;
+  const float bound = 0.1f / (PLAYER_RAMP * RATE) * 1.01f;
+  // An audition ramps in on its own pair, from the next block; the main
+  // pair stays silent and the slot's meters do not count it.
+  quiet(h, "audition 0");
+  run(h, 2 * BLOCK);
+  float *x = heard(2 * BLOCK);
+  assert(x[0] > 0 && x[0] < 0.001f && largest_step(x, 2 * BLOCK, 0) <= bound);
+  assert(fabsf(x[2 * BLOCK - 1] - 0.1f) < 1e-6f && fabsf(heard_right[recorded - 1] - 0.1f) < 1e-6f);
+  x = last(2 * BLOCK);
+  for (unsigned i = 0; i < 2 * BLOCK; i++) assert(x[i] == 0 && right[recorded - 2 * BLOCK + i] == 0);
+  assert(meter(h, "audition") == 1 && meter(h, "playing_0") == 0 && meter(h, "pos_0") == 0);
+  // A press plays the clip on the main pair beside it, and the audition
+  // stays on its own pair at its own level.
+  quiet(h, "play 0");
+  run(h, 2 * BLOCK);
+  assert(fabsf(left[recorded - 1] - 0.1f) < 1e-6f && fabsf(heard_left[recorded - 1] - 0.1f) < 1e-6f);
+  assert(meter(h, "playing_0") == 1 && meter(h, "audition") == 1);
+  // Restart, toggle and release act on the pool alone.
+  quiet(h, "play 0 restart");
+  quiet(h, "release 0");
+  run(h, 4 * BLOCK);
+  x = heard(4 * BLOCK);
+  for (unsigned i = 0; i < 4 * BLOCK; i++) assert(fabsf(x[i] - 0.1f) < 1e-6f);
+  quiet(h, "play 0 toggle");
+  run(h, 2 * BLOCK);
+  assert(left[recorded - 1] == 0 && fabsf(heard_left[recorded - 1] - 0.1f) < 1e-6f);
+  assert(meter(h, "playing_0") == 0 && meter(h, "audition") == 1);
+  // Eight voices of the pool, and a ninth press that steals, never take it.
+  for (unsigned i = 0; i < PLAYER_VOICES + 1; i++) quiet(h, "play 0 overlap");
+  run(h, 4 * BLOCK);
+  x = heard(4 * BLOCK);
+  for (unsigned i = 0; i < 4 * BLOCK; i++) assert(fabsf(x[i] - 0.1f) < 1e-6f);
+  assert(fabsf(left[recorded - 1] - 0.8f) < 1e-5f && meter(h, "playing_0") == 8);
+  // A second audition replaces the first: the old voice fades out under the
+  // new one fading in, so the pair holds its level, and one audition is left.
+  quiet(h, "audition 0");
+  run(h, 4 * BLOCK);
+  x = heard(4 * BLOCK);
+  for (unsigned i = 0; i < 4 * BLOCK; i++) assert(fabsf(x[i] - 0.1f) < 1e-5f);
+  unsigned auditions = 0;
+  for (unsigned i = 0; i < PHYSICAL_VOICES; i++)
+    auditions += p->voices[i].clip && p->voices[i].audition && !p->voices[i].releasing;
+  assert(auditions == 1 && meter(h, "playing_0") == 8);
+  // `stop audition` ends the audition alone, with its fade.
+  quiet(h, "stop audition");
+  run(h, 2 * BLOCK);
+  x = heard(2 * BLOCK);
+  assert(largest_step(x, 2 * BLOCK, 0.1f) <= bound && x[2 * BLOCK - 1] == 0);
+  assert(fabsf(left[recorded - 1] - 0.8f) < 1e-5f && meter(h, "audition") == 0);
+  // Stop all ends both pairs; a stop of the slot ends the slot's audition too.
+  quiet(h, "audition 0");
+  run(h, 2 * BLOCK);
+  quiet(h, "stop all");
+  run(h, 2 * BLOCK);
+  assert(left[recorded - 1] == 0 && heard_left[recorded - 1] == 0 && meter(h, "audition") == 0);
+  quiet(h, "audition 0");
+  quiet(h, "play 0");
+  run(h, 2 * BLOCK);
+  quiet(h, "stop 0");
+  run(h, 2 * BLOCK);
+  assert(left[recorded - 1] == 0 && heard_left[recorded - 1] == 0 && meter(h, "audition") == 0);
+  // An audition plays the clip once, whatever its loop, ends with its fade
+  // and leaves the meter at 0; the main pair loops as before.
+  quiet(h, "set loop_0 1");
+  quiet(h, "audition 0");
+  run(h, RATE / 2);
+  quiet(h, "set gain_0 0.5");
+  run(h, 2 * BLOCK);
+  assert(fabsf(heard_left[recorded - 1] - 0.05f) < 1e-6f);  // the clip's gain applies
+  run(h, RATE / 2);
+  assert(heard_left[recorded - 1] == 0 && meter(h, "audition") == 0);
+  quiet(h, "set loop_0 0");
+  quiet(h, "set gain_0 1");
+  // The meter names the slot auditioned, plus one; another slot replaces it.
+  char line[1024];
+  snprintf(line, sizeof(line), "load 5 7 %s", named("dc.wav"));
+  expect(h, line, "clip 5 7 ok 48000 2\n");
+  quiet(h, "audition 0");
+  run(h, BLOCK);
+  assert(meter(h, "audition") == 1);
+  quiet(h, "audition 5");
+  run(h, 2 * BLOCK);
+  assert(meter(h, "audition") == 6 && fabsf(heard_left[recorded - 1] - 0.1f) < 1e-6f);
+  // A new clip in the slot ends its audition with the old clip's fade.
+  write_clip(named("quiet.wav"), SF_FORMAT_WAV | SF_FORMAT_FLOAT, RATE, 2, RATE, silence);
+  snprintf(line, sizeof(line), "load 5 7 %s", named("quiet.wav"));
+  expect(h, line, "clip 5 7 ok 48000 2\n");
+  run(h, 2 * BLOCK);
+  x = heard(2 * BLOCK);
+  assert(largest_step(x, 2 * BLOCK, 0.1f) <= bound && x[2 * BLOCK - 1] == 0 && meter(h, "audition") == 0);
+  // An audition that waited past the stale limit is dropped.
+  quiet(h, "audition 0");
+  nanosleep(&(struct timespec){0, 300000000}, NULL);
+  run(h, BLOCK);
+  assert(heard_left[recorded - 1] == 0 && meter(h, "audition") == 0);
+  // With no tap buffers the voice still runs, into the player's spare, and
+  // ends on time; the main pair hears nothing of it.
+  untapped = true;
+  quiet(h, "audition 0");
+  run(h, 2 * BLOCK);
+  assert(meter(h, "audition") == 1);
+  x = last(2 * BLOCK);
+  for (unsigned i = 0; i < 2 * BLOCK; i++) assert(x[i] == 0);
+  run(h, RATE);
+  assert(meter(h, "audition") == 0);
+  untapped = false;
+  // While nothing reads the main pair, its link gone and the audition pair
+  // keeping the node running, the player stands still as a node that does not
+  // run: the voices hold where they are, the audition's too, and nothing is
+  // taken from the queue, so a press that waits past the stale limit is
+  // dropped instead of playing unheard and surfacing once the link is back.
+  quiet(h, "audition 0");
+  quiet(h, "play 0");
+  run(h, RATE / 4);
+  float at = meter(h, "pos_0");
+  h->outputs_unread = true;
+  quiet(h, "play 5 overlap");
+  run(h, RATE / 2);
+  assert(left[recorded - 1] == 0 && heard_left[recorded - 1] == 0 && meter(h, "pos_0") == at);
+  nanosleep(&(struct timespec){0, 300000000}, NULL);
+  h->outputs_unread = false;
+  run(h, 2 * BLOCK);
+  assert(fabsf(left[recorded - 1] - 0.1f) < 1e-6f && fabsf(heard_left[recorded - 1] - 0.1f) < 1e-6f);
+  assert(meter(h, "pos_0") > at && meter(h, "playing_5") == 0 && meter(h, "audition") == 1);
+  quiet(h, "stop all");
+  run(h, 2 * BLOCK);
+  release(h);
+  puts("PASS: an audition plays on its own pair and never in the main one, beside the pool, "
+       "replaced by the next, ended by stop audition, a stop of its clip, stop all or a new clip; "
+       "with the main pair unread the player stands still and late presses are dropped");
+}
+
 int main(int argc, char **argv) {
   assert(argc == 2);
   snprintf(directory, sizeof(directory), "%s/openxlr-player-XXXXXX",
@@ -1011,6 +1166,7 @@ int main(int argc, char **argv) {
   check_presses();
   check_ended();
   check_voice_limit();
+  check_audition();
   check_ends_and_loops();
   check_replacing();
   check_worker();

@@ -141,7 +141,7 @@ static void sound_check_process(Host *h, uint32_t frames, float *const *in, floa
   }
   if (mode == LOOP && s->length == 0) mode = LIVE;
   float target = atomic_load(&s->raw->desired) >= 0.5f ? 1.0f : 0.0f;
-  float *tap = h->tap;
+  float *tap = h->taps[0];
   for (uint32_t i = 0; i < frames; i++) {
     float x = in[0][i];
     if (mode == RECORD) {
@@ -207,10 +207,13 @@ static void sound_check_tick(Host *h) {
   if (elapsed >= SOUND_CHECK_SECONDS) host_control_moved(h, s->command, LIVE);
 }
 
+// The tap past the chain, one mono port.
+static const TapOutput sound_check_taps[] = {{"tap_0", "MONO"}, {NULL, NULL}};
+
 const Backend sound_check_backend = {
   .name = "Sound Check", .argument_count = 0,
   .load = sound_check_load, .activate = sound_check_activate,
   .deactivate = sound_check_deactivate, .process = sound_check_process,
   .main_thread = sound_check_tick, .unload = sound_check_unload,
-  .tap_outputs = 1,
+  .tap_outputs = sound_check_taps,
 };

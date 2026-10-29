@@ -173,6 +173,9 @@ install -Dm644 src/OpenXLR.UI/Assets/icon.svg \
 # OpenDeck loads plugins from the user's config dir; ship it for copying.
 install -dm755 %{buildroot}%{_datadir}/openxlr
 cp -r plugin/com.emaspa.openxlr.sdPlugin %{buildroot}%{_datadir}/openxlr/
+install -dm755 %{buildroot}%{_datadir}/gnome-shell/extensions/openxlr-focus@emaspa.github.com
+install -m644 packaging/gnome/openxlr-focus@emaspa.github.com/* \
+    %{buildroot}%{_datadir}/gnome-shell/extensions/openxlr-focus@emaspa.github.com/
 find %{buildroot}%{_datadir}/openxlr -type f -exec chmod 644 {} +
 find %{buildroot}%{_datadir}/openxlr -type d -exec chmod 755 {} +
 
@@ -223,6 +226,7 @@ MSG
 %{_datadir}/applications/openxlr.desktop
 %{_datadir}/icons/hicolor/*/apps/openxlr.*
 %{_datadir}/openxlr/
+%{_datadir}/gnome-shell/extensions/openxlr-focus@emaspa.github.com/
 
 %changelog
 * Wed Oct 28 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.3.1-1

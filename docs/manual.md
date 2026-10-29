@@ -3932,20 +3932,28 @@ routing is requested:
   supports native applications: a Flatpak window reports a sandbox PID in
   `_NET_WM_PID`, which cannot be resolved to a host process from X11 alone.
   Xwayland cannot identify focused Wayland windows.
+- GNOME Shell on Wayland: the optional [OpenXLR Focus extension](gnome-focus.md).
+  Its D-Bus endpoint answers only the running OpenXLR desktop service.
+  A GNOME X11 session uses the X11 source described above.
+  GNOME Flashback and Budgie run no GNOME Shell and cannot load it; they
+  use the X11 source in an X11 session and have no focus source otherwise.
 
-Hyprland routing has been run on a live session. Sway, Niri and the new X11
-source still need owner desktop acceptance.
+Hyprland routing has been run on a live session. Sway, Niri, the new X11
+source and GNOME still need owner desktop acceptance.
 Launch the UI from the desktop session so it gets these variables, and
 have the corresponding command installed. X11 uses `xprop` from
 `x11-utils` on Debian or Ubuntu. No window titles are
 read. The daemon uses `gdbus`, supplied by the GLib command-line tools, to
-ask the UI. GNOME and other compositors have no focus source yet, and
-routing reports an error there, when the UI is closed, and inside the
+ask the UI. Other compositors have no focus source yet. Routing reports an
+error when the required extension or UI is unavailable, and inside the
 Flatpak, which has no access to the compositor.
 
-With a host PID from KWin, Sway, Hyprland or Niri, native OpenXLR can also
-match Flatpak audio clients using their portal instance ids, `flatpak ps`
-and the host process namespace. A missing or
+With a host PID from KWin, Sway, Hyprland or Niri, native OpenXLR can
+also match Flatpak audio clients using their portal instance ids,
+`flatpak ps` and the host process namespace. GNOME Shell on Wayland
+reports host PIDs for its clients, so the same matching is expected to
+work with the GNOME extension; it has not been tested with a Flatpak
+application yet. A missing or
 failed Flatpak query leaves those candidates unavailable and keeps native
 application matching working. It never treats a sandbox PID as a host PID.
 An exact host process takes precedence over its descendants. Shared

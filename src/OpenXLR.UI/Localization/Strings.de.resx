@@ -575,10 +575,10 @@
     <value>Das Routing der fokussierten Anwendung über OpenDeck ist aktiviert. Wähle unten Kanäle aus, um PC-Tastenkürzel zuzuweisen.</value>
   </data>
   <data name="DesktopKeysIntro" xml:space="preserve">
-    <value>Das Routing der fokussierten Anwendung verwendet KDE Plasma, Sway, Hyprland, Niri oder X11. Aktiviere es für OpenDeck-Tasten und wähle unten Kanäle für PC-Tastenkürzel über den Berechtigungsdialog des Desktops. OpenXLR muss weiterlaufen, auch im Tray.</value>
+    <value>Das Routing der fokussierten Anwendung verwendet KDE Plasma, Sway, Hyprland, Niri, X11 oder GNOME Shell mit der Erweiterung OpenXLR Focus. Aktiviere es für OpenDeck-Tasten und wähle unten Kanäle für PC-Tastenkürzel über den Berechtigungsdialog des Desktops. OpenXLR muss weiterlaufen, auch im Tray.</value>
   </data>
   <data name="DesktopKeysNote" xml:space="preserve">
-    <value>Tastenkürzel für Anwendungskanäle, Lautstärke und Systemausgang sowie das Routing der fokussierten Anwendung über OpenDeck. Letzteres benötigt KDE Plasma, Sway, Hyprland, Niri oder X11.</value>
+    <value>Tastenkürzel für Anwendungskanäle, Lautstärke und Systemausgang sowie das Routing der fokussierten Anwendung über OpenDeck. Letzteres benötigt KDE Plasma, Sway, Hyprland, Niri, X11 oder GNOME Shell mit der Fokus-Erweiterung.</value>
   </data>
   <data name="DesktopKeysShortcutsUnavailable" xml:space="preserve">
     <value>Dieser Desktop bietet keine globalen Tastenkürzel über das Portal an. Das Routing der fokussierten Anwendung über OpenDeck bleibt verfügbar.</value>

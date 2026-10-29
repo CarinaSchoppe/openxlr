@@ -147,8 +147,9 @@ them for a while before more is built on top.
   a loopback port, so no token file is needed.
 - [ ] Routing the focused application on compositors other than KWin,
   each with a focus source of its own. Hyprland has one, run on a
-  live session; Sway, Niri and X11 have sources still awaiting owner desktop
-  acceptance. GNOME remains separate work.
+  live session; Sway, Niri, X11 and the optional GNOME Shell extension have
+  sources still awaiting owner desktop acceptance. Other compositors
+  remain separate work.
 
 ### Distribution
 

@@ -718,12 +718,13 @@ restores the split profile when it stops.
 - The application that has the focus can be sent to a channel from a
   desktop shortcut or a Stream Deck key. The UI reads the focused
   process id from KWin on KDE Plasma, Sway's tree, Hyprland's or Niri's
-  active window, or X11's local EWMH properties. The daemon sends live
+  active window, X11's local EWMH properties, or the optional OpenXLR Focus
+  GNOME Shell extension. The daemon sends live
   audio process keys over D-Bus; the UI matches host processes, including
   Flatpak instances on sources that report host PIDs, and the daemon rechecks
   their identity before routing. The X11 source supports native clients only.
-  Sway, Niri and X11 still need owner desktop acceptance. An application
-  that cannot be identified without guessing is refused
+  Sway, Niri, X11 and GNOME still need owner desktop acceptance. An
+  application that cannot be identified without guessing is refused
 
 ## Profiles
 
@@ -1019,6 +1020,8 @@ On a monitor mix sink the key toggles only that mix; on any other output
 it toggles the sink's native mute. Focus
 identity comes from KWin on KDE Plasma, `swaymsg` on Sway or `hyprctl`
 on Hyprland, `niri` on Niri or local EWMH properties through `xprop` on X11.
+GNOME Shell uses the optional [OpenXLR Focus extension](gnome-focus.md),
+whose endpoint answers only the running OpenXLR desktop service.
 Flatpak audio clients are matched by their portal instance and process namespace
 when the focus source reports a host PID; X11 cannot resolve their sandbox PIDs.
 Other compositors need a focus source of their own. An

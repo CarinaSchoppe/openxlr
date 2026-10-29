@@ -555,10 +555,10 @@
     <value>Усмеравање фокусиране апликације за OpenDeck је укључено. Изабери канале испод да доделиш пречице рачунара.</value>
   </data>
   <data name="DesktopKeysIntro" xml:space="preserve">
-    <value>Усмеравање фокусиране апликације користи KDE Plasma, Sway, Hyprland, Niri или X11. Укључи га за OpenDeck тастере, па изабери канале испод да доделиш пречице кроз дијалог дозвола радне површине. Нека OpenXLR остане покренут, и у системској палети.</value>
+    <value>Усмеравање фокусиране апликације користи KDE Plasma, Sway, Hyprland, Niri, X11 или GNOME Shell. Укључи га за OpenDeck тастере, па изабери канале испод да доделиш пречице кроз дијалог дозвола радне површине. Нека OpenXLR остане покренут, и у системској палети.</value>
   </data>
   <data name="DesktopKeysNote" xml:space="preserve">
-    <value>Пречице за канале апликација, јачину и системски излаз, као и усмеравање фокусиране апликације за OpenDeck, које захтева KDE Plasma, Sway, Hyprland, Niri или X11.</value>
+    <value>Пречице за канале апликација, јачину и системски излаз, као и усмеравање фокусиране апликације за OpenDeck, које захтева KDE Plasma, Sway, Hyprland, Niri, X11 или GNOME Shell.</value>
   </data>
   <data name="DesktopKeysTitle" xml:space="preserve">
     <value>Тастери радне површине OpenXLR-а</value>

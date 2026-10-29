@@ -17,6 +17,7 @@ internal sealed class DesktopFocus(DesktopBus bus,
     public string Path => "/org/openxlr/Desktop";
     public bool HandlesChildPaths => false;
     private readonly SemaphoreSlim _oneRequest = new(1);
+    private readonly GnomeFocus _gnome = new(bus);
     private readonly Func<int, FocusProcesses.Candidate[], CancellationToken, Task<string>> _match = match ?? FocusProcesses.MatchKeysAsync;
     private volatile string? _cookie, _kwinOwner;
     private volatile TaskCompletionSource<uint>? _answer;
@@ -98,6 +99,7 @@ internal sealed class DesktopFocus(DesktopBus bus,
         if (FlatpakEnvironment.IsFlatpak) throw new InvalidOperationException("Focused routing is unavailable in the Flatpak sandbox.");
         FocusCompositor source = CompositorFocus.Select();
         return source == FocusCompositor.KWin ? await ReadKWinAsync(deadline.Token)
+            : source == FocusCompositor.Gnome ? await _gnome.ReadAsync(cancel)
             : await CompositorFocus.ReadAsync(source, deadline.Token);
     }
 

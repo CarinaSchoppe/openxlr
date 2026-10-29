@@ -39,11 +39,15 @@ flowchart TD
   a private session-bus connection and turns a press into a daemon
   command, while hidden in the tray as well. For focused-application
   routing it serves `org.openxlr.Desktop` on that bus. KWin's read-only
-  script, Sway's tree, Hyprland's or Niri's active window, or X11's EWMH
-  properties supply the host process id on demand. The daemon sends its live
+  script, Sway's tree, Hyprland's or Niri's active window, X11's EWMH
+  properties or the optional GNOME Shell extension supply the process id
+  on demand. X11 supports native clients only. The daemon sends its live
   audio process keys to the UI through `gdbus`, one request at a time. The UI
   resolves Flatpak instance ids to host PIDs and returns matching keys only;
   the daemon rechecks their current audio identity before routing.
+  The GNOME extension authorizes only the bus owner of `org.openxlr.Desktop`.
+  The UI uses that same connection, retaining at most one unanswered GNOME
+  query so a stalled shell cannot accumulate replies or close desktop keys.
 - The OpenDeck plugin is an OpenAction plugin in OpenDeck's Node runtime,
   using the same authenticated API and live choices as the UI.
 - `OpenXLR.Tui` is the terminal mixer, `openxlr-tui`. It speaks the same

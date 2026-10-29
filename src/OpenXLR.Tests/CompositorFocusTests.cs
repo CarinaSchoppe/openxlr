@@ -16,7 +16,6 @@ public sealed class CompositorFocusTests
     [InlineData("plasmax11", null, null, 0)]
     [InlineData("Sway:wlroots", "/sway", "stale_hypr", 1)]
     [InlineData("Hyprland", "/stale", "own_hypr", 2)]
-    [InlineData("GNOME", "/stale", "stale_hypr", 3)]
     [InlineData("KDE:Hyprland", null, null, 3)]
     [InlineData(null, "/sway", null, 1)]
     [InlineData("", null, "own_hypr", 2)]
@@ -27,7 +26,7 @@ public sealed class CompositorFocusTests
         string? Env(string key) => key switch { "XDG_CURRENT_DESKTOP" => desktop, "SWAYSOCK" => sway,
             "HYPRLAND_INSTANCE_SIGNATURE" => hyprland, _ => null };
         Assert.Equal((FocusCompositor)expected, CompositorFocus.Select(Env));
-        Assert.Equal(FocusCompositor.Unavailable, CompositorFocus.Select(key => key == "XDG_SESSION_DESKTOP" ? "GNOME" : null));
+        Assert.Equal(FocusCompositor.Gnome, CompositorFocus.Select(key => key == "XDG_SESSION_DESKTOP" ? "GNOME" : null));
     }
 
     [Theory]

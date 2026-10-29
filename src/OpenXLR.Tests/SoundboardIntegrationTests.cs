@@ -215,6 +215,60 @@ public sealed class SoundboardIntegrationTests : IDisposable
         Assert.Same(steady, Player(mixer));
     }
 
+    /// <summary>
+    /// How long after stopClips the clip is gone from the Stream virtual
+    /// microphone, counted in the recording. The recorder's file length when
+    /// the command is sent marks the moment in it, to within one of the
+    /// recorder's writes; a pause of 100 ms put before the command moved the
+    /// figure by the pause, so the mark follows the clock. Here the figure is
+    /// the 5 ms fade and a block, far inside the bound.
+    /// </summary>
+    [MonitorPipeWireFact]
+    public async Task StopAllIsSilentWithinFiftyMilliseconds()
+    {
+        const int rate = 48000;
+        var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
+        using var mixer = new Mixer(pw);
+        // The desk's block size; the default 1024 frames would add 21 ms a hop.
+        mixer.SetBlockSize(256);
+        try
+        {
+            StartTone(pw, mixer);
+            var measured = new List<double>();
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                mixer.PlayClip("tone", "restart");
+                AssertLevel(.1, "OpenXLR_stream", "before the stop");
+                string capture = Path.Combine(_directory, $"stop-{attempt}.raw");
+                using var cancel = new CancellationTokenSource();
+                Task<ProcessResult> recording = ProcessRunner.RunAsync("sh", ["-c",
+                    "exec parec --raw --format=float32le --rate=48000 --channels=2 --latency-msec=5 --device=OpenXLR_stream > \"$0\"", capture],
+                    TimeSpan.FromSeconds(30), cancel: cancel.Token);
+                Assert.True(SpinWait.SpinUntil(() => File.Exists(capture) && new FileInfo(capture).Length >= rate * 8 / 2, TimeSpan.FromSeconds(5)), "the recorder started");
+                long mark = new FileInfo(capture).Length / 8;
+                mixer.StopClips();
+                Thread.Sleep(600);
+                cancel.Cancel();
+                await recording;
+                byte[] bytes = File.ReadAllBytes(capture);
+                var frames = new float[bytes.Length / 8];
+                for (int i = 0; i < frames.Length; i++)
+                    frames[i] = Math.Max(Math.Abs(BitConverter.ToSingle(bytes, i * 8)), Math.Abs(BitConverter.ToSingle(bytes, i * 8 + 4)));
+                // The clip played up to the mark, and the recording ends in silence.
+                Assert.All(frames[(int)(mark - rate / 10)..(int)mark], v => Assert.InRange(v, .097f, .103f));
+                Assert.True(frames.Length - mark > rate * 3 / 10, "the recording ran on after the stop");
+                int last = Array.FindLastIndex(frames, v => v >= 1e-4f);
+                Assert.True(last < frames.Length - rate / 4, "the recording ends in silence");
+                measured.Add((last + 1 - mark) * 1000.0 / rate);
+            }
+            string figures = string.Join(", ", measured.Select(ms => $"{ms:0.0} ms"));
+            Console.WriteLine($"stop all to silence in the recording: {figures}");
+            Assert.True(measured.All(ms => ms is >= 0 and <= 50), $"stop all to silence in the recording: {figures}");
+        }
+        finally { mixer.SetBlockSize(null); }
+    }
+
     private static void WaitLoaded(Mixer mixer, string id)
         => Assert.True(SpinWait.SpinUntil(() =>
         {

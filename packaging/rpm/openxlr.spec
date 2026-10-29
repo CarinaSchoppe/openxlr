@@ -40,6 +40,7 @@ BuildRequires:  pipewire-devel
 BuildRequires:  lilv-devel
 BuildRequires:  lv2-devel
 BuildRequires:  libX11-devel
+BuildRequires:  libsndfile-devel
 # DeepFilterNet's noise removal is a Rust library linked into the helper.
 # Its crates come from crates.io during the build (COPR builds have the
 # network for the NuGet restore as well); Cargo.lock pins every one.
@@ -56,6 +57,7 @@ Requires:       wireplumber
 Requires:       pulseaudio-libs
 Requires:       libusb1
 Requires:       lilv-libs
+Requires:       libsndfile
 Requires:       fontconfig
 Requires:       libX11
 Requires:       libICE

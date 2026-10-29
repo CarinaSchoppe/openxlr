@@ -24,7 +24,7 @@ jobs:
         run: |
           tools/ci-install-packages.sh \
             build-essential debhelper dotnet-sdk-10.0 lintian \
-            pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev \
+            pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev libsndfile1-dev \
             wireplumber cargo rustc
           /usr/bin/cargo --version
           /usr/bin/rustc --version

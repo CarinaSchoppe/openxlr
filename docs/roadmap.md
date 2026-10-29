@@ -112,6 +112,11 @@ them for a while before more is built on top.
   native stage: RNNoise or DeepFilterNet per microphone, with a strength,
   in Mic setup, the terminal mixer, a Deck key and the API, and both
   engines in every package.
+- [ ] A soundboard: a clip library played into the SFX channel by the
+  native helper, so the clips take SFX's fader, mute and sends; triggered
+  from Deck keys, desktop keys, the UI and the terminal mixer, with per
+  clip gain, press modes, loop and stop all. Clips are decoded with
+  libsndfile, which every package now builds against.
 
 ### Devices
 

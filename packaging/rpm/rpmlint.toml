@@ -12,6 +12,10 @@ Filters = [
     # glib2 is required for the gdbus tool the daemon runs for focused
     # routing, not for a library, so the generator cannot find it either.
     "explicit-lib-dependency glib2",
+    # The native helper links libsndfile to decode soundboard clips;
+    # AutoReqProv is off for the prebuilt assemblies, so the explicit
+    # Requires is the only thing that pulls it in.
+    "explicit-lib-dependency libsndfile",
     # The %post scriptlet prints instructions for the user; the 'cp' and the
     # '~' rpmlint flags are inside the here-document text, not executed.
     "use-of-home-in-%post",

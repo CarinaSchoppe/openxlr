@@ -1625,6 +1625,45 @@ public sealed class PipeWireAdapter
     }
 
     /// <summary>
+    /// The graph's sample rate as the settings metadata in the registry
+    /// snapshot gives it, read without starting a process: the forced rate
+    /// when one is set, else the default rate. Null when the snapshot holds
+    /// no such metadata.
+    /// </summary>
+    internal int? GraphSampleRate() => ParseGraphSampleRate(GraphObjects());
+
+    /// <summary>The rate in the <c>settings</c> metadata among <paramref name="objects"/>, as <see cref="ParseGraphSampleRate(string)"/> reads it from pw-metadata.</summary>
+    internal static int? ParseGraphSampleRate(IEnumerable<JsonElement> objects)
+    {
+        foreach (JsonElement item in objects)
+        {
+            if (item.ValueKind != JsonValueKind.Object
+                || !item.TryGetProperty("type", out JsonElement type) || type.ValueKind != JsonValueKind.String
+                || type.GetString() != "PipeWire:Interface:Metadata"
+                || !item.TryGetProperty("props", out JsonElement props) || props.ValueKind != JsonValueKind.Object
+                || !props.TryGetProperty("metadata.name", out JsonElement name) || name.ValueKind != JsonValueKind.String
+                || name.GetString() != "settings"
+                || !item.TryGetProperty("metadata", out JsonElement entries) || entries.ValueKind != JsonValueKind.Array)
+                continue;
+            int? Value(string key)
+            {
+                foreach (JsonElement entry in entries.EnumerateArray())
+                    if (entry.ValueKind == JsonValueKind.Object
+                        && entry.TryGetProperty("subject", out JsonElement subject) && subject.ValueKind == JsonValueKind.Number && subject.GetRawText() == "0"
+                        && entry.TryGetProperty("key", out JsonElement k) && k.ValueKind == JsonValueKind.String && k.GetString() == key
+                        && entry.TryGetProperty("value", out JsonElement value))
+                    {
+                        string text = value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : value.GetRawText();
+                        return int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out int rate) && rate is >= 8000 and <= 384000 ? rate : null;
+                    }
+                return null;
+            }
+            return Value("clock.force-rate") ?? Value("clock.rate");
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Change one control of a running filter-chain live: the chain exposes
     /// its plugins' controls as "node:symbol" entries of the Props param on
     /// its sink half. Throws when the node is gone or PipeWire refuses.

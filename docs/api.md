@@ -1604,7 +1604,9 @@ If it stops on its own, the daemon starts it again and loads them again; a
 clip it was loading when it stopped is left out and marked with an
 `error`. A player that stops three times in five minutes turns the board
 off with the reason in `error`. The player stops and starts again with the
-audio graph.
+audio graph, and when the graph's sample rate changes, since each clip is
+converted to the player's rate when it loads; the clips load again at the
+new rate. A restart for the rate is not counted as a failure.
 
 SFX is an ordinary application channel. Renaming it keeps the board's
 binding, since the id does not change; hiding it keeps its audio, so the

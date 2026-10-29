@@ -524,6 +524,14 @@ public sealed partial class Mixer
                 }
                 else _boardError = "The soundboard player stopped and was started again.";
             }
+            else if (GraphRateChangedLocked(player) is int rate)
+            {
+                // The clips were converted to the old rate when they loaded,
+                // so the player starts again at the new one and loads them
+                // again. Not a failure: the restart policy is not told.
+                _pw.Note($"The graph's sample rate is now {rate} Hz; the soundboard player starts again at it.");
+                StopPlayerLocked();
+            }
             else if (_playerLink is null || _pw.EnsureLinks(_playerLink) == LinkHealth.Broken)
                 RelinkPlayerLocked();
         }
@@ -538,6 +546,23 @@ public sealed partial class Mixer
         bool changed = state != _lastBoardState;
         _lastBoardState = state;
         return changed;
+    }
+
+    /// <summary>
+    /// The graph's sample rate when it is no longer the one the player was
+    /// started at, else null. The registry snapshot is read on every sweep at
+    /// no cost; a difference is confirmed through pw-metadata, the source the
+    /// player's own rate came from, so a snapshot that lags behind never
+    /// starts the player over and over.
+    /// </summary>
+    private int? GraphRateChangedLocked(SoundboardPlayer player)
+    {
+        int started = player.Host.SampleRate;
+        if (_pw.GraphSampleRate() is not int seen || seen == started) return null;
+        int now;
+        try { now = PipeWireAdapter.ParseGraphSampleRate(_pw.Run("pw-metadata", "-n", "settings")); }
+        catch (InvalidOperationException) { return null; }
+        return now != started ? now : null;
     }
 
     /// <summary>

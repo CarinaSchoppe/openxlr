@@ -159,6 +159,25 @@ public sealed class SoundboardValidationTests
     }
 
     [Fact]
+    public void TheGraphRateIsReadFromTheSettingsInTheSnapshot()
+    {
+        static JsonElement[] Objects(params string[] items)
+            => [.. JsonDocument.Parse("[" + string.Join(",", items) + "]").RootElement.EnumerateArray().Select(e => e.Clone())];
+        static string Settings(string entries)
+            => """{"id":31,"type":"PipeWire:Interface:Metadata","props":{"metadata.name":"settings"},"metadata":[""" + entries + "]}";
+        const string other = """{"id":5,"type":"PipeWire:Interface:Metadata","props":{"metadata.name":"default"},"metadata":[{"subject":0,"key":"clock.rate","value":96000}]}""";
+        Assert.Equal(48000, PipeWireAdapter.ParseGraphSampleRate(Objects(other,
+            Settings("""{"subject":0,"key":"clock.rate","type":"","value":48000},{"subject":0,"key":"clock.force-rate","type":"","value":0}"""))));
+        Assert.Equal(44100, PipeWireAdapter.ParseGraphSampleRate(Objects(
+            Settings("""{"subject":0,"key":"clock.rate","value":48000},{"subject":0,"key":"clock.force-rate","value":"44100"}"""))));
+        // Another subject's entry is not the graph's.
+        Assert.Equal(48000, PipeWireAdapter.ParseGraphSampleRate(Objects(
+            Settings("""{"subject":7,"key":"clock.force-rate","value":96000},{"subject":0,"key":"clock.rate","value":48000}"""))));
+        Assert.Null(PipeWireAdapter.ParseGraphSampleRate(Objects(other)));
+        Assert.Null(PipeWireAdapter.ParseGraphSampleRate(Objects(Settings("""{"subject":0,"key":"clock.rate","value":1}"""))));
+    }
+
+    [Fact]
     public void FormatsAreTheOnesTheBoardKnows()
     {
         Assert.Equal(["wav", "flac", "mp3"], PipeWireAdapter.ParsePlayerFormats("""{"formats":["mp3","flac","wav","exe"]}"""));

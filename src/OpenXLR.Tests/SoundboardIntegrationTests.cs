@@ -152,6 +152,69 @@ public sealed class SoundboardIntegrationTests : IDisposable
         }
     }
 
+    /// <summary>A graph with Stream and SFX, the board on, and a looping clip of constant 0.1 loaded as <c>tone</c>.</summary>
+    private void StartTone(PipeWireAdapter pw, Mixer mixer)
+    {
+        static Dictionary<string, double> Sends() => new() { ["monitor"] = 1, ["stream"] = 1 };
+        mixer.Build(new MixerConfig
+        {
+            Mixes = [new("monitor", "Monitor", MixKind.Monitor), new("stream", "Stream", MixKind.VirtualMic)],
+            Channels = [new("system", "System") { Levels = Sends() }, new("sfx", "SFX") { Levels = Sends() }],
+        });
+        mixer.UseSoundboard(SoundboardLibrary.Empty, _ => null, Path.Combine(_directory, "clips"));
+        mixer.SetSoundboard(true, _ => null);
+        string wav = Path.Combine(_directory, "tone.wav");
+        WriteConstantWav(wav, .1, seconds: 2);
+        mixer.ImportClip(wav, "Tone");
+        mixer.UpdateClip("tone", new SoundboardClipChange(Loop: true));
+        WaitLoaded(mixer, "tone");
+        _ = pw;
+    }
+
+    private static SoundboardPlayer? Player(Mixer mixer)
+        => (SoundboardPlayer?)typeof(Mixer).GetField("_player", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(mixer);
+
+    [MonitorPipeWireFact]
+    public void AChangedGraphRateStartsThePlayerAgainWithItsClips()
+    {
+        var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
+        using var mixer = new Mixer(pw);
+        StartTone(pw, mixer);
+        int before = Player(mixer)!.Host.SampleRate;
+        int other = before == 44100 ? 48000 : 44100;
+        mixer.PlayClip("tone", null);
+        AssertLevel(.1, "OpenXLR_stream", "before the rate changes");
+        try
+        {
+            pw.Run("pw-metadata", "-n", "settings", "0", "clock.force-rate", other.ToString(CultureInfo.InvariantCulture));
+            // The clip was converted to the old rate; the player starts again
+            // at the new one and loads it again, converted to that.
+            Assert.True(SpinWait.SpinUntil(() =>
+            {
+                mixer.EnsureFilterRoutes();
+                return Player(mixer)?.Host.SampleRate == other && mixer.Soundboard().Clips.Single().Loaded;
+            }, TimeSpan.FromSeconds(15)), $"{Player(mixer)?.Host.SampleRate} {mixer.Soundboard()}");
+            SoundboardState state = mixer.Soundboard();
+            Assert.Null(state.Error);
+            Assert.Equal(2, state.Clips.Single().Seconds);
+            // A restart for the rate is not a failure: three of them never turn the board off.
+            Assert.Empty(state.Playing);
+            mixer.PlayClip("tone", null);
+            AssertLevel(.1, "OpenXLR_stream", "at the new rate");
+        }
+        finally { pw.Run("pw-metadata", "-n", "settings", "0", "clock.force-rate", "0"); }
+        Assert.True(SpinWait.SpinUntil(() =>
+        {
+            mixer.EnsureFilterRoutes();
+            return Player(mixer)?.Host.SampleRate == before && mixer.Soundboard().Clips.Single().Loaded;
+        }, TimeSpan.FromSeconds(15)), $"{Player(mixer)?.Host.SampleRate} {mixer.Soundboard()}");
+        // A steady rate leaves the running player alone.
+        SoundboardPlayer steady = Player(mixer)!;
+        for (int sweep = 0; sweep < 3; sweep++) mixer.EnsureFilterRoutes();
+        Assert.Same(steady, Player(mixer));
+    }
+
     private static void WaitLoaded(Mixer mixer, string id)
         => Assert.True(SpinWait.SpinUntil(() =>
         {

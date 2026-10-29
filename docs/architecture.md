@@ -150,7 +150,9 @@ modules or custom drivers:
   rename the unlinked node falls silent instead of being parked on the
   default output. The healing sweep links it again when the link breaks
   and restarts the process under the restart policy, keyed `soundboard`;
-  the player stops and starts with the graph. The daemon checks each clip
+  the player stops and starts with the graph, and again at a new graph
+  sample rate, which the sweep reads from the settings metadata in the
+  registry snapshot and confirms with `pw-metadata` before acting. The daemon checks each clip
   file with `openxlr-lv2-host probe`, in a process of its own, before the
   player opens it. See [api.md](api.md#soundboard).
 - With latency compensation on, a mix that needs a delay gets a stereo

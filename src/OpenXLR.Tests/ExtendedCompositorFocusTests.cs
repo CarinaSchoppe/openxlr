@@ -6,8 +6,8 @@ namespace OpenXLR.Tests;
 public sealed class ExtendedCompositorFocusTests
 {
     [Theory]
-    [InlineData("GNOME", "wayland", "wayland-0", null, "Unavailable")]
-    [InlineData("ubuntu:GNOME", "wayland", "wayland-0", null, "Unavailable")]
+    [InlineData("GNOME", "wayland", "wayland-0", null, "Gnome")]
+    [InlineData("ubuntu:GNOME", "wayland", "wayland-0", null, "Gnome")]
     [InlineData("niri", "wayland", "wayland-0", "/run/user/1000/niri.sock", "Niri")]
     [InlineData("XFCE", "x11", null, null, "X11")]
     [InlineData("X-Cinnamon", "x11", null, null, "X11")]

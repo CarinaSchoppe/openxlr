@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace OpenXLR.UI;
 
-internal enum FocusCompositor { KWin, Sway, Hyprland, Unavailable, Niri, X11 }
+internal enum FocusCompositor { KWin, Sway, Hyprland, Unavailable, Niri, X11, Gnome }
 
 /// <summary>One read on demand, from the compositor that owns this desktop session.</summary>
 internal static class CompositorFocus
@@ -31,7 +31,7 @@ internal static class CompositorFocus
         if (kde) return FocusCompositor.KWin;
         if (sway) return FocusCompositor.Sway;
         if (hyprland) return FocusCompositor.Hyprland;
-        if (gnome) return x11 ? FocusCompositor.X11 : FocusCompositor.Unavailable;
+        if (gnome) return x11 ? FocusCompositor.X11 : FocusCompositor.Gnome;
         if (niri) return FocusCompositor.Niri;
         // Never let stale IPC variables select a different compositor on an
         // explicitly named desktop, such as GNOME.

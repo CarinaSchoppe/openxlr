@@ -1,0 +1,7 @@
+{
+  "uuid": "openxlr-focus@emaspa.github.com",
+  "name": "OpenXLR Focus",
+  "description": "Supply the focused application process to the running OpenXLR desktop service on demand.",
+  "shell-version": ["46"],
+  "url": "https://github.com/emaspa/openxlr"
+}

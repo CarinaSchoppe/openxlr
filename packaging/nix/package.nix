@@ -168,6 +168,9 @@ buildDotnetModule {
 
     mkdir -p $out/share/openxlr
     cp -r plugin/com.emaspa.openxlr.sdPlugin $out/share/openxlr/
+    mkdir -p $out/share/gnome-shell/extensions/openxlr-focus@emaspa.github.com
+    cp packaging/gnome/openxlr-focus@emaspa.github.com/* \
+      $out/share/gnome-shell/extensions/openxlr-focus@emaspa.github.com/
   '';
 
   passthru = { inherit deepfilter deepfilterModel; };

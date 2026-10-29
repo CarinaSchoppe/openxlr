@@ -91,8 +91,9 @@ public sealed class SoundboardPlayerTests : IDisposable
             Assert.Throws<InvalidOperationException>(() => player.Play("broken", "overlap", "Broken")).Message);
 
         player.Play("second", "restart", "Second");
-        Until(() => player.Progress().ContainsKey("second"), "the meters report the voice");
-        Assert.Equal((0.25, 2), player.Progress()["second"]);
+        // The helper prints the voice count, then the position: wait for both,
+        // since a read between the two lines sees the count alone.
+        Until(() => player.Progress().TryGetValue("second", out var at) && at == (0.25, 2), "the meters report the voice and where it is");
         player.Release("second");
         player.Stop("second");
         player.SetGain("second", .5);

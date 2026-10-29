@@ -213,7 +213,7 @@ jobs:
         env:
           DEEPFILTER: "1"
         run: |
-          tools/ci-install-packages.sh pipewire pipewire-pulse wireplumber pulseaudio-utils swh-plugins lsp-plugins-lv2 g++ libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev libxtst6 xvfb xauth
+          tools/ci-install-packages.sh pipewire pipewire-pulse wireplumber pulseaudio-utils swh-plugins lsp-plugins-lv2 g++ libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev libsndfile1-dev libxtst6 xvfb xauth
           cargo --version
           make -C native
           make -C native test-sound-check
@@ -258,7 +258,7 @@ jobs:
         env:
           DEEPFILTER: "1"
         run: |
-          tools/ci-install-packages.sh pipewire pipewire-pulse wireplumber pulseaudio-utils swh-plugins lsp-plugins-lv2 g++ libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev
+          tools/ci-install-packages.sh pipewire pipewire-pulse wireplumber pulseaudio-utils swh-plugins lsp-plugins-lv2 g++ libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev libsndfile1-dev
           dotnet restore src/OpenXLR.slnx --locked-mode
           make -C native
           dotnet build src/OpenXLR.slnx -c Release --no-restore -warnaserror -p:EnableNativeLv2Host=true

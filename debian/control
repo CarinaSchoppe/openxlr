@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Emanuele Sparvoli <sparvoli@gmail.com>
 Build-Depends: debhelper-compat (= 13), dotnet-sdk-10.0, python3,
  gcc, g++, make, pkg-config, wireplumber,
- libpipewire-0.3-dev, liblilv-dev, lv2-dev, libx11-dev,
+ libpipewire-0.3-dev, liblilv-dev, lv2-dev, libx11-dev, libsndfile1-dev,
  cargo, rustc
 Standards-Version: 4.7.0
 Homepage: https://github.com/emaspa/openxlr
@@ -22,6 +22,7 @@ Depends: ${misc:Depends},
  libpulse0,
  libusb-1.0-0,
  liblilv-0-0,
+ libsndfile1,
  libglib2.0-bin,
  libfontconfig1,
  libx11-6,

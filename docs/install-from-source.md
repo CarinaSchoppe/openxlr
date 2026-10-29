@@ -14,8 +14,8 @@
 - `lilv` for LV2 discovery and compatible LV2, CLAP or VST3 plugins
 - .NET 10 SDK to build; ASP.NET Core 10 runtime for a framework-dependent
   installation (the base .NET runtime alone does not run the daemon)
-- C/C++ compiler, make, pkg-config, PipeWire/lilv/LV2/X11 headers for the
-  native plugin host; X11 or XWayland for plugin editors
+- C/C++ compiler, make, pkg-config, PipeWire/lilv/LV2/X11/libsndfile
+  headers for the native plugin host; X11 or XWayland for plugin editors
 - Rust (cargo and rustc 1.67 or newer) and curl for DeepFilterNet, one of
   the microphone's two noise removal engines. Without cargo the helper is
   built with RNNoise alone; see [noise removal engines](#noise-removal-engines)
@@ -42,15 +42,15 @@ sudo pacman -S --needed dotnet-sdk aspnet-runtime pipewire pipewire-pulse wirepl
 # optional: software ClipGuard for the XLR Dock, and LV2 plugins for inserts
 sudo pacman -S --needed swh-plugins lilv lsp-plugins-lv2
 # native host and editor test dependencies (rust, or rustup with a toolchain)
-sudo pacman -S --needed base-devel lv2 libx11 libxtst xorg-server-xvfb xorg-xauth rust
+sudo pacman -S --needed base-devel lv2 libx11 libsndfile libxtst xorg-server-xvfb xorg-xauth rust
 
 # Fedora
 sudo dnf install dotnet-sdk-10.0 aspnetcore-runtime-10.0 pipewire pipewire-pulseaudio wireplumber libusb1 pulseaudio-utils alsa-utils glib2 xdg-utils gdk-pixbuf2 librsvg2 ladspa-swh-plugins lilv-libs lsp-plugins-lv2
-sudo dnf install gcc-c++ make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel libXtst xorg-x11-server-Xvfb xorg-x11-xauth cargo rust
+sudo dnf install gcc-c++ make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel libsndfile-devel libXtst xorg-x11-server-Xvfb xorg-x11-xauth cargo rust
 
 # Debian / Ubuntu (dotnet from Microsoft's feed if the distro lacks 10.0)
 sudo apt install dotnet-sdk-10.0 aspnetcore-runtime-10.0 pipewire pipewire-pulse wireplumber libusb-1.0-0 pulseaudio-utils alsa-utils libglib2.0-bin xdg-utils libgdk-pixbuf-2.0-0 librsvg2-common swh-plugins liblilv-0-0 lsp-plugins-lv2
-sudo apt install build-essential pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev libxtst6 xvfb xauth cargo rustc curl
+sudo apt install build-essential pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev libsndfile1-dev libxtst6 xvfb xauth cargo rustc curl
 ```
 
 Verify the audio stack is PipeWire before going further:

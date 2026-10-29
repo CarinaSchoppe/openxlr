@@ -8,6 +8,7 @@
 , libpulseaudio
 , libusb1
 , lilv
+, libsndfile
 , lv2
 , pipewire
 , libx11
@@ -93,7 +94,7 @@ buildDotnetModule {
   dotnetFlags = [ "-p:EnableNativeLv2Host=true" ]
     ++ lib.optional (sourceCommit != null) "-p:SourceRevisionId=${sourceCommit}";
   nativeBuildInputs = [ gcc pkg-config python3 ];
-  buildInputs = [ pipewire lilv lv2 libx11 ];
+  buildInputs = [ pipewire lilv lv2 libx11 libsndfile ];
   # make reads both from the environment: DeepFilterNet is built in, from
   # the library above.
   env = {

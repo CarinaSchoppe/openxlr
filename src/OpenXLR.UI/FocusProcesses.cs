@@ -9,6 +9,7 @@ namespace OpenXLR.UI;
 /// <summary>Match live PipeWire process keys to the focused host process.</summary>
 internal static class FocusProcesses
 {
+    internal const int MaxCandidateTextBytes = 32767;
     internal readonly record struct Candidate(int Pid, string? Instance)
     {
         public override string ToString() => Pid.ToString(CultureInfo.InvariantCulture) + (Instance is null ? "" : "@" + Instance);
@@ -16,7 +17,7 @@ internal static class FocusProcesses
 
     internal static Candidate[] ParseKeys(string text)
     {
-        if (text.Length > 32767) throw new InvalidOperationException("Too many focus candidates.");
+        if (text.Length > MaxCandidateTextBytes) throw new InvalidOperationException("Too many focus candidates.");
         string[] parts = text.Split(',');
         if (parts.Length > 1024) throw new InvalidOperationException("Too many focus candidates.");
         var candidates = new HashSet<Candidate>();

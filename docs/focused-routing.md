@@ -18,7 +18,9 @@ kernel hostname and refuses remote clients. It rechecks the active window
 after reading its PID. Xwayland cannot identify a focused Wayland window.
 
 The native daemon asks the UI through `gdbus`, with a bounded list of live
-PipeWire process keys. The UI first matches the exact host process, then
+PipeWire process keys. The UI rejects oversized UTF-8 input before decoding,
+refuses empty or unusable lists before querying the compositor, and keeps
+one request active through both focus discovery and process mapping. The UI first matches the exact host process, then
 its descendants, with a bounded parent walk. Namespace and parent walks
 check the request deadline before returning matches. The daemon accepts
 only keys it requested and rechecks the current audio identity before saving an

@@ -134,7 +134,7 @@ public sealed class CompositorFocusTests
     });
 
     [Fact]
-    public Task ConcurrentAndCancelledQueriesReleaseTheServiceGate() => WithHelpers(async directory =>
+    public Task CancelledProvidersCanBeReadAgain() => WithHelpers(async directory =>
     {
         Environment.SetEnvironmentVariable("XDG_CURRENT_DESKTOP", "sway");
         string script = Path.Combine(directory, "swaymsg");
@@ -145,7 +145,6 @@ public sealed class CompositorFocusTests
         Task<uint> pending = focus.ReadAsync(cancel.Token);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         while (!File.Exists(Path.Combine(directory, "arguments"))) await Task.Delay(10, timeout.Token);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => focus.ReadAsync(CancellationToken.None));
         cancel.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
         ExecutableScript.Write(script, "#!/bin/sh\nprintf '%s' \"$OPENXLR_FOCUS_REPLY\"\n");

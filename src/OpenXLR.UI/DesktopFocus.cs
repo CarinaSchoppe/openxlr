@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,12 +10,14 @@ using Tmds.DBus.Protocol;
 namespace OpenXLR.UI;
 
 /// <summary>Expose a bounded compositor focus query through the desktop connection.</summary>
-internal sealed class DesktopFocus(DesktopBus bus) : IPathMethodHandler
+internal sealed class DesktopFocus(DesktopBus bus,
+    Func<int, FocusProcesses.Candidate[], CancellationToken, Task<string>>? match = null) : IPathMethodHandler
 {
     internal const string Service = "org.openxlr.Desktop";
     public string Path => "/org/openxlr/Desktop";
     public bool HandlesChildPaths => false;
     private readonly SemaphoreSlim _oneRequest = new(1);
+    private readonly Func<int, FocusProcesses.Candidate[], CancellationToken, Task<string>> _match = match ?? FocusProcesses.MatchKeysAsync;
     private volatile string? _cookie, _kwinOwner;
     private volatile TaskCompletionSource<uint>? _answer;
 
@@ -33,7 +36,13 @@ internal sealed class DesktopFocus(DesktopBus bus) : IPathMethodHandler
             && context.Request.SignatureAsString == "s")
         {
             var reader = context.Request.GetBodyReader();
-            string candidates = reader.ReadString();
+            var bytes = reader.ReadStringAsSpan();
+            if (bytes.Length > FocusProcesses.MaxCandidateTextBytes)
+            {
+                context.ReplyError("org.openxlr.Desktop.Unavailable", "Too many focus candidates.");
+                return ValueTask.CompletedTask;
+            }
+            string candidates = Encoding.UTF8.GetString(bytes);
             context.DisposesAsynchronously = true;
             _ = ReplyFocusAsync(context, candidates);
         }
@@ -54,12 +63,17 @@ internal sealed class DesktopFocus(DesktopBus bus) : IPathMethodHandler
 
     private async Task ReplyFocusAsync(MethodContext context, string candidates)
     {
+        bool entered = false;
         try
         {
+            if (!await _oneRequest.WaitAsync(0, context.RequestAborted))
+                throw new InvalidOperationException("a focus query is already running");
+            entered = true;
             var requested = FocusProcesses.ParseKeys(candidates);
+            if (requested.Length == 0) throw new InvalidOperationException("No identifiable audio processes are available.");
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
             deadline.CancelAfter(TimeSpan.FromSeconds(4));
-            string matches = await FocusProcesses.MatchKeysAsync(checked((int)await ReadAsync(deadline.Token)), requested, deadline.Token);
+            string matches = await _match(checked((int)await ReadAsync(deadline.Token)), requested, deadline.Token);
             using var reply = context.CreateReplyWriter("s");
             reply.WriteString(matches);
             context.Reply(reply.CreateMessage());
@@ -70,22 +84,21 @@ internal sealed class DesktopFocus(DesktopBus bus) : IPathMethodHandler
             try { context.ReplyError("org.openxlr.Desktop.Unavailable", message); }
             catch (Exception) { /* the requesting connection has already closed */ }
         }
-        finally { context.Dispose(); }
+        finally
+        {
+            if (entered) _oneRequest.Release();
+            context.Dispose();
+        }
     }
 
     internal async Task<uint> ReadAsync(CancellationToken cancel)
     {
-        if (!await _oneRequest.WaitAsync(0, cancel)) throw new InvalidOperationException("a focus query is already running");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancel);
         deadline.CancelAfter(TimeSpan.FromSeconds(2));
-        try
-        {
-            if (FlatpakEnvironment.IsFlatpak) throw new InvalidOperationException("Focused routing is unavailable in the Flatpak sandbox.");
-            FocusCompositor source = CompositorFocus.Select();
-            return source == FocusCompositor.KWin ? await ReadKWinAsync(deadline.Token)
-                : await CompositorFocus.ReadAsync(source, deadline.Token);
-        }
-        finally { _oneRequest.Release(); }
+        if (FlatpakEnvironment.IsFlatpak) throw new InvalidOperationException("Focused routing is unavailable in the Flatpak sandbox.");
+        FocusCompositor source = CompositorFocus.Select();
+        return source == FocusCompositor.KWin ? await ReadKWinAsync(deadline.Token)
+            : await CompositorFocus.ReadAsync(source, deadline.Token);
     }
 
     private async Task<uint> ReadKWinAsync(CancellationToken cancel)

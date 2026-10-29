@@ -12,14 +12,16 @@ Hyprland uses `hyprctl activewindow`, Niri uses `niri msg --json focused-window`
 and X11 uses `xprop` with EWMH properties. Launch OpenXLR from the session
 so it inherits the correct compositor socket or display. A named desktop
 takes precedence over stale environment hints from another compositor.
+Niri is invoked with the same socket value that passed validation.
 X11 checks the client machine against both the local short name and full
 kernel hostname and refuses remote clients. It rechecks the active window
 after reading its PID. Xwayland cannot identify a focused Wayland window.
 
 The native daemon asks the UI through `gdbus`, with a bounded list of live
 PipeWire process keys. The UI first matches the exact host process, then
-its descendants, with a bounded parent walk. The daemon accepts only keys
-it requested and rechecks the current audio identity before saving an
+its descendants, with a bounded parent walk. Namespace and parent walks
+check the request deadline before returning matches. The daemon accepts
+only keys it requested and rechecks the current audio identity before saving an
 assignment. Missing or ambiguous identities never guess from window titles.
 
 ## Flatpak applications

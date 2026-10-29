@@ -112,6 +112,28 @@ public sealed class FocusProcessResolutionTests
         return Task.CompletedTask;
     });
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CancellationDuringTheParentWalkDoesNotReturnMatchesOrAMissingClientError(bool related)
+    {
+        using var cancel = new CancellationTokenSource();
+        int? Parent(int pid) { cancel.Cancel(); return related ? 42 : null; }
+        Assert.ThrowsAny<OperationCanceledException>(() => FocusProcesses.Match(42, [73], Parent, cancel.Token));
+    }
+
+    [Fact]
+    public Task NiriUsesTheSameSocketValueItValidated() => WithHelper("niri", """
+        [ "$NIRI_SOCKET" = /tmp/openxlr-session.sock ] || exit 1
+        printf '%s' '{"pid":42,"is_focused":true}'
+        """, async () =>
+    {
+        int reads = 0;
+        string? Env(string key) => key == "NIRI_SOCKET" ? ++reads == 1 ? "/tmp/openxlr-session.sock" : "/tmp/another-session.sock" : null;
+        Assert.Equal(42u, await CompositorFocus.ReadAsync(FocusCompositor.Niri, CancellationToken.None, Env));
+        Assert.Equal(1, reads);
+    });
+
     private static async Task WithHelper(string name, string? script, Func<Task> check)
     {
         string directory = Directory.CreateTempSubdirectory("ox-focus-resolution-").FullName;

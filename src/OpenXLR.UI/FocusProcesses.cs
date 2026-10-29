@@ -56,7 +56,7 @@ internal static class FocusProcesses
         }
         cancel.ThrowIfCancellationRequested();
         foreach (Candidate candidate in candidates.Where(c => c.Instance is null)) mapped[candidate] = candidate.Pid;
-        var matches = Match(focused, mapped.Values.Distinct().ToArray(), Parent).ToHashSet();
+        var matches = Match(focused, mapped.Values.Distinct().ToArray(), Parent, cancel).ToHashSet();
         return string.Join(',', mapped.Where(pair => matches.Contains(pair.Value)).Select(pair => pair.Key));
     }
 
@@ -108,8 +108,9 @@ internal static class FocusProcesses
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
 
-    internal static int[] Match(int focused, int[] candidates, Func<int, int?> parent)
+    internal static int[] Match(int focused, int[] candidates, Func<int, int?> parent, System.Threading.CancellationToken cancel = default)
     {
+        cancel.ThrowIfCancellationRequested();
         if (focused <= 0) throw new InvalidOperationException("The desktop has no focused application.");
         if (candidates.Contains(focused)) return [focused];
         var parents = new Dictionary<int, int?>();
@@ -118,13 +119,16 @@ internal static class FocusProcesses
             var visited = new HashSet<int>();
             for (int depth = 0; depth < 16 && child > 1 && visited.Add(child); depth++)
             {
+                cancel.ThrowIfCancellationRequested();
                 if (!parents.TryGetValue(child, out int? next)) parents[child] = next = parent(child);
+                cancel.ThrowIfCancellationRequested();
                 if (next == focused) return true;
                 child = next ?? 0;
             }
             return false;
         }
         int[] result = candidates.Where(Related).ToArray();
+        cancel.ThrowIfCancellationRequested();
         return result.Length > 0 ? result : throw new InvalidOperationException("The focused application has no identifiable PipeWire client.");
     }
 

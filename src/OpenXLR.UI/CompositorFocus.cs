@@ -57,6 +57,7 @@ internal static class CompositorFocus
         string program;
         string[] arguments;
         int limit;
+        System.Collections.Generic.Dictionary<string, string>? helperEnvironment = null;
         if (source == FocusCompositor.Sway)
         {
             string path = env("SWAYSOCK") ?? "";
@@ -83,6 +84,7 @@ internal static class CompositorFocus
             string path = env("NIRI_SOCKET") ?? "";
             if (!Path.IsPathFullyQualified(path) || Encoding.UTF8.GetByteCount(path) > 107 || path.Any(char.IsControl))
                 throw new InvalidOperationException("Niri focused routing needs this session's absolute NIRI_SOCKET path.");
+            helperEnvironment = new() { ["NIRI_SOCKET"] = path };
             program = "niri";
             arguments = ["msg", "--json", "focused-window"];
             limit = 64 * 1024;
@@ -91,7 +93,7 @@ internal static class CompositorFocus
 
         ProcessResult result;
         try { result = await ProcessRunner.RunAsync(program, arguments, TimeSpan.FromSeconds(2), limit, 4096, cancel: cancel,
-            environment: source == FocusCompositor.Niri ? new System.Collections.Generic.Dictionary<string, string> { ["NIRI_SOCKET"] = env("NIRI_SOCKET")! } : null); }
+            environment: helperEnvironment); }
         catch (Win32Exception ex) { throw new InvalidOperationException($"Focused routing needs the {program} command installed.", ex); }
         cancel.ThrowIfCancellationRequested();
         if (!result.Ok) throw new InvalidOperationException($"{program} did not return a complete focus reply within its time and size limits.");

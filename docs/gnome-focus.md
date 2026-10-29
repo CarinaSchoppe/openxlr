@@ -77,12 +77,23 @@ extension returns a D-Bus error so the next request can run. Only the
 declared unsigned PID reply is accepted; a different D-Bus signature is
 refused without closing the desktop connection.
 
-The metadata currently names only Shell 46. A private headless Shell 46
-run does not count as owner desktop acceptance. Before merge, test focus
-changes between native and Flatpak applications, the overview and lock
-screen, extension disable/re-enable and an OpenXLR restart on a normal
-GNOME desktop. Record the actual Shell version, and add other versions to
-metadata only after testing them. The roadmap item remains open.
+The metadata names GNOME Shell 46, 47, 48, 49 and 50. We tested each one
+headless, not in a desktop session, running `gnome-shell --headless` with
+a virtual monitor on a private session bus in containers with Shell 46.0
+(Ubuntu 24.04), 47.10 (Fedora 41), 48.7 (Debian 13), 48.8 (Fedora 42),
+49.10 (Fedora 43), 50.1 (Ubuntu 26.04) and 50.6 (Fedora 44). On each the
+extension enabled with no error, and a caller without
+`org.openxlr.Desktop` received AccessDenied, before and after that name
+had an owner. The owner received no application while the overview was
+visible, the PID of a focused GTK 4 Wayland window, and no application
+again once that window closed. Disabling the extension removed the
+endpoint and enabling it restored it.
+
+A headless run does not count as owner desktop acceptance. That still has
+to cover focus changes between native and Flatpak applications, the lock
+screen and an OpenXLR restart on a normal GNOME desktop, with the Shell
+version recorded. Add a Shell version to the metadata only after testing
+it. The roadmap item remains open.
 
 The Node checks cover the focus filter. The GJS test exercises ownership
 and lifecycle on a private bus without a GNOME desktop:

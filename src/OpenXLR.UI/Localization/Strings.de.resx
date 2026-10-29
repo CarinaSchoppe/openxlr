@@ -3271,4 +3271,22 @@ Von OpenXLR gesteuertes Interface wählen</value>
   <data name="SoundboardFileUnreadable" xml:space="preserve">
     <value>{0} konnte nicht gelesen werden: Der Desktop hat keinen Pfad auf diesem Computer dafür geliefert.</value>
   </data>
+  <data name="KeyPlayClip" xml:space="preserve">
+    <value>Clip {0} abspielen</value>
+  </data>
+  <data name="KeyStopClips" xml:space="preserve">
+    <value>Alle Clips stoppen</value>
+  </data>
+  <data name="AddStopClipsKey" xml:space="preserve">
+    <value>Eine Taste hinzufügen, die alle Clips stoppt</value>
+  </data>
+  <data name="SoundboardKeysNote" xml:space="preserve">
+    <value>Jeder angehakte Soundboard-Clip bekommt eine eigene Taste mit seinem Namen. Ein Clip im Modus Halten spielt, solange seine Taste gedrückt ist, wenn der Desktop das Loslassen der Taste meldet, wie Plasma, GNOME und Hyprland es tun; sonst spielt er wie Überlagern.</value>
+  </data>
+  <data name="ClipKeyUnavailable" xml:space="preserve">
+    <value>Clip {0} abspielen (der Daemon meldet ihn gerade nicht)</value>
+  </data>
+  <data name="DesktopKeyClipNoRelease" xml:space="preserve">
+    <value>{0} wurde wie Überlagern abgespielt: Dieser Desktop meldet das Loslassen einer Taste nicht, daher kann ein Clip im Modus Halten nicht mit seiner Taste enden.</value>
+  </data>
 </root>

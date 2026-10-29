@@ -3176,6 +3176,11 @@ Some things follow from the clips sharing SFX:
   use that is about 5 ms; with a forced block of 2048 frames it is about
   43 ms.
 
+To play clips from the keyboard, tick them in Options, DESKTOP,
+**Desktop keys**. Each one gets a global shortcut of its own, and a Hold
+clip plays while its key is down on desktops that report the key coming
+up. See [soundboard keys](#soundboard-keys).
+
 The library lives in `~/.config/openxlr/soundboard.json` and the copied
 files in `~/.local/share/openxlr/soundboard/` (see
 [section 6](#files)). Profiles do not carry the library; they recall
@@ -4101,6 +4106,45 @@ apply again to retry or disable the integration.
 Disabling or replacing a shortcut session stops further activations. A
 command already sent to the daemon may still finish; its delayed reply
 does not replace the status of the disabled, closed or replacement session.
+
+<a name="soundboard-keys"></a>
+### Soundboard keys
+
+In **Desktop keys**, tick the [soundboard](#play-sound-clips) clips that
+should have a key of their own, and **Add a key that stops every clip** for a
+Stop all key, then choose **Apply and configure keys**. Each clip's shortcut
+is named **Play clip** and the clip's name, and the desktop asks which key it
+gets. A press does what the clip's **Press** setting says, as its pad does.
+Where the desktop reports keys coming up, a key held down plays its clip once,
+however often the desktop repeats it.
+
+A **Hold** clip plays while its key is down where the desktop reports the key
+coming up. The shortcut portals of KDE Plasma, GNOME and Hyprland do. On any
+other desktop a Hold clip plays as **Overlap**, and Desktop keys says so after
+the press, until the desktop has reported one key coming up; holds work from
+then on. A held clip also ends when the shortcut session closes or is
+replaced, and when the UI quits, because the daemon ends the holds of a
+connection that goes away.
+
+The keys follow the library while the UI runs. Renaming a clip renames its
+shortcut and keeps its key. Deleting a clip removes its shortcut. The daemon
+never gives a deleted clip's id to another clip, so a key never moves to a
+different clip. A new clip has no key until you tick it. OpenXLR binds the
+changed list on the shortcut session it already has, so the other keys keep
+working while the desktop asks about a new one. Plasma also forgets the key
+of a deleted clip. GNOME binds a session's keys only once, so there OpenXLR
+opens a new session for the changed list.
+
+Before the daemon reports the board, at login for example, the ticked clips
+keep their keys under their ids, and their names follow once it does. In
+**Desktop keys**, a ticked clip the daemon does not report is listed by its
+id and stays ticked; once the daemon reports the board, a deleted clip is no
+longer listed, and the next Apply forgets it.
+
+A refused press shows the daemon's sentence in Desktop keys, such as "The
+soundboard is off. Turn it on first." A key coming up is queued even when
+16 presses already wait, so a held clip always hears its release. At most 64
+clip keys are kept.
 
 <a name="output-keys"></a>
 ### Output volume, mute and system output keys

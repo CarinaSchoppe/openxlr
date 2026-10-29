@@ -3599,4 +3599,22 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
   <data name="SoundboardFileUnreadable" xml:space="preserve">
     <value>Hindi mabasa ang {0}: walang ibinigay na path ang desktop para dito sa computer na ito.</value>
   </data>
+  <data name="KeyPlayClip" xml:space="preserve">
+    <value>I-play ang clip na {0}</value>
+  </data>
+  <data name="KeyStopClips" xml:space="preserve">
+    <value>Ihinto ang lahat ng clip</value>
+  </data>
+  <data name="AddStopClipsKey" xml:space="preserve">
+    <value>Magdagdag ng key na humihinto sa lahat ng clip</value>
+  </data>
+  <data name="SoundboardKeysNote" xml:space="preserve">
+    <value>Bawat soundboard clip na lalagyan mo ng tsek ay may sariling key, na ipinangalan sa clip. Tumutugtog ang clip na Hawak habang nakapindot ang key nito kung iniuulat ng desktop ang pagbitaw ng key, gaya ng Plasma, GNOME at Hyprland; sa iba, tumutugtog ito bilang Patong.</value>
+  </data>
+  <data name="ClipKeyUnavailable" xml:space="preserve">
+    <value>I-play ang clip na {0} (hindi ito iniuulat ng daemon ngayon)</value>
+  </data>
+  <data name="DesktopKeyClipNoRelease" xml:space="preserve">
+    <value>Tinugtog ang {0} bilang Patong: hindi iniuulat ng desktop na ito ang pagbitaw ng key, kaya hindi matatapos ng key nito ang clip na Hawak.</value>
+  </data>
 </root>

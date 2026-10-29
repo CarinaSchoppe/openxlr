@@ -743,6 +743,10 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
     public Task<string?> PlayClipAsync(string clip)
         => EditLayoutAsync(new() { ["cmd"] = "playClip", ["clip"] = clip });
 
+    /// <summary><c>playClip</c> in the mode given, for this press only: the desktop keys say it, so a hold no key can end is never made.</summary>
+    public Task<string?> PlayClipAsync(string clip, string mode)
+        => EditLayoutAsync(new() { ["cmd"] = "playClip", ["clip"] = clip, ["mode"] = mode });
+
     public Task<string?> ReleaseClipAsync(string clip)
         => EditLayoutAsync(new() { ["cmd"] = "releaseClip", ["clip"] = clip });
 

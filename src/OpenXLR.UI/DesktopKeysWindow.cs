@@ -24,6 +24,20 @@ internal sealed class DesktopKeysWindow : Window
         var enabled = new CheckBox { Content = Localizer.Text("EnableDesktopIntegration"), IsChecked = saved.Enabled };
         var choices = vm.Channels.Where(c => c.IsApplication).Select(c => (c.Id,
             Box: new CheckBox { Content = c.Name, IsChecked = saved.FocusChannels.Contains(c.Id) })).ToArray();
+        // One key per clip the user ticks, named after the clip. A chosen
+        // clip the daemon does not report now keeps its tick, so Apply
+        // before the daemon is up does not drop its binding; once the daemon
+        // reports the board, a clip it no longer lists was deleted.
+        SoundboardViewModel board = vm.Soundboard;
+        var clipChoices = board.Clips.Select(c => (c.Id, Box: new CheckBox
+            { Content = new TextBlock { Text = Localizer.Format("KeyPlayClip", c.Name), TextWrapping = TextWrapping.Wrap },
+              IsChecked = saved.Clips.Contains(c.Id) })).ToList();
+        if (!board.IsReported)
+            foreach (string missing in saved.Clips.Where(id => board.Clips.All(c => c.Id != id)))
+                clipChoices.Add((missing, new CheckBox { Content = new TextBlock
+                    { Text = Localizer.Format("ClipKeyUnavailable", missing), TextWrapping = TextWrapping.Wrap }, IsChecked = true }));
+        var clipsStop = new CheckBox { Content = Localizer.Text("AddStopClipsKey"), IsChecked = saved.ClipsStop };
+        bool showsClips = board.IsReported || clipChoices.Count > 0 || saved.ClipsStop;
         var outputControls = new CheckBox { Content = Localizer.Text("AddVolumeAndMuteKeys"), IsChecked = saved.OutputControls };
         var monitorControls = new CheckBox { Content = Localizer.Text("AddMonitoringPauseKey"), IsChecked = saved.MonitorControls };
         var outputs = vm.Outputs.Where(d => DesktopKeySettings.ValidOutput(d.Name)
@@ -52,6 +66,12 @@ internal sealed class DesktopKeysWindow : Window
             TextWrapping = TextWrapping.Wrap,
         });
         foreach (var choice in choices) content.Children.Add(choice.Box);
+        if (showsClips)
+        {
+            foreach (var choice in clipChoices) content.Children.Add(choice.Box);
+            content.Children.Add(clipsStop);
+            content.Children.Add(new TextBlock { Text = Localizer.Text("SoundboardKeysNote"), TextWrapping = TextWrapping.Wrap });
+        }
         content.Children.Add(monitorControls);
         content.Children.Add(new TextBlock { Text = Localizer.Text("MonitoringPauseKeysNote"), TextWrapping = TextWrapping.Wrap });
         content.Children.Add(outputControls);
@@ -76,7 +96,9 @@ internal sealed class DesktopKeysWindow : Window
                     MonitorControls = monitorControls.IsChecked == true,
                     OutputControls = outputControls.IsChecked == true,
                     OutputDevice = outputDevice.SelectedItem is AudioDeviceItem { Name.Length: > 0 } selected ? selected.Name : null,
-                    MainOutputs = mainChoices.Where(c => c.Box.IsChecked == true).Select(c => c.Name).ToList() });
+                    MainOutputs = mainChoices.Where(c => c.Box.IsChecked == true).Select(c => c.Name).ToList(),
+                    Clips = clipChoices.Where(c => c.Box.IsChecked == true).Select(c => c.Id).ToList(),
+                    ClipsStop = clipsStop.IsChecked == true });
             }
             finally { apply.IsEnabled = true; }
         };

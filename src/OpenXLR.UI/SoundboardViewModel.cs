@@ -499,7 +499,15 @@ public sealed class SoundboardViewModel : ViewModelBase
         for (int i = Clips.Count - 1; i >= 0; i--)
             if (!seen.Contains(Clips[i].Id)) Clips.RemoveAt(i);
         RaiseClips();
+        LibraryReported?.Invoke();
     }
+
+    /// <summary>
+    /// The daemon reported the board's clips, changed or not. Raised only
+    /// for a reported board, so a listener never takes a daemon without a
+    /// board, or a stopped mixer, for an empty library.
+    /// </summary>
+    internal event Action? LibraryReported;
 
     private void RaiseClips()
     {

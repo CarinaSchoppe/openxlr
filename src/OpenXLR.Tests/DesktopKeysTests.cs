@@ -480,12 +480,209 @@ public sealed class DesktopKeysTests
         Assert.Equal(["CreateSession"], fake.ShortcutMethods);
     }
 
+    // --- soundboard keys ---
+
+    private static async Task<(SocketTestServer Server, ConcurrentQueue<string> Commands)> SoundboardDaemon(Func<string, string?>? refuse = null)
+    {
+        var commands = new ConcurrentQueue<string>();
+        var server = await SocketTestServer.Start(async (socket, stop) =>
+        {
+            while (!stop.IsCancellationRequested)
+            {
+                var command = await SocketTestServer.Receive(socket, stop);
+                if (command["requestId"] is not { } id) continue;
+                string cmd = command["cmd"]!.GetValue<string>();
+                if (cmd is not ("playClip" or "releaseClip" or "stopClips")) continue;
+                string entry = cmd + (command["clip"] is { } clip ? " " + clip.GetValue<string>() : "")
+                    + (command["mode"] is { } mode ? " " + mode.GetValue<string>() : "");
+                commands.Enqueue(entry);
+                await SocketTestServer.Send(socket, new { type = "commandResult", requestId = id.GetValue<string>(), error = refuse?.Invoke(entry) }, stop);
+            }
+        });
+        return (server, commands);
+    }
+
+    private static async Task<DaemonClient> Connect(SocketTestServer server)
+    {
+        var client = new DaemonClient(server.Url);
+        var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.ConnectionChanged += up => { if (up) connected.TrySetResult(); };
+        client.Start();
+        await connected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        return client;
+    }
+
+    // A round trip on the portal's connection lets every signal sent before it arrive.
+    private static Task Flush(DBusConnection desktop) => new DesktopBus(desktop).Call(DesktopFocus.Service, "/org/openxlr/Desktop",
+        "org.freedesktop.DBus.Introspectable", "Introspect", null, null, static (message, _) => message.GetBodyReader().ReadString());
+
+    [DesktopBusFact]
+    public async Task ClipKeysFollowTheLibraryOnTheirOwnSessionAndHoldWhileTheKeyIsDown()
+    {
+        await using var environment = await PrivateBus.Start();
+        using var desktop = new DBusConnection(environment.Address);
+        await desktop.ConnectAsync();
+        await desktop.RequestNameAsync(DesktopBus.Portal);
+        var fake = new DesktopBackend(new DesktopBus(desktop));
+        desktop.AddMethodHandler(fake);
+        var (server, commands) = await SoundboardDaemon(entry => entry.StartsWith("playClip off", StringComparison.Ordinal)
+            ? "The soundboard is off. Turn it on first." : null);
+        await using var hosted = server;
+        await using var client = await Connect(server);
+        using var keys = new DesktopKeys(client);
+        Assert.True(keys.DeliversRelease); // the private bus names KDE
+
+        // Before the daemon reports the board, every chosen clip keeps its key under its id.
+        await keys.ConfigureAsync(new DesktopKeySettings { Enabled = true, Clips = ["horn", "drum", "off", "Bad_Id"], ClipsStop = true }, save: false);
+        Assert.StartsWith("Desktop keys are active", keys.Status);
+        Assert.Equal(["clip_horn", "clip_drum", "clip_off", "clips_stop"], fake.ShortcutIds);
+        Assert.Equal("Play clip horn", fake.Descriptions["clip_horn"]);
+        Assert.Equal("Stop all clips", fake.Descriptions["clips_stop"]);
+
+        // The board arrives: the same session binds the names, in library order, without a clip nobody chose.
+        keys.SetClips([new("drum", "Drum roll", "overlap"), new("horn", "Air\nhorn", "hold"), new("off", "Off", "hold"), new("other", "Other", "overlap")]);
+        await Wait(() => fake.Descriptions.GetValueOrDefault("clip_horn") == "Play clip Airhorn");
+        Assert.Equal(["CreateSession", "BindShortcuts", "BindShortcuts"], fake.ShortcutMethods);
+        Assert.Equal(["clip_drum", "clip_horn", "clip_off", "clips_stop"], fake.ShortcutIds);
+        keys.SetClips([new("drum", "Drum roll", "overlap"), new("horn", "Air\nhorn", "hold"), new("off", "Off", "hold"), new("other", "Other", "overlap")]);
+        keys.SetClips([new("drum", "Drum roll", "toggle"), new("horn", "Air\nhorn", "hold"), new("off", "Off", "hold"), new("other", "Other renamed", "overlap")]);
+        await Task.Delay(80);
+        Assert.Equal(3, fake.ShortcutMethods.Count); // same library, a mode, or a clip without a key: nothing to bind
+
+        // A hold clip: the press holds, a repeat while down is ignored, the release ends it.
+        fake.Activate("clip_horn");
+        fake.Activate("clip_horn");
+        fake.Deactivate("clip_horn");
+        await Wait(() => commands.Count == 2);
+        // Other modes are sent as they are, and their key coming up sends nothing.
+        fake.Activate("clip_drum");
+        fake.Deactivate("clip_drum");
+        fake.Activate("clips_stop");
+        await Wait(() => commands.Count == 4);
+        await Flush(desktop);
+        await Task.Delay(80);
+        Assert.Equal(["playClip horn hold", "releaseClip horn", "playClip drum toggle", "stopClips"], commands);
+        Assert.Equal("Completed: Stop all clips.", keys.Status);
+
+        // A refusal shows the daemon's sentence, and a refused hold has nothing to release.
+        fake.Activate("clip_off");
+        await Wait(() => keys.Status == "The soundboard is off. Turn it on first.");
+        fake.Deactivate("clip_off");
+        await Flush(desktop);
+        await Task.Delay(80);
+        Assert.Equal(5, commands.Count);
+
+        // A rename binds the new name on the same session; a deletion drops the key.
+        keys.SetClips([new("drum", "Snare", "toggle"), new("off", "Off", "hold"), new("other", "Other renamed", "overlap")]);
+        // The keys bound before answer until the desktop has confirmed the new list.
+        await Wait(() => keys.Status.StartsWith("Desktop keys are active", StringComparison.Ordinal));
+        Assert.Equal(["clip_drum", "clip_off", "clips_stop"], fake.ShortcutIds);
+        Assert.Equal("Play clip Snare", fake.Descriptions["clip_drum"]);
+        fake.Activate("clip_horn");
+        await Flush(desktop);
+        await Task.Delay(80);
+        Assert.Equal(5, commands.Count);
+        Assert.Equal(["CreateSession", "BindShortcuts", "BindShortcuts", "BindShortcuts"], fake.ShortcutMethods);
+
+        // A session that ends while a key holds a clip ends the hold.
+        keys.SetClips([new("drum", "Snare", "hold"), new("off", "Off", "hold")]);
+        fake.Activate("clip_drum");
+        await Wait(() => commands.Count == 6);
+        await Task.Delay(80);
+        fake.CloseSession();
+        await Wait(() => commands.Count == 7);
+        Assert.Equal(["playClip drum hold", "releaseClip drum"], commands.Skip(5));
+    }
+
+    [DesktopBusFact]
+    public async Task HoldClipsPlayAsOverlapUntilTheDesktopReportsAKeyComingUp()
+    {
+        await using var environment = await PrivateBus.Start();
+        Environment.SetEnvironmentVariable("XDG_CURRENT_DESKTOP", "LXQt");
+        using var desktop = new DBusConnection(environment.Address);
+        await desktop.ConnectAsync();
+        await desktop.RequestNameAsync(DesktopBus.Portal);
+        var fake = new DesktopBackend(new DesktopBus(desktop));
+        desktop.AddMethodHandler(fake);
+        var (server, commands) = await SoundboardDaemon();
+        await using var hosted = server;
+        await using var client = await Connect(server);
+        using var keys = new DesktopKeys(client);
+        Assert.False(keys.DeliversRelease);
+        keys.SetClips([new("horn", "Air horn", "hold")]);
+        await keys.ConfigureAsync(new DesktopKeySettings { Enabled = true, Clips = ["horn"] }, save: false);
+        Assert.Equal("Play clip Air horn", Assert.Single(fake.Descriptions).Value);
+
+        // Without a release a hold could never end: every press plays as overlap, and the status says why.
+        fake.Activate("clip_horn");
+        fake.Activate("clip_horn");
+        await Wait(() => commands.Count == 2);
+        await Wait(() => keys.Status.StartsWith("Played Air horn as Overlap", StringComparison.Ordinal));
+        Assert.Equal(["playClip horn overlap", "playClip horn overlap"], commands);
+
+        // The first key coming up shows this desktop reports releases: holds work from then on.
+        fake.Deactivate("clip_horn");
+        await Wait(() => keys.DeliversRelease);
+        fake.Activate("clip_horn");
+        fake.Deactivate("clip_horn");
+        await Wait(() => commands.Count == 4);
+        Assert.Equal(["playClip horn hold", "releaseClip horn"], commands.Skip(2));
+    }
+
+    [DesktopBusFact]
+    public async Task ADesktopThatBindsASessionOnceGetsANewSessionForTheNewList()
+    {
+        await using var environment = await PrivateBus.Start();
+        using var desktop = new DBusConnection(environment.Address);
+        await desktop.ConnectAsync();
+        await desktop.RequestNameAsync(DesktopBus.Portal);
+        var fake = new DesktopBackend(new DesktopBus(desktop)) { RefuseRebind = true };
+        desktop.AddMethodHandler(fake);
+        var (server, commands) = await SoundboardDaemon();
+        await using var hosted = server;
+        await using var client = await Connect(server);
+        using var keys = new DesktopKeys(client);
+        keys.SetClips([new("horn", "Air horn", "overlap"), new("drum", "Drum", "overlap")]);
+        await keys.ConfigureAsync(new DesktopKeySettings { Enabled = true, Clips = ["horn", "drum"], MonitorControls = true }, save: false);
+        keys.SetClips([new("horn", "Horn", "overlap")]);
+        await Wait(() => fake.ShortcutMethods.Count == 5);
+        Assert.Equal(["CreateSession", "BindShortcuts", "BindShortcuts", "CreateSession", "BindShortcuts"], fake.ShortcutMethods);
+        Assert.Equal(["monitor_mute", "clip_horn"], fake.ShortcutIds);
+        Assert.Equal("Play clip Horn", fake.Descriptions["clip_horn"]);
+        Assert.StartsWith("Desktop keys are active", keys.Status);
+        fake.Activate("clip_horn");
+        await Wait(() => commands.Count == 1);
+        Assert.Equal("playClip horn overlap", Assert.Single(commands));
+    }
+
+    [Theory]
+    [InlineData("KDE", true)]
+    [InlineData("ubuntu:GNOME", true)]
+    [InlineData("Hyprland", true)]
+    [InlineData("sway", false)]
+    [InlineData("", false)]
+    public void TheDesktopsKnownToReportReleases(string desktop, bool releases)
+        => Assert.Equal(releases, DesktopKeys.ReportsRelease(name => name == "XDG_CURRENT_DESKTOP" ? desktop : null));
+
+    [Fact]
+    public void ClipChoicesKeepOnlyClipIds()
+    {
+        var normalized = new DesktopKeySettings { Clips = [null!, "", "Horn", "horn", "horn", "drum_roll", "9lives", "drum-roll",
+            new string('a', 41), .. Enumerable.Range(0, 80).Select(i => "clip" + i)] }.Normalize();
+        Assert.Equal(["horn", "drum-roll"], normalized.Clips.Take(2));
+        Assert.Equal(64, normalized.Clips.Count);
+    }
+
     private sealed class DesktopBackend(DesktopBus bus) : IPathMethodHandler
     {
         public string Path => "/";
         public bool HandlesChildPaths => true;
         public List<string> ShortcutIds { get; } = [];
+        public Dictionary<string, string> Descriptions { get; } = [];
         public Dictionary<string, string> PreferredTriggers { get; } = [];
+        /// <summary>Answer a second BindShortcuts on one session with 2, as GNOME does.</summary>
+        public bool RefuseRebind { get; init; }
+        private string _boundSession = "";
         public bool RequireHostIdentity { get; init; }
         public string? RegisterError { get; init; }
         private string? _hostSender;
@@ -540,6 +737,7 @@ public sealed class DesktopKeysTests
                     Assert.Equal("BindShortcuts", member);
                     Assert.Equal(_session, reader.ReadObjectPath().ToString());
                     ShortcutIds.Clear();
+                    Descriptions.Clear();
                     PreferredTriggers.Clear();
                     var end = reader.ReadArrayStart(DBusType.Struct);
                     while (reader.HasNext(end))
@@ -548,6 +746,7 @@ public sealed class DesktopKeysTests
                         string id = reader.ReadString();
                         ShortcutIds.Add(id);
                         var properties = reader.ReadDictionaryOfStringToVariantValue();
+                        Descriptions[id] = properties["description"].GetString();
                         if (properties.TryGetValue("preferred_trigger", out VariantValue trigger))
                             PreferredTriggers[id] = trigger.GetString();
                     }
@@ -559,11 +758,17 @@ public sealed class DesktopKeysTests
                 if (member == "CreateSession") _session = "/org/freedesktop/portal/desktop/session/" + owner + "/" + token;
                 using var reply = context.CreateReplyWriter("o"); reply.WriteObjectPath(path); context.Reply(reply.CreateMessage());
                 string destination = request.SenderAsString!;
+                bool refused = false;
+                if (member == "BindShortcuts")
+                {
+                    refused = RefuseRebind && _boundSession == _session;
+                    _boundSession = _session;
+                }
                 void Respond()
                 {
                     using var signal = bus.Connection.GetMessageWriter();
                     signal.WriteSignalHeader(destination: destination, path: path, @interface: "org.freedesktop.portal.Request", member: "Response", signature: "ua{sv}");
-                    signal.WriteUInt32(member == "BindShortcuts" && CancelBinding ? 1u : 0u);
+                    signal.WriteUInt32(refused ? 2u : member == "BindShortcuts" && CancelBinding ? 1u : 0u);
                     signal.WriteDictionary(member == "CreateSession" ? new Dictionary<string, VariantValue> { ["session_handle"] = _session } : []);
                     bus.Connection.TrySendMessage(signal.CreateMessage());
                 }
@@ -601,10 +806,12 @@ public sealed class DesktopKeysTests
             bus.Connection.TrySendMessage(signal.CreateMessage());
         }
 
-        internal void Activate(string id, string? session = null)
+        internal void Deactivate(string id) => Activate(id, member: "Deactivated");
+
+        internal void Activate(string id, string? session = null, string member = "Activated")
         {
             using var signal = bus.Connection.GetMessageWriter();
-            signal.WriteSignalHeader(path: DesktopBus.PortalPath, @interface: DesktopBus.Shortcuts, member: "Activated", signature: "osta{sv}");
+            signal.WriteSignalHeader(path: DesktopBus.PortalPath, @interface: DesktopBus.Shortcuts, member: member, signature: "osta{sv}");
             signal.WriteObjectPath(session ?? _session); signal.WriteString(id); signal.WriteUInt64(100);
             signal.WriteDictionary(new Dictionary<string, VariantValue>());
             bus.Connection.TrySendMessage(signal.CreateMessage());

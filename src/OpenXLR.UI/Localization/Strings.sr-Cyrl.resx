@@ -3599,4 +3599,22 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   <data name="SoundboardFileUnreadable" xml:space="preserve">
     <value>{0} није могуће прочитати: радно окружење није дало путању до њега на овом рачунару.</value>
   </data>
+  <data name="KeyPlayClip" xml:space="preserve">
+    <value>Пусти клип {0}</value>
+  </data>
+  <data name="KeyStopClips" xml:space="preserve">
+    <value>Заустави све клипове</value>
+  </data>
+  <data name="AddStopClipsKey" xml:space="preserve">
+    <value>Додај тастер који зауставља све клипове</value>
+  </data>
+  <data name="SoundboardKeysNote" xml:space="preserve">
+    <value>Сваки клип звучне табле који означиш добија сопствени тастер, назван по клипу. Клип у режиму Држање свира док је тастер притиснут ако радна површина јавља отпуштање тастера, као што то раде Plasma, GNOME и Hyprland; другде свира као Преклапање.</value>
+  </data>
+  <data name="ClipKeyUnavailable" xml:space="preserve">
+    <value>Пусти клип {0} (демон га сада не пријављује)</value>
+  </data>
+  <data name="DesktopKeyClipNoRelease" xml:space="preserve">
+    <value>{0} је пуштен као Преклапање: ова радна површина не јавља отпуштање тастера, па клип у режиму Држање не може да се заврши тастером.</value>
+  </data>
 </root>

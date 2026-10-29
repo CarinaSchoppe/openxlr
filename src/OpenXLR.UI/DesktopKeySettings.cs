@@ -17,6 +17,10 @@ internal sealed record DesktopKeySettings
     public bool MonitorControls { get; init; }
     public string? OutputDevice { get; init; }
     public List<string> MainOutputs { get; init; } = [];
+    /// <summary>Soundboard clips, by id, that have a key of their own. The daemon never gives a deleted clip's id to another.</summary>
+    public List<string> Clips { get; init; } = [];
+    /// <summary>A key that stops every clip.</summary>
+    public bool ClipsStop { get; init; }
     internal static string MainKey(string device) => "main_" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(device)))[..24].ToLowerInvariant();
     internal static bool ValidOutput(string? name) => name is { Length: > 0 and <= 256 } && !name.Any(char.IsControl)
         && (name == "@monitor" || (!name.Contains('#') && name[0] is not ('@' or '-') && !name.All(char.IsAsciiDigit)));
@@ -24,9 +28,13 @@ internal sealed record DesktopKeySettings
     private static string FilePath => OpenXlrPaths.ConfigFile("desktop-keys.json");
     internal static bool ValidId(string? id) => id is { Length: > 0 and <= 36 } && id[0] is >= 'a' and <= 'z'
         && id.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-' or '_');
+    /// <summary>A clip id as the daemon makes them: lower-case letters, digits and hyphens, starting with a letter.</summary>
+    internal static bool ValidClip(string? id) => id is { Length: > 0 and <= 40 } && id[0] is >= 'a' and <= 'z'
+        && id.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-');
     internal DesktopKeySettings Normalize() => this with
     {
         FocusChannels = [.. (FocusChannels ?? []).Where(ValidId).Distinct(StringComparer.Ordinal).Take(32)],
+        Clips = [.. (Clips ?? []).Where(ValidClip).Distinct(StringComparer.Ordinal).Take(64)],
         MainOutputs = [.. (MainOutputs ?? []).Where(ValidOutput).Distinct(StringComparer.Ordinal).Take(16)],
         OutputControls = OutputControls && (OutputDevice is null || (ValidOutput(OutputDevice) && OutputDevice != "@monitor")),
     };

@@ -3598,4 +3598,22 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   <data name="SoundboardFileUnreadable" xml:space="preserve">
     <value>{0} could not be read: the desktop gave no path to it on this computer.</value>
   </data>
+  <data name="KeyPlayClip" xml:space="preserve">
+    <value>Play clip {0}</value>
+  </data>
+  <data name="KeyStopClips" xml:space="preserve">
+    <value>Stop all clips</value>
+  </data>
+  <data name="AddStopClipsKey" xml:space="preserve">
+    <value>Add a key that stops every clip</value>
+  </data>
+  <data name="SoundboardKeysNote" xml:space="preserve">
+    <value>Each soundboard clip you tick gets a key of its own, named after the clip. A Hold clip plays while its key is down where the desktop reports the key coming up, as Plasma, GNOME and Hyprland do; elsewhere it plays as Overlap.</value>
+  </data>
+  <data name="ClipKeyUnavailable" xml:space="preserve">
+    <value>Play clip {0} (the daemon does not report it now)</value>
+  </data>
+  <data name="DesktopKeyClipNoRelease" xml:space="preserve">
+    <value>Played {0} as Overlap: this desktop does not report a key coming up, so a Hold clip cannot end with its key.</value>
+  </data>
 </root>

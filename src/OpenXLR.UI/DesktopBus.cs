@@ -102,7 +102,7 @@ internal sealed class DesktopBus(DBusConnection connection)
                 static (message, _) => message.GetBodyReader().ReadObjectPath().ToString(), cancel);
             if (actual != path) throw new InvalidOperationException("the desktop portal returned an unexpected request path");
             var result = await done.Task.WaitAsync(TimeSpan.FromMinutes(2), cancel);
-            if (result.Code != 0) throw new InvalidOperationException(result.Code == 1
+            if (result.Code != 0) throw new PortalResponseException(result.Code, result.Code == 1
                 ? (iface == Shortcuts ? "Shortcut configuration was cancelled." : "Background configuration was cancelled.")
                 : (iface == Shortcuts ? "The desktop refused the shortcut request." : "The desktop refused the background request."));
             return result.Data;
@@ -114,4 +114,10 @@ internal sealed class DesktopBus(DBusConnection connection)
             throw;
         }
     }
+}
+
+/// <summary>The desktop answered a portal request with a code other than success: 1 cancelled, 2 refused or failed.</summary>
+internal sealed class PortalResponseException(uint code, string message) : InvalidOperationException(message)
+{
+    internal uint Code => code;
 }

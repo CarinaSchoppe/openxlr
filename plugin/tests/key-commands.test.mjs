@@ -205,3 +205,33 @@ for (const reason of ["failure", "disconnect"]) {
     assert.equal(h.timers.size, 0);
   });
 }
+
+test("a soundboard press answers only a failure, so no check mark covers the clip key", () => {
+  const h = harness();
+  h.keys.enqueue("clip", {cmd: "playClip", clip: "airhorn"});
+  assert.equal(h.sent.length, 1);
+  h.ack();
+  h.keys.enqueue("stop", {cmd: "stopClips"});
+  h.ack();
+  assert.deepEqual(h.notices, []);
+  h.keys.enqueue("clip", {cmd: "playClip", clip: "airhorn"});
+  h.ack(true);
+  assert.deepEqual(h.notices, [{context: "clip", failed: true}]);
+  h.keys.enqueue("clip", {cmd: "playClip", clip: "airhorn"});
+  h.expire();
+  assert.deepEqual(h.notices.at(-1), {context: "clip", failed: true});
+  h.keys.enqueue("focus", {cmd: "routeFocusedApp", channel: "game"});
+  h.ack();
+  assert.deepEqual(h.notices.at(-1), {context: "focus", failed: false}, "other immediate keys still confirm");
+});
+
+test("clip presses are never swallowed as repeats, and enqueue says whether a press went out", () => {
+  const h = harness();
+  assert.equal(h.keys.enqueue("clip", {cmd: "playClip", clip: "airhorn"}), true);
+  assert.equal(h.keys.enqueue("clip", {cmd: "playClip", clip: "airhorn"}), true);
+  assert.equal(h.sent.length, 2);
+  assert.equal(h.keys.enqueue("focus", {cmd: "routeFocusedApp", channel: "game"}), true);
+  assert.equal(h.keys.enqueue("focus", {cmd: "routeFocusedApp", channel: "game"}), false, "other keys still ignore a repeat");
+  h.offline();
+  assert.equal(h.keys.enqueue("clip", {cmd: "playClip", clip: "airhorn"}), false);
+});

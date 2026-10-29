@@ -1,6 +1,6 @@
 {
 	"Name": "OpenXLR",
-	"Description": "Control the OpenXLR daemon: hardware DSP toggles, mix and channel faders on dials, mutes with live state on the keys.",
+	"Description": "Control the OpenXLR daemon: hardware DSP toggles, mix and channel faders on dials, mutes with live state on the keys, soundboard clips.",
 	"Author": "Emanuele Sparvoli",
 	"Version": "0.3.1",
 	"CodePath": "plugin.mjs",
@@ -26,6 +26,22 @@
 			"States": [
 				{
 					"Image": "icons/toggle"
+				}
+			]
+		},
+		{
+			"Name": "Clip",
+			"UUID": "com.emaspa.openxlr.clip",
+			"Icon": "icons/clip",
+			"Tooltip": "Play a soundboard clip into SFX, or stop every clip",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"PropertyInspectorPath": "propertyInspector/clip.html",
+			"States": [
+				{
+					"Image": "icons/clip"
 				}
 			]
 		},

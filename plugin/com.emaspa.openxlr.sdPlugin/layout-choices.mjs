@@ -189,7 +189,12 @@ export function targetAppearance(mixer, target) {
     const key = target.split("|")[1] ?? "";
     item = key.startsWith("mix:") ? mixer?.mixes?.find(m => m.id === key.slice(4)) : mixer?.channels?.find(c => c.id === key);
   }
-  const value = item?.appearance;
+  return appearanceOf(item?.appearance);
+}
+
+// An {icon, colour, defaultIcon} appearance as a key draws it, under the
+// rules above. The soundboard's clips carry the same icon and colour values.
+export function appearanceOf(value) {
   const glyph = APPEARANCE_ICONS.includes(value?.icon);
   const path = value?.icon === "none" || glyph ? null : iconPath(value?.icon) ?? iconPath(value?.defaultIcon);
   return {

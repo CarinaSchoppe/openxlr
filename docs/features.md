@@ -535,8 +535,8 @@ toggle or hold. Imported WAV, FLAC, Ogg Vorbis, Opus and MP3 files, up to
 checked in a separate process before the player opens them. Renaming or
 hiding SFX keeps the clips playing; deleting it turns the board off until it
 is turned on again, which creates SFX anew. The daemon side is in place and
-driven through the [API](api.md#soundboard); the UI, the terminal mixer and
-the OpenDeck plugin do not offer it yet.
+driven through the [API](api.md#soundboard), and an OpenDeck key plays a
+clip or stops them all; the UI and the terminal mixer do not offer it yet.
 
 ## Inserts
 
@@ -768,8 +768,8 @@ palettes also work when the UI is closed. See [skins.md](skins.md) for
 custom-skin limits and the realised palette file.
 
 `plugin/com.emaspa.openxlr.sdPlugin` is an
-[OpenDeck](https://github.com/nekename/OpenDeck) plugin with two
-actions, Dial and Toggle (key). Both are clients of the daemon's
+[OpenDeck](https://github.com/nekename/OpenDeck) plugin with three
+actions, Dial, Toggle (key) and Clip (key). All are clients of the daemon's
 WebSocket API, so they reflect changes made in the UI or on the
 hardware.
 
@@ -815,6 +815,16 @@ existing dial sender; removal, rebinding and reconnection discard stale
 unsent EQ edits. Changes use the same EQ and saved state as the UI.
 
 ![Keys](plugin-keys.png)
+
+Soundboard: a Clip key plays one clip into SFX, or stops every clip. The
+inspector lists clips by name and the key keeps the clip's id, so a rename
+does not break it. A press uses the clip's own mode or one set on the key,
+and in hold mode the clip ends when the key comes up. The key wears the
+clip's icon and colour, or SFX's where the clip has none, lights while the
+clip plays and draws its progress along the bottom from the meters. A
+deleted clip, a deleted SFX, the board turned off and a missing native host
+each read as one grey word on the key, and as the daemon's sentence in the
+key's settings.
 
 Profiles: a key can recall one of the active device's saved profiles,
 listed live in the property inspector; it lights while that profile is

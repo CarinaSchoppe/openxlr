@@ -6,6 +6,12 @@ import { randomUUID } from "node:crypto";
 // them back would apply them later to whatever application or output is
 // current by then.
 const ORDERED = new Set(["adjustOutputVolume", "toggleOutputMute", "toggleMonitorMuted"]);
+// A soundboard press is answered only when it fails: a check mark over a clip
+// key would hide its progress bar for as long as a short clip plays.
+const QUIET = new Set(["playClip", "stopClips"]);
+// Every clip press is played, however fast the presses come: a second tap
+// is a second voice, not a repeat to swallow.
+const REPEATABLE = new Set(["playClip"]);
 const OUTSTANDING_LIMIT = 64;
 const WAITING_PER_KEY = 8;
 const TIMEOUT_MS = 8000;
@@ -26,27 +32,32 @@ export class KeyCommands {
     return this.waiting.length + (this.active ? 1 : 0) + this.immediate.size;
   }
 
+  // True when the press was sent or queued, false when it was dropped.
   enqueue(context, payload) {
-    if (!ORDERED.has(payload.cmd)) { this.direct(context, payload); return; }
+    if (!ORDERED.has(payload.cmd)) return this.direct(context, payload);
     if (this.outstanding() >= OUTSTANDING_LIMIT ||
         this.waiting.filter(entry => entry.context === context).length >= WAITING_PER_KEY) {
       this.notify(context, true);
-      return;
+      return false;
     }
     this.waiting.push({context, payload: {...payload}});
     this.advance();
+    return true;
   }
 
-  // One unanswered command per key; a repeat press while it is out is ignored.
+  // One unanswered command per key; a repeat press while it is out is
+  // ignored, except a clip press.
   direct(context, payload) {
-    if ([...this.immediate.values()].some(entry => entry.context === context)) return;
-    if (this.outstanding() >= OUTSTANDING_LIMIT) { this.notify(context, true); return; }
+    if (!REPEATABLE.has(payload.cmd) && [...this.immediate.values()].some(entry => entry.context === context)) return false;
+    if (this.outstanding() >= OUTSTANDING_LIMIT) { this.notify(context, true); return false; }
     const requestId = this.id();
-    const entry = {context};
+    const entry = {context, quiet: QUIET.has(payload.cmd)};
     this.immediate.set(requestId, entry);
     entry.timer = this.delay(() => this.finish(requestId, true), TIMEOUT_MS);
     entry.timer.unref?.();
-    if (!this.send({...payload, requestId})) this.finish(requestId, true);
+    if (this.send({...payload, requestId})) return true;
+    this.finish(requestId, true);
+    return false;
   }
 
   advance() {
@@ -65,7 +76,7 @@ export class KeyCommands {
     if (direct) {
       this.cancel(direct.timer);
       this.immediate.delete(requestId);
-      this.notify(direct.context, failed);
+      if (failed || !direct.quiet) this.notify(direct.context, failed);
       return;
     }
     const entry = this.active;

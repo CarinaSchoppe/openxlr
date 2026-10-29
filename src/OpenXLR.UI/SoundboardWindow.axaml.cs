@@ -126,7 +126,7 @@ public partial class SoundboardWindow : Window
         catch (Exception) { return null; }
     }
 
-    /// <summary>A pad's menu: edit, stop, move earlier or later, delete.</summary>
+    /// <summary>A pad's menu: edit, audition, stop, move earlier or later, delete.</summary>
     private void OnPadMenu(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is not SoundClipViewModel clip || Board is not { } board) return;
@@ -145,7 +145,14 @@ public partial class SoundboardWindow : Window
             return item;
         }
         Item("SoundClipEdit", Localizer.Text("SoundClipEdit"), true, () => _ = EditAsync(clip));
-        Item("SoundClipStop", Localizer.Text("SoundClipStop"), clip.Playing, () => board.Stop(clip));
+        // The clip in the monitor mixes alone, to hear it before the stream does.
+        // The entry does what it said when the menu opened, even if the
+        // audition ended or started meanwhile.
+        bool stopsAudition = clip.Auditioned;
+        Item("SoundClipAudition", stopsAudition ? Localizer.Text("SoundClipStopAudition") : Localizer.Text("SoundClipAudition"),
+            stopsAudition || clip.CanPlay, () => { if (stopsAudition) board.StopAudition(); else board.Audition(clip); });
+        // Stop ends the clip's voices and its audition alike.
+        Item("SoundClipStop", Localizer.Text("SoundClipStop"), clip.Playing || clip.Auditioned, () => board.Stop(clip));
         Item("SoundClipEarlier", Localizer.Text("SoundClipMoveEarlier"), board.CanMove(clip, -1), () => _ = MoveAsync(board, clip, -1));
         Item("SoundClipLater", Localizer.Text("SoundClipMoveLater"), board.CanMove(clip, +1), () => _ = MoveAsync(board, clip, +1));
         Item("SoundClipDelete", Localizer.Text("Delete"), true, () => _ = DeleteAsync(clip));

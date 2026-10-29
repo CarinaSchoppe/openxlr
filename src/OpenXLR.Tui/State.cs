@@ -549,6 +549,9 @@ internal sealed record SoundboardEntry
     public List<string> Formats { get; init; } = [];
     public List<ClipEntry> Clips { get; init; } = [];
     public List<string> Playing { get; init; } = [];
+
+    /// <summary>The clip auditioned in the monitor mixes now, or null.</summary>
+    public string? Auditioning { get; init; }
 }
 
 /// <summary>One clip of the soundboard's library.</summary>

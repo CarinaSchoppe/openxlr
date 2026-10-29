@@ -756,6 +756,12 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
     public Task<string?> StopClipsAsync()
         => EditLayoutAsync(new() { ["cmd"] = "stopClips" });
 
+    public Task<string?> AuditionClipAsync(string clip)
+        => EditLayoutAsync(new() { ["cmd"] = "auditionClip", ["clip"] = clip });
+
+    public Task<string?> StopAuditionAsync()
+        => EditLayoutAsync(new() { ["cmd"] = "stopAudition" });
+
     /// <summary>Replace a channel's plugin insert chain (ordered).</summary>
     public Task SetInsertsAsync(string channel, IReadOnlyList<object> inserts)
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "setInserts", ["channel"] = channel, ["inserts"] = inserts });

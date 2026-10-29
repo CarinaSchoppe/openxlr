@@ -3511,11 +3511,17 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   <data name="SoundClipDetailLoop" xml:space="preserve">
     <value>{0:0.0} s, {1}, loop</value>
   </data>
+  <data name="SoundClipAuditioning" xml:space="preserve">
+    <value>Auditioning in the monitor mix</value>
+  </data>
   <data name="SoundPadName" xml:space="preserve">
     <value>Clip {0}, {1}</value>
   </data>
   <data name="SoundPadNamePlaying" xml:space="preserve">
     <value>Clip {0}, {1}, playing</value>
+  </data>
+  <data name="SoundPadNameAuditioning" xml:space="preserve">
+    <value>Clip {0}, {1}, auditioning</value>
   </data>
   <data name="SoundClipGainTip" xml:space="preserve">
     <value>Gain {0}%</value>
@@ -3531,6 +3537,12 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   </data>
   <data name="SoundClipStop" xml:space="preserve">
     <value>Stop</value>
+  </data>
+  <data name="SoundClipAudition" xml:space="preserve">
+    <value>Audition in the monitor mix</value>
+  </data>
+  <data name="SoundClipStopAudition" xml:space="preserve">
+    <value>Stop the audition</value>
   </data>
   <data name="SoundClipMoveEarlier" xml:space="preserve">
     <value>Move earlier</value>

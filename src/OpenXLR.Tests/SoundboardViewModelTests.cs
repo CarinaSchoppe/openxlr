@@ -47,6 +47,8 @@ public sealed class SoundboardViewModelTests
         public Task<string?> ReleaseClipAsync(string clip) => Record("releaseClip", clip);
         public Task<string?> StopClipAsync(string clip) => Record("stopClip", clip);
         public Task<string?> StopClipsAsync() => Record("stopClips", null);
+        public Task<string?> AuditionClipAsync(string clip) => Record("auditionClip", clip);
+        public Task<string?> StopAuditionAsync() => Record("stopAudition", null);
 
         public (string Command, JsonNode? Value) One()
         {
@@ -184,6 +186,49 @@ public sealed class SoundboardViewModelTests
         commands.Refuse = null;
         board.Press(airhorn);
         Assert.False(board.HasStatus);
+    }
+
+    /// <summary>
+    /// A pad's audition plays the clip in the monitor mixes only; the
+    /// daemon's state says which clip it auditions, and the pad of that clip
+    /// stops it. The pad says it is auditioned, and an audition is no
+    /// press: the pad does not light.
+    /// </summary>
+    [Fact]
+    public void APadAuditionsItsClipAndTheAuditionedPadStopsIt()
+    {
+        (SoundboardViewModel board, Recorder commands) = Model();
+        SoundClipViewModel airhorn = board.Clips[0], drumroll = board.Clips[1], broken = board.Clips[2];
+        board.Audition(airhorn);
+        Assert.Equal(("auditionClip", "airhorn"), Pair(commands.One()));
+        // A clip the player does not hold cannot be auditioned.
+        board.Audition(broken);
+        Assert.Empty(commands.Sent);
+
+        JsonObject auditioned = Board();
+        auditioned["auditioning"] = "airhorn";
+        board.Apply(auditioned, []);
+        Assert.True(airhorn.Auditioned);
+        Assert.False(drumroll.Auditioned);
+        Assert.False(airhorn.Playing);
+        Assert.False(board.AnyPlaying);
+        Assert.Equal(Localizer.Text("SoundClipAuditioning"), airhorn.Detail);
+        Assert.Equal(Localizer.Format("SoundPadNameAuditioning", "Airhorn", Localizer.Text("SoundClipModeOverlap")), airhorn.PadName);
+        board.StopAudition();
+        Assert.Equal("stopAudition", commands.One().Command);
+        // Another pad auditions its own clip in place of the first.
+        board.Audition(drumroll);
+        Assert.Equal(("auditionClip", "drumroll"), Pair(commands.One()));
+
+        // A state without the field, from an older daemon, auditions nothing.
+        board.Apply(Board(), []);
+        Assert.False(airhorn.Auditioned);
+        Assert.Equal(Localizer.Format("SoundClipDetail", 2.4, Localizer.Text("SoundClipModeOverlap")), airhorn.Detail);
+        // A refusal shows under the pads like a press's.
+        commands.Refuse = OpenXLR.Core.Mixing.Mixer.SoundboardAuditionUnheard;
+        board.Audition(airhorn);
+        Assert.Equal(OpenXLR.Core.Mixing.Mixer.SoundboardAuditionUnheard, board.Status);
+        Assert.True(board.StatusWarns);
     }
 
     [Fact]

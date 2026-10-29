@@ -44,6 +44,7 @@ internal static class SoundboardWindowTests
         public bool Enabled = true;
         public bool HasSfx = true;
         public string? Error;
+        public string? Auditioning;
         public readonly HashSet<string> Playing = [];
         public readonly List<JsonObject> Clips =
         [
@@ -79,6 +80,7 @@ internal static class SoundboardWindowTests
                 ["channel"] = HasSfx ? "sfx" : null, ["enabled"] = Enabled, ["available"] = Available, ["error"] = error,
                 ["formats"] = Available ? new JsonArray("wav", "flac", "ogg", "opus", "mp3") : new JsonArray(),
                 ["clips"] = clips, ["playing"] = new JsonArray([.. Playing.Select(p => (JsonNode)p)]),
+                ["auditioning"] = Auditioning,
             };
         }
 
@@ -107,11 +109,22 @@ internal static class SoundboardWindowTests
                     else Playing.Add(clip!);
                     return null;
                 case "releaseClip":
+                    Playing.Remove(clip!);
+                    return null;
                 case "stopClip":
                     Playing.Remove(clip!);
+                    if (Auditioning == clip) Auditioning = null;
                     return null;
                 case "stopClips":
                     Playing.Clear();
+                    Auditioning = null;
+                    return null;
+                case "auditionClip":
+                    if (!Enabled || !HasSfx) return SoundboardViewModelTests.Off;
+                    Auditioning = clip;
+                    return null;
+                case "stopAudition":
+                    Auditioning = null;
                     return null;
                 case "updateClip":
                     foreach (string field in new[] { "name", "gain", "mode", "loop", "icon", "colour" })
@@ -203,7 +216,7 @@ internal static class SoundboardWindowTests
                     await holder.Push(new JsonObject { ["type"] = "commandResult", ["requestId"] = id, ["error"] = ok ? null : message });
                     continue;
                 }
-                if (!name.Contains("Clip", StringComparison.Ordinal) && name != "setSoundboard") continue;
+                if (!name.Contains("Clip", StringComparison.Ordinal) && name is not ("setSoundboard" or "stopAudition")) continue;
                 string? error = daemon.Handle(cmd);
                 commands.Enqueue(cmd);
                 // As the daemon does: the state first, then the answer to the request.
@@ -326,10 +339,53 @@ internal static class SoundboardWindowTests
             await Until(() => !main.Soundboard.AnyPlaying && !Part("airhorn", "SoundPadRing").IsEffectivelyVisible);
             MenuFlyout menu = board.PadMenu(main.Soundboard, main.Soundboard.Clips[0]);
             MenuItem[] items = [.. menu.Items.OfType<MenuItem>()];
-            Assert.Equal(["SoundClipEdit", "SoundClipStop", "SoundClipEarlier", "SoundClipLater", "SoundClipDelete"], items.Select(i => i.Name));
-            Assert.False(items[1].IsEnabled);
+            Assert.Equal(["SoundClipEdit", "SoundClipAudition", "SoundClipStop", "SoundClipEarlier", "SoundClipLater", "SoundClipDelete"],
+                items.Select(i => i.Name));
+            Assert.Equal(Localizer.Text("SoundClipAudition"), items[1].Header);
+            Assert.True(items[1].IsEnabled);
             Assert.False(items[2].IsEnabled);
-            JsonNode order = await Sent(() => items[3].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)));
+            Assert.False(items[3].IsEnabled);
+
+            // The audition: the clip in the monitor mix alone. The pad says so on
+            // its second line and does not light, since nothing plays into SFX,
+            // and its menu offers to stop the audition instead.
+            JsonNode audition = await Sent(() => items[1].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)));
+            Assert.Equal(("auditionClip", "airhorn"), (audition["cmd"]!.GetValue<string>(), audition["clip"]!.GetValue<string>()));
+            await Until(() => main.Soundboard.Clips[0].Auditioned
+                && ((TextBlock)Part("airhorn", "SoundPadDetail")).Text == Localizer.Text("SoundClipAuditioning"));
+            Assert.False(Part("airhorn", "SoundPadRing").IsEffectivelyVisible);
+            Assert.False(main.Soundboard.AnyPlaying);
+            AssertFits(board, "auditioning");
+            MenuItem[] whileAuditioned = [.. board.PadMenu(main.Soundboard, main.Soundboard.Clips[0]).Items.OfType<MenuItem>()];
+            MenuItem stopAudition = whileAuditioned.Single(i => i.Name == "SoundClipAudition");
+            Assert.Equal(Localizer.Text("SoundClipStopAudition"), stopAudition.Header);
+            Assert.True(stopAudition.IsEnabled);
+            // Stop is on while the clip is auditioned: it ends the audition too.
+            Assert.True(whileAuditioned.Single(i => i.Name == "SoundClipStop").IsEnabled);
+            // The audition ends by itself while the menu is open: the entry still
+            // stops, and never starts the clip again.
+            daemon.Auditioning = null;
+            await live.Push(daemon.State());
+            await Until(() => !main.Soundboard.Clips[0].Auditioned);
+            Assert.Equal("stopAudition", (await Sent(() => stopAudition.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent))))["cmd"]!.GetValue<string>());
+            // The other way round: a menu opened on a silent clip auditions it,
+            // even when an audition of it started meanwhile.
+            MenuItem startAudition = board.PadMenu(main.Soundboard, main.Soundboard.Clips[0]).Items.OfType<MenuItem>().Single(i => i.Name == "SoundClipAudition");
+            Assert.Equal(Localizer.Text("SoundClipAudition"), startAudition.Header);
+            daemon.Auditioning = "airhorn";
+            await live.Push(daemon.State());
+            await Until(() => main.Soundboard.Clips[0].Auditioned);
+            Assert.Equal("auditionClip", (await Sent(() => startAudition.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent))))["cmd"]!.GetValue<string>());
+            // The pad's Stop ends the audition.
+            MenuItem stopPad = board.PadMenu(main.Soundboard, main.Soundboard.Clips[0]).Items.OfType<MenuItem>().Single(i => i.Name == "SoundClipStop");
+            JsonNode stopped = await Sent(() => stopPad.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)));
+            Assert.Equal(("stopClip", "airhorn"), (stopped["cmd"]!.GetValue<string>(), stopped["clip"]!.GetValue<string>()));
+            await Until(() => !main.Soundboard.Clips[0].Auditioned);
+            // A pad that cannot play cannot be auditioned either.
+            Assert.False(board.PadMenu(main.Soundboard, main.Soundboard.Clips.Single(c => c.Id == "broken")).Items.OfType<MenuItem>()
+                .Single(i => i.Name == "SoundClipAudition").IsEnabled);
+
+            JsonNode order = await Sent(() => items[4].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)));
             Assert.Equal("""["drumroll","airhorn","broken"]""", order["clips"]!.ToJsonString());
             await Until(() => board.GetVisualDescendants().OfType<SoundPad>().Select(p => ((SoundClipViewModel)p.DataContext!).Id).First() == "drumroll");
             // The keyboard stays on the pad it moved.

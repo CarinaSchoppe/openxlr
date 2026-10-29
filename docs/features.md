@@ -535,7 +535,9 @@ toggle or hold. Imported WAV, FLAC, Ogg Vorbis, Opus and MP3 files, up to
 checked in a separate process before the player opens them. Renaming or
 hiding SFX keeps the clips playing; deleting it turns the board off until it
 is turned on again, which creates SFX anew. An OpenDeck key plays a clip
-or stops them all.
+or stops them all. A clip can also be auditioned. The player's second
+stereo output then plays it once in the monitor mixes the outputs play and
+in no other mix, so the headphones hear it and the stream never does.
 
 In the UI, the Soundboard window opens from a Sounds button on SFX's
 strip (the classic tiles, the input rack and the mix matrix), from the tray
@@ -544,7 +546,7 @@ length and mode, a ring while it plays and a bar for how far along it is;
 a pad plays on the pointer or on Space and Enter, and a hold pad stops when
 it comes up. Its header has the board's switch, SFX's own volume as the
 master, Stop all, and adding files or a whole folder through the desktop's
-file picker. Each pad's menu edits, stops, moves or deletes its clip. See
+file picker. Each pad's menu edits, auditions, stops, moves or deletes its clip. See
 [Play sound clips](manual.md#play-sound-clips). The terminal mixer has the
 board in its Sounds tab ([manual](manual.md#terminal-sounds)); the
 [API](api.md#soundboard) drives it from scripts.

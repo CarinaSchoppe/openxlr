@@ -3512,11 +3512,17 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
   <data name="SoundClipDetailLoop" xml:space="preserve">
     <value>{0:0.0} s, {1}, balik-balik</value>
   </data>
+  <data name="SoundClipAuditioning" xml:space="preserve">
+    <value>Gipaminaw sa monitor mix</value>
+  </data>
   <data name="SoundPadName" xml:space="preserve">
     <value>Clip {0}, {1}</value>
   </data>
   <data name="SoundPadNamePlaying" xml:space="preserve">
     <value>Clip {0}, {1}, nagtukar</value>
+  </data>
+  <data name="SoundPadNameAuditioning" xml:space="preserve">
+    <value>Clip {0}, {1}, gipaminaw</value>
   </data>
   <data name="SoundClipGainTip" xml:space="preserve">
     <value>Gain {0}%</value>
@@ -3532,6 +3538,12 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
   </data>
   <data name="SoundClipStop" xml:space="preserve">
     <value>Hunonga</value>
+  </data>
+  <data name="SoundClipAudition" xml:space="preserve">
+    <value>Paminawa sa monitor mix</value>
+  </data>
+  <data name="SoundClipStopAudition" xml:space="preserve">
+    <value>Hunonga ang pagpaminaw</value>
   </data>
   <data name="SoundClipMoveEarlier" xml:space="preserve">
     <value>Ibalhin sa una</value>

@@ -53,7 +53,7 @@ internal sealed class SoundsView : View
     public override string Title => "Sounds";
 
     public override string Keys =>
-        "Enter play  s stop  S stop all  i import  b board  -/+ [/] gain  m mode  l loop  r rename  d delete  Ctrl+Up/Down move  </> ,/. SFX volume";
+        "Enter play  s stop  S stop all  i import  a audition  b board  -/+ [/] gain  m mode  l loop  r rename  d delete  Ctrl+Up/Down move  </> ,/. SFX volume";
 
     public override void Draw(Screen screen, Rect area, App app)
     {
@@ -269,16 +269,18 @@ internal sealed class SoundsView : View
         int statusX = x + 1;
         int room = Math.Min(statusWidth, row.Right - statusX - 1);
         if (room <= 0) return;
+        bool auditioned = state.Mixer.Soundboard?.Auditioning == clip.Id;
         if (clip.Playing)
         {
             string tail = (progress is { Voices: > 1 } many ? $" x{many.Voices}" : string.Empty)
-                + (Held(clip.Id) ? " held" : string.Empty);
+                + (Held(clip.Id) ? " held" : string.Empty)
+                + (auditioned ? " audition" : string.Empty);
             int bar = Math.Max(4, room - tail.Length - 1);
             Progress(screen, statusX, row.Y, bar, progress?.Position ?? 0, theme, back);
             screen.Text(statusX + bar, row.Y, tail, theme.TextInfo, back, maxWidth: Math.Max(0, room - bar));
             return;
         }
-        (string word, Rgb fore) = clip.Status switch
+        (string word, Rgb fore) = auditioned ? ("auditioning", theme.TextInfo) : clip.Status switch
         {
             "ready" => ("ready", theme.TextSecondary),
             "loading" => ("loading", theme.TextInfo),
@@ -312,6 +314,8 @@ internal sealed class SoundsView : View
             : clip is { Status: "error", Error.Length: > 0 } ? (clip.Error!, theme.TextWarning)
             : _importNote is { Length: > 0 } note ? (note, theme.TextWarning)
             : outcome is { Ok: false } failed ? (failed.Message, theme.TextWarning)
+            : clip is not null && board.Auditioning == clip.Id
+                ? ("Auditioning in the monitor mixes only, never on the stream: a stops it", theme.TextInfo)
             : clip is { Hold: true } ? (Held(clip.Id)
                 ? "Held: press Enter or Space again to let it go"
                 : _holds.ContainsKey(clip.Id) ? "Starting"
@@ -375,6 +379,7 @@ internal sealed class SoundsView : View
         switch (key.Char)
         {
             case ' ': Press(app, clip); return true;
+            case 'a': Audition(app, board, clip); return true;
             case 's':
                 link.Send("stopClip", body => body["clip"] = clip.Id);
                 LetGo(link, clip.Id);
@@ -455,6 +460,23 @@ internal sealed class SoundsView : View
             return;
         }
         _holds[clip.Id] = new Hold { Press = link.Request("playClip", body => body["clip"] = clip.Id) };
+    }
+
+    /// <summary>
+    /// Audition the clip in the monitor mixes, or stop the audition when it
+    /// is this clip's. A second key within <see cref="RepeatWindow"/> is the
+    /// key repeating, and nothing is sent, so a key held down never starts
+    /// and stops the audition over and over.
+    /// </summary>
+    private void Audition(App app, SoundboardEntry board, ClipEntry clip)
+    {
+        long now = app.Time.GetTimestamp();
+        string key = "audition:" + clip.Id;
+        bool repeat = _lastPress.TryGetValue(key, out long last) && app.Time.GetElapsedTime(last, now) < RepeatWindow;
+        _lastPress[key] = now;
+        if (repeat) return;
+        if (board.Auditioning == clip.Id) app.Link.Send("stopAudition");
+        else app.Link.Send("auditionClip", body => body["clip"] = clip.Id);
     }
 
     /// <summary>Ends this terminal's hold on a clip; one still waiting for the daemon ends once it is accepted.</summary>

@@ -3142,8 +3142,8 @@ nothing to play.
    pad is held.
 
 A pad whose clip cannot be loaded says why in its second line; Edit
-shows the whole sentence at the top. Each pad's **⋯** button opens its menu: **Edit**, **Stop**, **Move
-earlier**, **Move later** and **Delete**. Edit holds:
+shows the whole sentence at the top. Each pad's **⋯** button opens its menu: **Edit**, **Audition in
+the monitor mix**, **Stop**, **Move earlier**, **Move later** and **Delete**. Edit holds:
 
 | Field | What it does |
 |---|---|
@@ -3156,6 +3156,27 @@ earlier**, **Move later** and **Delete**. Edit holds:
 The fader at the top of the Soundboard window is SFX's own channel volume, the same
 fader as on the strip: it is the board's master. Up to eight clips play
 at once; a ninth press fades out the oldest.
+
+<a name="audition-a-clip"></a>
+To hear a clip before your audience does, choose **Audition in the
+monitor mix** in its pad's menu. The clip plays once from the start in
+the monitor mixes your monitor outputs play, and nowhere else. It does
+not go through SFX, so Stream, Chat and Aux never hear it, whatever SFX's
+sends say, and SFX's fader and mutes do not change it. The clip's own
+gain applies, and so do the monitor mix's master and mute. The pad's
+second line says it is auditioned, and the menu entry becomes **Stop the
+audition**. Only one clip is auditioned at a time, and auditioning
+another replaces it. Pressing pads meanwhile plays them into SFX as usual, and
+the audition goes on. **Stop all**, the pad's **Stop** and deleting the
+clip end it too.
+
+An output whose feed sums a monitor mix with Stream or Chat hears the
+audition through its monitor mix. An output that plays only Stream or
+Chat does not, and while every selected output is like that, the window
+says "The monitor outputs play no monitor mix, so an audition would not
+be heard." Choose a monitor mix for one of them in its output's feed.
+With no monitor output selected, or with listening paused, the window
+refuses an audition with a sentence saying which.
 
 Some things follow from the clips sharing SFX:
 
@@ -4475,6 +4496,7 @@ Controls below the visible hardware cards appear as the selection moves.
 | Options | Enter, Space, Left/Right, `R` | use a skin, choose the Material mode, or reload the skin list |
 | Sounds | Up/Down, PageUp/PageDown, Home, End | choose a clip |
 | Sounds | Enter, Space, `s`, `S` | play the clip (a second press lets a Hold clip go), stop it, or stop every clip |
+| Sounds | `a` | audition the clip in the monitor mixes only, or stop its audition |
 | Sounds | `-`, `+`, `[`, `]` | lower or raise the clip's gain by five points, or by one point |
 | Sounds | `m`, `l`, `r`, `d` | step the press mode, turn the loop on or off, rename, or delete |
 | Sounds | Ctrl+Up/Down | move the clip earlier or later |
@@ -4573,9 +4595,15 @@ its icon and name, in its colour when it has one, its length, its press
 mode, whether it loops, its gain, and its status: ready, loading, off, or
 the reason it cannot be loaded. While a clip plays, a mark stands before
 its name and a bar shows how far its newest voice is, with the number of
-voices when more than one plays it. The line at the foot of the list
-shows the selected clip's whole reason when it cannot be loaded, and the
-answer to the last import.
+voices when more than one plays it. The status of a clip being
+auditioned reads auditioning. The line at the foot of the list
+shows the selected clip's whole reason when it cannot be loaded, that it
+is auditioned, and the answer to the last import.
+
+`a` [auditions](#audition-a-clip) the selected clip in the monitor mixes,
+never on the stream, and on the clip being auditioned `a` stops it. A
+second `a` less than three quarters of a second after the last is taken
+as the key repeating and ignored.
 
 A terminal sends no key-up, so a **Hold** clip cannot play only while a
 key is down. Instead the first Enter or Space plays it, and once the

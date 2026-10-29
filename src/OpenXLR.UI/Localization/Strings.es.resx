@@ -3160,11 +3160,17 @@ Selecciona la interfaz que controla OpenXLR</value>
   <data name="SoundClipDetailLoop" xml:space="preserve">
     <value>{0:0.0} s, {1}, en bucle</value>
   </data>
+  <data name="SoundClipAuditioning" xml:space="preserve">
+    <value>En escucha previa en la mezcla de monitorización</value>
+  </data>
   <data name="SoundPadName" xml:space="preserve">
     <value>Clip {0}, {1}</value>
   </data>
   <data name="SoundPadNamePlaying" xml:space="preserve">
     <value>Clip {0}, {1}, sonando</value>
+  </data>
+  <data name="SoundPadNameAuditioning" xml:space="preserve">
+    <value>Clip {0}, {1}, en escucha previa</value>
   </data>
   <data name="SoundClipGainTip" xml:space="preserve">
     <value>Ganancia {0}%</value>
@@ -3180,6 +3186,12 @@ Selecciona la interfaz que controla OpenXLR</value>
   </data>
   <data name="SoundClipStop" xml:space="preserve">
     <value>Detener</value>
+  </data>
+  <data name="SoundClipAudition" xml:space="preserve">
+    <value>Escuchar en la mezcla de monitorización</value>
+  </data>
+  <data name="SoundClipStopAudition" xml:space="preserve">
+    <value>Detener la escucha previa</value>
   </data>
   <data name="SoundClipMoveEarlier" xml:space="preserve">
     <value>Mover antes</value>

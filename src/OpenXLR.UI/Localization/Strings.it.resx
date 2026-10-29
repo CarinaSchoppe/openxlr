@@ -3525,11 +3525,17 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   <data name="SoundClipDetailLoop" xml:space="preserve">
     <value>{0:0.0} s, {1}, in loop</value>
   </data>
+  <data name="SoundClipAuditioning" xml:space="preserve">
+    <value>In ascolto nel mix monitor</value>
+  </data>
   <data name="SoundPadName" xml:space="preserve">
     <value>Clip {0}, {1}</value>
   </data>
   <data name="SoundPadNamePlaying" xml:space="preserve">
     <value>Clip {0}, {1}, in riproduzione</value>
+  </data>
+  <data name="SoundPadNameAuditioning" xml:space="preserve">
+    <value>Clip {0}, {1}, in ascolto</value>
   </data>
   <data name="SoundClipGainTip" xml:space="preserve">
     <value>Guadagno {0}%</value>
@@ -3545,6 +3551,12 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   </data>
   <data name="SoundClipStop" xml:space="preserve">
     <value>Ferma</value>
+  </data>
+  <data name="SoundClipAudition" xml:space="preserve">
+    <value>Ascolta nel mix monitor</value>
+  </data>
+  <data name="SoundClipStopAudition" xml:space="preserve">
+    <value>Ferma l'ascolto</value>
   </data>
   <data name="SoundClipMoveEarlier" xml:space="preserve">
     <value>Sposta prima</value>

@@ -437,6 +437,7 @@ internal sealed class App
             "          s stop the clip; S stop all; b board on or off.",
             "          -/+ [/] gain; m mode; l loop; r rename; d delete.",
             "          i import a file by its path; Ctrl+Up/Down reorder.",
+            "          a audition in the monitor mixes, not the stream.",
             "          </> ,/. SFX volume, the board's master.",
             "Lists     Up/Down or PgUp/PgDn move; Enter or Space acts.",
             "Confirm   Enter accepts; Escape cancels. Deletion needs yes.",

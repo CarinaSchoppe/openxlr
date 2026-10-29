@@ -3512,11 +3512,17 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   <data name="SoundClipDetailLoop" xml:space="preserve">
     <value>{0:0.0} s, {1}, у петљи</value>
   </data>
+  <data name="SoundClipAuditioning" xml:space="preserve">
+    <value>Преслушава се у мониторском миксу</value>
+  </data>
   <data name="SoundPadName" xml:space="preserve">
     <value>Клип {0}, {1}</value>
   </data>
   <data name="SoundPadNamePlaying" xml:space="preserve">
     <value>Клип {0}, {1}, свира</value>
+  </data>
+  <data name="SoundPadNameAuditioning" xml:space="preserve">
+    <value>Клип {0}, {1}, преслушава се</value>
   </data>
   <data name="SoundClipGainTip" xml:space="preserve">
     <value>Појачање {0}%</value>
@@ -3532,6 +3538,12 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   </data>
   <data name="SoundClipStop" xml:space="preserve">
     <value>Заустави</value>
+  </data>
+  <data name="SoundClipAudition" xml:space="preserve">
+    <value>Преслушај у мониторском миксу</value>
+  </data>
+  <data name="SoundClipStopAudition" xml:space="preserve">
+    <value>Заустави преслушавање</value>
   </data>
   <data name="SoundClipMoveEarlier" xml:space="preserve">
     <value>Помери раније</value>

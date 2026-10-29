@@ -345,9 +345,10 @@ its audio, so the clips still play; reordering changes nothing. Deleting it
 stops the soundboard's player and unlinks it from the graph, turns the
 board off and leaves `mixer.soundboard.channel` null with a sentence in its
 `error`. `setSoundboard {enabled: true}` then creates an application channel
-named SFX, whose id is `sfx` unless a channel already has it, muted in every
-mix like any created channel, and links the player into it; an application
-channel that already has the id `sfx` is used as it is. Deleting SFX
+named SFX, whose id is `sfx`, muted in every mix like any created channel,
+and links the player into it. An application channel that already has the
+id `sfx` is used as it is; a capture input with that id is not, and turning
+the board on is refused with a sentence. Deleting SFX
 removes it from `ducking.channels` like any channel, and recreating it does
 not add it back. The board's library is `soundboard.json` beside
 `mixer.json`, and its clips are copied into

@@ -178,6 +178,13 @@ public sealed partial class SoundboardIntegrationTests : IDisposable
     private static SoundboardPlayer? Player(Mixer mixer)
         => (SoundboardPlayer?)typeof(Mixer).GetField("_player", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(mixer);
 
+    /// <summary>
+    /// A new graph rate stops the helper by itself within a cycle: it refuses
+    /// audio at a rate it was not started at. Four changes in a row, each
+    /// followed by sweeps at the daemon's own pace of one a second, must each
+    /// bring the player back at the new rate with its clip, and none may count
+    /// as a failure, leave a clip out or turn the board off.
+    /// </summary>
     [MonitorPipeWireFact]
     public void AChangedGraphRateStartsThePlayerAgainWithItsClips()
     {
@@ -186,37 +193,76 @@ public sealed partial class SoundboardIntegrationTests : IDisposable
         using var mixer = new Mixer(pw);
         StartTone(pw, mixer);
         int before = Player(mixer)!.Host.SampleRate;
-        int other = before == 44100 ? 48000 : 44100;
-        mixer.PlayClip("tone", null);
-        AssertLevel(.1, "OpenXLR_stream", "before the rate changes");
         try
         {
-            pw.Run("pw-metadata", "-n", "settings", "0", "clock.force-rate", other.ToString(CultureInfo.InvariantCulture));
-            // The clip was converted to the old rate; the player starts again
-            // at the new one and loads it again, converted to that.
-            Assert.True(SpinWait.SpinUntil(() =>
+            foreach (int rate in new[] { 44100, 96000, 44100, before })
             {
-                mixer.EnsureFilterRoutes();
-                return Player(mixer)?.Host.SampleRate == other && mixer.Soundboard().Clips.Single().Loaded;
-            }, TimeSpan.FromSeconds(15)), $"{Player(mixer)?.Host.SampleRate} {mixer.Soundboard()}");
-            SoundboardState state = mixer.Soundboard();
-            Assert.Null(state.Error);
-            Assert.Equal(2, state.Clips.Single().Seconds);
-            // A restart for the rate is not a failure: three of them never turn the board off.
-            Assert.Empty(state.Playing);
+                SoundboardPlayer old = Player(mixer)!;
+                pw.Run("pw-metadata", "-n", "settings", "0", "clock.force-rate", rate == before ? "0" : rate.ToString(CultureInfo.InvariantCulture));
+                // The helper stops on its own before any sweep comes.
+                Assert.True(SpinWait.SpinUntil(() => !old.Host.IsRunning, TimeSpan.FromSeconds(3)), $"the player at {old.Host.SampleRate} Hz kept running at {rate} Hz");
+                bool back = false;
+                for (int sweep = 0; sweep < 10 && !back; sweep++)
+                {
+                    Thread.Sleep(1000);
+                    mixer.EnsureFilterRoutes();
+                    back = Player(mixer) is { } next && next != old && next.Host.SampleRate == rate
+                        && mixer.Soundboard().Clips.Single().Status == SoundboardClipStatus.Ready;
+                }
+                Assert.True(back, $"{rate} Hz: {Player(mixer)?.Host.SampleRate} {mixer.Soundboard()}");
+                SoundboardState state = mixer.Soundboard();
+                Assert.True(state.Enabled);
+                Assert.Null(state.Error);
+                Assert.Null(state.Clips.Single().Error);
+                Assert.Equal(2, state.Clips.Single().Seconds);
+                Assert.Empty(Failures(mixer));
+            }
             mixer.PlayClip("tone", null);
-            AssertLevel(.1, "OpenXLR_stream", "at the new rate");
+            AssertLevel(.1, "OpenXLR_stream", "after four rate changes");
         }
         finally { pw.Run("pw-metadata", "-n", "settings", "0", "clock.force-rate", "0"); }
-        Assert.True(SpinWait.SpinUntil(() =>
-        {
-            mixer.EnsureFilterRoutes();
-            return Player(mixer)?.Host.SampleRate == before && mixer.Soundboard().Clips.Single().Loaded;
-        }, TimeSpan.FromSeconds(15)), $"{Player(mixer)?.Host.SampleRate} {mixer.Soundboard()}");
         // A steady rate leaves the running player alone.
         SoundboardPlayer steady = Player(mixer)!;
         for (int sweep = 0; sweep < 3; sweep++) mixer.EnsureFilterRoutes();
         Assert.Same(steady, Player(mixer));
+    }
+
+    /// <summary>The restart policy's record, by key: what counts towards giving a stage up.</summary>
+    private static System.Collections.IDictionary Failures(Mixer mixer)
+    {
+        object policy = typeof(Mixer).GetField("_restarts", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(mixer)!;
+        return (System.Collections.IDictionary)policy.GetType().GetField("_failures", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(policy)!;
+    }
+
+    /// <summary>
+    /// Presses sent while the player is not linked never sound late, all at
+    /// once: a broken link is made again by the sweep and the presses that
+    /// waited for it are dropped, and while the daemon itself is making the
+    /// link again a press is refused with a sentence.
+    /// </summary>
+    [MonitorPipeWireFact]
+    public void PressesThatWaitedForALinkNeverSoundLate()
+    {
+        var pw = new PipeWireAdapter();
+        using var registry = pw.WatchGraph();
+        using var mixer = new Mixer(pw);
+        StartTone(pw, mixer);
+        var link = (PortLink)typeof(Mixer).GetField("_playerLink", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(mixer)!;
+        pw.Unlink(link);
+        for (int press = 0; press < 3; press++) mixer.PlayClip("tone", "overlap");
+        Thread.Sleep(600);
+        mixer.EnsureFilterRoutes();
+        AssertLevel(0, "OpenXLR_stream", "presses that waited for the link");
+        mixer.PlayClip("tone", null);
+        AssertLevel(.1, "OpenXLR_stream", "a press once linked again");
+        mixer.StopClips();
+        AssertLevel(0, "OpenXLR_stream", "stopped");
+
+        typeof(Mixer).GetField("_playerLinked", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(mixer, false);
+        Assert.Equal(Mixer.SoundboardReconnecting, Assert.Throws<InvalidOperationException>(() => mixer.PlayClip("tone", null)).Message);
+        mixer.EnsureFilterRoutes();
+        mixer.PlayClip("tone", null);
+        AssertLevel(.1, "OpenXLR_stream", "linked again by the sweep");
     }
 
     /// <summary>

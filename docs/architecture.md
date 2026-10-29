@@ -151,8 +151,13 @@ modules or custom drivers:
   default output. The healing sweep links it again when the link breaks
   and restarts the process under the restart policy, keyed `soundboard`;
   the player stops and starts with the graph, and again at a new graph
-  sample rate, which the sweep reads from the settings metadata in the
-  registry snapshot and confirms with `pw-metadata` before acting. The daemon checks each clip
+  sample rate. The helper stops by itself within a cycle of a new rate;
+  before it takes the mixer's lock, the sweep reads the rate from the
+  settings metadata in the registry snapshot, and asks `pw-metadata` to
+  confirm a difference or whenever the helper has stopped, so a death at a
+  new rate is a restart, never a failure. The player decodes on a worker
+  thread, so presses and stops never wait for a load, and each load carries
+  a token its answer repeats. The daemon checks each clip
   file with `openxlr-lv2-host probe`, in a process of its own, before the
   player opens it. See [api.md](api.md#soundboard).
 - With latency compensation on, a mix that needs a delay gets a stereo

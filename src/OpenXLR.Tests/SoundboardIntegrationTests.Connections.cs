@@ -76,17 +76,24 @@ public sealed partial class SoundboardIntegrationTests
                 Assert.Null(await Ask(second, new { cmd = "playClip", clip = "held", mode = "hold" }, deadline.Token));
                 AssertLevel(.2, "OpenXLR_stream", "held by both connections");
 
-                // The first goes with a proper close: the second still holds the clip.
-                await first.CloseAsync(WebSocketCloseStatus.NormalClosure, "", deadline.Token);
-                await closed.WaitAsync(deadline.Token);
+                // The second's key comes up: the first still holds the clip,
+                // so its voices go on.
+                Assert.Null(await Ask(second, new { cmd = "releaseClip", clip = "held" }, deadline.Token));
                 Task draining = Drain(second, TimeSpan.FromSeconds(1), deadline.Token);
-                AssertLevel(.2, "OpenXLR_stream", "still held by the second connection");
+                AssertLevel(.2, "OpenXLR_stream", "released by one of two holders");
                 await draining;
 
-                // The second vanishes without a close: the clip is released.
-                second.Abort();
+                // The first goes with a proper close: nobody holds the clip now.
+                await first.CloseAsync(WebSocketCloseStatus.NormalClosure, "", deadline.Token);
                 await closed.WaitAsync(deadline.Token);
                 AssertLevel(0, "OpenXLR_stream", "released when its last holder went away");
+
+                // The second holds it again and vanishes without a close.
+                Assert.Null(await Ask(second, new { cmd = "playClip", clip = "held", mode = "hold" }, deadline.Token));
+                AssertLevel(.1, "OpenXLR_stream", "held again");
+                second.Abort();
+                await closed.WaitAsync(deadline.Token);
+                AssertLevel(0, "OpenXLR_stream", "released when its holder vanished");
                 Assert.True(SpinWait.SpinUntil(() => hub.Snapshot().Mixer!.Soundboard.Playing.Count == 0, TimeSpan.FromSeconds(3)));
 
                 // The board off: every clip says off, and the board says why.
@@ -123,10 +130,10 @@ public sealed partial class SoundboardIntegrationTests
     /// <summary>Read what the daemon pushes for a while, as a client does, so its queue never fills.</summary>
     private static async Task Drain(WebSocket socket, TimeSpan duration, CancellationToken stop)
     {
-        using var window = CancellationTokenSource.CreateLinkedTokenSource(stop);
-        window.CancelAfter(duration);
-        try { while (true) await SocketTestServer.Receive(socket, window.Token); }
-        catch (OperationCanceledException) when (!stop.IsCancellationRequested) { }
+        // Never by cancelling a receive: that aborts the socket. Meters come
+        // fifteen times a second, so each read returns soon enough.
+        long end = Environment.TickCount64 + (long)duration.TotalMilliseconds;
+        while (Environment.TickCount64 < end) await SocketTestServer.Receive(socket, stop);
     }
 
     private sealed class SocketLifetime : IHostApplicationLifetime, IDisposable

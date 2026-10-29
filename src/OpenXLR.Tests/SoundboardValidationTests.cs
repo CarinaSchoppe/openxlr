@@ -126,24 +126,38 @@ public sealed class SoundboardValidationTests
     }
 
     [Theory]
-    [InlineData("clip 3 ok 96000 2", 3, "Loaded", 96000, 2, null)]
-    [InlineData("clip 63 ok 1 1", 63, "Loaded", 1, 1, null)]
-    [InlineData("clip 0 error the clip is 31.0 s long; the limit is 30 s", 0, "Failed", 0, 0, "the clip is 31.0 s long; the limit is 30 s")]
-    [InlineData("clip 5 unloaded", 5, "Unloaded", 0, 0, null)]
-    public void ClipLinesAreRead(string line, int slot, string outcome, long frames, int channels, string? message)
-        => Assert.Equal(new ClipReply(slot, Enum.Parse<ClipOutcome>(outcome), frames, channels, message), NativePluginHost.ParseClip(line));
+    [InlineData("clip 3 17 ok 96000 2", 3, 17u, "Loaded", 96000, 2, null)]
+    [InlineData("clip 63 4294967295 ok 1 1", 63, 4294967295u, "Loaded", 1, 1, null)]
+    [InlineData("clip 0 9 error the clip is 31.0 s long; the limit is 30 s", 0, 9u, "Failed", 0, 0, "the clip is 31.0 s long; the limit is 30 s")]
+    [InlineData("clip 5 unloaded", 5, 0u, "Unloaded", 0, 0, null)]
+    public void ClipLinesAreRead(string line, int slot, uint token, string outcome, long frames, int channels, string? message)
+        => Assert.Equal(new ClipReply(slot, Enum.Parse<ClipOutcome>(outcome), frames, channels, message) { Token = token }, NativePluginHost.ParseClip(line));
 
     [Theory]
-    [InlineData("clip 64 ok 1 2")]
-    [InlineData("clip -1 ok 1 2")]
-    [InlineData("clip 3 ok 1 3")]
-    [InlineData("clip 3 ok 1")]
-    [InlineData("clip 3 ok x 2")]
-    [InlineData("clip 3 error")]
+    [InlineData("clip 64 1 ok 1 2")]
+    [InlineData("clip -1 1 ok 1 2")]
+    [InlineData("clip 3 1 ok 1 3")]
+    [InlineData("clip 3 1 ok 1")]
+    [InlineData("clip 3 1 ok x 2")]
+    [InlineData("clip 3 1 error")]
+    [InlineData("clip 3 ok 1 2")]
+    [InlineData("clip 3 x ok 1 2")]
+    [InlineData("clip 3 4294967296 ok 1 2")]
+    [InlineData("clip 3 error the old form")]
     [InlineData("clip 3 unloaded now")]
-    [InlineData("clip x ok 1 2")]
-    [InlineData("clips 3 ok 1 2")]
+    [InlineData("clip x 1 ok 1 2")]
+    [InlineData("clips 3 1 ok 1 2")]
     public void MalformedClipLinesAreIgnored(string line) => Assert.Null(NativePluginHost.ParseClip(line));
+
+    [Fact]
+    public void ANoteTheHelperWritesIsNeverItsLastWords()
+    {
+        var line = new System.Text.StringBuilder();
+        Assert.Equal("unsupported audio quantum or sample-rate change; restart the chain",
+            NativePluginHost.FoldErrorBlock(line, "unsupported audio quantum or sample-rate change; restart the chain\nnote: slot 3 holds no clip\nnote: the player is busy; a press was dropped\n"));
+        Assert.Null(NativePluginHost.FoldErrorBlock(line, "note: invalid player command: x\n"));
+        Assert.True(Mixer.DecoderCrash(11) && Mixer.DecoderCrash(6) && !Mixer.DecoderCrash(9) && !Mixer.DecoderCrash(15));
+    }
 
     [Fact]
     public void ProbeLinesAreRead()

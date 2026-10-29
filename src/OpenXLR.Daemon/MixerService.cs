@@ -1141,7 +1141,7 @@ public sealed class MixerService : IHostedService, IDisposable
                     _mixer.PlayClip(cmd.Clip!, cmd.Mode, connection);
                     return null;
                 case "releaseClip":
-                    _mixer.ReleaseClip(cmd.Clip!);
+                    _mixer.ReleaseClip(cmd.Clip!, connection);
                     return null;
                 case "stopClip":
                     _mixer.StopClip(cmd.Clip!);

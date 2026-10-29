@@ -26,14 +26,24 @@ internal sealed class SoundboardPlayer : IDisposable
     private readonly Task _loader;
     private TaskCompletionSource<ClipReply>? _pending;
     private int _pendingSlot = -1;
+    private uint _pendingToken;
+    private uint _nextToken;
     private volatile string? _loading;
+    private volatile string? _stuck;
     private int _version;
     private int _disposed;
 
     public NativePluginHost Host { get; }
 
-    /// <summary>The clip a load is waiting on, or null: a helper that dies now died on that clip.</summary>
+    /// <summary>The clip a load is waiting on, or null.</summary>
     public string? Loading => _loading;
+
+    /// <summary>
+    /// A clip whose load did not answer in time, or null. Its slot was
+    /// unloaded in the helper, whose decoder may still be inside the file,
+    /// so the owner starts another helper without that clip.
+    /// </summary>
+    public string? Stuck => _stuck;
 
     /// <summary>Counts every change to what the player holds, so a reader can tell that something moved.</summary>
     public int Version => Volatile.Read(ref _version);
@@ -83,6 +93,7 @@ internal sealed class SoundboardPlayer : IDisposable
             _slots[id] = slot;
             _loads[id] = new ClipLoad(false, 0, null);
         }
+        Host.ForgetMeters(Playing(slot), Position(slot));
         Host.SetControl(Gain(slot), gain);
         Host.SetControl(Loop(slot), loop ? 1 : 0);
         lock (_lock) _queue.Enqueue((id, slot, path));
@@ -101,6 +112,7 @@ internal sealed class SoundboardPlayer : IDisposable
             _loads.Remove(id);
         }
         Interlocked.Increment(ref _version);
+        Host.ForgetMeters(Playing(slot), Position(slot));
         Host.Send($"stop {slot}");
         Host.Send($"unload {slot}");
     }
@@ -159,20 +171,24 @@ internal sealed class SoundboardPlayer : IDisposable
         lock (_lock)
             foreach ((string id, int slot) in _slots)
             {
-                int voices = (int)Math.Clamp(meters.GetValueOrDefault($"playing_{slot}"), 0, SoundboardLibrary.MaxVoices);
-                if (voices > 0) playing[id] = (Math.Round(Math.Clamp(meters.GetValueOrDefault($"pos_{slot}"), 0, 1), 3), voices);
+                int voices = (int)Math.Clamp(meters.GetValueOrDefault(Playing(slot)), 0, SoundboardLibrary.MaxVoices);
+                if (voices > 0) playing[id] = (Math.Round(Math.Clamp(meters.GetValueOrDefault(Position(slot)), 0, 1), 3), voices);
             }
         return playing;
     }
 
     internal static string Gain(int slot) => "gain_" + slot.ToString(CultureInfo.InvariantCulture);
     internal static string Loop(int slot) => "loop_" + slot.ToString(CultureInfo.InvariantCulture);
+    internal static string Playing(int slot) => "playing_" + slot.ToString(CultureInfo.InvariantCulture);
+    internal static string Position(int slot) => "pos_" + slot.ToString(CultureInfo.InvariantCulture);
 
     private void OnReply(ClipReply reply)
     {
         if (reply.Outcome == ClipOutcome.Unloaded) return;
+        // Only the answer to the load now waiting counts: one to a load that
+        // timed out names another token and is dropped.
         TaskCompletionSource<ClipReply>? pending;
-        lock (_lock) pending = reply.Slot == _pendingSlot ? _pending : null;
+        lock (_lock) pending = reply.Slot == _pendingSlot && reply.Token == _pendingToken ? _pending : null;
         pending?.TrySetResult(reply);
     }
 
@@ -183,28 +199,45 @@ internal sealed class SoundboardPlayer : IDisposable
             while (true)
             {
                 await _work.WaitAsync(_stop.Token).ConfigureAwait(false);
+                // Once a load is stuck the helper is to be replaced; nothing
+                // more is sent to it.
+                if (_stuck is not null) continue;
                 (string Id, int Slot, string Path) item;
                 var reply = new TaskCompletionSource<ClipReply>(TaskCreationOptions.RunContinuationsAsynchronously);
+                uint token;
                 lock (_lock)
                 {
                     if (!_queue.TryDequeue(out item)) continue;
                     // A clip removed while it waited is not loaded at all.
                     if (_slots.GetValueOrDefault(item.Id, -1) != item.Slot) continue;
+                    token = _nextToken = _nextToken == uint.MaxValue ? 1 : _nextToken + 1;
                     _pending = reply;
                     _pendingSlot = item.Slot;
+                    _pendingToken = token;
                     _loading = item.Id;
                 }
                 ClipLoad outcome;
                 try
                 {
-                    Host.Send($"load {item.Slot} {item.Path}");
+                    Host.Send($"load {item.Slot} {token.ToString(CultureInfo.InvariantCulture)} {item.Path}");
                     ClipReply answer = await reply.Task.WaitAsync(_loadTimeout, _stop.Token).ConfigureAwait(false);
                     outcome = answer.Outcome == ClipOutcome.Loaded
                         ? new ClipLoad(true, Host.SampleRate > 0 ? (double)answer.Frames / Host.SampleRate : 0, null)
                         : new ClipLoad(false, 0, Sentence(answer.Message));
                 }
-                catch (TimeoutException) { outcome = new ClipLoad(false, 0, "The player did not load the clip in time."); }
+                catch (TimeoutException)
+                {
+                    outcome = new ClipLoad(false, 0, "The player did not load the clip in time.");
+                    // The helper drops the load if it ever comes back, and is
+                    // replaced: its decoder may never come back at all.
+                    try { Host.Send($"unload {item.Slot}"); }
+                    catch (InvalidOperationException) { }
+                    _stuck = item.Id;
+                }
+                catch (ArgumentException) { outcome = new ClipLoad(false, 0, "The clip's path cannot be handed to the player."); }
                 catch (InvalidOperationException) { outcome = new ClipLoad(false, 0, "The player stopped before the clip loaded."); }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex) { outcome = new ClipLoad(false, 0, $"The clip could not be loaded: {ex.Message}"); }
                 bool orphaned;
                 lock (_lock)
                 {

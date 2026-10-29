@@ -516,7 +516,9 @@ the daemon links into a channel. Its inputs, `playback_0` and `playback_1`,
 stay unlinked and are not heard. A press is one line on the command pipe;
 nothing in the graph changes. It refuses any channel count other than 2.
 PipeWire runs the node only while its outputs are linked into a running
-graph, and a press sent before then waits in a queue of 256 lines.
+graph, and a press sent before then waits in a queue of 256 lines. A press
+the audio thread reaches more than a quarter of a second after it was sent
+is dropped, so presses that waited for a link never sound late, all at once.
 
 Each slot has two controls and two meters, for N from 0 to 63:
 
@@ -532,23 +534,29 @@ voices already playing. The other lines are the player's own:
 
 | Line | Does |
 |---|---|
-| `load SLOT PATH` | Decode the file into the slot, replacing what it held. Answered with one line |
-| `unload SLOT` | Empty the slot. Answered with `clip SLOT unloaded` |
+| `load SLOT TOKEN PATH` | Decode the file into the slot, replacing what it held. Answered with one line that repeats TOKEN |
+| `unload SLOT` | Empty the slot, and drop a load for it still decoding. Answered with `clip SLOT unloaded` |
 | `play SLOT [MODE]` | `overlap`, the default, starts another voice; `restart` fades out the slot's voices and starts one; `toggle` fades them out when one plays, else starts one; `hold` starts one that `release` ends |
 | `release SLOT` | End the slot's `hold` voices |
 | `stop SLOT`, `stop all` | Fade out the slot's voices, or every voice |
 | `probe PATH` | Check a file as `load` would and keep nothing. Answered with one line |
 
-`SLOT` is 0 to 63. `PATH` is the rest of the line, spaces included. A load
-is answered with `clip SLOT ok FRAMES CHANNELS`, the length at the helper's
-rate and 1 or 2, or with `clip SLOT error MESSAGE`, after which the slot is
-empty. A probe is answered with `probe ok FORMAT CHANNELS RATE FRAMES`, the
+`SLOT` is 0 to 63. `TOKEN` is 0 to 4294967295, chosen by the sender and
+repeated in the answer, so an answer that comes after its sender gave up
+waiting is never taken for a later load's. `PATH` is the rest of the line,
+spaces included. A load is answered with `clip SLOT TOKEN ok FRAMES
+CHANNELS`, the length at the helper's rate and 1 or 2, or with `clip SLOT
+TOKEN error MESSAGE`, after which the slot is empty. One load runs at a
+time: another sent meanwhile is answered at once with `the player is still
+loading another clip; try again`, and a load the slot's `unload` dropped is
+answered with `the load was cancelled`. A probe is answered with `probe ok FORMAT CHANNELS RATE FRAMES`, the
 file's own rate and length, where `FORMAT` is `wav`, `flac`, `ogg`, `opus`,
 `mp3`, `aiff` or `other`, or with `probe error MESSAGE`. A message is the
 helper's own sentence, such as `the clip is 31.0 s long; the limit is 30 s`,
 never the decoder's. The player reports a malformed line, a press on an
-empty slot and a press that finds the queue full on stderr, and changes
-nothing.
+empty slot and a press that finds the queue full on stderr, in a line
+starting `note: `, and changes nothing. The daemon never takes such a line
+for the reason the helper stopped.
 
 `openxlr-lv2-host probe PATH` prints the same probe line from a process of
 its own and exits 0 on `ok`, 1 on `error`, so the daemon can check a file
@@ -566,17 +574,22 @@ it asks for the memory:
 - the clip is at most 30 s long. A header that gives a longer length is
   refused at once, and when the header gives none, decoding stops one frame
   past the limit;
-- every slot's samples together take at most 96 MiB, not counting the old
-  clip of the slot being loaded.
+- every clip in memory takes at most 96 MiB together: the clips in slots,
+  the clip a load would replace, and clips still read by a fading voice or
+  on their way to be freed. A slot near the limit is emptied, and its clip
+  freed once its voices have faded, before a large clip replaces it.
 
-Each limit is one constant at the top of `player.c`. Decoding runs on the
-main thread with libsndfile, from a descriptor the player opened itself,
+Each limit is one constant at the top of `player.c`. Decoding runs on a
+worker thread of its own with libsndfile, from a descriptor it opened itself,
 so the library never opens a name. Non-finite samples become silence and
 the rest is held to full scale. A clip at another rate is converted once,
 when it loads, with a Blackman-windowed sinc of 16 zero crossings each side,
 cut off at 94 % of the lower Nyquist frequency. A thirty second
-stereo clip at 44.1 kHz loads in about a tenth of a second; meters and
-other lines wait while it does, and the audio does not. libsndfile's decoders run in
+stereo clip at 44.1 kHz loads in about a tenth of a second, and one at
+384 kHz in about a second. Every other line is taken while it does: a stop
+during a load is heard at the next block. The answer is printed at the main
+thread's next tick, within 33 ms of the decode's end, and the slot's meters
+are printed again then, whatever they were. libsndfile's decoders run in
 this process, so a file that crashes one ends the helper. The daemon should
 therefore probe a file with `openxlr-lv2-host probe` before a player loads
 it. libsndfile also leaks a few kilobytes each time a damaged Ogg file
@@ -593,7 +606,9 @@ voice fades out the oldest playing voice, of any slot, while it starts.
 Voices fading out have eight places of their own beside the eight that
 play, so a steal cuts nothing short unless eight are already fading.
 
-The main thread decodes, allocates and frees. The audio thread owns the
+The worker decodes and allocates the clip it decodes, and hands it to the
+main thread under a lock, which the audio thread never takes. The main
+thread owns every clip from then on and frees it. The audio thread owns the
 voices and which clip each slot holds. Clips, presses and stops reach the
 audio thread through one single-producer ring. Clips come back through a
 second ring once no voice reads them, and the main thread frees them then.
@@ -614,8 +629,12 @@ and MP3 file, each answered with one line and played with finite output; each
 press mode, release, stop and stop all with no step larger than the ramp's;
 the voice limit and stealing across slots; a clip's end, a loop's wrap and
 loop turned off on a running voice; a clip replaced or unloaded while it
-plays, and freed once its voices have faded. Every process call counts the
-program's allocations through a wrapped allocator and must make none.
+plays, and freed once its voices have faded; a stop and a gain change taken
+while a 30 s clip at 384 kHz decodes, and the output silent within two
+blocks; a second load refused while one runs; an unload cancelling a load
+still decoding; the token in every answer; and a press reached 300 ms late
+dropped. Every process call counts the allocations made on its own thread
+through a wrapped allocator and must make none; the worker's are its own.
 
 ## Scope
 

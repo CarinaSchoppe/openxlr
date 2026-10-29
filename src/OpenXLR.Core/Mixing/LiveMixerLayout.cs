@@ -504,6 +504,9 @@ public sealed partial class Mixer
             _streams.Remove(streamId);   // the next sweep confirms the destination
         }
         string oldDescription = $"OpenXLR {previousName}";
+        // The soundboard's link goes with the sink: presses are refused
+        // until it is made again on the new one.
+        if (id == SoundboardChannel) _playerLinked = false;
         _meters.Remove($"ch:{id}");
         if (_combineModules.Remove(id, out uint old)) _pw.UnloadModule(old);
         uint fresh;

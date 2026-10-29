@@ -3,8 +3,10 @@
 // voices mixed into one stereo output. The daemon links that output into a
 // channel; playing a clip changes nothing in the graph.
 //
-// Who owns what. The main thread decodes, allocates and frees every clip and
-// is the only one that reads files. The audio thread owns which clip each
+// Who owns what. A worker thread decodes one clip at a time, so command lines
+// keep flowing while a long file loads; it reads files and allocates the
+// clip it decodes, and hands it to the main thread, which owns every clip
+// from then on and frees it. The audio thread owns which clip each
 // slot holds, the voices and the clips a voice still reads after its slot was
 // given another. The two talk through two single-producer rings and never
 // share a clip otherwise: the main thread hands a clip over with an event and
@@ -25,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 // The limits. Each is one constant, and the daemon applies the same ones.
@@ -43,6 +46,10 @@ enum {
 // Where a looping clip starts over, its end fades into its start over this
 // many seconds, or a quarter of the clip when that is shorter.
 #define PLAYER_LOOP_CROSSFADE 0.02
+// A press the audio thread reaches later than this is dropped: the node was
+// not running, unlinked or waiting for its graph, and a press that late
+// would play out of time, with every other one queued behind it.
+#define PLAYER_STALE_NS 250000000ull
 
 enum { MODE_OVERLAP, MODE_RESTART, MODE_TOGGLE, MODE_HOLD };
 // What `play SLOT` does without a mode word.
@@ -74,8 +81,26 @@ enum { EVENT_SWAP, EVENT_PLAY, EVENT_RELEASE, EVENT_STOP, EVENT_STOP_ALL };
 
 typedef struct {
   uint8_t type, slot, mode;
-  Clip *clip;  // EVENT_SWAP: the slot's new clip, or NULL to empty it
+  Clip *clip;   // EVENT_SWAP: the slot's new clip, or NULL to empty it
+  uint64_t at;  // EVENT_PLAY: when the main thread queued it, CLOCK_MONOTONIC
 } Event;
+
+static uint64_t monotonic_ns(void) {
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  return (uint64_t)now.tv_sec * 1000000000ull + (uint64_t)now.tv_nsec;
+}
+
+// One load, handed from the main thread to the worker and back.
+typedef struct {
+  unsigned slot;
+  unsigned long token;
+  char path[PATH_MAX];
+  size_t limit;      // the most bytes of samples the clip may take
+  Clip *clip;        // the worker's result, or NULL with error
+  char error[256];
+  bool cancelled;    // main thread: an unload or a newer load replaced it
+} Job;
 
 typedef struct {
   const Clip *clip;  // NULL while the voice is free
@@ -108,6 +133,14 @@ typedef struct {
   unsigned live_count;
   size_t assigned[PLAYER_SLOTS];  // bytes of the clip each slot was last given
   size_t budget;                  // PLAYER_MAX_DECODED_BYTES; a test lowers it
+  // The worker. `job` belongs to the main thread while `busy` is false, and
+  // to the worker from `ready` until it sets `done`, under `lock`.
+  pthread_t worker;
+  bool worker_started, busy;
+  pthread_mutex_t lock;
+  pthread_cond_t wake;
+  bool ready, done, quit;
+  Job job;
   // Controls and meters.
   Control *gain[PLAYER_SLOTS], *loop[PLAYER_SLOTS];
   Control *playing[PLAYER_SLOTS], *position[PLAYER_SLOTS];
@@ -198,7 +231,7 @@ static bool slot_playing(const Player *p, unsigned slot) {
   return false;
 }
 
-static void apply(Player *p, const Event *e) {
+static void apply(Player *p, const Event *e, uint64_t now) {
   switch (e->type) {
   case EVENT_SWAP: {
     Clip *old = p->current[e->slot];
@@ -210,6 +243,7 @@ static void apply(Player *p, const Event *e) {
     break;
   }
   case EVENT_PLAY:
+    if (now - e->at > PLAYER_STALE_NS) break;
     if (e->mode == MODE_RESTART || (e->mode == MODE_TOGGLE && slot_playing(p, e->slot))) {
       for (unsigned i = 0; i < PHYSICAL_VOICES; i++)
         if (p->voices[i].clip && p->voices[i].slot == e->slot) release_voice(&p->voices[i]);
@@ -291,7 +325,8 @@ static void player_process(Host *h, uint32_t frames, float *const *in, float *co
   Player *p = h->impl;
   uint32_t head = atomic_load_explicit(&p->event_head, memory_order_acquire);
   uint32_t tail = atomic_load_explicit(&p->event_tail, memory_order_relaxed);
-  for (; tail != head; tail++) apply(p, &p->events[tail % EVENT_CAPACITY]);
+  uint64_t now = head != tail ? monotonic_ns() : 0;
+  for (; tail != head; tail++) apply(p, &p->events[tail % EVENT_CAPACITY], now);
   atomic_store_explicit(&p->event_tail, tail, memory_order_release);
   memset(out[0], 0, sizeof(float) * frames);
   memset(out[1], 0, sizeof(float) * frames);
@@ -320,7 +355,7 @@ static void player_process(Host *h, uint32_t frames, float *const *in, float *co
   }
 }
 
-// --- decoding, on the main thread -------------------------------------------
+// --- decoding, on the worker and in probes ----------------------------------
 
 typedef struct {
   int fd;
@@ -411,7 +446,8 @@ fail:
 // Decode at most limit + 1 frames: into a buffer that grows within the limit
 // when samples is not NULL, through a fixed buffer when only counting.
 static bool read_source(Source *s, float **samples, uint64_t *frames, char *error, size_t size) {
-  static float scratch[READ_BLOCK * PLAYER_MAX_CHANNELS];  // main thread only
+  // Used only to count, which only a probe does, on the main thread.
+  static float scratch[READ_BLOCK * PLAYER_MAX_CHANNELS];
   unsigned channels = (unsigned)s->info.channels;
   uint64_t count = 0, capacity = 0;
   float *buffer = NULL;
@@ -483,9 +519,7 @@ enum { SINC_ZEROS = 16, SINC_PHASES = 512 };
 #define PLAYER_PI 3.14159265358979323846
 static float sinc_table[SINC_ZEROS * SINC_PHASES + 2];
 
-static void build_sinc(void) {
-  static bool built;
-  if (built) return;
+static void fill_sinc(void) {
   for (unsigned i = 0; i < SINC_ZEROS * SINC_PHASES + 2; i++) {
     double x = (double)i / SINC_PHASES;
     if (x >= SINC_ZEROS) {
@@ -497,7 +531,11 @@ static void build_sinc(void) {
                     0.08 * cos(2 * PLAYER_PI * x / SINC_ZEROS);
     sinc_table[i] = (float)(sinc * window);
   }
-  built = true;
+}
+
+static void build_sinc(void) {
+  static pthread_once_t once = PTHREAD_ONCE_INIT;
+  pthread_once(&once, fill_sinc);
 }
 
 // x in zero crossings
@@ -514,7 +552,7 @@ static uint64_t resampled_frames(uint64_t frames, uint32_t from, uint32_t to) {
   return n ? n : 1;
 }
 
-// Offline, on the main thread: out holds resampled_frames(...) frames.
+// Offline, on the worker: out holds resampled_frames(...) frames.
 static void resample(const float *in, uint64_t frames, unsigned channels, uint32_t from,
                      uint32_t to, float *out, uint64_t out_frames) {
   build_sinc();
@@ -537,7 +575,7 @@ static void resample(const float *in, uint64_t frames, unsigned channels, uint32
   }
 }
 
-// --- clips, on the main thread ----------------------------------------------
+// --- clips --------------------------------------------------------------------
 
 // The file at PATH at the helper's RATE, in at most BUDGET bytes of samples.
 static Clip *decode_clip(const char *path, uint32_t rate, size_t budget, char *error, size_t size) {
@@ -670,31 +708,98 @@ static bool empty_slot(Player *p, unsigned slot) {
   return true;
 }
 
-static void load(Host *h, Player *p, unsigned slot, const char *path) {
-  char error[256];
+// Every clip in memory, in a slot, still read by a fading voice or on its
+// way back: the budget holds them all, not only the ones in slots.
+static size_t held_bytes(Player *p) {
+  size_t total = 0;
+  for (unsigned i = 0; i < p->live_count; i++) total += p->live[i]->bytes;
+  return total;
+}
+
+static void *worker_main(void *data) {
+  Player *p = data;
+  pthread_mutex_lock(&p->lock);
+  for (;;) {
+    while (!p->quit && !p->ready) pthread_cond_wait(&p->wake, &p->lock);
+    if (p->quit) break;
+    p->ready = false;
+    Job *job = &p->job;
+    pthread_mutex_unlock(&p->lock);
+    Clip *clip = decode_clip(job->path, p->rate, job->limit, job->error, sizeof(job->error));
+    pthread_mutex_lock(&p->lock);
+    job->clip = clip;
+    p->done = true;
+  }
+  pthread_mutex_unlock(&p->lock);
+  return NULL;
+}
+
+// Hand the file to the worker. The answer comes from finish_load, on a later
+// tick; meanwhile every other line is taken as it arrives.
+static void load(Player *p, unsigned slot, unsigned long token, const char *path) {
   collect(p);
-  size_t others = 0;
-  for (unsigned s = 0; s < PLAYER_SLOTS; s++)
-    if (s != slot) others += p->assigned[s];
-  Clip *clip = NULL;
-  if (p->live_count == MAX_LIVE)
-    snprintf(error, sizeof(error), "the player is still releasing earlier clips; try again");
-  else
-    clip = decode_clip(path, p->rate, p->budget > others ? p->budget - others : 0, error,
-                       sizeof(error));
+  const char *refusal = NULL;
+  if (p->busy)
+    refusal = "the player is still loading another clip; try again";
+  else if (p->live_count == MAX_LIVE)
+    refusal = "the player is still releasing earlier clips; try again";
+  else if (strlen(path) >= PATH_MAX)
+    refusal = "the path is too long";
+  if (refusal) {
+    printf("clip %u %lu error %s\n", slot, token, refusal);
+    return;
+  }
+  size_t held = held_bytes(p);
+  p->job = (Job){.slot = slot, .token = token, .limit = p->budget > held ? p->budget - held : 0};
+  memcpy(p->job.path, path, strlen(path) + 1);
+  p->busy = true;
+  pthread_mutex_lock(&p->lock);
+  p->done = false;
+  p->ready = true;
+  pthread_cond_signal(&p->wake);
+  pthread_mutex_unlock(&p->lock);
+}
+
+// On the main thread's tick: take the worker's clip into its slot, or say why not.
+static void finish_load(Player *p) {
+  if (!p->busy) return;
+  pthread_mutex_lock(&p->lock);
+  bool done = p->done;
+  p->done = false;
+  pthread_mutex_unlock(&p->lock);
+  if (!done) return;
+  p->busy = false;
+  Job *job = &p->job;
+  Clip *clip = job->clip;
+  unsigned slot = job->slot;
+  if (job->cancelled) {
+    free_clip(clip);
+    printf("clip %u %lu error the load was cancelled\n", slot, job->token);
+    return;
+  }
+  collect(p);
+  if (clip && p->live_count == MAX_LIVE) {
+    free_clip(clip);
+    clip = NULL;
+    snprintf(job->error, sizeof(job->error), "the player is still releasing earlier clips; try again");
+  }
   if (clip) {
     p->live[p->live_count++] = clip;
     if (push_event(p, (Event){.type = EVENT_SWAP, .slot = (uint8_t)slot, .clip = clip})) {
       p->assigned[slot] = clip->bytes;
-      printf("clip %u ok %u %u\n", slot, clip->frames, clip->channels);
+      // The slot's meters are printed again at the next tick, whatever they
+      // were, so a reader never keeps a value from the clip it held before.
+      p->playing[slot]->reported = NAN;
+      p->position[slot]->reported = NAN;
+      printf("clip %u %lu ok %u %u\n", slot, job->token, clip->frames, clip->channels);
       return;
     }
     forget(p, clip);
-    snprintf(error, sizeof(error), "the player is busy; try again");
+    snprintf(job->error, sizeof(job->error), "the player is busy; try again");
   }
   // A failed load leaves the slot empty, so it never plays an older clip.
   if (p->assigned[slot]) empty_slot(p, slot);
-  printf("clip %u error %s\n", slot, error);
+  printf("clip %u %lu error %s\n", slot, job->token, job->error);
 }
 
 // A slot number, 0 to PLAYER_SLOTS - 1, then a space or the end.
@@ -710,13 +815,27 @@ static bool parse_slot(const char *text, unsigned *slot, const char **rest) {
   return true;
 }
 
+// A load's token, 1 to 10 digits that the answer repeats, then a space.
+static bool parse_token(const char *text, unsigned long *token, const char **rest) {
+  unsigned long value = 0;
+  unsigned digits = 0;
+  while (text[digits] >= '0' && text[digits] <= '9') {
+    if (digits == 10) return false;
+    value = value * 10 + (unsigned long)(text[digits++] - '0');
+  }
+  if (!digits || text[digits] != ' ' || value > 4294967295ul) return false;
+  *token = value;
+  *rest = text + digits + 1;
+  return true;
+}
+
 static const char *after(const char *line, const char *word) {
   size_t n = strlen(word);
   return strncmp(line, word, n) == 0 && line[n] == ' ' ? line + n + 1 : NULL;
 }
 
 static void invalid(const char *line) {
-  fprintf(stderr, "invalid player command: %.80s\n", line);
+  fprintf(stderr, "note: invalid player command: %.80s\n", line);
 }
 
 static bool player_command(Host *h, char *line) {
@@ -726,14 +845,19 @@ static bool player_command(Host *h, char *line) {
   if ((rest = after(line, "probe"))) {
     probe(rest, stdout);
   } else if ((rest = after(line, "load"))) {
-    const char *path;
-    if (!parse_slot(rest, &slot, &path) || !*path) invalid(line);
-    else load(h, p, slot, path);
+    const char *word, *path;
+    unsigned long token;
+    if (!parse_slot(rest, &slot, &word) || !parse_token(word, &token, &path) || !*path) invalid(line);
+    else load(p, slot, token, path);
   } else if ((rest = after(line, "unload"))) {
     const char *end;
     if (!parse_slot(rest, &slot, &end) || *end) invalid(line);
-    else if (!empty_slot(p, slot)) fprintf(stderr, "the player is busy; slot %u stays\n", slot);
-    else printf("clip %u unloaded\n", slot);
+    else if (!empty_slot(p, slot)) fprintf(stderr, "note: the player is busy; slot %u stays\n", slot);
+    else {
+      // A load still decoding for this slot is dropped when it comes back.
+      if (p->busy && p->job.slot == slot) p->job.cancelled = true;
+      printf("clip %u unloaded\n", slot);
+    }
   } else if ((rest = after(line, "play"))) {
     const char *word;
     int mode = -1;
@@ -743,9 +867,10 @@ static bool player_command(Host *h, char *line) {
         if (!strcmp(word, mode_words[m])) mode = m;
     }
     if (mode < 0) invalid(line);
-    else if (!p->assigned[slot]) fprintf(stderr, "slot %u holds no clip\n", slot);
-    else if (!push_event(p, (Event){.type = EVENT_PLAY, .slot = (uint8_t)slot, .mode = (uint8_t)mode}))
-      fprintf(stderr, "the player is busy; a press was dropped\n");
+    else if (!p->assigned[slot]) fprintf(stderr, "note: slot %u holds no clip\n", slot);
+    else if (!push_event(p, (Event){.type = EVENT_PLAY, .slot = (uint8_t)slot, .mode = (uint8_t)mode,
+                                    .at = monotonic_ns()}))
+      fprintf(stderr, "note: the player is busy; a press was dropped\n");
   } else if ((rest = after(line, "release")) || (rest = after(line, "stop"))) {
     bool stop = line[0] == 's';
     const char *end;
@@ -755,7 +880,7 @@ static bool player_command(Host *h, char *line) {
       invalid(line);
       return true;
     } else e.slot = (uint8_t)slot;
-    if (!push_event(p, e)) fprintf(stderr, "the player is busy; a stop was dropped\n");
+    if (!push_event(p, e)) fprintf(stderr, "note: the player is busy; a stop was dropped\n");
   } else {
     return false;
   }
@@ -772,6 +897,10 @@ static bool player_load(Host *h, char **arguments) {
   p->rate = h->rate;
   p->budget = PLAYER_MAX_DECODED_BYTES;
   p->ramp_step = (float)(1.0 / (PLAYER_RAMP * h->rate));
+  if (pthread_mutex_init(&p->lock, NULL) != 0) return false;
+  if (pthread_cond_init(&p->wake, NULL) != 0) return false;
+  if (pthread_create(&p->worker, NULL, worker_main, p) != 0) return false;
+  p->worker_started = true;
   static const char *const prefixes[] = {"gain_", "loop_", "playing_", "pos_"};
   for (unsigned s = 0; s < PLAYER_SLOTS; s++) {
     for (unsigned k = 0; k < 4; k++)
@@ -787,11 +916,31 @@ static bool player_load(Host *h, char **arguments) {
 
 static bool player_activate(Host *h) { return true; }
 static void player_deactivate(Host *h) {}
-static void player_tick(Host *h) { collect(h->impl); }
+static void player_tick(Host *h) {
+  Player *p = h->impl;
+  finish_load(p);
+  collect(p);
+}
 
 static void player_unload(Host *h) {
   Player *p = h->impl;
   if (!p) return;
+  if (p->worker_started) {
+    pthread_mutex_lock(&p->lock);
+    p->quit = true;
+    pthread_cond_signal(&p->wake);
+    bool decoding = p->busy && !p->done;
+    pthread_mutex_unlock(&p->lock);
+    // A worker still inside a decode may never come back; the process is
+    // ending, so it is left with the player it reads rather than waited for.
+    if (decoding) {
+      pthread_detach(p->worker);
+      h->impl = NULL;
+      return;
+    }
+    pthread_join(p->worker, NULL);
+    if (p->busy) free_clip(p->job.clip);
+  }
   // Audio has stopped: every clip still alive is in this list.
   for (unsigned i = 0; i < p->live_count; i++) free_clip(p->live[i]);
   free(p);

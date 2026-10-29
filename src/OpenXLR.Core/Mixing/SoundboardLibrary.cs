@@ -67,6 +67,20 @@ public sealed record SoundboardLibrary
     public bool Enabled { get; init; }
     public IReadOnlyList<SoundboardClip> Clips { get; init; } = [];
 
+    /// <summary>
+    /// The ids of deleted clips, never given to a new clip, so a Deck key or
+    /// a desktop key still bound to one never plays another clip. The oldest
+    /// go first past <see cref="MaxRetired"/>.
+    /// </summary>
+    public IReadOnlyList<string> Retired { get; init; } = [];
+
+    /// <summary>The most retired ids a library keeps.</summary>
+    public const int MaxRetired = 1024;
+
+    /// <summary>The retired ids with <paramref name="id"/> added, the oldest dropped past the limit.</summary>
+    public static IReadOnlyList<string> Retire(IReadOnlyList<string> retired, string id)
+        => [.. retired.Where(r => !string.Equals(r, id, StringComparison.OrdinalIgnoreCase)).Append(id).TakeLast(MaxRetired)];
+
     public static SoundboardLibrary Empty { get; } = new();
 
     /// <summary>~/.config/openxlr/soundboard.json.</summary>
@@ -160,8 +174,14 @@ public sealed record SoundboardLibrary
                     clips.Add(clip! with { Name = clip.Name.Trim() });
                 }
             }
+            var retired = new List<string>();
+            if (root.TryGetProperty("retired", out JsonElement gone) && gone.ValueKind == JsonValueKind.Array)
+                foreach (JsonElement entry in gone.EnumerateArray())
+                    if (entry.ValueKind == JsonValueKind.String && entry.GetString() is { } id && IsValidId(id)
+                        && !ids.Contains(id) && !retired.Contains(id, StringComparer.OrdinalIgnoreCase))
+                        retired.Add(id);
             if (dropped.Count > 0) warning = $"{path}: dropped {string.Join(", ", dropped)}";
-            return new SoundboardLibrary { Enabled = enabled, Clips = clips };
+            return new SoundboardLibrary { Enabled = enabled, Clips = clips, Retired = [.. retired.TakeLast(MaxRetired)] };
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {

@@ -313,8 +313,8 @@ that final acknowledgement (or an `error` without a request id):
 | `updateClip` | `clip`, at least one of `name`, `gain`, `mode`, `loop`, `icon`, `colour` | change a clip's library entry; an absent field keeps its value. `gain` is 0 to 1, `mode` one of `overlap`, `restart`, `toggle` and `hold`, `icon` as `setLayoutAppearance` takes it, `colour` `#RRGGBB` or empty to clear it. `gain` and `loop` reach a playing clip at once |
 | `deleteClip` | `clip` | stop the clip, remove it from the library and delete its copy |
 | `setClipOrder` | `clips` | every clip id once, in the order clients draw them |
-| `playClip` | `clip`, `mode?` | press the clip's key: the clip's own `mode` unless `mode` gives another for this press. A press in `hold` mode belongs to the WebSocket it came on: the clip plays until `releaseClip`, or until that connection closes, unless another open connection holds it too. Over HTTP, which keeps no connection, a `hold` press is refused. Refused while the board cannot play, with the board's `error`, and while the clip is not `ready`. Never saved; no state of its own beyond the start of the clip |
-| `releaseClip` | `clip` | the key came up: end the clip's `hold` voices |
+| `playClip` | `clip`, `mode?` | press the clip's key: the clip's own `mode` unless `mode` gives another for this press. A press in `hold` mode belongs to the WebSocket it came on: the clip plays until `releaseClip`, or until that connection closes, unless another open connection holds it too. Over HTTP, which keeps no connection, a `hold` press is refused. Refused while the board cannot play, with the board's `error`, while the clip is not `ready`, and for the moment the player's link into SFX is being made again, with "The soundboard is reconnecting to SFX. Press the clip again in a moment." Never saved; no state of its own beyond the start of the clip |
+| `releaseClip` | `clip` | the key came up: this connection's hold on the clip ends, and the clip's `hold` voices end unless another open connection still holds it |
 | `stopClip` | `clip` | fade the clip's voices out |
 | `stopClips` | none | fade every voice out; no error while the board is off |
 | `getSoundboard` | none | answered with `soundboard`, for a client that wants the board without the whole state |
@@ -1253,7 +1253,9 @@ All under `~/.config/openxlr/` (or `$XDG_CONFIG_HOME/openxlr/`):
 - `gainlock.json`: which devices have the gain lock set
 - `soundboard.json`: the [soundboard](#soundboard) library, `{enabled,
   clips}`, each clip `{id, name, file, gain, mode, loop, icon, colour,
-  seconds}`, where `file` is a bare name in
+  seconds}`, and `retired`, the ids of deleted clips, which a new clip
+  never gets, so a key still bound to one never plays another clip; the
+  newest 1024 are kept. `file` is a bare name in
   `$XDG_DATA_HOME/openxlr/soundboard/` (default
   `~/.local/share/openxlr/soundboard/`), the clip directory. An entry that
   breaks a rule is dropped with a log line; a file that cannot be read is
@@ -1606,13 +1608,22 @@ player; a clip past that last limit stays in the library with `loaded`
 false and the reason in `error`.
 
 When the player starts, it loads the clips one at a time in library order.
-If it stops on its own, the daemon starts it again and loads them again; a
-clip it was loading when it stopped is left out and marked with an
-`error`. A player that stops three times in five minutes turns the board
-off with the reason in `error`. The player stops and starts again with the
-audio graph, and when the graph's sample rate changes, since each clip is
-converted to the player's rate when it loads; the clips load again at the
-new rate. A restart for the rate is not counted as a failure.
+It decodes on a thread of its own, so presses and stops are taken at once
+while a clip loads. If it stops on its own, the daemon starts it again and
+loads them again. A clip is left out, with a sentence in its `error`, only
+when the player crashed while decoding it, or when its load did not answer
+within ten seconds; the daemon then starts another player without it. A
+player that stops for any other reason three times in five minutes turns
+the board off with the reason in `error`. The player stops and starts again
+with the audio graph, and when the graph's sample rate changes, since each
+clip is converted to the player's rate when it loads; the clips load again
+at the new rate. A restart for the rate, or for a load that did not
+answer, is not counted as a failure.
+
+While the player is not linked into SFX it does not run, and a press sent
+then would wait. The daemon refuses presses while it makes the link again,
+after a rename of SFX or a broken link, and ends every voice before the new
+link; the player drops a press that waited more than a quarter of a second.
 
 SFX is an ordinary application channel. Renaming it keeps the board's
 binding, since the id does not change; hiding it keeps its audio, so the

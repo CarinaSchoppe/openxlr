@@ -24,11 +24,12 @@ public sealed class SoundboardPlayerTests : IDisposable
           printf '%s\n' "$line" >> "$0.lines"
           case "$line" in
             "load "*)
-              rest=${line#load }; slot=${rest%% *}; path=${rest#* }
+              rest=${line#load }; slot=${rest%% *}; rest=${rest#* }; token=${rest%% *}; path=${rest#* }
               case "$path" in *slow*) sleep 1 ;; esac
               case "$path" in
-                *bad*) echo "clip $slot error the file is not audio this build can decode" ;;
-                *) echo "clip $slot ok 96000 2" ;;
+                *bad*) echo "clip $slot $token error the file is not audio this build can decode" ;;
+                *stale*) echo "clip $slot $((token + 1000)) ok 96000 2" ;;
+                *) echo "clip $slot $token ok 96000 2" ;;
               esac ;;
             "unload "*) echo "clip ${line#unload } unloaded" ;;
             "play "*) rest=${line#play }; slot=${rest%% *}; echo "meter playing_$slot 2"; echo "meter pos_$slot 0.25" ;;
@@ -77,11 +78,12 @@ public sealed class SoundboardPlayerTests : IDisposable
             [("first", 0, "/clips/first slow.wav"), ("second", 1, "/clips/second.wav"), ("broken", 2, "/clips/bad.wav")]);
         // The second load waits for the first answer, which takes a second.
         Thread.Sleep(300);
-        Assert.Equal(["load 0 /clips/first slow.wav"], Lines(lines));
+        Assert.Equal(["load 0 1 /clips/first slow.wav"], Lines(lines));
         Assert.Equal("first", player.Loading);
         Assert.Equal("First is still loading.", Assert.Throws<InvalidOperationException>(() => player.Play("first", "overlap", "First")).Message);
         Until(() => player.Status("broken") is { Error: not null }, "every load answered");
-        Assert.Equal(["load 0 /clips/first slow.wav", "load 1 /clips/second.wav", "load 2 /clips/bad.wav"], Lines(lines));
+        // Each load carries a token of its own, which its answer repeats.
+        Assert.Equal(["load 0 1 /clips/first slow.wav", "load 1 2 /clips/second.wav", "load 2 3 /clips/bad.wav"], Lines(lines));
         Assert.Equal(new ClipLoad(true, 2, null), player.Status("first"));
         Assert.Equal(new ClipLoad(false, 0, "The file is not audio this build can decode."), player.Status("broken"));
         Assert.Null(player.Loading);
@@ -116,8 +118,8 @@ public sealed class SoundboardPlayerTests : IDisposable
         Until(() => player.Status("c")?.Loaded == true, "the first new clip loaded");
         Assert.Equal(2, player.Add("d", "/clips/d.wav", 1, false));
         Until(() => player.Status("d")?.Loaded == true, "the new clips loaded");
-        Assert.Equal(["stop 0", "unload 0", "set gain_0 0.25", "set loop_0 1", "load 0 /clips/c.wav",
-            "set gain_2 1", "set loop_2 0", "load 2 /clips/d.wav"], Lines(lines)[2..]);
+        Assert.Equal(["stop 0", "unload 0", "set gain_0 0.25", "set loop_0 1", "load 0 3 /clips/c.wav",
+            "set gain_2 1", "set loop_2 0", "load 2 4 /clips/d.wav"], Lines(lines)[2..]);
         Assert.Throws<InvalidOperationException>(() => player.Add("c", "/clips/c.wav", 1, false));
     }
 
@@ -128,7 +130,50 @@ public sealed class SoundboardPlayerTests : IDisposable
         using var player = new SoundboardPlayer(host, [("slow", 0, "/clips/slow.wav"), ("gone", 1, "/clips/gone.wav"), ("kept", 2, "/clips/kept.wav")]);
         player.Remove("gone");
         Until(() => player.Status("kept")?.Loaded == true, "the rest loaded");
-        Assert.DoesNotContain("load 1 /clips/gone.wav", Lines(lines));
+        Assert.DoesNotContain(Lines(lines), line => line.EndsWith("/clips/gone.wav", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AReusedSlotNeverShowsTheLastClipPlaying()
+    {
+        using NativePluginHost host = StartPlayer(out _);
+        using var player = new SoundboardPlayer(host, [("a", 0, "/clips/a.wav")]);
+        Until(() => player.Status("a")?.Loaded == true, "loaded");
+        player.Play("a", "overlap", "A");
+        Until(() => player.Progress().ContainsKey("a"), "playing");
+        // This helper never reports the voice's end, as a node that is not
+        // running would not: the slot's meters go with the clip.
+        player.Remove("a");
+        player.Add("b", "/clips/b.wav", 1, false);
+        Assert.Equal(0, player.SlotOf("b"));
+        Until(() => player.Status("b")?.Loaded == true, "loaded");
+        Assert.Empty(player.Progress());
+    }
+
+    [Fact]
+    public void AnAnswerToAnotherLoadIsNotTakenForThisOne()
+    {
+        using NativePluginHost host = StartPlayer(out string lines);
+        using var player = new SoundboardPlayer(host, [("late", 0, "/clips/stale.wav"), ("next", 1, "/clips/next.wav")],
+            loadTimeout: TimeSpan.FromMilliseconds(300));
+        Until(() => player.Status("late")?.Error is not null, "the load gave up");
+        Assert.False(player.Status("late")!.Loaded);
+        // The slot is emptied in the helper, and nothing more is sent to it:
+        // its owner starts another without the clip.
+        Assert.Equal("late", player.Stuck);
+        Until(() => Lines(lines).Contains("unload 0"), "the slot was unloaded");
+        Thread.Sleep(200);
+        Assert.DoesNotContain(Lines(lines), line => line.StartsWith("load 1 ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void APathThePipeCannotCarryFailsThatClipAlone()
+    {
+        using NativePluginHost host = StartPlayer(out string lines);
+        using var player = new SoundboardPlayer(host, [("broken", 0, "/clips/a\nb.wav"), ("fine", 1, "/clips/fine.wav")]);
+        Until(() => player.Status("fine")?.Loaded == true, "the next clip still loaded");
+        Assert.Equal("The clip's path cannot be handed to the player.", player.Status("broken")!.Error);
+        Assert.Equal(["load 1 2 /clips/fine.wav"], Lines(lines));
     }
 
     [Fact]
@@ -140,6 +185,7 @@ public sealed class SoundboardPlayerTests : IDisposable
         using var player = new SoundboardPlayer(host, [("a", 0, "/clips/a.wav")], loadTimeout: TimeSpan.FromMilliseconds(200));
         Until(() => player.Status("a")?.Error is not null, "the load gave up");
         Assert.Equal("The player did not load the clip in time.", player.Status("a")!.Error);
+        Assert.Equal("a", player.Stuck);
     }
 
     [Fact]
@@ -225,8 +271,10 @@ public sealed class SoundboardPlayerTests : IDisposable
             Assert.False(File.Exists(Path.Combine(clips, "air-horn.wav")));
             Assert.Equal(["link", "air-horn-2"], mixer.SoundboardLibrary.Clips.Select(c => c.Id));
             Assert.Equal("No clip has the id air-horn.", Assert.Throws<InvalidOperationException>(() => mixer.DeleteClip("air-horn")).Message);
-            // The ids that were taken stay unique against the ones still held.
-            Assert.Equal("air-horn", mixer.ImportClip(source, null).Id);
+            // A deleted clip's id is never given again, so a key still bound
+            // to it never plays another clip.
+            Assert.Equal(["air-horn"], mixer.SoundboardLibrary.Retired);
+            Assert.Equal("air-horn-3", mixer.ImportClip(source, null).Id);
         }
     }
 
@@ -277,6 +325,39 @@ public sealed class SoundboardPlayerTests : IDisposable
             Assert.Empty(failing.SoundboardLibrary.Clips);
             Assert.Empty(Directory.GetFileSystemEntries(failingClips));
         }
+    }
+
+    [Fact]
+    public void AFailedSaveLeavesTheBoardOnInMemoryAsOnDisk()
+    {
+        (Mixer mixer, _, _) = Board(new SoundboardLibrary { Enabled = true }, failSaves: true);
+        using (mixer)
+        {
+            Assert.Throws<IOException>(() => mixer.SetSoundboard(false, _ => null));
+            Assert.True(mixer.SoundboardLibrary.Enabled);
+        }
+    }
+
+    [Fact]
+    public void APipeInTheFilesPlaceIsRefusedWithoutWaitingForAWriter()
+    {
+        string fifo = Path.Combine(_directory, "swapped.wav");
+        Assert.True(ProcessRunner.Run("mkfifo", [fifo]).Ok);
+        var copy = Task.Run(() => Mixer.CopyClipIn(fifo, Path.Combine(_directory, "copy.tmp")));
+        Assert.True(SpinWait.SpinUntil(() => copy.IsCompleted, TimeSpan.FromSeconds(5)), "the open waited for a writer");
+        Assert.Equal("The path is not a regular file.", copy.Exception!.InnerException!.Message);
+        Assert.False(File.Exists(Path.Combine(_directory, "copy.tmp")));
+    }
+
+    [Fact]
+    public void LeftoverStagingCopiesAreRemovedAtStart()
+    {
+        string clips = Directory.CreateDirectory(Path.Combine(_directory, "leftovers")).FullName;
+        File.WriteAllText(Path.Combine(clips, ".import-0123.tmp"), "half a copy");
+        File.WriteAllText(Path.Combine(clips, "kept.wav"), "a clip");
+        using var mixer = new Mixer(new PipeWireAdapter { PlayerHost = Path.Combine(_directory, "absent") });
+        mixer.UseSoundboard(SoundboardLibrary.Empty, _ => null, clips);
+        Assert.Equal(["kept.wav"], Directory.GetFiles(clips).Select(Path.GetFileName));
     }
 
     [Fact]

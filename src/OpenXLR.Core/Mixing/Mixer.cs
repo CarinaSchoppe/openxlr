@@ -674,12 +674,15 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     /// </summary>
     public bool EnsureFilterRoutes()
     {
+        // A process, so asked before the lock: whether the graph's rate moved
+        // away from the soundboard player's.
+        (SoundboardPlayer Player, int Rate)? rateAway = SoundboardRateAway();
         lock (_gate)
         {
             if (!_built) return false;
             EnsureInputMetersLocked();
             bool soundCheckChanged = EnsureSoundCheckLocked();
-            soundCheckChanged |= EnsureSoundboardLocked();
+            soundCheckChanged |= EnsureSoundboardLocked(rateAway);
             soundCheckChanged |= HealEqStagesLocked();
             soundCheckChanged |= TrackNoiseReportsLocked();
             soundCheckChanged |= HealDuckBusesLocked();

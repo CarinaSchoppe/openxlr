@@ -88,6 +88,9 @@ public sealed partial class Mixer
     public const string SoundboardHoldNeedsConnection =
         "A clip in hold mode plays until its key comes up, which needs a connection that stays open to send releaseClip, such as the WebSocket. Press it in another mode here.";
 
+    /// <summary>Why a press is refused while the player's link into SFX is being made again.</summary>
+    public const string SoundboardReconnecting = "The soundboard is reconnecting to SFX. Press the clip again in a moment.";
+
     private const string SoundboardKey = "soundboard";
 
     // The library is replaced whole, never changed in place, so a press can
@@ -100,6 +103,9 @@ public sealed partial class Mixer
     private PortLink? _playerLink;
     // Read by presses and the meter push without the mixer's lock.
     private volatile SoundboardPlayer? _player;
+    // Whether the player's outputs are linked into SFX now. An unlinked node
+    // does not run, so a press sent then would wait and sound late.
+    private volatile bool _playerLinked;
     // Clips the player died while loading. A file that crashes the decoder
     // is not given to the next player, which would die the same way.
     private readonly Dictionary<string, string> _crashedClips = new(StringComparer.Ordinal);
@@ -124,8 +130,24 @@ public sealed partial class Mixer
             if (save is not null) _boardSave = save;
             if (clipDirectory is not null) _clipDirectory = clipDirectory;
             _boardError = null;
+            RemoveStagingFilesLocked();
             if (_built) StartSoundboardIfWantedLocked();
         }
+    }
+
+    /// <summary>
+    /// The copies an import was checking when the daemon stopped. Nothing
+    /// lists them, and the next import never reuses their names.
+    /// </summary>
+    private void RemoveStagingFilesLocked()
+    {
+        try
+        {
+            if (!Directory.Exists(_clipDirectory)) return;
+            foreach (string leftover in Directory.EnumerateFiles(_clipDirectory, ".import-*.tmp"))
+                TryDelete(leftover);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
     /// <summary>The library as it is now.</summary>
@@ -192,8 +214,10 @@ public sealed partial class Mixer
         {
             if (!enabled)
             {
-                StopPlayerLocked();
+                // Saved first: a save that fails leaves the board on, in
+                // memory and on disk, with its player playing.
                 SaveBoardLocked(_board with { Enabled = false });
+                StopPlayerLocked();
                 _boardError = null;
                 _restarts.Forget(SoundboardKey);
                 return;
@@ -259,7 +283,9 @@ public sealed partial class Mixer
                 if (_board.Clips.Count >= SoundboardLibrary.MaxClips)
                     throw new InvalidOperationException($"The soundboard holds {SoundboardLibrary.MaxClips} clips already. Delete one first.");
                 if (directory != _clipDirectory) throw new InvalidOperationException("The clip directory changed; import the file again.");
-                string id = SoundboardLibrary.NewId(clipName, _board.Clips.Select(c => c.Id));
+                // A deleted clip's id is never given again: a key still bound
+                // to it must not play another clip.
+                string id = SoundboardLibrary.NewId(clipName, _board.Clips.Select(c => c.Id).Concat(_board.Retired));
                 var clip = new SoundboardClip
                 {
                     Id = id,
@@ -281,9 +307,12 @@ public sealed partial class Mixer
                 try { _player?.Add(clip.Id, target, clip.Gain, clip.Loop); }
                 catch (InvalidOperationException ex)
                 {
-                    // A player that cannot take a line is on its way out; the
-                    // sweep starts the next one, which loads the clip.
-                    _pw.Note($"The soundboard player did not take {clip.Id}: {ex.Message}");
+                    // A player that cannot take a line is on its way out. The
+                    // next one loads every clip, this one included; a start
+                    // that fails says why in the board's error.
+                    _pw.Note($"The soundboard player did not take {clip.Id}, so it starts again: {ex.Message}");
+                    StopPlayerLocked();
+                    StartSoundboardIfWantedLocked();
                 }
                 return clip;
             }
@@ -310,41 +339,61 @@ public sealed partial class Mixer
     /// </summary>
     internal static void CopyClipIn(string source, string target)
     {
-        // A dangling link is a file that does not exist, too.
-        if (!Path.Exists(source)) throw new InvalidOperationException("The file does not exist.");
-        FileStream input;
-        try
+        using FileStream input = OpenClip(source);
+        if (input.Length > SoundboardLibrary.MaxFileBytes)
+            throw new InvalidOperationException($"The file is {input.Length / 1048576.0:0.0} MiB; the limit is {SoundboardLibrary.MaxFileBytes >> 20} MiB.");
+        using FileStream output = OpenXlrPaths.CreatePrivate(target);
+        var buffer = new byte[81920];
+        long copied = 0;
+        int read;
+        while ((read = input.Read(buffer)) > 0)
+        {
+            copied += read;
+            if (copied > SoundboardLibrary.MaxFileBytes)
+                throw new InvalidOperationException($"The file is larger than {SoundboardLibrary.MaxFileBytes >> 20} MiB.");
+            output.Write(buffer, 0, read);
+        }
+        if (copied == 0) throw new InvalidOperationException("The file is empty.");
+    }
+
+    [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "open", SetLastError = true)]
+    private static extern int OpenFile([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPUTF8Str)] string path, int flags);
+
+    // Linux's values, the same on x86-64 and AArch64.
+    private const int ReadOnly = 0, NoControllingTerminal = 0x100, NonBlocking = 0x800, CloseOnExec = 0x80000;
+    private const int NoSuchFile = 2, AccessDenied = 13;
+
+    /// <summary>
+    /// Open a clip the user picked, following a link, and require the handle
+    /// to be a regular file. The open does not block, so a pipe or a device
+    /// put in the file's place between any check and the open is refused at
+    /// once instead of holding the import, and with it the command slot.
+    /// </summary>
+    private static FileStream OpenClip(string source)
+    {
+        if (!OperatingSystem.IsLinux())
         {
             RegularFile.Require(source);
-            input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+            return new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        int fd = OpenFile(source, ReadOnly | NonBlocking | CloseOnExec | NoControllingTerminal);
+        if (fd < 0)
         {
-            throw new InvalidOperationException(ex is FileNotFoundException or DirectoryNotFoundException
-                ? "The file does not exist." : ex is UnauthorizedAccessException ? "The file cannot be read." : "The path is not a regular file.", ex);
+            int error = System.Runtime.InteropServices.Marshal.GetLastPInvokeError();
+            throw new InvalidOperationException(error == NoSuchFile ? "The file does not exist."
+                : error == AccessDenied ? "The file cannot be read." : "The file cannot be opened.");
         }
-        using (input)
+        var handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(fd, ownsHandle: true);
+        try
         {
-            // The path was a regular file a moment ago; the handle is checked
-            // too, in case the name was pointed elsewhere in between.
-            if (OperatingSystem.IsLinux()
-                && RegularFile.Inspect($"/proc/self/fd/{(long)input.SafeFileHandle.DangerousGetHandle()}") is { } status
-                && (status.Mode & 0xf000) != 0x8000)
+            if (RegularFile.Inspect($"/proc/self/fd/{fd}") is not { } status || (status.Mask & 1) == 0 || (status.Mode & 0xf000) != 0x8000)
                 throw new InvalidOperationException("The path is not a regular file.");
-            if (input.Length > SoundboardLibrary.MaxFileBytes)
-                throw new InvalidOperationException($"The file is {input.Length / 1048576.0:0.0} MiB; the limit is {SoundboardLibrary.MaxFileBytes >> 20} MiB.");
-            using FileStream output = OpenXlrPaths.CreatePrivate(target);
-            var buffer = new byte[81920];
-            long copied = 0;
-            int read;
-            while ((read = input.Read(buffer)) > 0)
-            {
-                copied += read;
-                if (copied > SoundboardLibrary.MaxFileBytes)
-                    throw new InvalidOperationException($"The file is larger than {SoundboardLibrary.MaxFileBytes >> 20} MiB.");
-                output.Write(buffer, 0, read);
-            }
-            if (copied == 0) throw new InvalidOperationException("The file is empty.");
+            return new FileStream(handle, FileAccess.Read);
+        }
+        catch
+        {
+            handle.Dispose();
+            throw;
         }
     }
 
@@ -387,7 +436,7 @@ public sealed partial class Mixer
         lock (_gate)
         {
             SoundboardClip clip = BoardClip(id);
-            SaveBoardLocked(_board with { Clips = [.. _board.Clips.Where(c => c.Id != id)] });
+            SaveBoardLocked(_board with { Clips = [.. _board.Clips.Where(c => c.Id != id)], Retired = SoundboardLibrary.Retire(_board.Retired, id) });
             _crashedClips.Remove(id);
             ForgetHolds(id);
             try { _player?.Remove(id); }
@@ -428,7 +477,9 @@ public sealed partial class Mixer
         string press = mode ?? clip.Mode;
         bool hold = press == "hold";
         if (hold && holder is null) throw new InvalidOperationException(SoundboardHoldNeedsConnection);
-        LivePlayer().Play(id, press, clip.Name);
+        SoundboardPlayer player = LivePlayer();
+        if (!_playerLinked) throw new InvalidOperationException(SoundboardReconnecting);
+        player.Play(id, press, clip.Name);
         if (hold)
             lock (_holds)
             {
@@ -438,11 +489,21 @@ public sealed partial class Mixer
     }
 
     /// <summary>The key came up: end the clip's hold voices.</summary>
-    public void ReleaseClip(string id)
+    /// <param name="holder">
+    /// The connection the key came up on. Its hold ends; the clip's hold
+    /// voices end only when no other open connection still holds it.
+    /// </param>
+    public void ReleaseClip(string id, Guid? holder = null)
     {
         BoardClip(id);
-        ForgetHolds(id);
-        _player?.Release(id);
+        bool othersHold;
+        lock (_holds)
+        {
+            if (holder is Guid mine && _holds.TryGetValue(mine, out HashSet<string>? held) && held.Remove(id) && held.Count == 0)
+                _holds.Remove(mine);
+            othersHold = _holds.Values.Any(other => other.Contains(id));
+        }
+        if (!othersHold) _player?.Release(id);
     }
 
     /// <summary>Fade the clip's voices out.</summary>
@@ -541,6 +602,7 @@ public sealed partial class Mixer
         }
         _playerFilter = filter;
         _playerLink = link;
+        _playerLinked = true;
         string directory = _clipDirectory;
         _player = new SoundboardPlayer(filter.NativeHost!, clips.Select((c, slot) => (c.Id, slot, Path.Combine(directory, c.File))));
         _boardError = null;
@@ -550,6 +612,7 @@ public sealed partial class Mixer
     {
         SoundboardPlayer? player = _player;
         _player = null;
+        _playerLinked = false;
         player?.Dispose();
         // Unlinked first: a node with no link is not run, so it falls silent
         // at once, whatever the helper is still doing.
@@ -578,9 +641,16 @@ public sealed partial class Mixer
     /// <summary>Link the player into SFX again, after SFX's sink was reloaded under a new name.</summary>
     private void RelinkPlayerLocked()
     {
-        if (_player is null || SoundboardTargetLocked() is not { } target) return;
+        if (_player is not { } player || SoundboardTargetLocked() is not { } target) return;
+        _playerLinked = false;
+        // An unlinked node does not run, so what it was playing and every
+        // press since waited; they would all sound at once on the new link.
+        // The player drops presses that waited long, and this ends the rest.
+        try { player.StopAll(); }
+        catch (InvalidOperationException) { }
         if (_playerLink is not null) _pw.Unlink(_playerLink);
         _playerLink = _pw.LinkNodes(PipeWireAdapter.PlayerNode, "capture", target.SinkName, "playback");
+        _playerLinked = _playerLink.Complete && _playerLink.Pairs.Count >= 2;
     }
 
     /// <summary>
@@ -600,40 +670,69 @@ public sealed partial class Mixer
     }
 
     /// <summary>
-    /// The sweep's part: a player that died is started again, without the
-    /// clip it died loading, until it has died three times in five minutes;
-    /// a link that broke is made again. True when what clients see changed.
+    /// The sweep's part: a player that died is started again; a player whose
+    /// load got stuck is replaced without that clip; a player left behind by
+    /// a new graph rate starts again at it; a link that broke is made again.
+    /// Only a death the restart policy can blame counts towards turning the
+    /// board off. <paramref name="rateAway"/> is the graph's new rate, when it
+    /// is no longer the player's, read before the mixer's lock was taken.
+    /// True when what clients see changed.
     /// </summary>
-    private bool EnsureSoundboardLocked()
+    private bool EnsureSoundboardLocked((SoundboardPlayer Player, int Rate)? rateAway = null)
     {
         if (_player is { } player && _playerFilter is { } filter)
         {
+            int? rate = rateAway is { } away && ReferenceEquals(away.Player, player) ? away.Rate : null;
             if (!filter.IsAlive)
             {
                 string? words = filter.LastWords;
                 string? loading = player.Loading;
+                int? signal = ExitSignal(player.Host);
                 StopPlayerLocked();
-                if (loading is not null && _board.Clips.FirstOrDefault(c => c.Id == loading) is { } culprit)
-                    _crashedClips[loading] = $"The player stopped while it loaded {culprit.Name}, so it is left out. Import the file again once it plays elsewhere.";
-                _restarts.Failed(SoundboardKey, words);
-                _pw.Note($"The soundboard player stopped{(words is null ? "." : $". Its last message: {words}")}");
-                if (_restarts.Blocked(SoundboardKey))
+                if (rate is int now)
                 {
-                    _boardError = _restarts.Message(SoundboardKey, "The soundboard player kept failing and is off; turn the soundboard on to try again");
-                    SoundboardLibrary off = _board with { Enabled = false };
-                    if (_boardSave(off) is string error) _pw.Note($"The soundboard library could not be saved: {error}");
-                    _board = off;
+                    // The helper refuses a cycle at a rate it was not started
+                    // at and stops: the graph moved, nothing failed.
+                    _pw.Note($"The graph's sample rate is now {now} Hz; the soundboard player starts again at it.");
+                }
+                else
+                {
+                    // A clip is blamed only when the decoder crashed on it: a
+                    // kill, a stall or a refused cycle says nothing about the
+                    // file, and the clip is loaded again with the rest.
+                    if (loading is not null && signal is int crash && DecoderCrash(crash)
+                        && _board.Clips.FirstOrDefault(c => c.Id == loading) is { } culprit)
+                        _crashedClips[loading] = $"The player crashed while it loaded {culprit.Name}, so it is left out. Import the file again once it plays elsewhere.";
+                    _restarts.Failed(SoundboardKey, words);
+                    _pw.Note($"The soundboard player stopped{(words is null ? "." : $". Its last message: {words}")}");
+                    if (_restarts.Blocked(SoundboardKey))
+                    {
+                        _boardError = _restarts.Message(SoundboardKey, "The soundboard player kept failing and is off; turn the soundboard on to try again");
+                        SoundboardLibrary off = _board with { Enabled = false };
+                        if (_boardSave(off) is string error) _pw.Note($"The soundboard library could not be saved: {error}");
+                        _board = off;
+                    }
                 }
             }
-            else if (GraphRateChangedLocked(player) is int rate)
+            else if (player.Stuck is { } stuck)
+            {
+                // The load did not answer in time and the decoder may never
+                // come back, so a new helper starts without that clip. Not
+                // counted: the file, not the player, is at fault.
+                StopPlayerLocked();
+                if (_board.Clips.FirstOrDefault(c => c.Id == stuck) is { } slow)
+                    _crashedClips[stuck] = $"The player did not finish loading {slow.Name} in time, so it is left out. Import the file again once it plays elsewhere.";
+                _pw.Note($"The soundboard player did not load {stuck} in time and starts again without it.");
+            }
+            else if (rate is int now)
             {
                 // The clips were converted to the old rate when they loaded,
                 // so the player starts again at the new one and loads them
                 // again. Not a failure: the restart policy is not told.
-                _pw.Note($"The graph's sample rate is now {rate} Hz; the soundboard player starts again at it.");
+                _pw.Note($"The graph's sample rate is now {now} Hz; the soundboard player starts again at it.");
                 StopPlayerLocked();
             }
-            else if (_playerLink is null || _pw.EnsureLinks(_playerLink) == LinkHealth.Broken)
+            else if (!_playerLinked || _playerLink is null || _pw.EnsureLinks(_playerLink) == LinkHealth.Broken)
                 RelinkPlayerLocked();
         }
         if (_player is null && _board.Enabled) StartSoundboardIfWantedLocked();
@@ -643,21 +742,40 @@ public sealed partial class Mixer
         return changed;
     }
 
+    /// <summary>The signal that ended a helper, or null while it runs or after it exited by itself.</summary>
+    private static int? ExitSignal(NativePluginHost host)
+    {
+        try { return host.Process.HasExited && host.Process.ExitCode > 128 ? host.Process.ExitCode - 128 : null; }
+        catch (InvalidOperationException) { return null; }
+    }
+
+    /// <summary>
+    /// The signals a decoder that read a bad file dies of: a bad address, a
+    /// bus error, an arithmetic fault, an illegal instruction, an abort. A
+    /// kill, which is how the kernel ends a process out of memory and how the
+    /// daemon ends a stalled one, is not among them.
+    /// </summary>
+    internal static bool DecoderCrash(int signal) => signal is 4 or 6 or 7 or 8 or 11;
+
     /// <summary>
     /// The graph's sample rate when it is no longer the one the player was
-    /// started at, else null. The registry snapshot is read on every sweep at
-    /// no cost; a difference is confirmed through pw-metadata, the source the
-    /// player's own rate came from, so a snapshot that lags behind never
-    /// starts the player over and over.
+    /// started at, with that player, else null. Called without the mixer's
+    /// lock. The registry snapshot costs nothing; pw-metadata, the source the
+    /// player's own rate came from, confirms a difference, and is asked
+    /// whenever the helper has stopped too, so a death at a new rate is never
+    /// taken for a failure while the snapshot catches up.
     /// </summary>
-    private int? GraphRateChangedLocked(SoundboardPlayer player)
+    private (SoundboardPlayer Player, int Rate)? SoundboardRateAway()
     {
+        if (_player is not { } player) return null;
         int started = player.Host.SampleRate;
-        if (_pw.GraphSampleRate() is not int seen || seen == started) return null;
-        int now;
-        try { now = PipeWireAdapter.ParseGraphSampleRate(_pw.Run("pw-metadata", "-n", "settings")); }
+        if (player.Host.IsHealthy && (_pw.GraphSampleRate() is not int seen || seen == started)) return null;
+        try
+        {
+            int now = PipeWireAdapter.ParseGraphSampleRate(_pw.Run("pw-metadata", "-n", "settings"));
+            return now != started ? (player, now) : null;
+        }
         catch (InvalidOperationException) { return null; }
-        return now != started ? now : null;
     }
 
     /// <summary>

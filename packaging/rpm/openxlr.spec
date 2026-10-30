@@ -155,6 +155,8 @@ install -Dm644 packaging/52-openxlr-mk1-capture-hold.conf \
     %{buildroot}%{_datadir}/wireplumber/wireplumber.conf.d/52-openxlr-mk1-capture-hold.conf
 install -Dm644 packaging/53-openxlr-wave3-capture-hold.conf \
     %{buildroot}%{_datadir}/wireplumber/wireplumber.conf.d/53-openxlr-wave3-capture-hold.conf
+install -Dm644 packaging/55-openxlr-wave3-mk2-playback.conf \
+    %{buildroot}%{_datadir}/wireplumber/wireplumber.conf.d/55-openxlr-wave3-mk2-playback.conf
 
 # The reference unit points into a source checkout; the package runs
 # the wrapper.
@@ -229,6 +231,7 @@ MSG
 %{_datadir}/wireplumber/wireplumber.conf.d/51-openxlr-pro-raw-names.conf
 %{_datadir}/wireplumber/wireplumber.conf.d/52-openxlr-mk1-capture-hold.conf
 %{_datadir}/wireplumber/wireplumber.conf.d/53-openxlr-wave3-capture-hold.conf
+%{_datadir}/wireplumber/wireplumber.conf.d/55-openxlr-wave3-mk2-playback.conf
 %{_userunitdir}/openxlr-daemon.service
 %{_userunitdir}/pipewire-pulse.service.d/openxlr.conf
 %{_datadir}/applications/openxlr.desktop

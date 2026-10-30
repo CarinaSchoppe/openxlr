@@ -649,10 +649,30 @@ A card profile cycle cleared the first case once and not again. What
 cleared every case was to take the monitor output off the microphone so
 its playback closed, reset the USB device (`libusb_reset_device` on
 `0fd9:00ca`, allowed without root by the udev rule), let the capture
-start, then point the monitor output back at the headphones.
-`53-openxlr-wave3-capture-hold.conf` matches this unit's capture node
-too, so the capture is the stream already running whenever anything
-opens the headphones.
+start, then point the monitor output back at the headphones. The buzz
+came back about 15 minutes after one such recovery with nothing
+restarted, and the same steps cleared it again.
+
+Later the same day the pattern was plain: the microphone stalls whenever
+the headphones play and stays clean while the monitor output is another
+device. So the trouble is running both directions at once, not only the
+order they start in. While stalled, the kernel ran the playback on USB
+interface 2 altset 2 (S32_LE, two channels, explicit feedback) and the
+capture on interface 1 altset 1 (FLOAT_LE). The unit also offers playback
+in FLOAT_LE on three channels (FL FR FC, altset 1) and capture in S32_LE
+(altset 2). PipeWire picks the two-channel S32_LE playback, in the Pro
+Audio profile too. A likely reading is that the firmware expects the same
+format both ways, float, which the Windows driver would open.
+
+Two WirePlumber rules cover this unit.
+`53-openxlr-wave3-capture-hold.conf` matches its capture node, so the
+capture is the stream already running whenever anything opens the
+headphones. `55-openxlr-wave3-mk2-playback.conf` asks PipeWire to open its
+playback as FLOAT_LE on three channels; OpenXLR feeds FL and FR and leaves
+the third channel unlinked. Whether the float playback ends the stall has
+not been tried yet; with the rule in place,
+`/proc/asound/MK2/pcm0p/sub0/hw_params` reads `FLOAT_LE` and `channels: 3`
+while the headphones play.
 
 The daemon prefers the Wave:3 MK.2 after every XLR interface, next to the
 Wave:3: it is driven when no interface is on the bus, picked from the

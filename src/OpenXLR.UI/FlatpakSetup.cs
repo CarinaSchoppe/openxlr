@@ -6,7 +6,7 @@ namespace OpenXLR.UI;
 /// <summary>Install only the known session-manager rules, never replace a user's file.</summary>
 internal static class FlatpakSetup
 {
-    internal static readonly string[] Rules = ["50-xlr-dock-capture-hold.conf", "51-openxlr-pro-raw-names.conf", "52-openxlr-mk1-capture-hold.conf", "53-openxlr-wave3-capture-hold.conf"];
+    internal static readonly string[] Rules = ["50-xlr-dock-capture-hold.conf", "51-openxlr-pro-raw-names.conf", "52-openxlr-mk1-capture-hold.conf", "53-openxlr-wave3-capture-hold.conf", "55-openxlr-wave3-mk2-playback.conf"];
 
     internal static void InstallRules(string source, string hostConfig)
     {

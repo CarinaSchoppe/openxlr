@@ -3489,13 +3489,15 @@ controllers. On a Wave:3 it shows after a boot as a silent microphone
 while everything else looks normal. Joining a call before starting music
 brings the sound back for a while, and a replug brings it back where
 restarting the daemon does not. The Wave:3 MK.2 has its own form of it.
-When its headphones open first, its microphone gives nothing, or a steady
+While its headphones play, its microphone can give nothing, or a steady
 buzz and no voice. The packages install WirePlumber rules that keep these
 capture sources always active (`50-xlr-dock-capture-hold.conf`,
 `52-openxlr-mk1-capture-hold.conf` and
-`53-openxlr-wave3-capture-hold.conf`, which covers both Wave:3 models).
-On a source install copy them from `packaging/` into
-`~/.config/wireplumber/wireplumber.conf.d/` and restart WirePlumber.
+`53-openxlr-wave3-capture-hold.conf`, which covers both Wave:3 models),
+and one that opens the Wave:3 MK.2's headphones in the unit's float
+format (`55-openxlr-wave3-mk2-playback.conf`). On a source install copy
+them from `packaging/` into `~/.config/wireplumber/wireplumber.conf.d/`
+and restart WirePlumber.
 OpenXLR links the interface's capture before it routes any mix into the
 interface, waiting up to five seconds for it and then routing anyway with
 a journal line, and the same goes for another Elgato interface that XLR 1
@@ -3893,6 +3895,7 @@ settings. See
 | `openxlr-daemon.service` (systemd user unit) | the daemon; `journalctl --user -u openxlr-daemon` for its log |
 | `/usr/lib/systemd/user/pipewire-pulse.service.d/openxlr.conf` | installed by the packages: raises pipewire-pulse's open-file limit ([section 5.8](#open-files)) |
 | `/usr/share/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf`, `52-openxlr-mk1-capture-hold.conf`, `53-openxlr-wave3-capture-hold.conf` | installed by the packages: keep the capture of the XLR Dock, the original Wave XLR, the Wave:3 and the Wave:3 MK.2 running ([section 5.2](#dock-silent)) |
+| `/usr/share/wireplumber/wireplumber.conf.d/55-openxlr-wave3-mk2-playback.conf` | installed by the packages: opens the Wave:3 MK.2's headphones in the unit's float format ([section 5.2](#dock-silent)) |
 | `openxlr-tui` | the mixer in a terminal, the same daemon and the same skins ([The terminal mixer](#terminal)) |
 | `$XDG_RUNTIME_DIR/openxlr/control.sock` | the daemon's API, documented in [api.md](api.md); the same commands over HTTP at `/api/v1` ([http-api.md](http-api.md)) |
 

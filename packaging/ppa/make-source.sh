@@ -39,7 +39,7 @@ suffix=${PPA_SUFFIX:-1}
 # this machine alone leaves that builder asking for packs it cannot
 # reach (NU1102, no network on the builders). Vendor those versions too;
 # add one whenever a series ships a runtime this list does not cover.
-pack_versions=${PPA_RUNTIME_PACKS:-10.0.11 10.0.12}
+pack_versions=${PPA_RUNTIME_PACKS:-10.0.12 10.0.13 10.0.14}
 
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 out=${OUT:-$repo/dist/ppa}
@@ -67,18 +67,19 @@ done
 
 # The runtime packs for the other series, fetched without referencing
 # them: PackageDownload puts them in the same folder the feed is laid
-# out from.
+# out from. NuGet keeps one PackageDownload item per package (NU1505),
+# so each pack is one item listing every version.
 mkdir -p "$work/packs"
+versions=
+for v in $pack_versions; do versions=${versions:+$versions;}[$v]; done
 {
     echo '<Project Sdk="Microsoft.NET.Sdk">'
     echo '  <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>'
     echo '  <ItemGroup>'
-    for v in $pack_versions; do
-        for pack in Microsoft.NETCore.App.Runtime.linux-x64 \
-                    Microsoft.NETCore.App.Host.linux-x64 \
-                    Microsoft.AspNetCore.App.Runtime.linux-x64; do
-            echo "    <PackageDownload Include=\"$pack\" Version=\"[$v]\" />"
-        done
+    for pack in Microsoft.NETCore.App.Runtime.linux-x64 \
+                Microsoft.NETCore.App.Host.linux-x64 \
+                Microsoft.AspNetCore.App.Runtime.linux-x64; do
+        echo "    <PackageDownload Include=\"$pack\" Version=\"$versions\" />"
     done
     echo '  </ItemGroup>'
     echo '</Project>'

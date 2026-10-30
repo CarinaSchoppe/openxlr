@@ -4,7 +4,7 @@
         xmlns:vm="using:OpenXLR.UI"
         x:Class="OpenXLR.UI.SoundboardWindow" x:DataType="vm:SoundboardViewModel"
         Title="{loc:Text Key=Soundboard}" Width="760" Height="620" MinWidth="440" MinHeight="400"
-        WindowStartupLocation="CenterOwner" Background="{DynamicResource Ox.Window.Background}"
+        Background="{DynamicResource Ox.Window.Background}"
         DragDrop.AllowDrop="True">
   <!-- The soundboard: the switch, SFX's own volume as the board's master, Stop all, Add,
        the library's export and import, Restore starter sounds, the pages as tabs once there is more than one,

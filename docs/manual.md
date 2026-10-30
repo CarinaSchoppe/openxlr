@@ -3145,7 +3145,9 @@ nothing to play.
    under AUDIO in Options. The header button shows while the software
    mixer runs, whatever the skin and whether or not SFX exists, and stays
    in the UI when the mixer is popped out. The tray and Options open the
-   window with the mixer off too.
+   window with the mixer off too. The Soundboard window stands on its own:
+   it stays open when the UI is minimized or closed to the tray, and
+   pressing a pad does not bring the UI forward.
 2. Turn on **Soundboard on** if it is off.
 3. Press **Add clips** and pick one or more files, or **Add folder** for
    every sound file in a folder (its subfolders are left out), or drag

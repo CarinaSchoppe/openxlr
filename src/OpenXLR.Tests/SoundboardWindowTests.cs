@@ -278,7 +278,9 @@ internal static class SoundboardWindowTests
 
             fromHeader.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Dispatcher.UIThread.RunJobs();
-            board = window.OwnedWindows.OfType<SoundboardWindow>().Single();
+            board = SoundboardWindow.Current!;
+            Assert.True(board.IsVisible);
+            Assert.Empty(window.OwnedWindows.OfType<SoundboardWindow>());
             Assert.Same(main.Soundboard, board.DataContext);
             // The tray's entry raises the same window rather than opening a second.
             window.OpenSoundboard();
@@ -295,7 +297,8 @@ internal static class SoundboardWindowTests
             fromHeader.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Dispatcher.UIThread.RunJobs();
             board = SoundboardWindow.Current!;
-            Assert.Same(window, board.Owner);
+            // No owner: an owned board is minimized with the mixer, and pressing a pad raises the mixer.
+            Assert.Null(board.Owner);
             Assert.Same(main.Soundboard, board.DataContext);
             popped.Close();
             Dispatcher.UIThread.RunJobs();
@@ -316,7 +319,7 @@ internal static class SoundboardWindowTests
             Dispatcher.UIThread.RunJobs();
             Assert.Empty(options.OwnedWindows.OfType<SoundboardWindow>());
             Assert.Same(board, SoundboardWindow.Current);
-            Assert.Same(window, board.Owner);
+            Assert.Null(board.Owner);
             Assert.True(Find<Button>(board, "SoundboardClose").IsCancel);
             if (Environment.GetEnvironmentVariable("OPENXLR_LAYOUT_FONT") is { Length: > 0 } boardFont)
                 board.FontFamily = new FontFamily(boardFont);
@@ -639,18 +642,21 @@ internal static class SoundboardWindowTests
             Layout(board, 440, 700);
             AssertFits(board, "without the helper");
 
-            // The tray while the mixer is minimized: the window shows on its own, not hidden with the mixer.
-            board.Close();
-            Dispatcher.UIThread.RunJobs();
+            // Minimizing the mixer leaves the open board where it is, and the tray opens it
+            // on its own while the mixer is minimized.
             window.WindowState = WindowState.Minimized;
             DateTime minimizing = DateTime.UtcNow.AddSeconds(2);
             while (window.WindowState != WindowState.Minimized && DateTime.UtcNow < minimizing) await Task.Delay(20);
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(board.IsVisible);
+            Assert.NotEqual(WindowState.Minimized, board.WindowState);
+            board.Close();
+            Dispatcher.UIThread.RunJobs();
             window.OpenSoundboard();
             Dispatcher.UIThread.RunJobs();
             board = SoundboardWindow.Current!;
             Assert.True(board.IsVisible);
-            // Xvfb runs no window manager, which may leave the mixer unminimized; the rule holds where it does.
-            if (window.WindowState == WindowState.Minimized) Assert.Null(board.Owner);
+            Assert.Null(board.Owner);
             window.WindowState = WindowState.Normal;
         }
         finally

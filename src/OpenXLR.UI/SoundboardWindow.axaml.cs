@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -74,15 +75,16 @@ public partial class SoundboardWindow : Window
     /// <summary>The open window, for the tests.</summary>
     internal static SoundboardWindow? Current => _open;
 
-    /// <summary>Open the window under <paramref name="owner"/>, or with no owner when the tray asks while the mixer is hidden.</summary>
-    public static SoundboardWindow Open(Window? owner, SoundboardViewModel board)
+    /// <summary>
+    /// Open the window centred over <paramref name="near"/>, or in the middle of the screen when the
+    /// tray asks while the mixer is hidden. The window has no owner: an owned window is minimized
+    /// with the mixer, and the window manager raises the mixer each time a pad is pressed.
+    /// </summary>
+    public static SoundboardWindow Open(Window? near, SoundboardViewModel board)
     {
         if (_open is { } open)
         {
-            // The open window comes forward from wherever it was asked for, unless the
-            // window it belongs to is out of sight, which would keep it out of sight too.
-            bool ownerAway = open.Owner is Window owning && (!owning.IsVisible || owning.WindowState == WindowState.Minimized);
-            if (open.DataContext == board && !ownerAway)
+            if (open.DataContext == board)
             {
                 if (open.WindowState == WindowState.Minimized) open.WindowState = WindowState.Normal;
                 open.Activate();
@@ -93,12 +95,17 @@ public partial class SoundboardWindow : Window
         var window = new SoundboardWindow { DataContext = board };
         window.Closed += (_, _) => { if (_open == window) _open = null; };
         _open = window;
-        if (owner is { IsVisible: true }) window.Show(owner);
-        else
+        if (near is { IsVisible: true } && near.WindowState != WindowState.Minimized)
         {
-            window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-            window.Show();
+            double scale = near.DesktopScaling;
+            Size frame = near.FrameSize ?? near.ClientSize;
+            window.WindowStartupLocation = WindowStartupLocation.Manual;
+            window.Position = new PixelPoint(
+                near.Position.X + (int)((frame.Width - window.Width) * scale / 2),
+                near.Position.Y + (int)((frame.Height - window.Height) * scale / 2));
         }
+        else window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        window.Show();
         return window;
     }
 

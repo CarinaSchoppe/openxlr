@@ -153,6 +153,7 @@ public partial class MainWindow : Window
             _hideToTrayPending = false;
             _mixerWindow?.Close();
             _options?.Close();
+            SoundboardWindow.Current?.Close();
             _lifetime.Cancel();
             DisposeTray();
             _desktopKeys.Dispose();
@@ -365,12 +366,11 @@ public partial class MainWindow : Window
     private void OnSoundboard(object? sender, RoutedEventArgs e)
         => OpenSoundboard();
 
-    /// <summary>The tray's Soundboard entry: under the mixer while it shows, on its own while it waits in the tray.</summary>
+    /// <summary>The tray's Soundboard entry: over the mixer while it shows, mid-screen while it waits in the tray.</summary>
     internal void OpenSoundboard()
     {
         if (_reallyExit) return;
-        // A window owned by a minimized or hidden mixer would stay out of sight with it.
-        SoundboardWindow.Open(IsVisible && WindowState != WindowState.Minimized ? this : null, _vm.Soundboard);
+        SoundboardWindow.Open(this, _vm.Soundboard);
     }
 
     private void OnAbout(object? sender, RoutedEventArgs e)

@@ -12,7 +12,7 @@
 %global deepfilter_version 0.5.6
 
 Name:           openxlr
-Version: 0.3.3
+Version: 0.3.4
 Release:        1%{?dist}
 Summary:        Linux Wave Link replacement for Elgato XLR interfaces and Wave microphones
 # OpenXLR is GPL-3.0-only. The native helper links RNNoise (BSD-3-Clause),
@@ -240,6 +240,13 @@ MSG
 %{_datadir}/gnome-shell/extensions/openxlr-focus@emaspa.github.com/
 
 %changelog
+* Fri Oct 30 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.3.4-1
+- Soundboard window opens on its own: it stays open when the UI is minimized and pressing a pad no longer brings the UI forward
+- About lists every supported device, and two hints say the UI instead of the window
+- Deck Toggle inspector names every feed it cycles
+- PPA source vendors every listed .NET runtime pack version
+- Documentation brought up to date with 0.3.3
+
 * Fri Oct 30 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.3.3-1
 - Soundboard: clips played into SFX, with pages, pad colours, audition in the monitor mixes, deck keys, desktop keys, a terminal tab and CC0 starter sounds
 - Wave:3 MK.2 support: gain, mute, headphones, crossfade, hardware EQ, low cut, expander, voice tune, compressor and ClipGuard

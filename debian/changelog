@@ -1,3 +1,13 @@
+openxlr (0.3.4) resolute; urgency=medium
+
+  * Soundboard window opens on its own: it stays open when the UI is minimized and pressing a pad no longer brings the UI forward
+  * About lists every supported device, and two hints say the UI instead of the window
+  * Deck Toggle inspector names every feed it cycles
+  * PPA source vendors every listed .NET runtime pack version
+  * Documentation brought up to date with 0.3.3
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Fri, 30 Oct 2026 12:40:55 +0000
+
 openxlr (0.3.3) resolute; urgency=medium
 
   * Soundboard: clips played into SFX, with pages, pad colours, audition in the monitor mixes, deck keys, desktop keys, a terminal tab and CC0 starter sounds

@@ -39,8 +39,11 @@ namespace OpenXLR.Core.Devices;
 ///
 /// Both capture channels carry the same mono signal, bit for bit, so the
 /// strip takes the pair as the Wave:3's is taken. The unit enumerates at high
-/// speed, and the full-speed capture-first rule for the Wave:3 does not
-/// match its node names.
+/// speed and still has its own form of the full-duplex ordering bug: when
+/// its playback opened first, its capture stopped in the kernel or delivered
+/// a steady buzz, and a USB reset followed by capture before playback cleared
+/// it. 53-openxlr-wave3-capture-hold.conf (packaging/) matches its capture
+/// node too.
 ///
 /// Whether it keeps its settings across a power cycle has not been tested.
 /// It is taken to, as the Wave XLR MK.2 and the XLR Dock MK.2 do, so the

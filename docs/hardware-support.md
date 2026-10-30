@@ -459,8 +459,9 @@ OpenXLR ships a WirePlumber rule
 ([packaging/53-openxlr-wave3-capture-hold.conf](../packaging/53-openxlr-wave3-capture-hold.conf))
 that keeps the Wave:3's capture source always active, as openwave does.
 The owner ran with the same settings over several reboots and the
-silence did not come back. The rule matches `Elgato_Wave_3_` only, so
-the Wave:1 and the Wave XLR models are not touched. The Debian, RPM and
+silence did not come back. The rule matches the Wave:3's node names
+and the Wave:3 MK.2's (see below), so the Wave:1 and the Wave XLR models
+are not touched. The Debian, RPM and
 Nix packages install it; a source install copies it by hand.
 
 The maintainer's unit has not shown the bug. It runs at full speed
@@ -625,11 +626,33 @@ measured on; an older version leaves the EQ in software and says so.
 Both capture channels carry the same signal, bit for bit: a second of
 room noise read with `parec --channel-map=front-left,front-right` gave
 identical samples on the left and the right. The strip takes the pair as
-it takes the Wave:3's. The unit enumerates at high speed, and the
-Wave:3's capture-hold rule (`53-openxlr-wave3-capture-hold.conf`)
-matches only the Wave:3's node names; whether this microphone records
-silence when its playback starts first, as the full-speed units can, has
-not been tried.
+it takes the Wave:3's.
+
+Kernel behaviour: the maintainer's unit has its own form of the ordering
+bug, although it enumerates at high speed. When its playback opened
+before its capture, three things were seen on 2026-10-30:
+
+- After a daemon restart, with the microphone picked as the interface and
+  the monitor output pointed at its headphones right after, the capture
+  stalled. `/proc/asound/MK2/stream0` read `Capture: Status: Stop` next
+  to `Playback: Status: Running`, and the source gave no data while
+  PipeWire showed it running.
+- With the capture held open by a WirePlumber rule, the playback stayed
+  at `Status: Stop` instead and the sink sat at quantum 0 in `pw-top`.
+  That test ran on a unit that was probably already stuck from the case
+  above, so it does not show that the rule fails.
+- After a replug, with the monitor output already on its headphones, both
+  directions read `Running` and the capture delivered a steady buzz with
+  no voice: energy only at multiples of 187.5 Hz, 48000 divided by 256.
+
+A card profile cycle cleared the first case once and not again. What
+cleared every case was to take the monitor output off the microphone so
+its playback closed, reset the USB device (`libusb_reset_device` on
+`0fd9:00ca`, allowed without root by the udev rule), let the capture
+start, then point the monitor output back at the headphones.
+`53-openxlr-wave3-capture-hold.conf` matches this unit's capture node
+too, so the capture is the stream already running whenever anything
+opens the headphones.
 
 The daemon prefers the Wave:3 MK.2 after every XLR interface, next to the
 Wave:3: it is driven when no interface is on the bus, picked from the

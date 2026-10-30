@@ -27,6 +27,11 @@ public sealed class WirePlumberRuleTests
         { "alsa_input.usb-Elgato_Systems_Elgato_Wave_3_A011A53710KH3Y-00.mono-fallback", Wave3 },
         { "alsa_input.usb-Elgato_Systems_Elgato_Wave_3_A011A53710KH3Y-00.pro-input-0", Wave3 },
         { "alsa_output.usb-Elgato_Systems_Elgato_Wave_3_A011A53710KH3Y-00.analog-stereo", null },
+        { "alsa_input.usb-Elgato_Elgato_Wave_3_MK.2_AD0JH55014KSN3-00.analog-stereo", Wave3 },
+        { "alsa_input.usb-Elgato_Elgato_Wave_3_MK.2_AD0JH55014KSN3-00.pro-input-0", Wave3 },
+        { "alsa_output.usb-Elgato_Elgato_Wave_3_MK.2_AD0JH55014KSN3-00.analog-stereo", null },
+        // A dot in the model name is literal, not any character.
+        { "alsa_input.usb-Elgato_Elgato_Wave_3_MKx2_AD0JH55014KSN3-00.analog-stereo", null },
         { "alsa_input.usb-Elgato_Systems_Elgato_Wave_1_A011A53710KH3Y-00.mono-fallback", null },
         { "alsa_input.usb-Elgato_Elgato_Wave_XLR_Pro_0123456789-00.pro-input-0", null },
         { "alsa_input.usb-Elgato_Elgato_Wave_XLR_Pro_0123456789-00.multichannel-input", null },
@@ -143,13 +148,16 @@ public sealed class WirePlumberRuleTests
         Assert.DoesNotContain(OwnedState, OpenXLR.UI.FlatpakSetup.Rules);
     }
 
-    /// <summary>The rule's node.name regex, unescaped from its SPA JSON string.</summary>
+    /// <summary>
+    /// The rule's node.name regexes, unescaped from their SPA JSON strings
+    /// and joined: a node matches the rule when it matches any of them.
+    /// </summary>
     private static Regex NodePattern(string file)
     {
         string text = File.ReadAllText(Path.Combine(Root(), "packaging", file));
-        Match match = Regex.Match(text, "node\\.name = \"~((?:[^\"\\\\]|\\\\.)*)\"");
-        Assert.True(match.Success, $"{file} has no node.name regex");
-        return new Regex(Regex.Replace(match.Groups[1].Value, @"\\(.)", "$1"));
+        MatchCollection matches = Regex.Matches(text, "node\\.name = \"~((?:[^\"\\\\]|\\\\.)*)\"");
+        Assert.True(matches.Count > 0, $"{file} has no node.name regex");
+        return new Regex(string.Join('|', matches.Select(m => "(?:" + Regex.Replace(m.Groups[1].Value, @"\\(.)", "$1") + ")")));
     }
 
     private static string Root()

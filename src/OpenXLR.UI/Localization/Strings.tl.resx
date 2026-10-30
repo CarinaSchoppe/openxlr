@@ -353,6 +353,45 @@
   <data name="ColourPlaceholder" xml:space="preserve">
     <value>#RRGGBB, o blangko para sa kulay ng skin</value>
   </data>
+  <data name="ColourNone" xml:space="preserve">
+    <value>Walang kulay</value>
+  </data>
+  <data name="ColourRed" xml:space="preserve">
+    <value>Pula</value>
+  </data>
+  <data name="ColourOrange" xml:space="preserve">
+    <value>Kahel</value>
+  </data>
+  <data name="ColourYellow" xml:space="preserve">
+    <value>Dilaw</value>
+  </data>
+  <data name="ColourLime" xml:space="preserve">
+    <value>Lime</value>
+  </data>
+  <data name="ColourGreen" xml:space="preserve">
+    <value>Berde</value>
+  </data>
+  <data name="ColourTeal" xml:space="preserve">
+    <value>Teal</value>
+  </data>
+  <data name="ColourCyan" xml:space="preserve">
+    <value>Cyan</value>
+  </data>
+  <data name="ColourBlue" xml:space="preserve">
+    <value>Asul</value>
+  </data>
+  <data name="ColourIndigo" xml:space="preserve">
+    <value>Indigo</value>
+  </data>
+  <data name="ColourPurple" xml:space="preserve">
+    <value>Lila</value>
+  </data>
+  <data name="ColourPink" xml:space="preserve">
+    <value>Rosas</value>
+  </data>
+  <data name="ColourBrown" xml:space="preserve">
+    <value>Kayumanggi</value>
+  </data>
   <data name="CompactShowsOneChannelStripWithEvery" xml:space="preserve">
     <value>Ipinapakita ng Compact ang isang channel strip kasama ang lahat ng send. Ipinapakita ng Mini ang send ng channel na iyon sa isang mix at ang master ng mix, at itinatabi ang MGA INPUT, HEADPHONE at MGA APP. Piliin ang channel at mix sa itaas ng submixer. Hindi nagbabago ang level at routing.</value>
   </data>

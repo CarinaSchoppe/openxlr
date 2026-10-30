@@ -2885,7 +2885,9 @@ for Stream, two people for Chat and a podcast microphone for any other
 virtual microphone.
 
 **Appearance**, under each channel and mix name in the layout editor, gives
-that item an icon and a colour typed as `#RRGGBB`. The icon list shows each
+that item an icon and a colour. Click one of the twelve swatches above the
+colour field to fill it in, or type any colour as `#RRGGBB`; the struck-out
+swatch empties the field. The swatch that matches the field has a ring. The icon list shows each
 icon beside its name: **Default** with the name of the kind's icon, **None**
 for no icon at all, the built-in set, the worn skin's own icons if it has
 any, and under **Text** the seven text glyphs ● ♪ ♫ ✦ ◆ ▶ ◉ that older
@@ -3156,6 +3158,13 @@ nothing to play.
    Hold clip also stops when the Soundboard window loses focus while its
    pad is held.
 
+A clip with a colour fills its whole pad with it, like a Stream Deck key.
+The name, icon and second line turn dark on a light colour and white on a
+dark one. A filled pad lightens under the pointer
+and darkens while pressed. A pad that cannot play, because its clip is
+still loading or cannot be read or the board is off, goes back to the
+plain face with its colour as a bar along the top edge.
+
 A pad whose clip cannot be loaded says why in its second line; Edit
 shows the whole sentence at the top. Each pad's **⋯** button opens its menu: **Edit**, **Audition in
 the monitor mix**, **Stop**, **Move earlier**, **Move later** and **Delete**. Edit holds:
@@ -3166,7 +3175,7 @@ the monitor mix**, **Stop**, **Move earlier**, **Move later** and **Delete**. Ed
 | Gain | the clip's own level before SFX's fader; a change reaches a playing clip at once |
 | Press | **Overlap** plays the clip again over any that still play; **Restart** starts it again from the top; **Toggle** plays it and the next press stops it; **Hold** plays it while the pad is held down |
 | Start over at the end | loops the clip until it is stopped; turning it off lets the current pass finish |
-| Icon, Colour | the pad's icon, and a colour along its top edge that also tints its icon and name |
+| Icon, Colour | the pad's icon, and its colour: a swatch fills the field in, any `#RRGGBB` can be typed, and the struck-out swatch removes the colour |
 | Page | the page the pad is on; empty puts it on **Main**, and a name no page has yet makes a new page. A clip moved to a page goes last on it |
 
 The fader at the top of the Soundboard window is SFX's own channel volume, the same

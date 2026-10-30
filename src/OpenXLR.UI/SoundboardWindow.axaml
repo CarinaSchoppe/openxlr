@@ -10,11 +10,11 @@
        the library's export and import, Restore starter sounds, the pages as tabs once there is more than one,
        then one pad per clip of the page shown, in library order. Sound files and folders
        dropped on the window are added, a folder as a page of its own. A pad is a key in the skin's button
-       face, sized and tinted by the Ox.Soundboard.* tokens, with the clip's own colour
-       along its top edge, a ring while it plays and a bar for how far along it is. Every
-       colour, size and radius is an Ox.* token or the clip's own colour. -->
+       face, sized by the Ox.Soundboard.* tokens and filled with the clip's own colour when it has one,
+       with a ring while it plays and a bar for how far along it is. Every colour, size and radius is
+       an Ox.* token or the clip's own colour. -->
   <Window.Styles>
-    <!-- the mixer's own styles: the layout accent a clip's colour tints its icon and name with, and control sizing -->
+    <!-- the mixer's own styles: the layout accent SFX's colour tints its name with, and control sizing -->
     <StyleInclude Source="avares://OpenXLR.UI/MixerStyles.axaml"/>
     <Style Selector="Button.soundPad">
       <Setter Property="Padding" Value="0"/>
@@ -30,6 +30,29 @@
       <Setter Property="MinWidth" Value="0"/>
       <Setter Property="MinHeight" Value="{DynamicResource Ox.Soundboard.ProgressHeight}"/>
       <Setter Property="Height" Value="{DynamicResource Ox.Soundboard.ProgressHeight}"/>
+    </Style>
+    <!-- A filled pad: lettering that reads on the clip's colour, a layer over the fill that
+         answers the pointer and a press in place of the face it hides, and a menu button
+         whose face lets the colour through, whatever face the skin gives a ghost button. -->
+    <Style Selector="Button.soundPad TextBlock.onLight">
+      <Setter Property="Foreground" Value="{DynamicResource Ox.Soundboard.ForegroundOnLight}"/>
+    </Style>
+    <Style Selector="Button.soundPad TextBlock.onDark">
+      <Setter Property="Foreground" Value="{DynamicResource Ox.Soundboard.ForegroundOnDark}"/>
+    </Style>
+    <Style Selector="Button.soundPadMenu.onLight">
+      <Setter Property="Foreground" Value="{DynamicResource Ox.Soundboard.ForegroundOnLight}"/>
+      <Setter Property="Background" Value="{DynamicResource Ox.Soundboard.MenuBackground}"/>
+    </Style>
+    <Style Selector="Button.soundPadMenu.onDark">
+      <Setter Property="Foreground" Value="{DynamicResource Ox.Soundboard.ForegroundOnDark}"/>
+      <Setter Property="Background" Value="{DynamicResource Ox.Soundboard.MenuBackground}"/>
+    </Style>
+    <Style Selector="Button.soundPad:pointerover Border.soundPadShade">
+      <Setter Property="Background" Value="{DynamicResource Ox.Soundboard.FillPointerOver}"/>
+    </Style>
+    <Style Selector="Button.soundPad:pressed Border.soundPadShade">
+      <Setter Property="Background" Value="{DynamicResource Ox.Soundboard.FillPressed}"/>
     </Style>
   </Window.Styles>
 
@@ -141,38 +164,48 @@
                 <vm:SoundPad Name="SoundPad" Classes="soundPad" Classes.playing="{Binding Playing}" IsEnabled="{Binding CanPlay}"
                              ToolTip.ShowOnDisabled="True" AutomationProperties.Name="{Binding PadName}"
                              AutomationProperties.HelpText="{Binding HelpText}" ToolTip.Tip="{Binding Tip}">
+                  <Panel Name="SoundPadFace">
+                  <!-- the clip's colour over the whole face, and the layer that lightens it under the pointer -->
+                  <Border Name="SoundPadFill" Background="{Binding Appearance.Accent}" IsVisible="{Binding Filled}"
+                          CornerRadius="{DynamicResource Ox.Soundboard.PadCornerRadius}"/>
+                  <Border Name="SoundPadShade" Classes="soundPadShade" IsVisible="{Binding Filled}"
+                          CornerRadius="{DynamicResource Ox.Soundboard.PadCornerRadius}"/>
                   <Grid RowDefinitions="Auto,*,Auto,Auto">
                     <!-- the top row keeps the menu button's room, which Touch sizing enlarges, so the
-                         button never covers the name; the clip's own colour runs along it -->
+                         button never covers the name; on a pad that cannot play, which keeps the
+                         plain face so its name and warning read, the clip's colour runs along it -->
                     <Grid ColumnDefinitions="*,Auto">
                       <Border Name="SoundPadColour" Height="{DynamicResource Ox.Soundboard.ProgressHeight}" Background="{Binding Appearance.Accent}"
-                              IsVisible="{Binding Appearance.HasColour}" Margin="10,0,6,0" VerticalAlignment="Center"/>
+                              IsVisible="{Binding Tinted}" Margin="10,0,6,0" VerticalAlignment="Center"/>
                       <Panel Grid.Column="1" Name="SoundPadMenuRoom" Width="28" Height="24"
                              MinWidth="{DynamicResource Ox.Mixer.SmallControlMinSize}" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"/>
                     </Grid>
                     <!-- a grid, not a horizontal stack: the name gets what the icon leaves, and wraps -->
                     <Grid Grid.Row="1" ColumnDefinitions="Auto,*" Margin="10,0,10,0" VerticalAlignment="Top">
-                      <vm:LayoutIconBlock Icon="{Binding Appearance.Icon}" Fallback="{Binding Appearance.DefaultIcon}" Classes="strip"
-                                          Classes.layoutAccent="{Binding Appearance.HasColour}" IsVisible="{Binding Appearance.HasIcon}"
-                                          Margin="0,0,6,0" VerticalAlignment="Top"/>
+                      <vm:LayoutIconBlock Name="SoundPadIcon" Icon="{Binding Appearance.Icon}" Fallback="{Binding Appearance.DefaultIcon}" Classes="strip"
+                                          Classes.onLight="{Binding FillIsLight}" Classes.onDark="{Binding FillIsDark}"
+                                          IsVisible="{Binding Appearance.HasIcon}" Margin="0,0,6,0" VerticalAlignment="Top"/>
                       <TextBlock Grid.Column="1" Name="SoundPadName" Text="{Binding Name}" TextWrapping="Wrap" MaxLines="{Binding NameLines}"
-                                 Classes.layoutAccent="{Binding Appearance.HasColour}"
+                                 Classes.onLight="{Binding FillIsLight}" Classes.onDark="{Binding FillIsDark}"
                                  TextTrimming="CharacterEllipsis" FontWeight="{DynamicResource Ox.Label.FontWeight}"/>
                     </Grid>
                     <!-- the length and mode on one line; a reason the clip cannot load gets up to three -->
                     <TextBlock Grid.Row="2" Name="SoundPadDetail" Text="{Binding Detail}" Classes="hint" Classes.warn="{Binding HasError}"
+                               Classes.onLight="{Binding FillIsLight}" Classes.onDark="{Binding FillIsDark}"
                                FontSize="{DynamicResource Ox.Label.FontSize}" Margin="10,2,10,4" TextWrapping="Wrap"
                                MaxLines="{Binding DetailLines}" TextTrimming="CharacterEllipsis"/>
                     <ProgressBar Grid.Row="3" Name="SoundPadProgress" Classes="soundProgress" Minimum="0" Maximum="1"
                                  Value="{Binding Position}" IsVisible="{Binding Playing}" Margin="10,0,10,8"
                                  AutomationProperties.AccessibilityView="Raw"/>
                   </Grid>
+                  </Panel>
                 </vm:SoundPad>
                 <!-- a ring while a voice plays the clip, over the face whatever its state -->
                 <Border Name="SoundPadRing" IsHitTestVisible="False" IsVisible="{Binding Playing}"
                         BorderBrush="{DynamicResource Ox.Soundboard.Playing}" BorderThickness="{DynamicResource Ox.Soundboard.PlayingThickness}"
                         CornerRadius="{DynamicResource Ox.Soundboard.PadCornerRadius}"/>
-                <Button Name="SoundPadMenu" Classes="ghost" Content="⋯" Click="OnPadMenu"
+                <Button Name="SoundPadMenu" Classes="ghost soundPadMenu" Classes.onLight="{Binding FillIsLight}" Classes.onDark="{Binding FillIsDark}"
+                        Content="⋯" Click="OnPadMenu"
                         HorizontalAlignment="Right" VerticalAlignment="Top" Width="28" Height="24" Padding="0"
                         HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                         MinWidth="{DynamicResource Ox.Mixer.SmallControlMinSize}" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"

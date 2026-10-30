@@ -33,6 +33,9 @@ public sealed class LayoutAppearanceViewModel : ViewModelBase
     public IBrush? Accent => _accent;
     public bool HasColour => _accent is not null;
 
+    /// <summary>True when the colour is light enough that dark lettering reads better on it than light.</summary>
+    public bool IsLight => _accent is not null && LayoutColours.IsLight(_colour);
+
     private bool _hidden;
     public bool Hidden { get => _hidden; private set => Set(ref _hidden, value); }
 
@@ -56,6 +59,7 @@ public sealed class LayoutAppearanceViewModel : ViewModelBase
         Raise(nameof(Colour));
         Raise(nameof(Accent));
         Raise(nameof(HasColour));
+        Raise(nameof(IsLight));
     }
 }
 

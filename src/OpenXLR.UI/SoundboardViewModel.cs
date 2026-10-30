@@ -112,6 +112,24 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
     /// <summary>The clip's icon and colour, drawn like a channel's.</summary>
     public LayoutAppearanceViewModel Appearance { get; } = new();
 
+    /// <summary>
+    /// The pad's face is filled with the clip's colour, like a key of a
+    /// Stream Deck, while a press plays it. A pad that cannot play, its clip
+    /// loading, unreadable or the board off, keeps the plain face the skin
+    /// draws off, so its name and any warning read in the skin's colours,
+    /// with the clip's colour as a bar along the top.
+    /// </summary>
+    public bool Filled => Appearance.HasColour && CanPlay;
+
+    /// <summary>The fill is a light colour: the pad's lettering is dark.</summary>
+    public bool FillIsLight => Filled && Appearance.IsLight;
+
+    /// <summary>The fill is a dark colour: the pad's lettering is light.</summary>
+    public bool FillIsDark => Filled && !Appearance.IsLight;
+
+    /// <summary>The clip has a colour the face is not filled with, since it cannot play: it runs along the top as a bar.</summary>
+    public bool Tinted => Appearance.HasColour && !Filled;
+
     private string _status = "off";
     /// <summary>
     /// The daemon's one word for the clip: <c>ready</c> when a press plays it,
@@ -199,6 +217,14 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
     /// <summary>The menu button's name for a screen reader.</summary>
     public string MenuName => Localizer.Format("SoundClipMenuName", _name);
 
+    private void RaiseFill()
+    {
+        Raise(nameof(Filled));
+        Raise(nameof(FillIsLight));
+        Raise(nameof(FillIsDark));
+        Raise(nameof(Tinted));
+    }
+
     private void RaiseText()
     {
         Raise(nameof(ModeName));
@@ -210,6 +236,7 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
 
     internal void RaiseState()
     {
+        RaiseFill();
         Raise(nameof(CanPlay));
         Raise(nameof(Loading));
         Raise(nameof(NameLines));
@@ -228,6 +255,7 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
         Loop = Flag(clip["loop"]);
         Page = Text(clip["page"]) ?? "";
         Appearance.Apply(new JsonObject { ["icon"] = Text(clip["icon"]) ?? "", ["colour"] = Text(clip["colour"]), ["defaultIcon"] = DefaultIcon });
+        RaiseFill();
         Error = Text(clip["error"]) is { Length: > 0 } error ? error : null;
         // A daemon from before the word worked it out from loaded and error.
         string? status = Text(clip["status"]);
@@ -1145,7 +1173,7 @@ public sealed class SoundClipEditViewModel : ViewModelBase
             return null;
         }
         string colour = (_colour ?? "").Trim();
-        if (colour.Length > 0 && !IsHexColour(colour))
+        if (colour.Length > 0 && !LayoutColours.IsHex(colour))
         {
             Note = Localizer.Text("ColourFormatHint");
             return null;
@@ -1176,6 +1204,4 @@ public sealed class SoundClipEditViewModel : ViewModelBase
         Note = error ?? "";
         return error is null;
     }
-
-    private static bool IsHexColour(string text) => text.Length == 7 && text[0] == '#' && text.Skip(1).All(char.IsAsciiHexDigit);
 }

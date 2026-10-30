@@ -830,7 +830,25 @@ public sealed class WindowLayoutTests
             Assert.Equal(item is not string, hide is not null);
             if (hide is not null)
                 Assert.Equal(Localizer.Text(item is MixViewModel ? "HideMix" : "HideChannelStrip"), hide.Content);
-            ((TextBox)Named("AppearanceColour")).Text = "red";
+            // The swatches fill the field and follow it: a typed palette value rings its swatch.
+            var colourField = (TextBox)Named("AppearanceColour");
+            Button[] swatches = [.. ((Panel)Named("AppearanceSwatches")).Children.OfType<Button>()];
+            Assert.Equal(OpenXLR.UI.LayoutColours.Palette.Count + 1, swatches.Length);
+            Assert.All(swatches, b => Assert.False(string.IsNullOrEmpty(Avalonia.Automation.AutomationProperties.GetName(b))));
+            Assert.All(swatches, b => AssertInside(b, dialog));
+            swatches[3].RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(OpenXLR.UI.LayoutColours.Palette[2].Hex, colourField.Text);
+            Assert.True(Ring(swatches[3]));
+            Layout(dialog, 440, 360);
+            Capture(dialog, "layout-appearance-swatches-" + (item is ChannelViewModel ? "channel" : item is string ? "output" : "mix"));
+            colourField.Text = OpenXLR.UI.LayoutColours.Palette[0].Hex.ToLowerInvariant();
+            Assert.True(Ring(swatches[1]));
+            Assert.False(Ring(swatches[3]));
+            swatches[0].RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal("", colourField.Text);
+            Assert.True(Ring(swatches[0]));
+            colourField.Text = "red";
+            Assert.DoesNotContain(swatches, Ring);
             Named("AppearanceSave").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
             Dispatcher.UIThread.RunJobs();
             Assert.True(dialog.IsVisible);   // a colour that is not #RRGGBB is not sent
@@ -841,6 +859,9 @@ public sealed class WindowLayoutTests
             Dispatcher.UIThread.RunJobs();
         }
     }
+
+    /// <summary>Whether a colour swatch wears the ring that marks it as the field's value.</summary>
+    internal static bool Ring(Button swatch) => ((Panel)swatch.Content!).Children.OfType<Border>().Last().IsVisible;
 
     internal static void AddInsert(InsertsViewModel owner)
     {

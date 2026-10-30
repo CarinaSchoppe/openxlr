@@ -421,6 +421,25 @@ public static class SkinTokens
         Thick("Ox.Soundboard.PlayingThickness", 2),
         Brush("Ox.Soundboard.Progress", "#3ecf7a"),
         Number("Ox.Soundboard.ProgressHeight", 4, 2, 16),
+        // A pad whose clip has a colour is filled with it while it can play.
+        // Its lettering is dark on a light colour and light on a dark one, so
+        // it reads on any colour the user picks. Translucent layers over the
+        // fill answer the pointer and a press, since the fill hides the
+        // face's own.
+        Brush("Ox.Soundboard.ForegroundOnLight", "#16181d"),
+        Brush("Ox.Soundboard.ForegroundOnDark", "#ffffff"),
+        Brush("Ox.Soundboard.FillPointerOver", "#1fffffff"),
+        Brush("Ox.Soundboard.FillPressed", "#33000000"),
+        Brush("Ox.Soundboard.MenuBackground", "#00000000"),
+
+        // The colour swatches beside a colour field: the clip editor's and
+        // the Appearance dialog's. The colours are the palette's; these size
+        // a swatch and draw its outline and the ring round the chosen one,
+        // which take the secondary and primary text colours.
+        Number("Ox.Swatch.Size", 28, 16, 64),
+        Radius("Ox.Swatch.CornerRadius", 4),
+        Thick("Ox.Swatch.BorderThickness", 1),
+        Thick("Ox.Swatch.SelectedThickness", 2),
     ];
 
     private static readonly Dictionary<string, SkinToken> ByName =

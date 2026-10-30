@@ -3118,15 +3118,6 @@ Von OpenXLR gesteuertes Interface wählen</value>
   <data name="SoundboardAddFolderTip" xml:space="preserve">
     <value>Jede Tondatei eines Ordners nacheinander auf eine Seite mit dem Namen des Ordners hinzufügen; Unterordner bleiben außen vor.</value>
   </data>
-  <data name="SoundboardTurnOn" xml:space="preserve">
-    <value>Einschalten</value>
-  </data>
-  <data name="SoundboardTurnOnCreate" xml:space="preserve">
-    <value>Einschalten und SFX anlegen</value>
-  </data>
-  <data name="SoundboardTurnOnTip" xml:space="preserve">
-    <value>Den Player starten. Ohne SFX-Kanal legt der Daemon einen an, in jedem Mix stummgeschaltet; öffne seine Sends, um die Clips zu hören.</value>
-  </data>
   <data name="SoundboardEmpty" xml:space="preserve">
     <value>Noch keine Clips. Füge eine WAV-, FLAC-, Ogg-, Opus- oder MP3-Datei mit bis zu 30 Sekunden hinzu.</value>
   </data>

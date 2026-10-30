@@ -3446,15 +3446,6 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
   <data name="SoundboardAddFolderTip" xml:space="preserve">
     <value>Idugang usa-usa ang matag sound file sa usa ka folder ngadto sa panid nga ginganlan sunod sa folder; dili apil ang mga subfolder niini.</value>
   </data>
-  <data name="SoundboardTurnOn" xml:space="preserve">
-    <value>I-on</value>
-  </data>
-  <data name="SoundboardTurnOnCreate" xml:space="preserve">
-    <value>I-on ug paghimo og SFX</value>
-  </data>
-  <data name="SoundboardTurnOnTip" xml:space="preserve">
-    <value>Sugdi ang player. Kon walay SFX channel, maghimo ang daemon og usa, naka-mute sa matag mix; ablihi ang mga send niini aron madungog ang mga clip.</value>
-  </data>
   <data name="SoundboardEmpty" xml:space="preserve">
     <value>Wala pay clip. Pagdugang og WAV, FLAC, Ogg, Opus o MP3 file nga hangtod 30 segundos.</value>
   </data>

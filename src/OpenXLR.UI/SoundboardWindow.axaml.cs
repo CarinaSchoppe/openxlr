@@ -104,8 +104,6 @@ public partial class SoundboardWindow : Window
 
     private void OnStopAll(object? sender, RoutedEventArgs e) => Board?.StopAll();
 
-    private void OnTurnOn(object? sender, RoutedEventArgs e) => Board?.TurnOn();
-
     private void OnClose(object? sender, RoutedEventArgs e) => Close();
 
     private void OnCancelImport(object? sender, RoutedEventArgs e) => Board?.CancelImport();

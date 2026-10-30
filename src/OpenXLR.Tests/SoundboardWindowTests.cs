@@ -546,16 +546,16 @@ internal static class SoundboardWindowTests
             main.Soundboard.Dropping = false;
             Layout(board, 760, 620);
 
-            // SFX deleted: the daemon's sentence and the button that creates SFX again; the header keeps its button.
+            // SFX deleted: the daemon's sentence and the switch, which creates SFX again; the header keeps its button.
             const string deleted = "The soundboard is off because the SFX channel was deleted. Turn it on again to create SFX, muted in every mix.";
             daemon.HasSfx = false;
             daemon.Enabled = false;
             daemon.Error = deleted;
             await live.Push(daemon.State());
             TextBlock notice = Find<TextBlock>(board, "SoundboardNotice");
-            Button turnOn = Find<Button>(board, "SoundboardTurnOn");
-            await Until(() => notice.IsEffectivelyVisible && notice.Text == deleted && turnOn.IsEffectivelyVisible);
-            Assert.Equal(Localizer.Text("SoundboardTurnOnCreate"), turnOn.Content);
+            CheckBox turnOn = Find<CheckBox>(board, "SoundboardEnabled");
+            await Until(() => notice.IsEffectivelyVisible && notice.Text == deleted && turnOn.IsEffectivelyVisible && turnOn.IsChecked == false);
+            Assert.True(turnOn.IsEffectivelyEnabled);
             Assert.False(Pad("airhorn").IsEnabled);
             Assert.False(Find<StackPanel>(board, "SoundboardMaster").IsEffectivelyVisible);
             Assert.True(fromHeader.IsEffectivelyVisible);
@@ -565,7 +565,7 @@ internal static class SoundboardWindowTests
                 AssertFits(board, $"without SFX at {width}");
                 Capture(board, $"soundboard-no-sfx-{(int)width}");
             }
-            JsonNode on = await Sent(() => turnOn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));
+            JsonNode on = await Sent(() => turnOn.IsChecked = true);
             Assert.True(on["enabled"]!.GetValue<bool>());
             await Until(() => main.Soundboard.CanPlay && !notice.IsEffectivelyVisible && Pad("airhorn").IsEnabled);
 

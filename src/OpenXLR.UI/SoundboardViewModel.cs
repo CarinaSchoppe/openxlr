@@ -355,7 +355,6 @@ public sealed class SoundboardViewModel : ViewModelBase
             if (_channel is not null) _channel.PropertyChanged += OnChannelChanged;
             Raise();
             Raise(nameof(HasMaster));
-            Raise(nameof(ShowsChannel));
             Raise(nameof(ShowsMaster));
             Raise(nameof(ChannelName));
             Raise(nameof(MasterHint));
@@ -372,9 +371,6 @@ public sealed class SoundboardViewModel : ViewModelBase
         Raise(nameof(MasterName));
         Raise(nameof(Notice));
     }
-
-    /// <summary>The header names the channel the clips play into: the mixer has it.</summary>
-    public bool ShowsChannel => _channel is not null;
 
     /// <summary>The master fader shows: the mixer runs and has the channel, with a volume.</summary>
     public bool ShowsMaster => _mixerRunning && _channel is not null;
@@ -453,12 +449,6 @@ public sealed class SoundboardViewModel : ViewModelBase
     /// <summary>Clips can be added: the daemon has the board and this installation the helper that checks them.</summary>
     public bool CanImport => _mixerRunning && _reported && _available;
 
-    /// <summary>The window offers to turn the board on: it is off and could run.</summary>
-    public bool ShowsTurnOn => _mixerRunning && _reported && _available && (!_enabled || _channelId is null);
-
-    /// <summary>The turn-on button says it creates SFX when there is none.</summary>
-    public string TurnOnText => _channelId is null ? Localizer.Text("SoundboardTurnOnCreate") : Localizer.Text("SoundboardTurnOn");
-
     /// <summary>
     /// The sentence over the pads while they cannot play: the daemon's own,
     /// or that the daemon has no soundboard. Empty while they can.
@@ -495,8 +485,6 @@ public sealed class SoundboardViewModel : ViewModelBase
         Raise(nameof(CanImport));
         Raise(nameof(CanAdd));
         Raise(nameof(CanExport));
-        Raise(nameof(ShowsTurnOn));
-        Raise(nameof(TurnOnText));
         Raise(nameof(Notice));
         Raise(nameof(HasNotice));
         Raise(nameof(NoticeWarns));
@@ -761,16 +749,6 @@ public sealed class SoundboardViewModel : ViewModelBase
     public void StopAudition()
     {
         if (_reported) Send(_commands.StopAuditionAsync());
-    }
-
-    /// <summary>The window's turn-on button, which creates SFX when the layout has none.</summary>
-    public void TurnOn()
-    {
-        if (!ShowsTurnOn) return;
-        _enabled = true;
-        Raise(nameof(Enabled));
-        RaiseBoard();
-        Send(_commands.SetSoundboardAsync(true));
     }
 
     // --- the library ---

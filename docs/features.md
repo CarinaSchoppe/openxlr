@@ -60,6 +60,16 @@ interface attached too, the daemon drives the interface and the Wave:3
 only when picked from the header. [hardware-support.md](hardware-support.md)
 names the sources, the bytes they dispute and what an owner checks.
 
+Wave:3 MK.2: gain (0 to 40 dB), mute, headphone volume, the direct
+monitor crossfade and the microphone EQ on the unit, from the Wave XLR
+MK.2's backend. On the maintainer's unit each control wrote and read
+back. The gain and headphone level matched the kernel's own controls, and
+the EQ was measured on the capsule's noise. A replug is not yet checked.
+OpenXLR neither shows nor writes the bits of the MK.2's settings block
+that nobody has identified on this microphone. Like the Wave:3, the daemon
+drives it only when no XLR interface is attached or when picked from the
+header.
+
 Wave:1: the same controls as the Wave:3, from the same backend under the
 Wave:1's product id. An owner's diagnostics showed the
 microphone answering the Wave:3's block, firmware line and desktop
@@ -71,7 +81,8 @@ The daemon drives it after every other supported device.
 
 The XLR Dock MK.2 and the Wave XLR MK.2 run OpenXLR's
 [microphone EQ](#software-controls) on their own DSP from firmware 1.0.15,
-and the Wave XLR Pro on each of its two inputs from firmware 1.0.14, the
+the Wave:3 MK.2 from its own firmware 0.2.3
+([measured](hardware-support.md#wave3-mk2-0fd900ca)), and the Wave XLR Pro on each of its two inputs from firmware 1.0.14, the
 way Wave Link 3.5 does ([findings](mk2-eq-findings.md),
 [Pro](hardware-support.md#wave-xlr-pro-0fd900b4)); every other model and
 older firmware run it in software. The Pro's EQ follows Wave Link
@@ -421,7 +432,7 @@ muted. The binding is machine wiring, independent of profile recall.
 A strip on another source is named Mic 1 or Mic 2 and wears the
 microphone icon, or the headset for a Bluetooth headset; XLR 1 and XLR 2
 keep their names only on a real XLR jack, the primary interface's or
-another one's such as an XLR Dock's. A Wave:3 or Wave:1 has a capsule
+another one's such as an XLR Dock's. A Wave:3, Wave:3 MK.2 or Wave:1 has a capsule
 rather than a jack, so its strip is Mic 1 too. The ids never change.
 
 The Elgato interface stays driven whatever the strips take: headphones,
@@ -634,7 +645,7 @@ primary microphone or from a chain window on that input, and a
 up, an additional interface's included, stopping a session on the one it
 leaves. The window sizes itself to the step it shows, up to the screen's
 height. **Position** gives placement tips for
-the kind of unit the microphone is on (a Wave:3's or Wave:1's capsule, an
+the kind of unit the microphone is on (a Wave:3's, Wave:3 MK.2's or Wave:1's capsule, an
 XLR jack, or a device OpenXLR does not drive) and the unit's phantom power
 switch where it has one. **Level** shows the microphone before any processing on a large
 meter, with a band for speech, a clip light that holds until cleared and

@@ -10,10 +10,10 @@ namespace OpenXLR.Core.Devices;
 ///
 /// The order of the table is also the daemon's preference when several
 /// supported interfaces are attached and none is chosen: <see cref="DetectAll"/>
-/// lists them in this order. The XLR interfaces come first: a Wave:3 or
-/// Wave:1 beside one is usually a second microphone, so the USB microphones
-/// come last, in that order, and drive the mixer only when no interface is on
-/// the bus or the user picks them.
+/// lists them in this order. The XLR interfaces come first: a Wave:3,
+/// Wave:3 MK.2 or Wave:1 beside one is usually a second microphone, so the
+/// USB microphones come last, in that order, and drive the mixer only when no
+/// interface is on the bus or the user picks them.
 /// </summary>
 public static class DeviceRegistry
 {
@@ -27,6 +27,7 @@ public static class DeviceRegistry
         (new Key(WaveXlrMk2Device.VendorId, WaveXlrMk2Device.ProductId), () => new WaveXlrMk2Device()),
         (new Key(XlrDockMk2Device.VendorId, XlrDockMk2Device.ProductId), () => new XlrDockMk2Device()),
         (new Key(Wave3Device.VendorId, Wave3Device.ProductId), () => new Wave3Device()),   // after the XLR interfaces
+        (new Key(Wave3Mk2Device.VendorId, Wave3Mk2Device.ProductId), () => new Wave3Mk2Device()),
         (new Key(Wave1Device.VendorId, Wave1Device.ProductId), () => new Wave1Device()),   // last: the Wave:3's backend under the Wave:1's id
         // Add more brands/models here, e.g.:
         // (new Key(0x1220, 0x8fe0), () => new GoXlrDevice()),

@@ -245,14 +245,14 @@ refused.
 
 ## The device protocols
 
-The seven devices use vendor-block and class-request protocols plus ALSA
+The eight devices use vendor-block and class-request protocols plus ALSA
 controls, all reached without detaching the kernel's audio driver:
 
-- Wave XLR Pro, Wave XLR MK.2 and XLR Dock MK.2: a vendor block bank
-  on the unclaimed interface (`bmRequestType 0x41/0xC1`, `bRequest 1`,
-  `wIndex 0x0103` on the Pro, `0x0203` on the Wave XLR MK.2, and on the
-  XLR Dock MK.2 whichever of the two its firmware answers, probed at
-  connect). Fixed-size
+- Wave XLR Pro, Wave XLR MK.2, XLR Dock MK.2 and Wave:3 MK.2: a vendor
+  block bank on the unclaimed interface (`bmRequestType 0x41/0xC1`,
+  `bRequest 1`, `wIndex 0x0103` on the Pro and the Wave:3 MK.2, `0x0203`
+  on the Wave XLR MK.2, and on the XLR Dock MK.2 whichever of the two its
+  firmware answers, probed at connect). Fixed-size
   blocks hold gain, packed flag bits, and on the Pro the hardware mix
   matrix; a write reads the block, modifies it, writes it back, and on
   the Pro follows with a commit block. Offsets and how they were found:

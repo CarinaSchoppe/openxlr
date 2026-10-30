@@ -5,7 +5,8 @@ namespace OpenXLR.Tests;
 /// <summary>
 /// The registry's table order is the daemon's preference when nothing is
 /// chosen, so the Wave:3, a USB microphone, comes after every XLR interface,
-/// and the Wave:1, which shares its backend, after it. Devices are constructed,
+/// the Wave:3 MK.2 beside it, and the Wave:1, which shares the Wave:3's
+/// backend, after both. Devices are constructed,
 /// never opened.
 /// </summary>
 public sealed class DeviceRegistryTests
@@ -24,7 +25,13 @@ public sealed class DeviceRegistryTests
         Assert.Equal([0x00a6, 0x0070], Pids([(0x0fd9, 0x0070), (0x0fd9, 0x00a6)]));
         Assert.Equal([0x00b6, 0x00c7, 0x0070], Pids([(0x0fd9, 0x00c7), (0x0fd9, 0x0070), (0x0fd9, 0x00b6)]));
         Assert.Equal([0x007d, 0x0070, 0x006e], Pids([(0x0fd9, 0x006e), (0x0fd9, 0x0070), (0x0fd9, 0x007d)]));
+        Assert.Equal([0x00b4, 0x00c7, 0x0070, 0x00ca, 0x006e],
+            Pids([(0x0fd9, 0x00ca), (0x0fd9, 0x006e), (0x0fd9, 0x0070), (0x0fd9, 0x00c7), (0x0fd9, 0x00b4)]));
     }
+
+    [Fact]
+    public void AloneOnTheBusTheWave3Mk2IsDetected()
+        => Assert.Equal([0x00ca], Pids([(0x0fd9, 0x00ca)]));
 
     [Fact]
     public void AloneOnTheBusTheWave1IsDetected()

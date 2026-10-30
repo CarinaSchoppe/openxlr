@@ -90,7 +90,8 @@ multi-output monitoring and a dedicated mix for a second computer on
 the USB Aux port, plus an OpenDeck plugin for Stream Deck control.
 
 Supported devices: Wave XLR Pro, XLR Dock and XLR Dock MK.2
-(Stream Deck+ modules), Wave XLR, Wave XLR MK.2, Wave:3 and Wave:1.
+(Stream Deck+ modules), Wave XLR, Wave XLR MK.2, Wave:3, Wave:3 MK.2
+and Wave:1.
 
 After installing, enable the per-user daemon with
 "systemctl --user enable --now openxlr-daemon" and replug the

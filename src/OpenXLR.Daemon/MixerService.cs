@@ -81,6 +81,17 @@ public sealed class MixerService : IHostedService, IDisposable
     private readonly SettingsSaver _saves;
     public NativeEditorPolicy EditorPolicy { get; }
 
+    /// <summary>
+    /// The folder each new service reads the starter sounds from: the one
+    /// installed beside the daemon. The test process points it at a folder
+    /// that does not exist, so a service a test starts adds no clips of its
+    /// own; a test of the starter sounds sets <see cref="StarterSoundsDirectory"/>.
+    /// </summary>
+    internal static string DefaultStarterSoundsDirectory { get; set; } = StarterSounds.Directory;
+
+    /// <summary>The folder this service adds and restores the starter sounds from.</summary>
+    internal string StarterSoundsDirectory { get; set; } = DefaultStarterSoundsDirectory;
+
     public MixerService(ILogger<MixerService> log, IConfiguration config, DeviceManager devices,
         IHostApplicationLifetime? lifetime = null, NativeEditorPolicy? editorPolicy = null,
         StartupDefaults? startupDefaults = null, WaveInterfaces? waveInterfaces = null, TimeProvider? time = null)
@@ -507,6 +518,9 @@ public sealed class MixerService : IHostedService, IDisposable
         SoundboardLibrary board = SoundboardLibrary.Load(null, out string? boardWarning);
         if (boardWarning is not null) _log.LogWarning("soundboard: {warning}", boardWarning);
         _mixer.UseSoundboard(board);
+        // The starter sounds go in once, off the build: each clip is checked
+        // by the helper, and a set that is not installed changes nothing.
+        if (!board.StarterAdded) _ = Task.Run(AddStarterSoundsOnce);
         _log.LogInformation("submix graph built ({mixes} mixes, {channels} channels){route}",
             _mixer.Config.Mixes.Count, _mixer.Config.Channels.Count,
             output is null ? "" : $", monitor -> {output}");
@@ -879,6 +893,61 @@ public sealed class MixerService : IHostedService, IDisposable
         catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
         {
             return new(false, ex.Message, 0, []);
+        }
+    }
+
+    /// <summary>
+    /// Add the starter sounds to a library that never had them. A failure is
+    /// logged and leaves the library as it was, still without the mark that
+    /// they were added, so the next start tries again.
+    /// </summary>
+    private void AddStarterSoundsOnce()
+    {
+        try
+        {
+            if (_stopping.IsCancellationRequested) return;
+            if (_mixer.AddStarterSoundsOnce(StarterSoundsDirectory) is not { } added) return;
+            _log.LogInformation("soundboard: added {count} starter sounds{skipped}", added.Added.Count,
+                added.Skipped.Count > 0 ? $"; left out: {string.Join("; ", added.Skipped)}" : "");
+            if (added.Added.Count > 0) Changed?.Invoke();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            _log.LogInformation("soundboard: the starter sounds were not added: {reason}", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Add back the starter sounds the library no longer has. Each clip is
+    /// checked by the helper, so callers run it off the socket loop.
+    /// </summary>
+    public StarterSoundsMessage RestoreStarterSounds(Command cmd)
+    {
+        if (!_mixer.Built) return new(false, NotBuiltError, [], []);
+        if (CommandValidation.Check(cmd, _mixer, OpenXLR.Core.Mixing.PluginCatalog.Find) is { } invalid) return new(false, invalid, [], []);
+        try
+        {
+            SoundboardImport import = _mixer.RestoreStarterSounds(StarterSoundsDirectory);
+            _log.LogInformation("soundboard: restored {count} starter sounds", import.Added.Count);
+            if (import.Added.Count > 0) Changed?.Invoke();
+            SoundboardLibrary board = _mixer.SoundboardLibrary;
+            string names = string.Join(", ", import.Added.Select(id => board.Clips.FirstOrDefault(c => c.Id == id)?.Name ?? id));
+            string message = import.Added.Count switch
+            {
+                0 => "Every starter sound is on the soundboard already.",
+                1 => $"1 starter sound was added back: {names}.",
+                _ => $"{import.Added.Count} starter sounds were added back: {names}.",
+            };
+            if (import.Skipped.Count > 0) message += $" Left out: {string.Join("; ", import.Skipped)}.";
+            return new(true, message, import.Added, import.Skipped);
+        }
+        catch (SoundboardImportRefusedException ex)
+        {
+            return new(false, ex.Message, [], ex.Skipped);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            return new(false, ex.Message, [], []);
         }
     }
 

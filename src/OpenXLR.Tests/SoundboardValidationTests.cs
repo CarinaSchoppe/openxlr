@@ -53,6 +53,7 @@ public sealed class SoundboardValidationTests
     [InlineData("""{"cmd":"exportSoundboard","path":"/home/me/Board.ZIP"}""")]
     [InlineData("""{"cmd":"importSoundboard","path":"/home/me/board.zip","merge":true}""")]
     [InlineData("""{"cmd":"importSoundboard","path":"/home/me/board.zip","merge":false}""")]
+    [InlineData("""{"cmd":"restoreStarterSounds"}""")]
     public void WellFormedCommandsPass(string json) => Assert.Null(Check(json));
 
     [Theory]
@@ -106,6 +107,7 @@ public sealed class SoundboardValidationTests
         Assert.Equal(Mixer.SoundboardNeedsHost, Check("""{"cmd":"setSoundboard","enabled":true}""", host: false));
         Assert.Equal(Mixer.SoundboardNeedsHost, Check("""{"cmd":"importClip","path":"/tmp/a.wav"}""", host: false));
         Assert.Equal(Mixer.SoundboardNeedsHost, Check("""{"cmd":"importSoundboard","path":"/tmp/a.zip","merge":true}""", host: false));
+        Assert.Equal(Mixer.SoundboardNeedsHost, Check("""{"cmd":"restoreStarterSounds"}""", host: false));
         // An export copies files and needs no helper; pages are library edits.
         Assert.Null(Check("""{"cmd":"exportSoundboard","path":"/tmp/a.zip"}""", host: false));
         Assert.Null(Check("""{"cmd":"renameClipPage","page":"a","name":"b"}""", host: false));
@@ -174,6 +176,12 @@ public sealed class SoundboardValidationTests
         Assert.Equal("a-2", import["renamed"]!["a"]!.GetValue<string>());
         Assert.Equal("Too big.", WebSocketHub.OperationError(new SoundboardExportMessage(false, "Too big.", 0, [])));
         Assert.Equal("Not a zip.", WebSocketHub.OperationError(new SoundboardImportMessage(false, "Not a zip.", [], new Dictionary<string, string>(), [], false)));
+        JsonNode starter = JsonNode.Parse(JsonSerializer.Serialize(new StarterSoundsMessage(true, "Every starter sound is on the soundboard already.", [], []), Wire))!;
+        Assert.Equal(["ok", "message", "clips", "skipped", "type"], starter.AsObject().Select(p => p.Key));
+        Assert.Equal("starterSounds", starter["type"]!.GetValue<string>());
+        // Nothing to add back is not a failure; a set that is not installed is.
+        Assert.Null(WebSocketHub.OperationError(new StarterSoundsMessage(true, "Every starter sound is on the soundboard already.", [], [])));
+        Assert.Equal("Not installed.", WebSocketHub.OperationError(new StarterSoundsMessage(false, "Not installed.", [], [])));
 
         // The state carries the board under mixer.soundboard.
         var mixer = new MixerState { Mixes = [], Channels = [], Soundboard = state };

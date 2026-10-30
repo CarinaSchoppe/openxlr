@@ -30,6 +30,12 @@ public sealed record SoundboardClip
     public double Seconds { get; init; }
     /// <summary>The page clients draw the clip on, or empty for the default page.</summary>
     public string Page { get; init; } = "";
+    /// <summary>
+    /// The starter sound the clip was added as, by the starter set's own id,
+    /// or empty for a clip the user added. It never changes, so a starter
+    /// clip that was renamed or moved still counts as present.
+    /// </summary>
+    public string Starter { get; init; } = "";
 }
 
 /// <summary>
@@ -70,6 +76,13 @@ public sealed record SoundboardLibrary
 
     public bool Enabled { get; init; }
     public IReadOnlyList<SoundboardClip> Clips { get; init; } = [];
+
+    /// <summary>
+    /// Whether the starter sounds were added to this library once. They are
+    /// added at most once by themselves: a starter clip the user deleted
+    /// stays deleted until it is restored by hand.
+    /// </summary>
+    public bool StarterAdded { get; init; }
 
     /// <summary>
     /// The ids of deleted clips, never given to a new clip, so a Deck key or
@@ -167,6 +180,7 @@ public sealed record SoundboardLibrary
         if (!LayoutAppearance.IsValid(new LayoutAppearance(clip.Icon ?? "\0", clip.Colour))) return "the icon or colour is not valid";
         if (!double.IsFinite(clip.Seconds) || clip.Seconds is < 0 or > MaxSeconds + 1) return "the length is not valid";
         if (!IsValidPage(clip.Page)) return $"the page must have at most {MaxPageLength} printable characters, and cannot be {DefaultPageWord} alone";
+        if (clip.Starter.Length > 0 && !IsValidId(clip.Starter)) return "the starter id is not a clip id";
         return null;
     }
 
@@ -189,6 +203,7 @@ public sealed record SoundboardLibrary
             JsonElement root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object) throw new JsonException("the file does not hold an object");
             bool enabled = root.TryGetProperty("enabled", out JsonElement on) && on.ValueKind == JsonValueKind.True;
+            bool starterAdded = root.TryGetProperty("starterAdded", out JsonElement added) && added.ValueKind == JsonValueKind.True;
             var dropped = new List<string>();
             List<SoundboardClip> clips = ReadClips(root, dropped);
             var ids = new HashSet<string>(clips.Select(c => c.Id), StringComparer.OrdinalIgnoreCase);
@@ -199,7 +214,7 @@ public sealed record SoundboardLibrary
                         && !ids.Contains(id) && !retired.Contains(id, StringComparer.OrdinalIgnoreCase))
                         retired.Add(id);
             if (dropped.Count > 0) warning = $"{path}: dropped {string.Join(", ", dropped)}";
-            return new SoundboardLibrary { Enabled = enabled, Clips = clips, Retired = [.. retired.TakeLast(MaxRetired)] };
+            return new SoundboardLibrary { Enabled = enabled, Clips = clips, Retired = [.. retired.TakeLast(MaxRetired)], StarterAdded = starterAdded };
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {
@@ -241,7 +256,8 @@ public sealed record SoundboardLibrary
             try { clip = entry.Deserialize<SoundboardClip>(Json); }
             catch (JsonException) { clip = null; }
             // A file from before pages has none; spaces around a page are not part of it.
-            if (clip is not null) clip = clip with { Page = clip.Page?.Trim() ?? "" };
+            // One from before the starter sounds has no starter id.
+            if (clip is not null) clip = clip with { Page = clip.Page?.Trim() ?? "", Starter = clip.Starter ?? "" };
             string label = clip is not null && IsValidId(clip.Id) ? clip.Id : $"#{index}";
             string? problem = clip is null ? "the entry is not a clip" : Problem(clip);
             if (problem is null && !ids.Add(clip!.Id)) problem = "the id is used twice";

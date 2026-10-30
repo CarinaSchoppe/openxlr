@@ -122,6 +122,7 @@ Messages from the daemon, each a JSON object with a `type` field:
 | `soundboard` | in answer to `getSoundboard` | `soundboard`, the same object as the state's `mixer.soundboard`. See [Soundboard](#soundboard) |
 | `clipImport` | in answer to `importClip` | `ok`, `message` (a sentence for the user) and `clip`, the new clip's id, or null when the file was refused. See [Soundboard](#soundboard) |
 | `soundboardExport` | in answer to `exportSoundboard` | `ok`, `message` (a sentence for the user), `clips` (how many clips the archive holds) and `skipped` (each clip left out, as `name: reason`). See [Soundboard](#soundboard) |
+| `starterSounds` | in answer to `restoreStarterSounds` | `ok` (true when it went through, also when no starter clip was missing), `message`, `clips` (the ids added, in library order) and `skipped` (each clip left out, as `name: reason`). See [Starter sounds](#starter-sounds) |
 | `soundboardImport` | in answer to `importSoundboard` | `ok` (true when at least one clip was imported), `message`, `clips` (the ids added, in library order), `renamed` (the archive's id to the new one, for each clip whose id was in use here), `skipped` (each clip left out, as `name: reason`, and on a refusal each clip that could not be taken) and `replaced` (true when the library was replaced). See [Soundboard](#soundboard) |
 | `plugins` | in answer to `listPlugins` | the installed LV2, CLAP and VST3 plugins with their controls, within the message size limit above and always including the plugins the saved chains use; `supported` is false, with `unsupportedFeatures` listed, for a plugin that needs a host feature the PipeWire chain lacks. `audioIns` and `audioOuts` are the plugin's own port counts, or for VST3 its main buses' default width; a VST3 entry also carries `widths`, the chain widths in channels (1 and 2 are the ones the host carries) its main buses accepted when the helper asked the way the host asks at load, so a plugin that reports 2 and lists 1 in `widths` can be inserted on a mono input. An entry without `widths` (LV2, CLAP, or a description an older helper wrote) fits a mono input with one port each way and a stereo input or mix with two or more |
 | `pluginSetup` | in answer to `getPluginSetup` or `setPluginWineTrace` | where installs go (`lv2Directory`, `clapDirectory`, `vst3Directory`), `hostInstalled`, `wineTrace` (deep tracing enabled in the running daemon), `yabridge` (its version, or null when not installed), `wine`, `windowsDirectories` (the folders yabridge bridges) and `wineFolders` (Wine's own plugin folders that hold a plugin and are not bridged yet, offered as one press since a file dialog hides them), `memoryLockLimitBytes` (the running daemon's soft limit in bytes; -1 means unlimited, null means unknown) and `memoryLockNote` (recovery advice when Windows plugin support is available and the limit is below 256 MiB, otherwise null), `searchDirectories` (every folder searched, see [Plugin search paths](#plugin-search-paths)) and `searchPathWarning` |
@@ -324,6 +325,7 @@ that final acknowledgement (or an `error` without a request id):
 | `stopClips` | none | fade every voice out, the audition included; no error while the board is off |
 | `auditionClip` | `clip` | play the clip once from its start in the monitor mixes the monitor outputs play, and in no other mix. It never plays in SFX, Stream, Chat or Aux, so the headphones hear it and the stream and a call do not. It replaces the audition playing, of any clip. SFX's fader, mutes and sends do not apply; the clip's own `gain` does, and its `mode` and `loop` do not. It is not one of the eight voices, and no press ends it. Refused like `playClip` while the board cannot play or the clip is not `ready`; with "No monitor output is selected, so an audition would not be heard. Select a monitor output first." while none is; with "Listening is paused, so an audition would not be heard. Resume listening first." while the monitor is paused; with "The monitor outputs play no monitor mix, so an audition would not be heard. Have an output play a monitor mix first." while every selected output plays only virtual microphone mixes; with "The soundboard is reconnecting to the monitor mixes. Audition the clip again in a moment." while its links are made again; and, as a press is, while the player's link into SFX is made again, since the player stands still then. Never saved. See [auditions](#auditions) |
 | `stopAudition` | none | fade the audition out; the clips playing in SFX play on. No error while the board is off or nothing is auditioned |
+| `restoreStarterSounds` | none | add back each [starter sound](#starter-sounds) the library no longer has, after the clips there, which are kept. Answered with `starterSounds`, whose `message` says when none is missing. A starter clip counts as present by its `starter` id, whatever its name and page are now. Each clip is checked by the helper as `importClip` checks a file, and one that fails is left out and named. Refused, with nothing changed, when the starter sounds are not installed, when no missing clip can be added, while a library export or import runs, and without the native plugin host. Runs beside the connection's later commands, as `importClip` does |
 | `getSoundboard` | none | answered with `soundboard`, for a client that wants the board without the whole state |
 | `setEq` | `channel`, `eq` | replace a microphone's whole EQ: `eq` is `{enabled, bands}` with 1 to 16 bands, each `{enabled, type, frequency, gain, q}` with every field. `channel` is `xlr1`, `xlr2` or a capture input whose `microphone` is true; any other channel is refused. See [microphone EQ](#microphone-eq) |
 | `setEqEnabled` | `channel`, `value` | the EQ's own switch, a boolean. Off bypasses inside the running stage, so on and off compare at once |
@@ -1260,9 +1262,10 @@ All under `~/.config/openxlr/` (or `$XDG_CONFIG_HOME/openxlr/`):
 - `gainlock.json`: which devices have the gain lock set
 - `soundboard.json`: the [soundboard](#soundboard) library, `{enabled,
   clips}`, each clip `{id, name, file, gain, mode, loop, icon, colour,
-  seconds}`, and `retired`, the ids of deleted clips, which a new clip
-  never gets, so a key still bound to one never plays another clip; the
-  newest 1024 are kept. `file` is a bare name in
+  seconds, page, starter}`, `retired`, the ids of deleted clips, which a new clip
+  never gets, so a key still bound to one never plays another clip (the
+  newest 1024 are kept), and `starterAdded`, true once the
+  [starter sounds](#starter-sounds) were added. `file` is a bare name in
   `$XDG_DATA_HOME/openxlr/soundboard/` (default
   `~/.local/share/openxlr/soundboard/`), the clip directory. An entry that
   breaks a rule is dropped with a log line; a file that cannot be read is
@@ -1714,7 +1717,8 @@ left in the clip directory by a daemon that stopped mid-export are removed
 at the next start. A replace keeps the archive's ids, so Deck keys and
 desktop keys bound to them play the same clips on the new machine; the
 clips that were in the library are deleted with their files, and their ids
-retire, as a deleted clip's do. A replace changes nothing unless every
+retire, as a deleted clip's do. A clip's `starter` id travels with it, so a
+starter sound imported this way counts as present. A replace changes nothing unless every
 clip in the archive can be imported here, so a build that cannot decode
 one of its formats never trades a library for part of another. A merge gives a clip whose id is in use
 here, or once belonged to a deleted clip here, the next free id, as an
@@ -1743,6 +1747,31 @@ declared size, so an entry that holds more shows as a checksum that does
 not match. One export or import runs at
 a time across the daemon; another is refused with a sentence until it
 ends.
+
+#### Starter sounds
+
+Every package installs a set of eighteen short clips beside the daemon,
+in `starter-sounds/` next to its executable (`/usr/lib/openxlr/daemon/starter-sounds`
+in the distribution packages): applause, a cheer, a laugh, a boo, a
+rimshot, a drumroll, a fanfare, a sad trombone, an air horn, a ding, a
+wrong-answer buzzer, countdown beeps, crickets, a whoosh, a record
+scratch, a cash register, and "You win" and "Game over" lines. The
+folder is laid out as an archive is: `soundboard.json` lists the clips,
+each with a `starter` id, `clips/` holds their Ogg Vorbis files, and
+`CREDITS` names each clip's source, author, licence (all CC0 1.0) and the
+edits made by `tools/starter-sounds.py`, which builds them.
+
+The daemon adds the set by itself when it builds the graph and the
+library's `starterAdded` is false, as on a new board or a board from
+before the starter sounds. It adds each starter clip the library does
+not already hold, on the page `Starter`, after the clips there, which are
+kept, with ids made unique as a merge makes them, and sets `starterAdded`
+in the same save. From then on it never adds them by itself again, so a
+starter clip the user deletes stays deleted. When the set is not
+installed, or the native plugin host is missing, nothing changes, the
+daemon logs why, and `starterAdded` stays false, so a later start tries
+again. `restoreStarterSounds` adds back the starter clips the library
+lacks, by `starter` id, at any time.
 
 ### Meter before the chain
 

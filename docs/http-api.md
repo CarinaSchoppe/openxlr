@@ -188,7 +188,9 @@ closes at once. A script that holds a clip uses `/api/v1/events`.
 library and its clips into one archive, and
 `{"cmd":"importSoundboard","path":"/home/me/board.zip","merge":true}`
 adds an archive's clips, or with `"merge":false` replaces the library
-with them. Their `soundboardExport` and `soundboardImport` replies come
+with them. `{"cmd":"restoreStarterSounds"}` adds back the
+[starter sounds](api.md#starter-sounds) the library no longer has. Their
+`soundboardExport`, `soundboardImport` and `starterSounds` replies come
 once the archive is written or every clip in it is checked, which can take
 a minute for a full library, so give the request a generous timeout.
 Both transports share the dispatcher,
@@ -196,7 +198,7 @@ validation and broadcasts. HTTP returns
 `{"apiVersion":"1","ok":true,"messages":[]}` after a successful mutation.
 Read replies are in `messages`; rejected commands return HTTP 400, `ok:false`
 and an error message. This includes failed plugin installation, refused
-clip imports, refused soundboard exports and imports, and Windows plugin file operations: their typed reply remains in `messages`, followed by
+clip imports, refused soundboard exports, imports and starter sound restores, and Windows plugin file operations: their typed reply remains in `messages`, followed by
 the error or failed `commandResult` when a request id was supplied.
 Some rejected optimistic edits also include current state.
 This reports execution, not a new durability guarantee: saving follows each

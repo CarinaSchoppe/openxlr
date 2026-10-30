@@ -187,8 +187,53 @@ public sealed partial class Mixer
         RequireArchivePath(path);
         if (!_pw.PlayerHostInstalled) throw new InvalidOperationException(SoundboardNeedsHost);
         if (!_boardTransfer.Wait(0)) throw new InvalidOperationException(SoundboardTransferBusy);
+        try
+        {
+            using FileStream file = OpenClip(path);
+            if (file.Length > SoundboardArchive.MaxBytes)
+                throw new InvalidOperationException($"The file is {file.Length / 1048576.0:0.0} MiB; an archive is at most {SoundboardArchive.MaxBytes >> 20} MiB.");
+            SoundboardArchive.CheckDirectory(file);
+            ZipArchive zip;
+            try { zip = new ZipArchive(file, ZipArchiveMode.Read, leaveOpen: true); }
+            catch (InvalidDataException) { throw new InvalidOperationException("The file is not a zip archive OpenXLR can read."); }
+            using (zip)
+            {
+                var skipped = new List<string>();
+                (List<SoundboardClip> clips, Dictionary<string, ZipArchiveEntry> files) = SoundboardArchive.Read(zip, skipped);
+                if (clips.Count == 0) throw new SoundboardImportRefusedException(Nothing("The archive holds no clip to import.", skipped), skipped);
+                long budget = SoundboardArchive.MaxBytes;
+                return ImportClips(clips, skipped, merge, "archive", clip => files.TryGetValue(clip.File, out ZipArchiveEntry? entry)
+                    ? staging =>
+                    {
+                        long written = SoundboardArchive.Extract(entry, staging, budget);
+                        budget -= written;
+                    }
+                    : null);
+            }
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new InvalidOperationException($"The archive is damaged: {ex.Message}");
+        }
+        finally
+        {
+            _boardTransfer.Release();
+        }
+    }
+
+    /// <summary>
+    /// Copy each of <paramref name="clips"/> into a private file in the clip
+    /// directory through the copier <paramref name="copier"/> gives for it
+    /// (null when its file is missing from the <paramref name="source"/>),
+    /// check each copy with the helper as importClip checks a file, and put
+    /// the ones that pass in the library, as an archive import does. Called
+    /// with the transfer lock held. <paramref name="starter"/> also marks
+    /// the starter sounds as added, in the same save.
+    /// </summary>
+    private SoundboardImport ImportClips(List<SoundboardClip> clips, List<string> skipped, bool merge, string source,
+        Func<SoundboardClip, Action<string>?> copier, bool starter = false)
+    {
         var staged = new List<(SoundboardClip Clip, string Staging, ClipProbe Probe)>();
-        var skipped = new List<string>();
         try
         {
             string directory;
@@ -198,57 +243,45 @@ public sealed partial class Mixer
                 directory = _clipDirectory;
                 room = merge ? SoundboardLibrary.MaxClips - _board.Clips.Count : SoundboardLibrary.MaxClips;
             }
-            if (room <= 0) throw new InvalidOperationException($"The soundboard holds {SoundboardLibrary.MaxClips} clips already. Delete some first, or replace the library.");
-            using (FileStream file = OpenClip(path))
+            if (room <= 0)
+                throw new InvalidOperationException(merge && source == "archive"
+                    ? $"The soundboard holds {SoundboardLibrary.MaxClips} clips already. Delete some first, or replace the library."
+                    : $"The soundboard holds {SoundboardLibrary.MaxClips} clips already. Delete some first.");
+            OpenXlrPaths.EnsurePrivateDir(directory);
+            foreach (SoundboardClip clip in clips)
             {
-                if (file.Length > SoundboardArchive.MaxBytes)
-                    throw new InvalidOperationException($"The file is {file.Length / 1048576.0:0.0} MiB; an archive is at most {SoundboardArchive.MaxBytes >> 20} MiB.");
-                SoundboardArchive.CheckDirectory(file);
-                ZipArchive zip;
-                try { zip = new ZipArchive(file, ZipArchiveMode.Read, leaveOpen: true); }
-                catch (InvalidDataException) { throw new InvalidOperationException("The file is not a zip archive OpenXLR can read."); }
-                using (zip)
+                if (staged.Count >= room)
                 {
-                    (List<SoundboardClip> clips, Dictionary<string, ZipArchiveEntry> files) = SoundboardArchive.Read(zip, skipped);
-                    if (clips.Count == 0) throw new SoundboardImportRefusedException(Nothing("The archive holds no clip to import.", skipped), skipped);
-                    OpenXlrPaths.EnsurePrivateDir(directory);
-                    long budget = SoundboardArchive.MaxBytes;
-                    foreach (SoundboardClip clip in clips)
-                    {
-                        if (staged.Count >= room)
-                        {
-                            skipped.Add($"{clip.Name}: the soundboard holds at most {SoundboardLibrary.MaxClips} clips");
-                            continue;
-                        }
-                        if (!files.TryGetValue(clip.File, out ZipArchiveEntry? entry))
-                        {
-                            skipped.Add($"{clip.Name}: its file is not in the archive");
-                            continue;
-                        }
-                        string staging = Path.Combine(directory, ".import-" + Guid.NewGuid().ToString("N") + ".tmp");
-                        try
-                        {
-                            budget -= SoundboardArchive.Extract(entry, staging, budget);
-                            // The unpacked copy is what is checked and what the player reads.
-                            ClipProbe probe = _pw.ProbeClip(staging);
-                            if (probe.Seconds > SoundboardLibrary.MaxSeconds)
-                                throw new InvalidOperationException($"The clip is {probe.Seconds:0.0} s long; the limit is {SoundboardLibrary.MaxSeconds} s.");
-                            staged.Add((clip, staging, probe));
-                        }
-                        catch (SoundboardArchiveRefusedException)
-                        {
-                            TryDelete(staging);
-                            throw;
-                        }
-                        catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException)
-                        {
-                            TryDelete(staging);
-                            skipped.Add($"{clip.Name}: {Sentence(ex.Message)}");
-                        }
-                    }
+                    skipped.Add($"{clip.Name}: the soundboard holds at most {SoundboardLibrary.MaxClips} clips");
+                    continue;
+                }
+                if (copier(clip) is not { } copy)
+                {
+                    skipped.Add($"{clip.Name}: its file is not in the {source}");
+                    continue;
+                }
+                string staging = Path.Combine(directory, ".import-" + Guid.NewGuid().ToString("N") + ".tmp");
+                try
+                {
+                    copy(staging);
+                    // The unpacked copy is what is checked and what the player reads.
+                    ClipProbe probe = _pw.ProbeClip(staging);
+                    if (probe.Seconds > SoundboardLibrary.MaxSeconds)
+                        throw new InvalidOperationException($"The clip is {probe.Seconds:0.0} s long; the limit is {SoundboardLibrary.MaxSeconds} s.");
+                    staged.Add((clip, staging, probe));
+                }
+                catch (SoundboardArchiveRefusedException)
+                {
+                    TryDelete(staging);
+                    throw;
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException)
+                {
+                    TryDelete(staging);
+                    skipped.Add($"{clip.Name}: {Sentence(ex.Message)}");
                 }
             }
-            if (staged.Count == 0) throw new SoundboardImportRefusedException(Nothing("No clip in the archive could be imported.", skipped), skipped);
+            if (staged.Count == 0) throw new SoundboardImportRefusedException(Nothing($"No clip in the {source} could be imported.", skipped), skipped);
             // A replace that would leave clips out deletes the library for
             // less than the archive holds, as when this build cannot decode
             // a format the other one could: nothing is replaced.
@@ -256,17 +289,12 @@ public sealed partial class Mixer
                 throw new SoundboardImportRefusedException(Nothing(skipped.Count == 1
                     ? "Nothing was replaced, because 1 clip in the archive cannot be imported here."
                     : $"Nothing was replaced, because {skipped.Count} clips in the archive cannot be imported here.", skipped), skipped);
-            lock (_gate) return CommitImportLocked(directory, merge, staged, skipped);
-        }
-        catch (InvalidDataException ex)
-        {
-            throw new InvalidOperationException($"The archive is damaged: {ex.Message}");
+            lock (_gate) return CommitImportLocked(directory, merge, staged, skipped, starter);
         }
         finally
         {
             // A copy the library took was renamed away; the rest go.
             foreach ((_, string staging, _) in staged) TryDelete(staging);
-            _boardTransfer.Release();
         }
     }
 
@@ -282,7 +310,7 @@ public sealed partial class Mixer
     /// now, so a failed save is undone by deleting the copies.
     /// </summary>
     private SoundboardImport CommitImportLocked(string directory, bool merge,
-        List<(SoundboardClip Clip, string Staging, ClipProbe Probe)> staged, List<string> skipped)
+        List<(SoundboardClip Clip, string Staging, ClipProbe Probe)> staged, List<string> skipped, bool starter = false)
     {
         if (directory != _clipDirectory) throw new InvalidOperationException("The clip directory changed; import the archive again.");
         SoundboardLibrary before = _board;
@@ -325,7 +353,7 @@ public sealed partial class Mixer
                 retired = [.. retired.Where(r => !ids.Contains(r))];
                 foreach (SoundboardClip gone in before.Clips.Where(c => !ids.Contains(c.Id))) retired = SoundboardLibrary.Retire(retired, gone.Id);
             }
-            SaveBoardLocked(_board with { Clips = [.. kept, .. added], Retired = retired });
+            SaveBoardLocked(_board with { Clips = [.. kept, .. added], Retired = retired, StarterAdded = starter || _board.StarterAdded });
         }
         catch
         {

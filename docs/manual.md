@@ -77,10 +77,10 @@ work as the rest of this manual describes. Profiles are kept under
 Gain controls in the UI, the terminal mixer and the Stream Deck dials
 cover the connected interface's own range: 0 to 80 dB on the Wave XLR Pro
 and the MK.2 family, 0 to 75 dB on the original Wave XLR and the first
-XLR Dock, 0 to 40 dB on the Wave:3 and Wave:1. The Wave XLR Pro's Line In
+XLR Dock, 0 to 40 dB on the Wave:3, Wave:3 MK.2 and Wave:1. The Wave XLR Pro's Line In
 gain stops at 40 dB ([Line In](#line-in)). Options shows the firmware
 version under INTERFACE on an interface that reports one: the Wave XLR
-Pro, the MK.2 family, the Wave:3 and the Wave:1. On the Wave:3 and Wave:1
+Pro, the MK.2 family, the Wave:3, the Wave:3 MK.2 and the Wave:1. On the Wave:3 and Wave:1
 the desktop's sound settings and OpenXLR also
 share the microphone mute and the headphone level, so a change in either
 shows in the other within a second. Wave:3 support is written from
@@ -92,6 +92,16 @@ volume set from OpenXLR on the microphone itself. ClipGuard and the
 mic/PC mix are not confirmed yet; if you own one, change them, leave
 them changed, collect diagnostics and open an issue
 ([hardware support](hardware-support.md)).
+
+The Wave:3 MK.2 speaks the Wave XLR MK.2's protocol, not the Wave:3's,
+and OpenXLR drives it with the MK.2 backend. Gain, mute, headphone
+volume, the mic/PC crossfade and the microphone EQ on the unit work on the
+maintainer's unit. The microphone keeps the desktop's capture and playback
+volume in step with its gain and headphone level by itself. Other
+settings Wave Link shows for it have no control in OpenXLR yet, and the
+low cut is the submixer's, as on the Wave:3. Nobody has checked yet
+whether it keeps its settings when unplugged, so OpenXLR writes nothing to
+it on connect.
 
 If you only want hardware control and no mixer, turn off "Enable software
 mixer" in Options, AUDIO ([section 3.8](#hardware-only)). The daemon restarts in hardware-control mode
@@ -322,7 +332,7 @@ from three places:
   **No interface.** is followed by a link, **Choose a microphone for XLR 1**.
 
 The dialog lists the interface's own input first, **Interface jack (XLR 1)**,
-or **Built-in microphone** on a Wave:3 or Wave:1. Every capture source
+or **Built-in microphone** on a Wave:3, Wave:3 MK.2 or Wave:1. Every capture source
 follows except OpenXLR's own nodes and those of the interfaces OpenXLR
 supports. An unplugged bound source stays in the list, marked
 "(not connected)" and named after its device, such as "Shure MV7".
@@ -342,7 +352,7 @@ while it feeds the strip it stays in its headset profile, which lowers its
 playback quality until the strip takes another source.
 
 The chip says what feeds the strip: the interface's jack, the built-in
-microphone of a Wave:3 or Wave:1, or the source's description, with the
+microphone of a Wave:3, Wave:3 MK.2 or Wave:1, or the source's description, with the
 port when the source has more than one. Its light is on while the strip is
 linked to that feed. When the source is missing or ambiguous, the light is
 off and a line under the chip says why.
@@ -350,7 +360,7 @@ off and a line under the chip says why.
 A strip fed by another source is named Mic 1 or Mic 2 and wears the
 microphone icon, or the headset for a Bluetooth headset. Back on the
 interface's jack it is XLR 1 or XLR 2 again, with the XLR microphone icon.
-A Wave:3 or Wave:1 has no XLR jack: its input is the microphone's own
+A Wave:3, Wave:3 MK.2 or Wave:1 has no XLR jack: its input is the microphone's own
 capsule, so its strip is Mic 1 on the unit too. The ids stay `xlr1` and
 `xlr2`, so profiles, skins, the layout file and Stream Deck keys keep
 working, and an icon you chose in the layout editor stays.
@@ -408,7 +418,7 @@ they act on that unit, not on the primary. Stop driving the unit and the
 controls leave the strip; the binding stays, and the strip keeps its audio.
 
 A strip on another interface's XLR jack, such as an XLR Dock's, keeps its
-XLR name; a strip on a Wave:3's or Wave:1's capsule is Mic 1 or Mic 2.
+XLR name; a strip on a Wave:3's, Wave:3 MK.2's or Wave:1's capsule is Mic 1 or Mic 2.
 
 Driving an interface, switching its card profile or plugging it in again
 can rename its source. A strip bound to an Elgato interface follows that
@@ -1107,7 +1117,7 @@ room.
 **Position** says which unit the microphone is on and gives tips for
 placing it:
 
-- On a Wave:3's or Wave:1's own capsule: speak into its front, not its
+- On a Wave:3's, Wave:3 MK.2's or Wave:1's own capsule: speak into its front, not its
   top, and keep it close, since a condenser capsule hears the room.
 - On an XLR jack of a Wave XLR, a Wave XLR Pro or an XLR Dock: check in
   the microphone's manual whether it takes sound from its end or its side.
@@ -4589,7 +4599,7 @@ Mic setup remains a UI control.
 The Bindings card chooses what feeds XLR 1 and XLR 2, the choice the UI
 makes in [Use another microphone on XLR 1 or XLR 2](#input-bindings).
 Each strip has four rows. The source lists the interface's own input first,
-Interface jack (XLR 1) or Built-in microphone on a Wave:3 or Wave:1. Every
+Interface jack (XLR 1) or Built-in microphone on a Wave:3, Wave:3 MK.2 or Wave:1. Every
 capture source the daemon accepts follows, leaving out OpenXLR's own nodes,
 monitor taps and the primary interface's own nodes. Another Elgato
 interface's microphone is listed too, and for one OpenXLR does not drive

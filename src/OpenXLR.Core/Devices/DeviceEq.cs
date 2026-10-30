@@ -61,7 +61,8 @@ public sealed record DeviceEqSupport(bool Ready, string? Reason = null, string? 
 /// <summary>
 /// The four-band EQ in one 38-byte input struct of the Wave FX settings
 /// block (block <c>0x0004</c>), as the Wave XLR MK.2 and the XLR Dock MK.2
-/// hold it from firmware 1.0.15, and as Wave Link 3.5 writes it:
+/// hold it from firmware 1.0.15 and the Wave:3 MK.2 from its firmware 0.2.3,
+/// and as Wave Link 3.5 writes it:
 ///
 ///   byte 2, bit 0          the EQ's on switch
 ///   bytes 18, 23, 28, 33   flags: bit 0 band on, bits 1 to 3 the type, bits 4 to 7 kept

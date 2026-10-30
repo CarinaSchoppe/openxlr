@@ -34,6 +34,12 @@ namespace OpenXLR.Core.Devices;
 /// descriptor layout (five interfaces, vendor interface 3 whose alternate
 /// setting 0 has no endpoints; we never leave that setting)
 /// and is driven through this class at its own product id.
+///
+/// The Wave:3 MK.2 (<see cref="Wave3Mk2Device"/>) is a USB microphone on the
+/// same platform and the same layout. It hands this class a narrower set of
+/// controls and an EQ gate in its own firmware numbering. A control the
+/// model does not advertise is left out of the state and refused by its
+/// setter, so no bit this class cannot name on that model is ever written.
 /// </summary>
 public class WaveXlrMk2Device : IAudioDevice
 {
@@ -84,6 +90,11 @@ public class WaveXlrMk2Device : IAudioDevice
     public DeviceCapabilities Capabilities { get; private set; }
     private readonly DeviceCapabilities _modelCapabilities;
 
+    // The first firmware the model runs the EQ on, null on a model that does
+    // not run it at all. Such a model never asks the gate, so it carries no
+    // EQ reason and no updater advice.
+    private readonly Version? _eqFirmware;
+
     /// <summary>The version block 0x0000 reports, as major.minor.patch; null until read.</summary>
     public string? Firmware { get; private set; }
 
@@ -103,30 +114,44 @@ public class WaveXlrMk2Device : IAudioDevice
     /// <param name="vIndex">wIndex of the vendor transfers, see <see cref="_vIndex"/>.</param>
     protected WaveXlrMk2Device(ushort productId, string model, bool physicalControls, ushort vIndex, bool retainsSettings = true,
         ushort? alternateVIndex = null, IUsbTransport? usb = null)
+        : this(productId, model, vIndex, Mk2Capabilities(physicalControls, retainsSettings), WaveFxEq.Mk2EqFirmware, alternateVIndex, usb) { }
+
+    /// <param name="capabilities">The controls the model has; each one this
+    /// class can drive and the model lacks is left out of the state and
+    /// refused by its setter. Its <see cref="DeviceCapabilities.GainMaxDb"/>
+    /// is the highest gain written.</param>
+    /// <param name="eqFirmware">The first firmware, in the model's own
+    /// numbering, on which the unit runs the EQ on its DSP; null for a model
+    /// without one, whose <see cref="EqSupport"/> stays null.</param>
+    protected WaveXlrMk2Device(ushort productId, string model, ushort vIndex, DeviceCapabilities capabilities, Version? eqFirmware,
+        ushort? alternateVIndex = null, IUsbTransport? usb = null)
     {
         _preferredVIndex = _vIndex = vIndex;
         _alternateVIndex = alternateVIndex;
         _usb = usb ?? UsbTransport.Create();
+        _eqFirmware = eqFirmware;
         Info = UsbTransport.WithLocation(new DeviceInfo("Elgato", model, VendorId, productId));
-        Capabilities = _modelCapabilities = new DeviceCapabilities
-        {
-            Gain = true,
-            PhysicalControls = physicalControls,
-            RetainsSettings = retainsSettings,
-            Mute = true,
-            LowCut = true,
-            Expander = true,
-            VoiceTune = true,
-            HpVolume = true,
-            LowImpedance = true,
-            Crossfade = true,
-            Phantom = true,
-            ClipGuard = true,
-            Compressor = true,
-            XlrInputs = 1,
-            HpOutputs = 1,
-        };
+        Capabilities = _modelCapabilities = capabilities with { HardwareEq = false };
     }
+
+    private static DeviceCapabilities Mk2Capabilities(bool physicalControls, bool retainsSettings) => new()
+    {
+        Gain = true,
+        PhysicalControls = physicalControls,
+        RetainsSettings = retainsSettings,
+        Mute = true,
+        LowCut = true,
+        Expander = true,
+        VoiceTune = true,
+        HpVolume = true,
+        LowImpedance = true,
+        Crossfade = true,
+        Phantom = true,
+        ClipGuard = true,
+        Compressor = true,
+        XlrInputs = 1,
+        HpOutputs = 1,
+    };
 
     private readonly IUsbTransport _usb;
 
@@ -191,10 +216,12 @@ public class WaveXlrMk2Device : IAudioDevice
 
     /// <summary>
     /// The firmware gate: block 0x0000 once, then the settings block when the
-    /// version is 1.0.15 or later, whose EQ fields must decode. Anything else
+    /// version is the model's first EQ firmware or later (1.0.15 on the Wave
+    /// XLR MK.2 and the XLR Dock MK.2), whose EQ fields must decode. Anything else
     /// leaves the EQ to software and says why. On a bank that did not answer,
     /// nothing is read. A unit that stalls or answers short here is not
-    /// refused: only its EQ runs in software.
+    /// refused: only its EQ runs in software. A model without the EQ reads
+    /// the version alone and has no EQ support to report.
     /// </summary>
     private void ReadEqSupport(bool bankAnswered)
     {
@@ -206,8 +233,9 @@ public class WaveXlrMk2Device : IAudioDevice
             if (n > 0) version = WaveFxEq.FirmwareVersion(identity.AsSpan(0, n));
         }
         Firmware = version is null ? null : WaveFxEq.Format(version);
+        if (_eqFirmware is null) return;
         byte[]? block = null;
-        EqSupport = WaveFxEq.Gate(Info.Model, version, WaveFxEq.Mk2EqFirmware, () =>
+        EqSupport = WaveFxEq.Gate(Info.Model, version, _eqFirmware, () =>
         {
             block = Read(BlockSettings, SettingsLen, used: 0);
             return block.Length >= WaveFxEq.StructLength && WaveFxEq.Decodes(WaveFxEq.Decode(block));
@@ -311,53 +339,83 @@ public class WaveXlrMk2Device : IAudioDevice
         lock (_lock) _settings = s;
         byte[] hp = Read(BlockHp, HpLen, HpUsed);
         byte[] xf = Read(BlockCrossfade, CrossfadeLen, CrossfadeUsed);
+        // A control the model lacks reads as off: on the Wave:3 MK.2 the
+        // flag byte carries bits whose meaning is not known there.
+        DeviceCapabilities c = _modelCapabilities;
         return new DeviceState
         {
             GainDb = s[0],
-            Mute = (s[1] & MuteMask) != 0,
-            LowCut = (s[1] & LowCutMask) != 0,
-            Expander = (s[1] & ExpanderMask) != 0,
-            VoiceTune = (s[1] & VoiceTuneMask) != 0,
-            Phantom = (s[1] & PhantomMask) != 0,
-            Compressor = (s[1] & CompressorMask) != 0,
-            ClipGuard = (s[ClipGuardOffset] & ClipGuardOffMask) == 0,
-            VoiceTuneStrength = s[10],
+            Mute = c.Mute && (s[1] & MuteMask) != 0,
+            LowCut = c.LowCut && (s[1] & LowCutMask) != 0,
+            Expander = c.Expander && (s[1] & ExpanderMask) != 0,
+            VoiceTune = c.VoiceTune && (s[1] & VoiceTuneMask) != 0,
+            Phantom = c.Phantom && (s[1] & PhantomMask) != 0,
+            Compressor = c.Compressor && (s[1] & CompressorMask) != 0,
+            ClipGuard = c.ClipGuard && (s[ClipGuardOffset] & ClipGuardOffMask) == 0,
+            VoiceTuneStrength = c.VoiceTune ? s[10] : 0,
             HpVolumeDb = -hp[0] / 4.0,
-            LowImpedance = (hp[1] & LowZMask) != 0,
+            LowImpedance = c.LowImpedance && (hp[1] & LowZMask) != 0,
             Crossfade = xf[0],
         };
     }
 
-    private void Flag(byte mask, bool on)
-        => Modify(BlockSettings, SettingsLen, SettingsUsed, b => b[1] = on ? (byte)(b[1] | mask) : (byte)(b[1] & ~mask));
+    /// <summary>Refuse a control the model does not advertise before anything is read or written.</summary>
+    private void Require(bool supported, string control)
+    {
+        if (!supported) throw new InvalidOperationException($"{Info.Model} has no {control} this driver can set");
+    }
+
+    private void Flag(bool supported, string control, byte mask, bool on)
+    {
+        Require(supported, control);
+        Modify(BlockSettings, SettingsLen, SettingsUsed, b => b[1] = on ? (byte)(b[1] | mask) : (byte)(b[1] & ~mask));
+    }
 
     public void SetGainDb(int db)
-        => Modify(BlockSettings, SettingsLen, SettingsUsed, b => b[0] = (byte)Math.Clamp(db, 0, 80));
+    {
+        Require(_modelCapabilities.Gain, "gain");
+        Modify(BlockSettings, SettingsLen, SettingsUsed, b => b[0] = (byte)Math.Clamp(db, 0, _modelCapabilities.GainMaxDb));
+    }
 
-    public void SetMute(bool on) => Flag(MuteMask, on);
-    public void SetLowCut(bool on) => Flag(LowCutMask, on);
-    public void SetExpander(bool on) => Flag(ExpanderMask, on);
-    public void SetVoiceTune(bool on) => Flag(VoiceTuneMask, on);
+    public void SetMute(bool on) => Flag(_modelCapabilities.Mute, "mute", MuteMask, on);
+    public void SetLowCut(bool on) => Flag(_modelCapabilities.LowCut, "low cut", LowCutMask, on);
+    public void SetExpander(bool on) => Flag(_modelCapabilities.Expander, "expander", ExpanderMask, on);
+    public void SetVoiceTune(bool on) => Flag(_modelCapabilities.VoiceTune, "voice tune", VoiceTuneMask, on);
 
     public void SetVoiceTuneStrength(int value)
-        => Modify(BlockSettings, SettingsLen, SettingsUsed, b => b[10] = (byte)Math.Clamp(value, 0, 100));
+    {
+        Require(_modelCapabilities.VoiceTune, "voice tune");
+        Modify(BlockSettings, SettingsLen, SettingsUsed, b => b[10] = (byte)Math.Clamp(value, 0, 100));
+    }
 
     public void SetHpVolumeDb(double db)
-        => Modify(BlockHp, HpLen, HpUsed, b => b[0] = (byte)Math.Clamp((int)Math.Round(-db * 4), 0, 240));
+    {
+        Require(_modelCapabilities.HpVolume, "headphone volume");
+        Modify(BlockHp, HpLen, HpUsed, b => b[0] = (byte)Math.Clamp((int)Math.Round(-db * 4), 0, 240));
+    }
 
     public void SetLowImpedance(bool on)
-        => Modify(BlockHp, HpLen, HpUsed, b => b[1] = on ? (byte)(b[1] | LowZMask) : (byte)(b[1] & ~LowZMask));
+    {
+        Require(_modelCapabilities.LowImpedance, "low impedance mode");
+        Modify(BlockHp, HpLen, HpUsed, b => b[1] = on ? (byte)(b[1] | LowZMask) : (byte)(b[1] & ~LowZMask));
+    }
 
     public void SetCrossfade(int value)
-        => Modify(BlockCrossfade, CrossfadeLen, CrossfadeUsed, b => b[0] = (byte)Math.Clamp(value, 0, 200));
+    {
+        Require(_modelCapabilities.Crossfade, "crossfade");
+        Modify(BlockCrossfade, CrossfadeLen, CrossfadeUsed, b => b[0] = (byte)Math.Clamp(value, 0, 200));
+    }
 
-    public void SetPhantom(bool on) => Flag(PhantomMask, on);
-    public void SetCompressor(bool on) => Flag(CompressorMask, on);
+    public void SetPhantom(bool on) => Flag(_modelCapabilities.Phantom, "phantom power", PhantomMask, on);
+    public void SetCompressor(bool on) => Flag(_modelCapabilities.Compressor, "compressor", CompressorMask, on);
 
     public void SetClipGuard(bool on)
-        => Modify(BlockSettings, SettingsLen, SettingsUsed, b => b[ClipGuardOffset] = on
+    {
+        Require(_modelCapabilities.ClipGuard, "ClipGuard");
+        Modify(BlockSettings, SettingsLen, SettingsUsed, b => b[ClipGuardOffset] = on
             ? (byte)(b[ClipGuardOffset] & ~ClipGuardOffMask)
             : (byte)(b[ClipGuardOffset] | ClipGuardOffMask));
+    }
 
     public bool SetEq(int input, DeviceEq eq)
     {
@@ -396,7 +454,7 @@ public class WaveXlrMk2Device : IAudioDevice
             {
                 byte[] read = Read(block, len, used: 0);
                 blocks[name] = Convert.ToHexString(read);
-                if (block == BlockSettings)
+                if (block == BlockSettings && _eqFirmware is not null)
                     blocks["eq"] = WaveFxEq.Decode(read) is { } eq
                         ? eq + (WaveFxEq.Decodes(eq) ? "" : " (outside the EQ's ranges)")
                         : "too short to hold the EQ";
@@ -404,7 +462,8 @@ public class WaveXlrMk2Device : IAudioDevice
             catch (Exception ex) { blocks[name] = $"error: {ex.Message}"; }
         }
         blocks["firmware"] = Firmware ?? "not read";
-        blocks["eqSupport"] = EqSupport is { } support ? support.Ready ? "on the unit" : $"in software: {support.Reason}" : "not decided";
+        blocks["eqSupport"] = _eqFirmware is null ? "in software: the model has no hardware EQ"
+            : EqSupport is { } support ? support.Ready ? "on the unit" : $"in software: {support.Reason}" : "not decided";
         return blocks;
     }
 }

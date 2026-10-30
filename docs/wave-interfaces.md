@@ -162,7 +162,7 @@ bound again.
 Disabling the unit takes its controls off the strip and leaves the binding.
 The strip keeps its audio, and is silent while the unit is unplugged. The
 strip is named by what feeds it: XLR 1 or XLR 2 on an XLR Dock's or a Wave
-XLR's jack, Mic 1 or Mic 2 on a Wave:3's or Wave:1's capsule.
+XLR's jack, Mic 1 or Mic 2 on a Wave:3's, Wave:3 MK.2's or Wave:1's capsule.
 
 ## Profiles
 

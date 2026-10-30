@@ -51,6 +51,7 @@ These Elgato devices also get their hardware controls over USB:
 | Wave XLR MK.2 | 0fd9:00b6 | gain, mute, phantom power, DSP, ClipGuard, compressor, headphone volume, crossfade; verified by a community tester |
 | XLR Dock MK.2 (Stream Deck+ module) | 0fd9:00c7 | the Wave XLR MK.2's controls, verified |
 | Wave:3 | 0fd9:0070 | gain, mute, ClipGuard, headphone volume and the monitor balance, each written and read back on the maintainer's unit |
+| Wave:3 MK.2 | 0fd9:00ca | gain, mute, headphone volume, crossfade and the EQ on the unit, verified on the maintainer's unit |
 | Wave:1 | 0fd9:006e | the Wave:3's controls; gain, mute and headphone volume confirmed by an owner |
 
 [Hardware support](docs/hardware-support.md) has every control's state,

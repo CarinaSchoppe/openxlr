@@ -15,12 +15,13 @@ brand works in the mixer without hardware controls; see
 | Wave XLR MK.2 | `0fd9:00b6` | exposed controls verified on hardware by a community tester; the microphone EQ on the unit verified on hardware |
 | XLR Dock MK.2 | `0fd9:00c7` | MK.2 backend with bank detection; exposed controls verified on the original 0x0103 unit, and the microphone EQ on the unit verified on firmware 1.0.15 |
 | Wave:3 | `0fd9:0070` | coded from public protocol research; on the maintainer's unit every control writes and reads back, and the gain, the monitor balance and the desktop volume controls are verified |
+| Wave:3 MK.2 | `0fd9:00ca` | the Wave XLR MK.2's backend; on the maintainer's unit gain, mute, headphone volume and the microphone EQ on the unit are verified and the crossfade writes and reads back; phantom power and the MK.2's other flags are not exposed |
 | Wave:1 | `0fd9:006e` | the Wave:3's backend under the Wave:1's id; an owner's two archives showed the Wave:3's block, firmware line and desktop volume mirror, and the gain, mute and headphone volume writes taking effect; ClipGuard and the mix are not yet confirmed |
 
 ## USB access
 
 The udev rule ([packaging/70-openxlr.rules](../packaging/70-openxlr.rules))
-grants the logged-in user access to the seven product ids above. Every
+grants the logged-in user access to the eight product ids above. Every
 backend opens its device through libusb and claims the vendor-specific
 interface 3 before the first control transfer, both when libusb runs in
 the daemon and in the USB helper process. No kernel driver owns that
@@ -550,6 +551,97 @@ switch the dial first, so it stays open until an owner who has done
 that reports.
 
 <a name="other-microphones"></a>
+## Wave:3 MK.2 (0fd9:00ca)
+
+A USB condenser microphone with a headphone jack, like the first Wave:3,
+but built on the Wave FX platform of the Wave XLR MK.2 rather than on the
+Wave:3's class-request dialect. Its USB descriptor has the MK.2 interface
+layout: audio interfaces 0 to 2, the vendor interface 3 ("Elgato Wave:3
+MK.2 Vendor") and a DFU interface 4. It enumerates at high speed, captures
+two FLOAT_LE channels and plays three (FL FR FC, FLOAT_LE) or two
+(S32_LE) at 48 or 96 kHz. `Wave3Mk2Device` is the Wave XLR MK.2's
+backend with this model's id, name and controls. Its input is the
+capsule, so its strip is Mic 1, as on the Wave:3.
+
+The maintainer's unit (`bcdDevice 2.20`, build
+`2025-12-02-14:53-ZP-Release`) answers the vendor block protocol at
+`wIndex 0x0103` (and `0x0003`); `0x0203`, `0x0303` and `0x0403` stall.
+Blocks `0x0000`, `0x0001`, `0x0002`, `0x0004`, `0x0005`, `0x0006`,
+`0x0016` and `0x0017` answer, every read returning 256 bytes padded with
+zeros. Block `0x0003` stalls, so there is no commit block, as on the
+Dock MK.2. Block `0x0000` has the MK.2 identity layout: a hash at 12, the
+serial at 35, the build string at 53, and bytes 5 to 7 reading `00 02
+03`, firmware 0.2.3 in this model's numbering, which does not follow the
+XLR MK.2's 1.0.x.
+
+The maintainer moved each control on the microphone while a read-only
+script logged every byte that changed:
+
+| Block | Byte | Meaning |
+|---|---|---|
+| `0x0004` | 0 | gain in dB, 0 to 40; the kernel's 'Capture Volume' mirrors it |
+| `0x0004` | 1, bit 0 | mute: the touch mute turned 0x62 into 0x63 |
+| `0x0004` | 1, bits 0x02, 0x20, 0x40 | set and not identified; on the XLR MK.2 they are phantom power, expander and voice tune |
+| `0x0004` | 2, bit 0, and 18 to 37 | the MK.2's EQ switch and four bands; the unit came with the Wave XLR MK.2's factory bands |
+| `0x0004` | 10 | moved (0 to 0x32 seen) by one of the dial's modes; voice tune strength on the XLR MK.2, not identified here |
+| `0x0005` | 0 | headphone attenuation in quarter dB, 0 to 240 for 0 to -60 dB; the kernel's 'Playback Volume' reads 240 minus it |
+| `0x0001` | 0 | crossfade, 0 to 200, 100 the centre, as on the XLR MK.2 |
+| `0x0016` | 60 | the dial's mode: 02 gain, 04 the byte 10 parameter, 06 headphones, 08 crossfade |
+| `0x0006` | 14 | flips between 0 and 1 with dial and mute activity; not identified |
+| `0x0002` | | changes all the time; probably meters |
+
+Then each control was written through `Wave3Mk2Device` and read back.
+The unit's values were recorded first and put back at the end, and every
+block read the same before and after.
+
+| Control | State | Notes |
+|---|---|---|
+| Gain 0 to 40 dB | verified on hardware | 20, 40 and 34 written, read back from the block and from the kernel's capture control; the captured noise floor fell and rose with it; 45 is held to 40 |
+| Mute | verified on hardware | the flag byte's bit 0; the kernel's capture switch turned off and the capture went silent, then came back on unmute |
+| Headphone volume -60 to 0 dB | verified on hardware | -20, -60, -12.25 and -12 dB written; the kernel's playback control read 160, 0, 191 and 192. Not listened to |
+| Crossfade | written and read back | 100, 0 and 200 written and read back (250 held to 200); the mix was not listened to |
+| Microphone EQ on the unit | verified on hardware | measured with the microphone's own noise, see below |
+| Phantom power, low cut, expander, voice tune, compressor, ClipGuard, low impedance | not exposed | none identified on this model; the backend refuses each setter before any transfer and reports each as off |
+| Low cut, gain lock | software | the submixer's and the daemon's, as on the Wave:3 |
+| Firmware version | read on hardware | block `0x0000` bytes 5 to 7, 0.2.3; not compared with what Wave Link shows |
+| Keeps its settings over a power cycle | assumed | as the Wave XLR MK.2 and the XLR Dock MK.2 do; not tested, so the daemon writes nothing at connect |
+
+Nobody spoke for the EQ measurement. The signal was the capsule's
+self-noise and the room at 34 dB gain, with one band on at a time and the
+others off, written through the backend's whole-block write path. Each
+spectrum is the median of 8192-point Hann frames, compared with
+recordings taken with the switch off just before and after.
+
+| Band | Result |
+|---|---|
+| Bell, +12 dB, 1 kHz, Q 1 | median of four alternating takes: +4.9 dB at 500 Hz, +8.8 at 707, +12.2 at 1 kHz, +7.6 at 1414, +3.1 at 2 kHz; the RBJ cookbook curve gives 4.0, 7.7, 12.0, 7.7 and 3.9 |
+| Low pass, 1 kHz, Q 0.71 | 4, 8 and 16 kHz down about 24, 37 and 56 dB |
+| High pass, 1 kHz, Q 0.71 | 250, 125 and 63 Hz down about 19, 31 and 39 dB |
+
+So the unit runs the MK.2's EQ at the same offsets and with the same type
+numbers. The backend drives it from firmware 0.2.3, the version it was
+measured on; an older version leaves the EQ in software and says so.
+
+Both capture channels carry the same signal, bit for bit: a second of
+room noise read with `parec --channel-map=front-left,front-right` gave
+identical samples on the left and the right. The strip takes the pair as
+it takes the Wave:3's. The unit enumerates at high speed, and the
+Wave:3's capture-hold rule (`53-openxlr-wave3-capture-hold.conf`)
+matches only the Wave:3's node names; whether this microphone records
+silence when its playback starts first, as the full-speed units can, has
+not been tried.
+
+The daemon prefers the Wave:3 MK.2 after every XLR interface, next to the
+Wave:3: it is driven when no interface is on the bus, picked from the
+header, or through `OPENXLR_DEVICE=00ca`. The node-name fragment is
+`Wave_3_MK.2`.
+
+What is left for an owner: replug the microphone with nothing written on
+connect and say whether the gain and headphone level come back as set;
+listen to the crossfade and the headphone level; and, with Wave Link on
+Windows or macOS, name the setting behind byte 10 and the three unknown
+flag bits, and the firmware version Wave Link shows.
+
 ## Other microphones and interfaces
 
 OpenXLR does not need an Elgato device. Any source PipeWire lists for
@@ -665,7 +757,7 @@ opening a muted send, with simulated nodes. On real units, so far:
 - Last settings restored on connect for Wave XLR and the first XLR Dock,
   plus a reset to the defaults recorded after a power cycle. The Pro and the MK.2 family, the XLR
   Dock MK.2 included, keep their settings on board (verified by
-  replugging the dock); the Wave:3 and Wave:1 are assumed to until a
+  replugging the dock); the Wave:3, Wave:3 MK.2 and Wave:1 are assumed to until a
   replug with nothing written on connect decides it (checklist step 8)
 - Multi-device switching: a header picker chooses which interface
   OpenXLR drives; the mixer's input channels follow it

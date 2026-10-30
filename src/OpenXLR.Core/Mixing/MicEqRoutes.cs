@@ -5,8 +5,9 @@ namespace OpenXLR.Core.Mixing;
 /// <summary>
 /// The microphone EQ on XLR 1, XLR 2 and every capture input on one mono
 /// port. On XLR 1 and XLR 2 it runs on the unit's own DSP when
-/// the channel carries a unit input whose unit runs it (the MK.2 family from
-/// firmware 1.0.15, each of the Wave XLR Pro's two inputs from 1.0.14), the
+/// the channel carries a unit input whose unit runs it (the Wave XLR MK.2 and
+/// the XLR Dock MK.2 from firmware 1.0.15, the Wave:3 MK.2 from 0.2.3, each
+/// of the Wave XLR Pro's two inputs from 1.0.14), the
 /// channel's choice is <c>device</c>, and no Sound
 /// Check session runs on it; otherwise in software. A capture input's EQ
 /// always runs in software, whatever source feeds it. A unit-run EQ starts no

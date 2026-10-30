@@ -26,7 +26,9 @@ is measured over one that is described.
   headphone jacks, accepted by ear. On the maintainer's Wave:3 every
   control writes and reads back, and the gain, mute, monitor balance and
   desktop volume controls are verified; a Wave:1 owner confirmed gain,
-  mute and headphone volume. The Wave XLR and the first XLR Dock get their
+  mute and headphone volume. On the maintainer's Wave:3 MK.2, on the Wave
+  XLR MK.2's backend, gain, mute, headphone volume and the EQ on the unit
+  are verified and the crossfade writes and reads back. The Wave XLR and the first XLR Dock get their
   last settings back on connect. Up to four additional interfaces run
   beside the primary one.
 - [x] Mixer. Hardware, application and capture channels, monitor mixes,
@@ -94,6 +96,8 @@ them for a while before more is built on top.
   - the Pro's ducking on the USB Aux port, by ear;
   - the Wave:3's dial modes, LED ring, ClipGuard and headphones by ear,
     and a replug; ClipGuard and the mic/PC mix on a Wave:1, from an owner;
+  - the Wave:3 MK.2's crossfade and headphones by ear, a replug, and the
+    settings behind its byte 10 and three unknown flag bits;
   - two units of one model at once, from an owner of two;
   - the Omarchy bar's live theme switch and its popout's hardware
     controls;

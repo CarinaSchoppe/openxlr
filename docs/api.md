@@ -156,13 +156,13 @@ failed reads and the unit has not answered yet, `state` holds the last values
 read from it and `warning` says the unit does not answer.
 
 The state message in full. At the top level: `daemonVersion`, `daemonBuildId`, `daemonBuildVersion`, `warning`,
-`connected`, `device` (`vendor`, `model`, `usbId`; when the unit is driven differently from the usual, `note`: today an XLR Dock taking a control through its config block, or a Wave XLR, Wave:3 or Wave:1 whose ALSA card was not found, so the desktop's volume controls are not kept in step; and `firmware`, the version the unit reports, on a model that reports one, today the Wave:3, the Wave:1, the MK.2 family and the Wave XLR Pro), `capabilities` (`gain`,
+`connected`, `device` (`vendor`, `model`, `usbId`; when the unit is driven differently from the usual, `note`: today an XLR Dock taking a control through its config block, or a Wave XLR, Wave:3 or Wave:1 whose ALSA card was not found, so the desktop's volume controls are not kept in step; and `firmware`, the version the unit reports, on a model that reports one, today the Wave:3, the Wave:1, the MK.2 family, the Wave:3 MK.2 (in its own numbering, 0.2.x) and the Wave XLR Pro), `capabilities` (`gain`,
 `mute`, `lowCut`, `expander`, `voiceTune`, `hpVolume`, `lowImpedance`,
 `crossfade`, `phantom`, `clipGuard`, `compressor`, `outputRouting`,
-`auxInput`, `lineInput` (the analog Line In with a gain of its own, separate from the USB Aux input: true on the Wave XLR Pro only), `lineInGainMaxDb` (the highest Line In gain in dB that `lineInGain` takes, from 0: 40 on the Wave XLR Pro, whose unit takes 80 but hisses above about 20; 0 on a model without `lineInput`), `xlrInputs`, `xlrJacks` (false on the Wave:3 and Wave:1, whose one input is the microphone's own capsule rather than an XLR jack), `hpOutputs`, `physicalControls`, `retainsSettings`, `hardwareEq` (the unit's DSP runs the [microphone EQ](#microphone-eq) and the driver can write it: true on the Wave XLR MK.2 and the XLR Dock MK.2 from firmware 1.0.15 and on the Wave XLR Pro from firmware 1.0.14, false on every other model and on older firmware), `ducking` (the unit can run [ducking](#ducking) on its own processor: true on the Wave XLR Pro only),
+`auxInput`, `lineInput` (the analog Line In with a gain of its own, separate from the USB Aux input: true on the Wave XLR Pro only), `lineInGainMaxDb` (the highest Line In gain in dB that `lineInGain` takes, from 0: 40 on the Wave XLR Pro, whose unit takes 80 but hisses above about 20; 0 on a model without `lineInput`), `xlrInputs`, `xlrJacks` (false on the Wave:3, Wave:3 MK.2 and Wave:1, whose one input is the microphone's own capsule rather than an XLR jack), `hpOutputs`, `physicalControls`, `retainsSettings`, `hardwareEq` (the unit's DSP runs the [microphone EQ](#microphone-eq) and the driver can write it: true on the Wave XLR MK.2 and the XLR Dock MK.2 from firmware 1.0.15, on the Wave:3 MK.2 from its firmware 0.2.3 and on the Wave XLR Pro from firmware 1.0.14, false on every other model and on older firmware), `ducking` (the unit can run [ducking](#ducking) on its own processor: true on the Wave XLR Pro only),
 `builtInDefaults`, and `gainMaxDb`, the highest gain in dB that `gain` and
 `gain2` take, from 0: 80 on the Wave XLR Pro and the MK.2 family, 75 on the
-Wave XLR and the first XLR Dock, 40 on the Wave:3 and Wave:1; a higher value is held
+Wave XLR and the first XLR Dock, 40 on the Wave:3, Wave:3 MK.2 and Wave:1; a higher value is held
 to it), `state` (the hardware settings: `gainDb`, `mute`,
 `lowCut`, `expander`, `voiceTune`, `voiceTuneStrength`, `hpVolumeDb`,
 `hp2VolumeDb`, `hpMute` (read-only: the headphone mute the Wave:3's and Wave:1's
@@ -992,8 +992,8 @@ those names only while a real XLR jack feeds them: the driven unit's input
 on a Wave XLR Pro, a Wave XLR of either model or an XLR Dock, or such a
 unit's input that the strip is bound to, which keeps the strip's own name
 (a strip bound to an XLR Dock is `XLR 1` or `XLR 2`). A strip bound to any
-other source is `Mic 1` or `Mic 2`, and so is the strip on a Wave:3's or
-Wave:1's built-in capsule, whose `capabilities.xlrJacks` is false, the
+other source is `Mic 1` or `Mic 2`, and so is the strip on a Wave:3's,
+Wave:3 MK.2's or Wave:1's built-in capsule, whose `capabilities.xlrJacks` is false, the
 driven unit's or another one's. The daemon learns what a bound unit's
 inputs are when the unit is attached, and keeps that by model for the rest
 of the run. With

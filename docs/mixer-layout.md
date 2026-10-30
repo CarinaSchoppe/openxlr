@@ -141,8 +141,8 @@ writes `inputBindings` only. `setInputBinding` changes the field live; see
 
 - empty or absent: the default for the item's kind, which the daemon
   publishes in the state as `defaultIcon` ([api.md](api.md)). XLR 1 and
-  XLR 2 wear `mic` on a real XLR jack, `microphone` on a Wave:3's or
-  Wave:1's capsule or another source, and `headset` on a Bluetooth
+  XLR 2 wear `mic` on a real XLR jack, `microphone` on a Wave:3's,
+  Wave:3 MK.2's or Wave:1's capsule or another source, and `headset` on a Bluetooth
   headset's source (`bluez_input.`); Aux In and Line In wear `jack`, mono capture inputs `microphone`,
   `bluez_input.` capture sources `headset`, stereo capture pairs `camera`, the
   shipped application channels `game`, `music`, `browser`, `cog` (System),

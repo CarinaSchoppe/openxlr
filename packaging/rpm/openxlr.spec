@@ -12,7 +12,7 @@
 %global deepfilter_version 0.5.6
 
 Name:           openxlr
-Version: 0.3.1
+Version: 0.3.3
 Release:        1%{?dist}
 Summary:        Linux Wave Link replacement for Elgato XLR interfaces and Wave microphones
 # OpenXLR is GPL-3.0-only. The native helper links RNNoise (BSD-3-Clause),
@@ -240,6 +240,15 @@ MSG
 %{_datadir}/gnome-shell/extensions/openxlr-focus@emaspa.github.com/
 
 %changelog
+* Fri Oct 30 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.3.3-1
+- Soundboard: clips played into SFX, with pages, pad colours, audition in the monitor mixes, deck keys, desktop keys, a terminal tab and CC0 starter sounds
+- Wave:3 MK.2 support: gain, mute, headphones, crossfade, hardware EQ, low cut, expander, voice tune, compressor and ClipGuard
+- Wave:3 MK.2 headphones open as float, so the microphone keeps running while they play
+- Recover microphone in Options for a Wave:3 MK.2 whose capture stalls
+- The interface picked last is driven again after a restart
+- Focused application on Niri, X11 and for Flatpak apps, and an optional GNOME focus extension
+- Smaller noise removal blocks settle after two seconds
+
 * Wed Oct 28 2026 Emanuele Sparvoli <sparvoli@gmail.com> - 0.3.1-1
 - Block size option in Options sets PipeWire's block for OpenXLR's graph
 - Level meters ask for PipeWire's default block instead of 50 ms

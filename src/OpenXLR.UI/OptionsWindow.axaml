@@ -80,7 +80,7 @@
                   IsEnabled="{Binding Main.DaemonRestart.CanRestart}"
                   ToolTip.Tip="{loc:Text Key=OffOpenXLRControlsTheHardwareOnlyAndLeaves}"/>
         <!-- the ducking setup, on any device: the same window the layout editor opens; and the soundboard,
-             the window the SFX strip's Sounds button opens, so a hidden strip or a matrix never hides it -->
+             the window the SUBMIXER header's Soundboard button opens, so the mixer off never hides it -->
         <WrapPanel Name="AudioWindows" ItemSpacing="6" LineSpacing="4">
           <Button Name="DuckingButton" Content="{loc:Text Key=Ducking}" Padding="14,5"
                   IsVisible="{Binding Main.Ducking.IsReported}" Click="OnDucking" ToolTip.Tip="{loc:Text Key=DuckingButtonTip}"/>

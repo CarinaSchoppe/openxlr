@@ -888,41 +888,37 @@ public sealed class SoundboardViewModelTests
         + """{"id":"sfx","name":"Effects","volume":0.6},{"id":"cam","name":"Camera","captureSource":"cam","volume":1}""";
 
     [Fact]
-    public async Task TheSoundsButtonStandsOnTheChannelTheBoardPlaysInto()
+    public async Task TheHeaderButtonFollowsTheBoardNotTheSfxStrip()
     {
         await using var client = new DaemonClient("ws://127.0.0.1:1/ws");
         var model = new MainViewModel(client);
-        using var rack = new InputRackViewModel(model);
-        using var matrix = new MixMatrixViewModel(model);
         ChannelViewModel Channel(string id) => model.Channels.Single(c => c.Id == id);
+        var raised = new List<string?>();
+        model.Soundboard.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
 
+        // The SUBMIXER header's button shows on the board's report and lights while a clip plays.
         Apply(model, InputBindingModelTests.ProState(Channels, mixerExtra: ",\"soundboard\":" + Board(playing: "airhorn").ToJsonString()));
+        Assert.True(model.HasMixer);
         Assert.True(model.Soundboard.IsReported);
-        Assert.True(Channel("sfx").ShowsSounds);
-        Assert.True(Channel("sfx").SoundsPlaying);
-        Assert.Equal(Localizer.Format("SoundsButtonName", "Effects"), Channel("sfx").SoundsName);
-        Assert.False(Channel("game").ShowsSounds);
-        Assert.False(Channel("xlr1").ShowsSounds);
-        Assert.False(Channel("cam").ShowsSounds);
+        Assert.True(model.Soundboard.AnyPlaying);
         // The master is the mixer's own SFX channel: the very object the strips draw.
         Assert.Same(Channel("sfx"), model.Soundboard.Channel);
         Assert.True(model.Soundboard.HasMaster);
-        Assert.Same(Channel("sfx"), rack.Strips.Single(s => s.Channel.ShowsSounds).Channel);
-        Assert.Same(Channel("sfx"), matrix.Rows.Single(r => r.Channel.ShowsSounds).Channel);
 
-        // The clip ends: the button goes dark.
+        // The clip ends: the button goes dark, and the binding hears it.
+        raised.Clear();
         Apply(model, InputBindingModelTests.ProState(Channels, mixerExtra: ",\"soundboard\":" + Board().ToJsonString()));
-        Assert.False(Channel("sfx").SoundsPlaying);
+        Assert.False(model.Soundboard.AnyPlaying);
+        Assert.Contains(nameof(SoundboardViewModel.AnyPlaying), raised);
 
-        // SFX deleted: no strip carries the button, while the window stays reachable elsewhere.
+        // SFX deleted: the button stays, since the window's Turn on creates SFX again.
         Apply(model, InputBindingModelTests.ProState(Channels.Replace("\"sfx\"", "\"effects\""),
             mixerExtra: ",\"soundboard\":" + Board(channel: null, enabled: false).ToJsonString()));
-        Assert.DoesNotContain(model.Channels, c => c.ShowsSounds);
         Assert.True(model.Soundboard.IsReported);
+        Assert.False(model.Soundboard.HasMaster);
 
-        // A daemon from before the soundboard: no button anywhere.
+        // A daemon from before the soundboard: no button.
         Apply(model, InputBindingModelTests.ProState(Channels));
-        Assert.DoesNotContain(model.Channels, c => c.ShowsSounds);
         Assert.False(model.Soundboard.IsReported);
     }
 

@@ -2474,7 +2474,7 @@ changes a level, a mute or a route.
 
 <a name="show-hidden"></a>
 **Show hidden** sits in the SUBMIXER header beside Pop out, Edit layout,
-[Mic setup](#mic-setup) and Ducking, and appears only while a channel or a mix is hidden in the layout
+[Mic setup](#mic-setup), Ducking and [Soundboard](#play-sound-clips), and appears only while a channel or a mix is hidden in the layout
 editor. Switched on, it draws the hidden channels and mixes in their
 places in every layout, faded so you can tell them apart, and they work
 as usual. This applies in the separate mixer window too. It is a UI
@@ -3116,10 +3116,12 @@ The soundboard needs the native plugin host that every package ships. A
 build from source without it says so in the Soundboard window and offers
 nothing to play.
 
-1. Open the Soundboard window: the **Sounds** button on SFX's strip, the
-   tray menu's **Soundboard**, or **Soundboard** under AUDIO in Options.
-   The tray and Options open it even when the SFX strip is hidden or the
-   skin draws a mix matrix.
+1. Open the Soundboard window: **Soundboard** in the SUBMIXER header,
+   after **Ducking**, the tray menu's **Soundboard**, or **Soundboard**
+   under AUDIO in Options. The header button shows while the software
+   mixer runs, whatever the skin and whether or not SFX exists, and stays
+   in the UI when the mixer is popped out. The tray and Options open the
+   window with the mixer off too.
 2. Turn on **Soundboard on** if it is off.
 3. Press **Add clips** and pick one or more files, or **Add folder** for
    every sound file in a folder (its subfolders are left out), or drag
@@ -3140,7 +3142,7 @@ nothing to play.
    plays as soon as it is touched. A screen reader's press on a Hold pad
    plays the clip and releases it at once. The pad's ring lights while
    the clip plays and the bar along its foot shows how far along it is;
-   SFX's Sounds button lights too. **Stop all** fades out every clip. A
+   the header's **Soundboard** button lights too. **Stop all** fades out every clip. A
    Hold clip also stops when the Soundboard window loses focus while its
    pad is held.
 

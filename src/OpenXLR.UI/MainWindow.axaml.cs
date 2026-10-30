@@ -361,9 +361,9 @@ public partial class MainWindow : Window
     private void OnDucking(object? sender, RoutedEventArgs e)
         => DuckingWindow.Open(this, _vm.Ducking);
 
-    /// <summary>The SFX strip's Sounds button in the channel tiles, which may stand in the popped-out mixer.</summary>
-    private void OnSounds(object? sender, RoutedEventArgs e)
-        => SoundboardWindow.Open(TopLevel.GetTopLevel((Control)sender!) as Window ?? this, _vm.Soundboard);
+    /// <summary>The SUBMIXER header's Soundboard button, which stays in this window while the mixer is popped out.</summary>
+    private void OnSoundboard(object? sender, RoutedEventArgs e)
+        => OpenSoundboard();
 
     /// <summary>The tray's Soundboard entry: under the mixer while it shows, on its own while it waits in the tray.</summary>
     internal void OpenSoundboard()

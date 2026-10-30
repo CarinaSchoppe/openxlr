@@ -701,7 +701,7 @@
           "type": "number",
           "minimum": 0,
           "maximum": 64,
-          "description": "the smallest size of the compact controls: the interface rows' buttons and sliders, the tile headers and their buttons, the Arrange buttons and drag handles, the gain lock, the binding and capture source chips, the inserts buttons, the SUBMIXER header's buttons, SFX's Sounds button, a send's mute and the EQ graph's handle target"
+          "description": "the smallest size of the compact controls: the interface rows' buttons and sliders, the tile headers and their buttons, the Arrange buttons and drag handles, the gain lock, the binding and capture source chips, the inserts buttons, the SUBMIXER header's buttons, a send's mute and the EQ graph's handle target"
         },
         "Ox.Mixer.InsertControlMinSize": {
           "type": "number",

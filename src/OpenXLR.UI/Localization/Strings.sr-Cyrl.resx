@@ -3584,15 +3584,6 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   <data name="SoundClipColourPlaceholder" xml:space="preserve">
     <value>#RRGGBB или празно за ниједну</value>
   </data>
-  <data name="SoundsButton" xml:space="preserve">
-    <value>Звуци</value>
-  </data>
-  <data name="SoundsButtonTip" xml:space="preserve">
-    <value>Отвори звучну таблу, чији клипови свирају у овај канал.</value>
-  </data>
-  <data name="SoundsButtonName" xml:space="preserve">
-    <value>Звучна табла за {0}</value>
-  </data>
   <data name="SoundboardMixerOff" xml:space="preserve">
     <value>Софтверски миксер не ради, па звучна табла не може да свира. Њени тастери се враћају са миксером.</value>
   </data>

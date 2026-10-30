@@ -13,8 +13,8 @@ using OpenXLR.UI.Localization;
 namespace OpenXLR.UI;
 
 /// <summary>
-/// The Soundboard window, opened from the Sounds button on the SFX strip,
-/// from the tray menu and from Options. One is open at a time: a second
+/// The Soundboard window, opened from the Soundboard button in the SUBMIXER
+/// header, from the tray menu and from Options. One is open at a time: a second
 /// request raises it, or reopens it under the window that asked, since an
 /// owned window cannot change its owner.
 /// </summary>

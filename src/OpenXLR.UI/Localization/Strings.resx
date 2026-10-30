@@ -3583,15 +3583,6 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   <data name="SoundClipColourPlaceholder" xml:space="preserve">
     <value>#RRGGBB, or empty for none</value>
   </data>
-  <data name="SoundsButton" xml:space="preserve">
-    <value>Sounds</value>
-  </data>
-  <data name="SoundsButtonTip" xml:space="preserve">
-    <value>Open the soundboard, whose clips play into this channel.</value>
-  </data>
-  <data name="SoundsButtonName" xml:space="preserve">
-    <value>{0} soundboard</value>
-  </data>
   <data name="SoundboardMixerOff" xml:space="preserve">
     <value>The software mixer is not running, so the soundboard cannot play. Its pads come back with the mixer.</value>
   </data>

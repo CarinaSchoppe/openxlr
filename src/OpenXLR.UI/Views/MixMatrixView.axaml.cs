@@ -29,13 +29,6 @@ public partial class MixMatrixView : UserControl
             EqWindows.Show(window, eq);
     }
 
-    /// <summary>The SFX row's Sounds button: the Soundboard window, under the window the matrix is in.</summary>
-    private void OnSounds(object? sender, RoutedEventArgs e)
-    {
-        if ((sender as Control)?.DataContext is MatrixRowViewModel row && TopLevel.GetTopLevel((Control)sender!) is Window window)
-            SoundboardWindow.Open(window, row.Main.Soundboard);
-    }
-
     /// <summary>XLR 1's software low cut in the processing flyout: off, 80 Hz, 120 Hz, as in the INPUTS panel.</summary>
     private void OnCycleSoftLowCut(object? sender, RoutedEventArgs e)
     {

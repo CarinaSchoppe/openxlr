@@ -539,9 +539,9 @@ or stops them all. A clip can also be auditioned. The player's second
 stereo output then plays it once in the monitor mixes the outputs play and
 in no other mix, so the headphones hear it and the stream never does.
 
-In the UI, the Soundboard window opens from a Sounds button on SFX's
-strip (the classic tiles, the input rack and the mix matrix), from the tray
-menu and from Options. It shows a pad per clip with its icon, colour, name,
+In the UI, the Soundboard window opens from a Soundboard button in the
+SUBMIXER header after Ducking, lit while a clip plays, from the tray menu
+and from Options. It shows a pad per clip with its icon, colour, name,
 length and mode, a ring while it plays and a bar for how far along it is;
 a pad plays on the pointer or on Space and Enter, and a hold pad stops when
 it comes up. Its header has the board's switch, SFX's own volume as the

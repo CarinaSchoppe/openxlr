@@ -3584,15 +3584,6 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
   <data name="SoundClipColourPlaceholder" xml:space="preserve">
     <value>#RRGGBB, o blangko para sa wala</value>
   </data>
-  <data name="SoundsButton" xml:space="preserve">
-    <value>Tunog</value>
-  </data>
-  <data name="SoundsButtonTip" xml:space="preserve">
-    <value>Buksan ang soundboard, na ang mga clip ay tumutugtog sa channel na ito.</value>
-  </data>
-  <data name="SoundsButtonName" xml:space="preserve">
-    <value>Soundboard ng {0}</value>
-  </data>
   <data name="SoundboardMixerOff" xml:space="preserve">
     <value>Hindi tumatakbo ang software mixer, kaya hindi makapagpatugtog ang soundboard. Babalik ang mga pad nito kasama ng mixer.</value>
   </data>

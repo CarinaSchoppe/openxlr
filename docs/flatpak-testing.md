@@ -10,7 +10,7 @@ xvfb-run -a -s '-screen 0 1920x1080x24' python3 tools/test-flatpak.py
 
 The runner reuses the private PipeWire and session-manager setup of
 `tools/test-monitor-volume.py`. It gives the Flatpak private preferences,
-a private control-port network namespace and test audio sockets. USB is
+no network, a private control socket and test audio sockets. USB is
 removed for this automated run. No host audio routes or profiles change.
 The shared runner also accepts `--command <executable> <args...>` for other
 checks that need the same private audio setup.
@@ -28,17 +28,13 @@ the private folder, and removes only the uniquely named test import.
 Window polling retries when an editor disappears between discovery and
 the X11 status query, including on XWayland.
 
-The Flatpak workflow runs this once per tree, without a language or size
-process matrix. After acceptance succeeds, CI provides `openxlr-flatpak-x86_64` with the
-tested `.flatpak` bundle and its SHA-256 checksum. This is a test artifact,
-not a Flathub release. With Flathub enabled for the user, extract both files,
-run `sha256sum -c openxlr.flatpak.sha256`, then install with
-`flatpak install --user ./openxlr.flatpak`. Keep the same manual host setup
-and native-daemon precautions as a locally built Flatpak.
-Relevant pushes to `main` run the same check once all three pieces have
-landed, including changes to the shared WirePlumber rules, USB permission
-rule and desktop entry packaged by the Flatpak. A newer push cancels an
-outdated run instead of building both.
+The Flatpak workflow, which ran this once per tree and published the
+tested bundle as the `openxlr-flatpak-x86_64` artifact, is switched off.
+Run `tools/test-flatpak.py` by hand before a release; the bundle on each
+release is built by hand ([flatpak-build.md](flatpak-build.md)) and
+installed with `flatpak install --user ./openxlr-<version>-x86_64.flatpak`
+after `sha256sum -c SHA256SUMS-flatpak.txt`. Keep the same manual host
+setup and native-daemon precautions as a locally built Flatpak.
 
 The normal C# suite checks the Background portal on a private D-Bus session,
 including refusal, startup command lines and cancellation. Its TrayWindowTests

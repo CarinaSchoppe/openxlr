@@ -14,7 +14,7 @@ brand works in the mixer without hardware controls; see
 | Wave XLR | `0fd9:007d` | core controls verified on hardware by community testers on two units (0.1.13) |
 | Wave XLR MK.2 | `0fd9:00b6` | exposed controls verified on hardware by a community tester; the microphone EQ on the unit verified on hardware |
 | XLR Dock MK.2 | `0fd9:00c7` | MK.2 backend with bank detection; exposed controls verified on the original 0x0103 unit, and the microphone EQ on the unit verified on firmware 1.0.15 |
-| Wave:3 | `0fd9:0070` | coded from public protocol research; on the maintainer's unit every control writes and reads back, and the gain, the monitor balance and the desktop volume controls are verified |
+| Wave:3 | `0fd9:0070` | coded from public protocol research; on the maintainer's unit every control writes and reads back, and the gain, mute, the monitor balance and the desktop volume controls are verified |
 | Wave:3 MK.2 | `0fd9:00ca` | the Wave XLR MK.2's backend; on the maintainer's unit gain, mute, headphone volume, the crossfade, the microphone EQ, the low cut, the compressor and voice tune on the unit are verified, the expander and ClipGuard are mapped from the XLR MK.2; phantom power is not exposed |
 | Wave:1 | `0fd9:006e` | the Wave:3's backend under the Wave:1's id; an owner's two archives showed the Wave:3's block, firmware line and desktop volume mirror, and the gain, mute and headphone volume writes taking effect; ClipGuard and the mix are not yet confirmed |
 
@@ -105,9 +105,11 @@ would run only a setup keyed by XLR 1. Details are in the
 [protocol notes](wave-xlr-pro-protocol.md#11-ducking-captures-of-2026-10-21),
 and the probe in
 [section 12](wave-xlr-pro-protocol.md#12-the-mix-sections-and-the-jacks-desk-probe-of-2026-10-23). The MK.2
-models have no ducking. They run a four-band equalizer on the device from
-firmware 1.0.15, switched on by a master enable bit, and OpenXLR's
-microphone EQ runs there on those units, as Wave Link 3.5 does
+models, the Wave:3 MK.2 included, have no ducking. They run a four-band
+equalizer on the device, the Wave XLR MK.2 and the XLR Dock MK.2 from
+firmware 1.0.15 and the Wave:3 MK.2 from its firmware 0.2.3, switched on
+by a master enable bit, and OpenXLR's microphone EQ runs there on those
+units, as Wave Link 3.5 does
 ([findings](mk2-eq-findings.md), and the MK.2 section below). The full hardware mix matrix is also
 unfinished.
 Elgato's [Pro feature guide](https://www.elgato.com/us/en/explorer/products/wave/wave-xlr-pro-give-your-setup-superpowers/)
@@ -207,7 +209,7 @@ its `alsa` line.
 |---|---|---|
 | Gain, mute | verified | community tester; scale is 256 raw units per dB ([openwave PR #8](https://github.com/rikkichy/openwave/pull/8) measured it on the shared protocol) |
 | Headphone volume, low impedance | verified | community tester |
-| Phantom 48V | coded | config byte 6, found by [openwave PR #8](https://github.com/rikkichy/openwave/pull/8) against the MK.1's own 48V LED; the same byte is verified on the XLR Dock. Added after the tester's run, so an LED check on a MK.1 is still open |
+| Phantom 48V | verified | config byte 6, found by [openwave PR #8](https://github.com/rikkichy/openwave/pull/8) against the MK.1's own 48V LED; the same byte is verified on the XLR Dock. Confirmed by a community tester on a MK.1 after the first run |
 | Desktop volume controls | coded | the card's three controls kept in step with the config block, as on the Wave:3; see above. Not yet checked on an MK.1 |
 | Hardware low cut, ClipGuard, mic/PC crossfade | unmapped | Wave Link exposes these controls; their OpenXLR offsets are unknown. Software low cut and limiting are available in the submixer |
 | Save settings to hardware, LED colours | unmapped | OpenXLR restores its last observed settings on connect instead of issuing Wave Link's hardware-save operation |
@@ -438,10 +440,13 @@ at true, so the daemon writes nothing on connect that the user did not
 ask for, and a replug on real hardware decides it.
 
 With another supported interface attached, the daemon drives that one:
-the registry lists attached devices in its own order, verified backends
-first and the two microphones last, and the daemon takes the first when
-none is chosen. The Wave:3 is driven when it is alone on the bus or
-picked from the header, or through `OPENXLR_DEVICE=0070`.
+the registry lists attached devices in its own order, the XLR interfaces
+first and the three USB microphones last, and the daemon takes the first
+when none has been picked. The interface picked from the header is kept
+in `~/.config/openxlr/active-device.json` and driven again after a
+restart, ahead of `OPENXLR_DEVICE`. The Wave:3 is driven when it is alone
+among those on the bus or picked from the header, or through
+`OPENXLR_DEVICE=0070` when nothing was picked.
 
 The PipeWire node names in wave3-research's dump are
 `alsa_input.usb-Elgato_Systems_Elgato_Wave_3_<serial>-00.mono-fallback`
@@ -551,7 +556,6 @@ followed. The gain word read with the dial on gain needs Wave Link to
 switch the dial first, so it stays open until an owner who has done
 that reports.
 
-<a name="other-microphones"></a>
 ## Wave:3 MK.2 (0fd9:00ca)
 
 A USB condenser microphone with a headphone jack, like the first Wave:3,
@@ -695,28 +699,35 @@ played into the headphones. A USB reset did not clear it once; removing
 the link from the capture into the strip cleared it at once, so it looks
 like a glitch in each graph cycle rather than a stalled stream.
 
-The daemon routes a mix into the headphones only once the kernel reports
-the capture running. When the kernel keeps the capture stopped for 3
-seconds while the headphones play, it recovers the microphone the way
-that worked by hand: mixes off the headphones, a USB reset, the mixes
-back once the capture runs again. It does not look for the buzz.
-**Recover microphone** in Options removes the capture's links and makes
-them again first, and resets the unit on USB only when the kernel still
-has the capture stopped 2 seconds later. That the relink cures the buzz
+The daemon routes a mix into the headphones once the kernel reports the
+capture running, or after five seconds without it (30 seconds after a
+USB reset). When the kernel keeps the capture stopped for 3 seconds while
+the headphones play, it recovers the microphone the way that worked by
+hand: mixes off the headphones, a USB reset, the mixes back once the
+capture runs again. It does not look for the buzz. Recoveries are at
+least two minutes apart; after three in 30 minutes the daemon stops
+resetting and its journal asks for a replug. **Recover microphone** in
+Options, INTERFACE, removes the capture's links and makes them again
+first, and resets the unit on USB only when the kernel still has the
+capture stopped 2 seconds later. That the relink cures the buzz
 rests on the one observation above. The capability is
 `captureRecovery`, set for this model only.
 
-The daemon prefers the Wave:3 MK.2 after every XLR interface, next to the
-Wave:3: it is driven when no interface is on the bus, picked from the
-header, or through `OPENXLR_DEVICE=00ca`. The node-name fragment is
+The daemon prefers the Wave:3 MK.2 after every XLR interface and the
+Wave:3, and before the Wave:1: it is driven when it is the only one of
+those on the bus, when it is picked from the header (the pick is kept and
+driven again after a restart), or through `OPENXLR_DEVICE=00ca` when
+nothing was picked. The node-name fragment is
 `Wave_3_MK.2`.
 
 What is left for an owner: replug the microphone with nothing written on
 connect and say whether the gain and headphone level come back as set;
-listen to the headphone level; and, with Wave Link on
-Windows or macOS, name the setting behind byte 10 and the three unknown
-flag bits, and the firmware version Wave Link shows.
+listen to the headphone level; say whether the microphone still stalls
+while its headphones play with rule 55 installed; and, with Wave Link on
+Windows or macOS, capture the expander and ClipGuard switches to confirm
+their offsets, and note the firmware version Wave Link shows.
 
+<a name="other-microphones"></a>
 ## Other microphones and interfaces
 
 OpenXLR does not need an Elgato device. Any source PipeWire lists for
@@ -835,7 +846,8 @@ opening a muted send, with simulated nodes. On real units, so far:
   replugging the dock); the Wave:3, Wave:3 MK.2 and Wave:1 are assumed to until a
   replug with nothing written on connect decides it (checklist step 8)
 - Multi-device switching: a header picker chooses which interface
-  OpenXLR drives; the mixer's input channels follow it
+  OpenXLR drives, and the pick is driven again after a restart even when
+  another interface enumerates first; the mixer's input channels follow it
 - More than one unit at once, two of one model included: up to four
   additional interfaces next to the primary. Run on hardware with a
   Wave XLR Pro primary beside an XLR Dock and beside a Wave:3; two of one
@@ -922,7 +934,7 @@ following, each result with the diagnostics archive:
    `waveInterfaces`, unplug one, plug it into another port: a unit with
    a serial keeps its id.
 2. Pick each in turn as the primary: the first input strip (XLR 1, or
-   Mic 1 on a Wave:3 or Wave:1) carries that unit's
+   Mic 1 on a Wave:3, Wave:3 MK.2 or Wave:1) carries that unit's
    microphone, never the other's, and the daemon log names no fallback
    to the model name. If it does, include the `pactl list short sources`
    output; it shows how udev spelled the serial.

@@ -13,10 +13,15 @@ into a second, contradictory product manual.
 
 - `OpenXLR.Core`: device backends, capability model, PipeWire graph, profiles,
   application matching, meters, and plugin chains.
-- `OpenXLR.Daemon`: owns hardware and mixer state and exposes the localhost
-  WebSocket and HTTP APIs.
-- `OpenXLR.UI`: Avalonia client; it owns the desktop portal and KWin
-  connections behind desktop keys, never hardware or audio state.
+- `OpenXLR.Daemon`: owns hardware and mixer state and exposes the WebSocket
+  and HTTP APIs on a private Unix socket, `$XDG_RUNTIME_DIR/openxlr/control.sock`,
+  checked by peer credentials.
+- `OpenXLR.UI`: Avalonia client; it owns the desktop portal and the
+  compositor focus sources (KWin, Sway, Hyprland, Niri, X11 and the GNOME
+  Shell extension) behind desktop keys, and the browser companion's native
+  messaging host, never hardware or audio state.
+- `OpenXLR.Tui`: the terminal mixer, `openxlr-tui`, a client of the same
+  API with no Core reference.
 - `OpenXLR.Probe`: diagnostics and protocol-development console tool.
 - `OpenXLR.Tests`: regression tests for routing, device capabilities, profiles,
   diagnostics, and optional DSP dependencies.

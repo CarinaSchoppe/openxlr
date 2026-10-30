@@ -1,8 +1,10 @@
 # Browser companion privacy policy
 
 This policy covers the OpenXLR browser routing extension for Chromium
-based browsers, id `beeohanoffjpcofbjiiamkdammhcihaf`, published in the
-Chrome Web Store and kept in `browser/chromium` of this repository. The
+based browsers, id `beeohanoffjpcofbjiiamkdammhcihaf`, kept in
+`browser/chromium` of this repository. It is not yet in the Chrome Web
+Store; each release carries it as `openxlr-browser-<version>.tar.gz` to
+load unpacked. The
 extension lets you choose an OpenXLR audio channel for each browser tab.
 It works only together with OpenXLR installed on the same computer.
 

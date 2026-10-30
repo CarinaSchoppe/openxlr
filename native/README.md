@@ -9,8 +9,11 @@ DSP instance directly (LV2 instance access), which a PipeWire filter chain
 cannot offer.
 
 The distribution packages build and install it, and its presence changes
-existing LV2 inserts: they use filter-chain until explicitly switched in
-the controls window. CLAP and VST3 always use this helper.
+nothing for existing LV2 inserts: they use filter-chain until explicitly
+switched in the controls window. CLAP and VST3 always use this helper, and
+so do OpenXLR's own stages: Sound Check, the level meter, the microphone EQ
+with noise removal, ducking and the soundboard player, each described
+below.
 
 ## Build
 
@@ -151,7 +154,8 @@ buffers, not the plugin process's own memory or CPU use.
 
 The built-in `duck` backend applies one gain to a stereo bus, detected from
 a separate mono key. It sums nothing and adds no algorithmic latency. The
-daemon does not create this stage yet.
+daemon creates one per mix while ducking runs in software with at least
+one ducked cell; see docs/architecture.md.
 
 ```text
 openxlr-lv2-host duck NODE 2 RATE [SYMBOL=VALUE ...]
@@ -404,6 +408,9 @@ latency. Its controls are `enabled` and, for N from 1 to 4, `bandN_enabled`,
 cut), `bandN_frequency` (20 to 20000 Hz), `bandN_gain` (-12 to 12 dB) and
 `bandN_qlog10` (-1 to 1, log10 of Q). The daemon starts it with every value
 on the command line and changes them with `set` lines.
+`openxlr-lv2-host eq-bands COUNT NODE 1 RATE` runs the same stage with 1 to
+16 bands, N running from 1 to the count; `eq` is the four-band form, kept
+for older daemons.
 
 The audio thread reads the controls at the start of a block. A frequency,
 gain or Q change recomputes that band and keeps its filter state, which is

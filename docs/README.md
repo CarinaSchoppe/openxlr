@@ -7,9 +7,9 @@ open `main`, so they can describe changes newer than the installed release.
 ## Using OpenXLR
 
 - [Project README](../README.md): supported devices, packages and quick start.
-- [Manual](manual.md): mixer tasks, application routing, plugins, profiles,
-  Flow, Stream Deck, troubleshooting, local files, the terminal mixer and
-  the Omarchy bar.
+- [Manual](manual.md): mixer tasks, application routing, plugins, the
+  soundboard, profiles, Flow, Stream Deck, troubleshooting, local files,
+  the terminal mixer and the Omarchy bar.
 - [Features](features.md): supported behaviour by area.
 - [Skins](skins.md): the UI's appearance values, where skins live and
   the rules one is read under, with a [JSON schema](skin.schema.json) and an
@@ -23,6 +23,11 @@ open `main`, so they can describe changes newer than the installed release.
   the Arch package recipe and its limits.
 - [Multiple Wave interfaces](wave-interfaces.md): driving up to four more
   units beside the primary, their controls and capture channels.
+- [Browser tab routing](browser-routing.md): the Chromium companion, its
+  native host and per-tab channels, with its
+  [privacy policy](browser-privacy.md).
+- [GNOME focused routing](gnome-focus.md): the optional OpenXLR Focus
+  extension for GNOME Shell on Wayland.
 - [Installation receipts and doctor](installation.md): owned files, build
   identity and repair commands.
 - [Flatpak](flatpak.md): the experimental Flatpak mode, its startup, logs

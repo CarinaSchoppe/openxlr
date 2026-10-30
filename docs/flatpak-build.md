@@ -5,8 +5,10 @@ uses the Freedesktop 25.08 runtime and .NET 10 SDK extension, and requires
 Flatpak 1.15.11 or newer for the USB-only device grant. CI checks the
 manifest and its files with `python3 packaging/flatpak/test-package.py`,
 the NuGet and Rust crate source lists with `python3 packaging/flatpak/nuget-sources.py
---check` and `python3 packaging/flatpak/cargo-sources.py --check`, and the
-metainfo with `appstreamcli validate --no-net`.
+--check` and `python3 packaging/flatpak/cargo-sources.py --check`. The
+Flatpak workflow, which also validates the metainfo with
+`appstreamcli validate --no-net`, is switched off; the bundle on each
+release is built by hand with the steps below.
 
 ```sh
 flatpak install --user flathub org.freedesktop.Sdk//25.08 org.freedesktop.Platform//25.08 org.freedesktop.Sdk.Extension.dotnet10//25.08 org.freedesktop.Sdk.Extension.rust-stable//25.08 org.flatpak.Builder
@@ -34,14 +36,16 @@ and OpenXLR runtime directory are writable outside private app storage.
 Imported LV2, CLAP and VST3 bundles live in app-private persistent folders.
 The UI, catalogue and native host see those folders under the usual
 home-directory names, without access to the host's plugin folders.
-Loopback API and Stream Deck clients require the shared network namespace.
+The shared network namespace serves the update check and the restart of a
+daemon from before the control socket; Stream Deck clients reach the daemon
+through the shared `openxlr` runtime directory.
 Audio clients identify their media category as Manager so WirePlumber can
 permit global mixer controls, including default-device selection.
 It does not grant whole-home access or the host-spawn service. KWin scripting
 is deliberately excluded: that permission can execute desktop scripts outside
-the sandbox. Focused-application routing is therefore not enabled by default;
-use a native package for that integration. Portal-based output shortcuts
-remain available.
+the sandbox. Focused application routing is not available in the Flatpak;
+use a native package for it. Portal-based output shortcuts remain
+available.
 
 After a NuGet update, regenerate `packaging/flatpak/nuget-sources.json` with
 `python3 packaging/flatpak/nuget-sources.py`. The generator records package

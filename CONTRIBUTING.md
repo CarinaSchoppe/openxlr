@@ -16,9 +16,10 @@ or in a GitHub issue.
 - **Bugs with a way to reproduce them.** The archive again, plus what
   you did and what you expected. The daemon's journal is
   `journalctl --user -u openxlr-daemon`.
-- **A translation of the UI.** The UI ships in English and reads
-  every string from one catalogue; a language is a copy of it with the
-  values translated. [docs/localization.md](docs/localization.md) has the
+- **A translation of the UI.** The UI ships in English, German,
+  Spanish, Italian, Tagalog, Cebuano and Serbian, every string read from
+  one catalogue; a new language is a copy of it with the values
+  translated. [docs/localization.md](docs/localization.md) has the
   steps. Only translate a language you read and write well.
 - **Code.** The [roadmap](docs/roadmap.md) is the priority list. Right
   now stability and correctness on real hardware come before new
@@ -45,8 +46,15 @@ python3 tools/test-installation-receipt.py
 python3 packaging/yabridge/test-receipt.py
 node --check plugin/com.emaspa.openxlr.sdPlugin/plugin.mjs
 node --test plugin/tests/*.test.mjs
+python3 -m json.tool browser/chromium/manifest.json >/dev/null
+python3 -m json.tool browser/native-host.json >/dev/null
+for file in browser/chromium/*.mjs; do node --check "$file"; done
 node --test browser/tests/*.test.mjs
 node --check browser/tests/chromium-integration.mjs
+node --check packaging/gnome/openxlr-focus@emaspa.github.com/extension.js
+node --test packaging/gnome/tests/*.test.mjs
+python3 -m json.tool packaging/gnome/openxlr-focus@emaspa.github.com/metadata.json >/dev/null
+dbus-run-session -- gjs -m packaging/gnome/tests/bus.mjs  # private GIO/D-Bus tests; gjs and dbus
 python3 -I tools/browser-extension.py --check  # the Store zip (no manifest key) and the release tar.gz (the key), every referenced file present
 python3 tools/test-browser-extension.py
 python3 -m json.tool plugin/com.emaspa.openxlr.sdPlugin/manifest.json >/dev/null
@@ -60,7 +68,7 @@ python3 packaging/flatpak/nuget-sources.py --check  # regenerate with no flag af
 python3 packaging/flatpak/cargo-sources.py --check  # regenerate with no flag after a change to native/deepfilter/Cargo.lock
 python3 packaging/check-deepfilter.py  # every package builds DeepFilterNet in, with the pinned model
 python3 packaging/ppa/test-prune-cargo-vendor.py  # the PPA's pruned crates still pass cargo's checksums
-shellcheck --severity=error tools/check-version.sh tools/check-locked-restore.sh tools/ci-install-packages.sh packaging/ppa/make-source.sh
+shellcheck --severity=error tools/check-version.sh tools/check-locked-restore.sh tools/ci-install-packages.sh packaging/ppa/make-source.sh packaging/omarchy/openxlr-omarchy-enable packaging/flatpak/openxlr-flatpak-service packaging/openxlr-control
 tools/check-version.sh                          # the six version locations agree
 tools/check-locked-restore.sh                   # every packaging path restores locked
 tools/check-openapi.py docs/openapi-v1.json     # the HTTP API document keeps its shape
@@ -69,7 +77,6 @@ python3 tools/check-omarchy.py  # Qt 6 QML tools, with external type declaration
 python3 tools/omarchy-skins.py --check  # embedded meter tokens match the generated table
 QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input packaging/omarchy/tests
 node --test packaging/omarchy/tests/*.test.mjs
-shellcheck --severity=error packaging/omarchy/openxlr-omarchy-enable
 make -C native  # C/C++, PipeWire, lilv, LV2 and X11 development headers; cargo for DeepFilterNet (DEEPFILTER=0 builds without)
 make -C native test-audio test-clap test-lv2 test-vst3 test-scan  # audio bounds, stall detection, CLAP bus layouts, latency reports, VST3 parameter and stream checks, scan phase markers
 dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~Lv2BundleTests|FullyQualifiedName~PluginSearchPathTests"  # run with lilv installed, even if the earlier suite ran without it
@@ -185,7 +192,7 @@ the projects' runtime identifiers, so one restore covers it)
 and the Nix dependency list
 (`nix build .#openxlr.passthru.fetch-deps -o /tmp/fd && /tmp/fd packaging/nix/deps.json`)
 and commit both. Do not bump the version: releases do that in one
-commit across all five files.
+commit across all six files.
 
 Real hardware is the final test. Say in the pull request what you ran
 it on, or that you could not; the maintainer tests on a Wave XLR Pro
@@ -249,7 +256,9 @@ skips a change to `README.md` alone.
   values and the skin format); user-facing behaviour into
   [docs/manual.md](docs/manual.md) and, when it is a feature,
   [docs/features.md](docs/features.md). Tests live in
-  `src/OpenXLR.Tests` (xUnit) and `plugin/tests` (Node's test runner).
+  `src/OpenXLR.Tests` (xUnit), `plugin/tests`, `browser/tests`,
+  `packaging/gnome/tests` and `packaging/omarchy/tests` (Node's test
+  runner) and `native/tests`.
 - **Commit messages describe the work**, in plain sentences: what
   changed and why, no ticket-style tags, no attribution trailers, and
   no references to reviews or tools that helped write it. The subject
@@ -271,9 +280,10 @@ brief an agent should read before working on the tree.
 ## Code conventions
 
 - The UI (`OpenXLR.UI`) has no reference to `OpenXLR.Core`, so
-  nothing from libusb or lilv ends up in it. The two files both sides
-  need, `OpenXlrPaths.cs` and `ProcessRunner.cs`, are compiled into the
-  UI as linked sources; anything else shared goes the same way.
+  nothing from libusb or lilv ends up in it. The files both sides
+  need, `OpenXlrPaths.cs` and `ProcessRunner.cs` among them, are compiled
+  into the UI as linked sources (see `OpenXLR.UI.csproj`); anything else
+  shared goes the same way.
 - Every file under `~/.config/openxlr` is written through
   `OpenXlrPaths.WriteAtomic` (private modes, atomic replace), and every
   helper process runs through `ProcessRunner` (C locale, deadline,

@@ -35,10 +35,11 @@ happen on your system:
 - New audio devices appear in your desktop's sound settings, all named
   `OpenXLR …`: one output per channel and one input per virtual
   microphone. By default that is `OpenXLR Game`, `OpenXLR Music`,
-  `OpenXLR Browser`, `OpenXLR System`, `OpenXLR Voice Chat`, `OpenXLR
-  SFX` and the hardware channels as outputs, and `OpenXLR Stream` and
-  `OpenXLR Chat` as inputs; a layout you have edited ([section 3.12](#layout))
-  comes back as you left it.
+  `OpenXLR Browser`, `OpenXLR System`, `OpenXLR Voice Chat` and `OpenXLR
+  SFX`, plus `OpenXLR Monitor A` and `OpenXLR Monitor B`, as outputs, and
+  `OpenXLR Stream` and `OpenXLR Chat` as inputs; the hardware channels are
+  not listed as playback devices. A layout you have edited
+  ([section 3.12](#layout)) comes back as you left it.
 - Unless automatic routing is disabled in Manage, applications that play
   audio are moved onto a channel output by name
   ([section 2](#concepts)). They keep playing; only the device they play into
@@ -53,8 +54,10 @@ happen on your system:
   the mixer, and restores the previous profile when it stops. If the
   card is unplugged in the meantime, the daemon leaves it alone.
 
-The UI's header shows the connected interface with a green dot.
-"No device" means the daemon cannot open the interface: replug it once
+The UI's header shows the connected interface with a green dot. With
+more than one interface attached, the name there is a picker, and the one
+you pick is driven again after a restart, even when the other one appears
+first. "No device" means the daemon cannot open the interface: replug it once
 after installing so the udev rule applies ([section 5.1](#no-device)).
 
 <a name="without-elgato"></a>
@@ -101,7 +104,10 @@ and work on the maintainer's unit. The microphone keeps the
 desktop's capture and playback volume in step with its gain and headphone
 level by itself. It has no phantom power and no low impedance mode. Nobody has checked yet
 whether it keeps its settings when unplugged, so OpenXLR writes nothing to
-it on connect.
+it on connect. Its microphone can stall while its own headphones play,
+giving silence or a buzz: OpenXLR resets it by itself, and Options,
+INTERFACE, has **Recover microphone** for a stall it misses
+([section 5.2](#dock-silent)).
 
 If you only want hardware control and no mixer, turn off "Enable software
 mixer" in Options, AUDIO ([section 3.8](#hardware-only)). The daemon restarts in hardware-control mode
@@ -139,9 +145,10 @@ whatever you add, rename, hide or remove in the layout editor
 ([section 3.12](#layout), [Show hidden](#show-hidden)). Each channel is a
 PipeWire output device an application can play into.
 
-**Mixes** are where audio leaves. The default layout has five; Stream,
-Chat and any mix you add, a virtual microphone or a monitor mix, can be
-renamed, hidden and removed ([section 3.12](#layout)):
+**Mixes** are where audio leaves. The default layout has five; Monitor A,
+Monitor B, Stream, Chat and any mix you add, a virtual microphone or a
+monitor mix, can be renamed and removed, as long as one monitor mix
+remains, and every mix can be hidden ([section 3.12](#layout)):
 
 | Mix | What it is | Where it goes |
 |---|---|---|
@@ -230,7 +237,8 @@ the physical outputs that receive these mixes.
 its name from PipeWire and picks a channel by rules: browsers to
 Browser; Spotify, YouTube Music and media players to Music; Discord,
 Zoom, Slack and other chat apps to Voice Chat; Steam, Lutris, Heroic
-and games to Game; anything else to System. Electron apps report
+and games to Game; apps named like a soundboard to SFX; anything else to
+System. Electron apps report
 "Chromium", so the process name is used instead, which is how Discord
 lands in Voice Chat. An app you move to another channel is remembered
 ([section 3.3](#apps)).
@@ -243,9 +251,10 @@ does not rewire the desktop.
 
 **Inserts** are LV2, CLAP or VST3 effects placed in the signal path: a mono
 chain on each XLR input, a mono or stereo chain on each capture input,
-a stereo chain on each mix. On the first XLR Dock
-and original Wave XLR, OpenXLR also offers software low cut and limiting
-on XLR 1 because their backends do not expose those hardware controls.
+a stereo chain on each mix. On an interface whose
+backend exposes no hardware low cut or ClipGuard, OpenXLR offers the
+missing one in software on XLR 1: both on the first XLR Dock and the
+original Wave XLR, the low cut on the Wave:3 and Wave:1.
 Intermediate DSP and mix-delay nodes are hidden from desktop device pickers
 and ignore saved desktop volume and mute. Use the channel sends, mix
 masters and physical output controls for level and mute changes. Rebuilding a chain starts these
@@ -332,9 +341,9 @@ from three places:
   **No interface.** is followed by a link, **Choose a microphone for XLR 1**.
 
 The dialog lists the interface's own input first, **Interface jack (XLR 1)**,
-or **Built-in microphone** on a Wave:3, Wave:3 MK.2 or Wave:1. Every capture source
-follows except OpenXLR's own nodes and those of the interfaces OpenXLR
-supports. An unplugged bound source stays in the list, marked
+or **Built-in microphone** on a Wave:3, Wave:3 MK.2 or Wave:1. Every other capture
+source follows, other Elgato interfaces included, except OpenXLR's own
+nodes and the primary interface's own. An unplugged bound source stays in the list, marked
 "(not connected)" and named after its device, such as "Shure MV7".
 Pick the source and its port, then Save. Ports are numbered from 1
 and named by the channel PipeWire reports, such as "1 (MONO)" for a mono
@@ -610,9 +619,10 @@ that was the default.
    Aux return keeps the shared Linux device open; the selected headphone and
    line-output switches still follow the monitor feed.
 6. The HEADPHONES card holds the interface's own headphone volume,
-   low-impedance mode, and on the Pro the Mic ↔ PC crossfade, which is
-   the zero-latency direct monitor inside the device: left is only your
-   microphone, right is only computer audio.
+   low-impedance mode, and, on every interface with a direct monitor (the
+   Pro, the MK.2 family, the Wave:3, the Wave:3 MK.2 and the Wave:1), the
+   Mic ↔ PC crossfade, which is the zero-latency direct monitor inside the
+   device: left is only your microphone, right is only computer audio.
 
 With one headphone jack, its volume fader uses the whole row. Two jacks
 share the row equally. In MONITOR, a long output name is shortened to
@@ -755,8 +765,8 @@ try a sensitivity. On the Pro the unit hears the live microphone, so the
 loop does not duck.
 
 Each mix ducked on this computer adds a hidden bus with one send for every
-channel, nine with the default layout, and a small helper process. Ducking
-all five mixes of the default layout adds 45 sends, which a stock
+channel, ten with the default layout, and a small helper process. Ducking
+all five mixes of the default layout adds 50 sends, which a stock
 pipewire-pulse may refuse for lack of open files; the error says so (see
 [open-file limit](#open-files)).
 
@@ -1103,7 +1113,7 @@ you can retry. A daemon reconnection during the switch also leaves the
 current microphone selected. If the chosen input is removed or replaced
 while the switch waits, the window stays on the current microphone too.
 Removing the microphone shown closes its Mic setup window, even when the
-main window opened it. Late actions from that window cannot affect an input
+UI opened it. Late actions from that window cannot affect an input
 created in its place.
 
 A gain measurement ends as soon as you close the window. Reopening Mic
@@ -1473,8 +1483,9 @@ EQ, and one moved from a mono port to a stereo pair keeps its EQ settings
 for when it goes back to a mono port.
 
 **Where the EQ runs.** A Wave XLR MK.2 or XLR Dock MK.2 on firmware 1.0.15
-or later, and a Wave XLR Pro on firmware 1.0.14 or later, runs the EQ on
-its own processor, before USB, the way Wave Link 3.5 does. On the Pro, XLR
+or later, a Wave:3 MK.2 on firmware 0.2.3 or later, and a Wave XLR Pro on
+firmware 1.0.14 or later run the EQ on their own processor, before USB,
+the way Wave Link 3.5 does. On the Pro, XLR
 1 and XLR 2 each have their own EQ on the unit, with their own switch and
 their own choice of where it runs. The editor then shows **Hardware processing** in its header and
 names the unit in the line at the bottom, and the **EQ** button's tooltip
@@ -1496,8 +1507,8 @@ the input's route, and the plugin host is not needed.
   choice.
 - On older firmware the EQ runs on this computer until the unit is
   updated. A note under the switch names
-  the unit's firmware and the version it needs: 1.0.15 on the MK.2 models,
-  1.0.14 on the Pro. Elgato's updater is in
+  the unit's firmware and the version it needs: 1.0.15 on the Wave XLR
+  MK.2 and XLR Dock MK.2, 0.2.3 on the Wave:3 MK.2, 1.0.14 on the Pro. Elgato's updater is in
   Wave Link on Windows or macOS. The same note appears when the firmware
   version or the unit's EQ settings cannot be read, or when the unit did
   not keep an EQ written to it; switch the EQ off and on, or choose **In
@@ -2331,7 +2342,8 @@ Under WINDOW:
 - "When closing" chooses "Keep running in tray" or "Quit app" and takes
   effect immediately. Keeping the app in the tray hides the UI
   instead of quitting; the tray icon's "Show mixer" menu item restores it,
-  including when the UI was minimized. "Quit OpenXLR" in the tray
+  including when the UI was minimized. "Soundboard" opens the Soundboard
+  window ([section 3.14](#play-sound-clips)). "Quit OpenXLR" in the tray
   menu always exits. Neither choice stops the background audio service,
   except under Flatpak, where the UI owns its daemon and Quit stops
   both, so the Flatpak keeps running in the tray unless you choose
@@ -2790,8 +2802,8 @@ When the UI can connect but the daemon is another version, it shows a
 banner naming the daemon's version and its own, with a Restart daemon
 button, and offers only the controls the old daemon reports.
 
-Releases before this one served their clients on a loopback port with a
-token. This release uses a private Unix socket instead, authenticated by
+Releases before 0.3.0 served their clients on a loopback port with a
+token. Since 0.3.0 the daemon uses a private Unix socket instead, authenticated by
 Linux peer credentials ([section 6](#files)), so the new UI cannot talk to
 the old daemon at all. It still recognises one, because the old daemon
 holds the same single-instance lock and answers on its old port. The header then reads
@@ -2880,7 +2892,7 @@ Line In and the Aux port, a microphone for a mono capture input, a headset for a
 Bluetooth capture source, a camera for a stereo capture pair, a gamepad, a note, a
 browser window, a cog, a speech bubble and a burst for Game, Music,
 Browser, System, Voice Chat and SFX, a grid of tiles for any other
-application channel, headphones for every monitor mix, a broadcast mast
+application channel, a headset for every monitor mix, a broadcast mast
 for Stream, two people for Chat and a podcast microphone for any other
 virtual microphone.
 
@@ -3143,6 +3155,9 @@ nothing to play.
    Ogg Vorbis, Opus and MP3 are read, up to 30 seconds and 64 MiB a
    file and 64 clips in all; files past the 64th are left out and
    counted, and **Cancel** stops a long import after the file it is on.
+   The clips the player holds share 96 MiB of memory once decoded, about
+   four minutes of stereo audio in all; a clip past that budget shows
+   why on its pad and does not play.
    OpenXLR copies each file into its own data folder, so moving or
    deleting the original later changes nothing. Pads and Deck keys keep
    playing and stopping clips while files are copied and checked. A file it refuses is named
@@ -3208,9 +3223,10 @@ Some things follow from the clips sharing SFX:
 - Applications routed to SFX share the fader, the mutes and the meter
   with the clips. Route loud applications to System or a channel of
   their own in the layout editor.
-- With ducking on, SFX is lowered by default while the key microphone is
-  loud, and the clips with it. Untick SFX in the Ducking window to keep
-  the clips at their level.
+- With ducking on, the default setup lowers SFX in your monitor mix while
+  the key microphone is loud, and the clips with it; Stream and Chat keep
+  them at their level unless you tick those mixes. Untick SFX in the
+  Ducking window to keep the clips at their level.
 - Renaming or hiding SFX keeps the board playing. Deleting SFX turns the
   board off and the Soundboard window says so. Ticking **Soundboard on**
   again makes a new SFX channel, muted in every mix. Open its sends
@@ -3219,14 +3235,15 @@ Some things follow from the clips sharing SFX:
 - While the software mixer is off, or waiting for the audio server, the
   Soundboard window keeps its pads and says the mixer is not running;
   nothing plays until it is.
-- A clip starts within one block of audio. At the 256 frames most setups
-  use that is about 5 ms; with a forced block of 2048 frames it is about
-  43 ms.
+- A clip starts within one block of audio: about 21 ms at PipeWire's
+  usual 1024 frames, about 5 ms with Block size set to 256, and about
+  43 ms with a forced block of 2048 frames.
 
 <a name="soundboard-pages"></a>
 **Pages.** Every clip is on a page, **Main** unless you choose another.
 Once a clip is on a named page, the pages stand as tabs over the pads,
-**Main** first and then each page in the order its first clip comes, and
+**Main** first while it holds a clip and then each page in the order its
+first clip comes, and
 the pads show the page whose tab is lit. Since a tab stands where its page's
 first clip does, moving a clip to another page, or the first clip of a
 page in the library, can move the tabs too. A page exists while a clip is on
@@ -3295,7 +3312,7 @@ level lock, the gain lock), [ducking](#ducking) on or off, the software low cut 
 ClipGuard, the Aux mix to the USB Aux port, a mix or send mute,
 the monitor output (switching the monitor mixes to one specific device),
 an output's feed (cycling Monitor A, Monitor B, Monitor A+B and the remaining mixes, lit
-when not on A),
+when not on the default monitor mix),
 the bypass of one insert or of a whole chain, a desktop output's mute, a
 5% step up or down in its volume, or its selection as the enforced system
 default, the routing of the focused
@@ -3418,7 +3435,7 @@ the daemon hears the first tick immediately and a fast turn as a short
 series of changes. The daemon's own value takes over once the turn has
 settled.
 
-**Clip** (a key) plays one clip of the [soundboard](api.md#soundboard)
+**Clip** (a key) plays one clip of the [soundboard](#play-sound-clips)
 into the SFX channel, or stops every clip. Its settings list the clips by
 name and store the one picked by its id, so renaming the clip keeps the
 key. A press plays the clip in its own press mode, set in the library:
@@ -3486,8 +3503,10 @@ rest of this section is for an Elgato device the daemon does not see.
   remembers the pick and drives the same unit after a restart, even when
   `OPENXLR_DEVICE` names another model. Two units of
   one model are listed with their USB port. While the chosen unit is
-  unplugged the others are left alone, and with several attached and none
-  driven the XLR strips stay silent until you pick one
+  unplugged during a session the others are left alone. After a restart
+  without it, OpenXLR waits ten seconds for it, then drives another
+  attached unit (the model `OPENXLR_DEVICE` names, or the first one)
+  until the chosen unit is plugged in again, and switches back to it
   ([Multiple Wave interfaces](wave-interfaces.md)).
 
 <a name="dock-silent"></a>
@@ -3506,9 +3525,11 @@ capture sources always active (`50-xlr-dock-capture-hold.conf`,
 `52-openxlr-mk1-capture-hold.conf` and
 `53-openxlr-wave3-capture-hold.conf`, which covers both Wave:3 models),
 and one that opens the Wave:3 MK.2's headphones in the unit's float
-format (`55-openxlr-wave3-mk2-playback.conf`). On a source install copy
-them from `packaging/` into `~/.config/wireplumber/wireplumber.conf.d/`
-and restart WirePlumber.
+format (`55-openxlr-wave3-mk2-playback.conf`). WirePlumber reads them
+when it starts, so after installing or upgrading a package run
+`systemctl --user restart wireplumber`, then restart the daemon. On a
+source install copy them from `packaging/` into
+`~/.config/wireplumber/wireplumber.conf.d/` and restart WirePlumber.
 OpenXLR starts the interface's capture before it routes any mix into the
 interface, the monitor output on its own headphones included. A linked
 capture is not enough: OpenXLR waits until the kernel reports the capture
@@ -3568,12 +3589,13 @@ diagnostics** in Options and open an issue with the archive.
 - `systemctl --user status openxlr-daemon` shows the state. "203/EXEC"
   in a restart loop means a stale unit in
   `~/.config/systemd/user/openxlr-daemon.service` written by a version
-  before 0.1.9. Opening the UI repairs it when Start audio at
-  login is on and OpenXLR can prove it wrote the unit; otherwise run
+  before 0.1.9. Opening the UI repairs it when **Start audio in the
+  background** (Options, AT LOGIN) is on and OpenXLR can prove it wrote
+  the unit; otherwise run
   `openxlr installation repair-startup`, or remove the file,
   `systemctl --user daemon-reload`, then
   `systemctl --user enable --now openxlr-daemon`.
-- "another OpenXLR daemon is already running for this user": a second
+- "another OpenXLR daemon is already running (it holds .../openxlr/daemon.lock)": a second
   daemon was started by hand while the service runs. It stops at once;
   stop the service first if you meant to run the daemon by hand.
 - "control socket unavailable": OpenXLR cannot bind its private control
@@ -3646,7 +3668,8 @@ An older user unit can fail before starting the daemon with
 `218/CAPABILITIES` and `Failed to drop capabilities`. Update the package
 and run `systemctl --user daemon-reload` followed by
 `systemctl --user restart openxlr-daemon`. Source installs can regenerate
-their owned unit by disabling and enabling Start audio at login in Options.
+their owned unit by turning **Start audio in the background** off and on
+again in Options, AT LOGIN.
 That includes a unit you copied by hand from the reference file v0.1.37
 to v0.1.70 shipped, as long as you changed only its `ExecStart` line.
 The current unit keeps its other restrictions but no longer carries
@@ -3803,13 +3826,13 @@ created as a new private file; an existing file or symbolic link at its
 path is refused without overwriting its contents. A collection that
 fails part way removes its incomplete archive.
 
-`meta.txt` identifies the collecting window by its full build version and
+`meta.txt` identifies the UI that collected it by its full build version and
 assembly module id. `daemon-state.json` separately identifies the running
 daemon with `daemonBuildVersion` and `daemonBuildId` when it supports those
 fields. A build version includes its source commit when one was stamped
 at build time. The displayed release number can stay the same across
 source rebuilds, so it alone cannot confirm that a fix is running. The
-window and daemon are separate assemblies; their module ids are not
+UI and the daemon are separate assemblies; their module ids are not
 expected to match. `openxlr doctor` compares the daemon with a receipt-backed
 installation instead.
 The metadata also records when the state was collected and received, in UTC,
@@ -3903,8 +3926,8 @@ settings. See
 | `~/.config/openxlr/mixer.json` | every mixer decision, the layout included (`userChannels`, `mixes`, see [mixer-layout.md](mixer-layout.md)), written by the daemon |
 | `~/.config/openxlr/profiles/<vid-pid>/<name>.json` | saved profiles, one file each |
 | `~/.config/openxlr/profiles/<vid-pid>/recall-on-connect` | the profile recalled when that interface connects, when one is chosen |
-| `$XDG_RUNTIME_DIR/openxlr/control.sock` (or `~/.config/openxlr/control.sock` without a runtime directory) | private control API socket, authenticated by Linux peer credentials ([api.md](api.md)) |
-| `$XDG_RUNTIME_DIR/openxlr/daemon.lock` | held by the running daemon; a second daemon started for the same user stops at once instead of waiting for the port |
+| `$XDG_RUNTIME_DIR/openxlr/control.sock` (or `~/.config/openxlr/control.sock` without a runtime directory) | private control API socket, authenticated by Linux peer credentials ([api.md](api.md)); the same commands over HTTP at `/api/v1` ([http-api.md](http-api.md)) |
+| `$XDG_RUNTIME_DIR/openxlr/daemon.lock` (or under `~/.config/openxlr` without a runtime directory) | held by the running daemon; a second daemon started for the same user stops at once |
 | `~/.config/openxlr/devices/<vid-pid>/last-state.json` | the settings restored on connect when `retainsSettings` is false |
 | `~/.config/openxlr/devices/<vid-pid>/defaults.json` | the firmware defaults of such an interface, recorded after a power cycle, written back by "Reset device to defaults" (the Pro has no such file: its reset writes OpenXLR's baseline) |
 | `~/.config/openxlr/daemon.json` | the submixer on/off preference and the added plugin folders |
@@ -3929,8 +3952,9 @@ settings. See
 | `/usr/lib/systemd/user/pipewire-pulse.service.d/openxlr.conf` | installed by the packages: raises pipewire-pulse's open-file limit ([section 5.8](#open-files)) |
 | `/usr/share/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf`, `52-openxlr-mk1-capture-hold.conf`, `53-openxlr-wave3-capture-hold.conf` | installed by the packages: keep the capture of the XLR Dock, the original Wave XLR, the Wave:3 and the Wave:3 MK.2 running ([section 5.2](#dock-silent)) |
 | `/usr/share/wireplumber/wireplumber.conf.d/55-openxlr-wave3-mk2-playback.conf` | installed by the packages: opens the Wave:3 MK.2's headphones in the unit's float format ([section 5.2](#dock-silent)) |
+| `/usr/share/wireplumber/wireplumber.conf.d/51-openxlr-pro-raw-names.conf` | installed by the packages: names the Wave XLR Pro's raw multichannel nodes for what they are, so volume applets do not list them like OpenXLR's mixes |
+| `/usr/share/wireplumber/main.lua.d/54-openxlr-owned-state.lua` | installed by the `.deb` where WirePlumber is 0.4: keeps desktop state off OpenXLR's own nodes ([section 5.9](#quiet-mixes)) |
 | `openxlr-tui` | the mixer in a terminal, the same daemon and the same skins ([The terminal mixer](#terminal)) |
-| `$XDG_RUNTIME_DIR/openxlr/control.sock` | the daemon's API, documented in [api.md](api.md); the same commands over HTTP at `/api/v1` ([http-api.md](http-api.md)) |
 
 The daemon makes a final attempt to save pending mixer settings when it
 shuts down, including when startup fails after the mixer changed. If that
@@ -4543,7 +4567,7 @@ Nine sections are reachable with `1` to `9`, Tab and Shift+Tab:
 | 6 Inserts | the chain on each input and mix, its order, bypass and status; add a plugin from the catalogue, narrowed by typing, of those that fit the chain's width; open a plugin's native editor or edit its generated controls when the editor is blocked or refused |
 | 7 Profiles | load, save over, save as, delete and recall on connect; interface selection and recorded device defaults |
 | 8 Options | the skin picker and **Material mode**, the interface and its warning, the layout, connection status, daemon version and fresh state request |
-| 9 Sounds | the [soundboard](#play-sound-clips): the board's switch, SFX's volume as its master, and each clip with its length, press mode, loop, gain, status and a bar while it plays; play, stop, stop all, reorder, rename, delete and import by a typed path |
+| 9 Sounds | the [soundboard](#play-sound-clips): the board's switch, SFX's volume as its master, and each clip with its length, press mode, loop, gain, status and a bar while it plays; play, stop, stop all, audition, reorder, rename, delete, pages, import by a typed path and restoring the starter sounds |
 
 In Outputs, quick Space presses keep the complete selection while the daemon
 acknowledges it. Feed arrows likewise keep each step separately for each output.
@@ -4603,7 +4627,8 @@ Controls below the visible hardware cards appear as the selection moves.
 | Sounds | `-`, `+`, `[`, `]` | lower or raise the clip's gain by five points, or by one point |
 | Sounds | `m`, `l`, `r`, `d` | step the press mode, turn the loop on or off, rename, or delete |
 | Sounds | Ctrl+Up/Down | move the clip earlier or later |
-| Sounds | `b`, `i` | turn the board on or off, or import a file by its path |
+| Sounds | `b`, `i`, `R` | turn the board on or off, import a file by its path, or add back the starter sounds the board no longer has |
+| Sounds | `p`, `P`, `g`, `G` | show the next or previous page, move the clip to a page, or rename the page shown |
 | Sounds | `<`, `>`, `,`, `.` | lower or raise SFX's volume, the board's master, by five points or by one point |
 | Inputs, Bindings | Left/Right, Enter | choose a strip's source or port, then apply it |
 | Inputs, Ducking channels and mixes | Left/Right, Home, End, Space, Enter | move between the channels or mixes, then duck the one under the cursor or stop ducking it |

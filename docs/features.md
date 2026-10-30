@@ -61,12 +61,13 @@ only when picked from the header. [hardware-support.md](hardware-support.md)
 names the sources, the bytes they dispute and what an owner checks.
 
 Wave:3 MK.2: gain (0 to 40 dB), mute, headphone volume, the direct
-monitor crossfade and the microphone EQ on the unit, from the Wave XLR
+monitor crossfade, the microphone EQ, low cut, expander, voice tune with
+its strength, compressor and ClipGuard on the unit, from the Wave XLR
 MK.2's backend. On the maintainer's unit each control wrote and read
 back. The gain and headphone level matched the kernel's own controls, and
-the EQ was measured on the capsule's noise. A replug is not yet checked.
-OpenXLR neither shows nor writes the bits of the MK.2's settings block
-that nobody has identified on this microphone. Like the Wave:3, the daemon
+the EQ, low cut, compressor and voice tune were measured on the capsule's
+noise. The low cut sits where the XLR MK.2 keeps phantom power. A replug
+is not yet checked. Like the Wave:3, the daemon
 drives it only when no XLR interface is attached or when picked from the
 header.
 

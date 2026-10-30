@@ -21,11 +21,21 @@ namespace OpenXLR.Core.Devices;
 /// back from the block and, for the gain and the headphones, from the
 /// kernel's ALSA controls ('Capture Volume' 0..40 dB, 'Playback Volume'
 /// 0..240 for -60..0 dB), which the firmware keeps in step with the block.
-/// Only those four controls are advertised. The flag byte also carries
-/// bits 0x02, 0x20 and 0x40 whose meaning on this microphone is not known
-/// (phantom, expander and voice tune on the XLR MK.2), and byte 10 moves with
-/// one of the dial's modes without being identified, so none of them is
-/// driven.
+///
+/// The processing has the XLR MK.2's layout but for the low cut, mapped on
+/// the same unit on 2026-10-30 by switching one setting at a time and
+/// comparing the microphone's own room noise before and after (median of
+/// three alternating takes, the expander held off): clearing bit 0x02 of the
+/// flag byte raised 20 to 100 Hz by 9 to 13 dB and left the rest flat, so
+/// 0x02, phantom power on the XLR MK.2, is the low cut here, and the XLR
+/// MK.2's low cut bit 0x10 changed nothing. Setting 0x80 (compressor) raised
+/// the noise by 5.5 dB, as a compressor's make-up gain does; clearing 0x40
+/// (voice tune) lowered it by 2.8 dB; and byte 10, voice tune's strength and
+/// the value one of the dial's modes moves, raised it by 11.4 dB from 16 to
+/// 100. The expander (0x20) and ClipGuard (block byte 2, bit 0x04 set for
+/// off) showed no clear change on steady room noise, which neither acts on,
+/// and are driven at the XLR MK.2's offsets. Phantom power and the low
+/// impedance mode are not advertised, and bit 0x10 is never written.
 ///
 /// The unit runs the MK.2's four-band EQ (<see cref="WaveFxEq"/>) at the same
 /// offsets of block 0x0004, and came with the same factory bands as a Wave
@@ -59,7 +69,10 @@ public sealed class Wave3Mk2Device : WaveXlrMk2Device
     public Wave3Mk2Device() : this(null) { }
 
     internal Wave3Mk2Device(IUsbTransport? usb) : base(ProductId, "Wave:3 MK.2", vIndex: 0x0103, Controls, EqFirmware, usb: usb,
-        crossfadeReversed: true) { }
+        crossfadeReversed: true, lowCutMask: LowCutMask) { }
+
+    /// <summary>The flag byte's low cut bit on this model, phantom power's on the XLR MK.2.</summary>
+    internal const byte LowCutMask = 0x02;
 
     /// <summary>The firmware the EQ was measured on, in this model's own numbering.</summary>
     internal static Version EqFirmware { get; } = new(0, 2, 3);
@@ -70,6 +83,11 @@ public sealed class Wave3Mk2Device : WaveXlrMk2Device
         Mute = true,
         HpVolume = true,
         Crossfade = true,
+        LowCut = true,
+        Expander = true,
+        VoiceTune = true,
+        Compressor = true,
+        ClipGuard = true,
         // A dial with four modes and a touch mute, as on the Wave:3, so the
         // daemon's gain lock is kept off the UI.
         PhysicalControls = true,

@@ -15,7 +15,7 @@ brand works in the mixer without hardware controls; see
 | Wave XLR MK.2 | `0fd9:00b6` | exposed controls verified on hardware by a community tester; the microphone EQ on the unit verified on hardware |
 | XLR Dock MK.2 | `0fd9:00c7` | MK.2 backend with bank detection; exposed controls verified on the original 0x0103 unit, and the microphone EQ on the unit verified on firmware 1.0.15 |
 | Wave:3 | `0fd9:0070` | coded from public protocol research; on the maintainer's unit every control writes and reads back, and the gain, the monitor balance and the desktop volume controls are verified |
-| Wave:3 MK.2 | `0fd9:00ca` | the Wave XLR MK.2's backend; on the maintainer's unit gain, mute, headphone volume, the crossfade and the microphone EQ on the unit are verified; phantom power and the MK.2's other flags are not exposed |
+| Wave:3 MK.2 | `0fd9:00ca` | the Wave XLR MK.2's backend; on the maintainer's unit gain, mute, headphone volume, the crossfade, the microphone EQ, the low cut, the compressor and voice tune on the unit are verified, the expander and ClipGuard are mapped from the XLR MK.2; phantom power is not exposed |
 | Wave:1 | `0fd9:006e` | the Wave:3's backend under the Wave:1's id; an owner's two archives showed the Wave:3's block, firmware line and desktop volume mirror, and the gain, mute and headphone volume writes taking effect; ClipGuard and the mix are not yet confirmed |
 
 ## USB access
@@ -581,14 +581,20 @@ script logged every byte that changed:
 |---|---|---|
 | `0x0004` | 0 | gain in dB, 0 to 40; the kernel's 'Capture Volume' mirrors it |
 | `0x0004` | 1, bit 0 | mute: the touch mute turned 0x62 into 0x63 |
-| `0x0004` | 1, bits 0x02, 0x20, 0x40 | set and not identified; on the XLR MK.2 they are phantom power, expander and voice tune |
+| `0x0004` | 1, bits 0x02, 0x10, 0x20, 0x40, 0x80 | 0x02 the low cut (phantom power on the XLR MK.2), 0x20 the expander, 0x40 voice tune, 0x80 the compressor; 0x10, the XLR MK.2's low cut, does nothing here. The unit came with the low cut, expander and voice tune on (0x62) |
 | `0x0004` | 2, bit 0, and 18 to 37 | the MK.2's EQ switch and four bands; the unit came with the Wave XLR MK.2's factory bands |
-| `0x0004` | 10 | moved (0 to 0x32 seen) by one of the dial's modes; voice tune strength on the XLR MK.2, not identified here |
+| `0x0004` | 10 | voice tune strength, as on the XLR MK.2; one of the dial's modes moves it (0 to 0x32 seen) |
 | `0x0005` | 0 | headphone attenuation in quarter dB, 0 to 240 for 0 to -60 dB; the kernel's 'Playback Volume' reads 240 minus it |
 | `0x0001` | 0 | crossfade, 0 to 200 with 100 the centre, but the other way from the XLR MK.2: 0 is the computer alone and 200 the microphone alone, so the backend mirrors it |
-| `0x0016` | 60 | the dial's mode: 02 gain, 04 the byte 10 parameter, 06 headphones, 08 crossfade |
+| `0x0016` | 60 | the dial's mode: 02 gain, 04 voice tune strength, 06 headphones, 08 crossfade |
 | `0x0006` | 14 | flips between 0 and 1 with dial and mute activity; not identified |
 | `0x0002` | | changes all the time; probably meters |
+
+The processing switches came from a test on 2026-10-30 that flipped one
+switch at a time and compared the microphone's own room noise before and
+after, three alternating takes each. Monitoring was on another output and
+the expander was held off to keep the noise floor steady. The low cut is
+bit 0x02, which is phantom power on the XLR MK.2.
 
 Then each control was written through `Wave3Mk2Device` and read back.
 The unit's values were recorded first and put back at the end, and every
@@ -601,8 +607,13 @@ block read the same before and after.
 | Headphone volume -60 to 0 dB | verified on hardware | -20, -60, -12.25 and -12 dB written; the kernel's playback control read 160, 0, 191 and 192. Not listened to |
 | Crossfade | verified on hardware | 100, 0 and 200 written and read back (250 held to 200). The maintainer heard the direction reversed with the byte mapped straight, so the backend mirrors it |
 | Microphone EQ on the unit | verified on hardware | measured with the microphone's own noise, see below |
-| Phantom power, low cut, expander, voice tune, compressor, ClipGuard, low impedance | not exposed | none identified on this model; the backend refuses each setter before any transfer and reports each as off |
-| Low cut, gain lock | software | the submixer's and the daemon's, as on the Wave:3 |
+| Low cut | verified on hardware | bit 0x02, not the XLR MK.2's 0x10: clearing it raised 20 to 100 Hz of the room noise by 9 to 13 dB and left the rest flat |
+| Compressor | verified on hardware | bit 0x80: setting it raised the noise floor by 5.5 dB, the compressor's make-up gain (median of three takes) |
+| Voice tune and its strength | verified on hardware | bit 0x40 and byte 10: clearing the bit lowered the noise by 2.8 dB, and strength 16 to 100 raised it by 11.4 dB |
+| Expander | mapped, not measured | bit 0x20, as on the XLR MK.2; steady room noise showed no clear change |
+| ClipGuard | mapped, not measured | block byte 2, bit 0x04 set for off, as on the XLR MK.2; a limiter does not act on room noise |
+| Phantom power, low impedance | not exposed | a USB microphone; the backend refuses both setters before any transfer and reports each as off |
+| Gain lock | software | the daemon's, as on the Wave:3 |
 | Firmware version | read on hardware | block `0x0000` bytes 5 to 7, 0.2.3; not compared with what Wave Link shows |
 | Keeps its settings over a power cycle | assumed | as the Wave XLR MK.2 and the XLR Dock MK.2 do; not tested, so the daemon writes nothing at connect |
 

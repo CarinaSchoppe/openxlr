@@ -34,11 +34,27 @@ public sealed class SoundboardViewModelTests
         }
 
         public Task<string?> SetSoundboardAsync(bool enabled) => Record("setSoundboard", enabled);
-        public Task<ClipImportResult?> ImportClipAsync(string path)
+        /// <summary>The page each import named, in order.</summary>
+        public readonly ConcurrentQueue<string> ImportPages = new();
+        public Func<string, bool, SoundboardTransferResult?> Transfer = (path, merge) => new(true, $"Done with {Path.GetFileName(path)}.");
+
+        public Task<ClipImportResult?> ImportClipAsync(string path, string page)
         {
             Sent.Enqueue(("importClip", JsonValue.Create(path)));
+            ImportPages.Enqueue(page);
             return Task.FromResult(Import(path));
         }
+        public Task<SoundboardTransferResult?> ExportSoundboardAsync(string path)
+        {
+            Sent.Enqueue(("exportSoundboard", JsonValue.Create(path)));
+            return Task.FromResult(Transfer(path, false));
+        }
+        public Task<SoundboardTransferResult?> ImportSoundboardAsync(string path, bool merge)
+        {
+            Sent.Enqueue(("importSoundboard", new JsonObject { ["path"] = path, ["merge"] = merge }));
+            return Task.FromResult(Transfer(path, merge));
+        }
+        public Task<string?> RenameClipPageAsync(string page, string name) => Record("renameClipPage", new { page, name });
         public Task<string?> UpdateClipAsync(string clip, IReadOnlyDictionary<string, object> fields)
             => Record("updateClip", new Dictionary<string, object>(fields) { ["clip"] = clip });
         public Task<string?> DeleteClipAsync(string clip) => Record("deleteClip", clip);
@@ -649,6 +665,209 @@ public sealed class SoundboardViewModelTests
         Assert.Equal("Air horn", fields!["name"]!.GetValue<string>());
         Assert.Equal("", fields["colour"]!.GetValue<string>());
         Assert.Equal("none", fields["icon"]!.GetValue<string>());
+    }
+
+    /// <summary>The board with the drum roll on Intro and the broken clip on Memes, as the daemon reports pages.</summary>
+    private static JsonObject Paged(string drumroll = "Intro", string broken = "Memes")
+    {
+        JsonObject board = Board();
+        board["clips"]![1]!["page"] = drumroll;
+        board["clips"]![2]!["page"] = broken;
+        board["pages"] = new JsonArray([.. new[] { "", drumroll, broken }.Distinct().Select(p => (JsonNode?)p)]);
+        return board;
+    }
+
+    [Fact]
+    public void PagesShowAsTabsAndThePadsAreThePageShown()
+    {
+        (SoundboardViewModel board, Recorder commands) = Model();
+        // One page, the default one: no tabs, every pad.
+        Assert.False(board.ShowsPages);
+        Assert.Equal(["airhorn", "drumroll", "broken"], board.PageClips.Select(c => c.Id));
+
+        board.Apply(Paged(), []);
+        Assert.True(board.ShowsPages);
+        Assert.Equal(["", "Intro", "Memes"], board.Pages.Select(p => p.Key));
+        Assert.Equal([Localizer.Text("SoundboardMainPage"), "Intro", "Memes"], board.Pages.Select(p => p.Title));
+        Assert.Equal(["airhorn"], board.PageClips.Select(c => c.Id));
+        Assert.True(board.Pages[0].IsSelected);
+        Assert.False(board.CanEditPage);
+
+        board.ShowPage(board.Pages[1]);
+        Assert.Equal("Intro", board.SelectedPage);
+        Assert.Equal(["drumroll"], board.PageClips.Select(c => c.Id));
+        Assert.True(board.Pages[1].IsSelected && !board.Pages[0].IsSelected);
+        Assert.True(board.CanEditPage);
+        Assert.Equal(Localizer.Format("SoundboardDropHint", "Intro"), board.DropHint);
+
+        // The page renamed in another case stays shown; a page gone shows the first one.
+        board.Apply(Paged(drumroll: "INTRO"), []);
+        Assert.Equal("INTRO", board.SelectedPage);
+        board.Apply(Paged(drumroll: "", broken: "Memes"), []);
+        Assert.Equal("", board.SelectedPage);
+        Assert.Equal(["airhorn", "drumroll"], board.PageClips.Select(c => c.Id));
+        // The same pad stays when the page shown keeps it.
+        SoundClipViewModel airhorn = board.PageClips[0];
+        board.Apply(Paged(drumroll: "", broken: "Memes"), []);
+        Assert.Same(airhorn, board.PageClips[0]);
+        Assert.Empty(commands.Sent);
+
+        // A daemon older than pages: every clip is on the default page.
+        JsonObject older = Board();
+        board.Apply(older, []);
+        Assert.False(board.ShowsPages);
+        Assert.Equal(3, board.PageClips.Count);
+    }
+
+    [Fact]
+    public async Task AMoveTradesPlacesWithTheNeighbourOnThePage()
+    {
+        (SoundboardViewModel board, Recorder commands) = Model(Paged(drumroll: "Intro", broken: ""));
+        SoundClipViewModel airhorn = board.Clips[0], broken = board.Clips[2];
+        Assert.Equal([airhorn, broken], board.PageClips);
+        Assert.True(board.CanMove(airhorn, +1));
+        Assert.False(board.CanMove(broken, +1));
+        await board.Move(airhorn, +1);
+        Assert.Equal("""["broken","drumroll","airhorn"]""", commands.One().Value!.ToJsonString());
+        Assert.Equal([broken, airhorn], board.PageClips);
+    }
+
+    [Fact]
+    public async Task ImportsLandOnThePageShownAndAFolderMakesItsOwnPage()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "openxlr-clips-" + Guid.NewGuid().ToString("N"), " Crowd noises ");
+        Directory.CreateDirectory(folder);
+        string loose = Path.Combine(Path.GetDirectoryName(folder)!, "loose.wav");
+        try
+        {
+            foreach (string name in new[] { "b.wav", "a.wav", "notes.txt" }) File.WriteAllText(Path.Combine(folder, name), "");
+            File.WriteAllText(loose, "");
+            (SoundboardViewModel board, Recorder commands) = Model(Paged());
+            board.ShowPage(board.Pages[2]);
+            await board.ImportAsync([loose]);
+            Assert.Equal(["Memes"], commands.ImportPages);
+            commands.ImportPages.Clear();
+            commands.Sent.Clear();
+
+            // A folder's clips go to a page named after it, printable and trimmed, and the page is shown.
+            Assert.Equal("Crowd noises", SoundboardViewModel.FolderPage(folder + "/"));
+            Assert.Equal("ab", SoundboardViewModel.FolderPage("/music/a\u0001b"));
+            Assert.Equal("", SoundboardViewModel.FolderPage("/music/-"));
+            await board.ImportFolderAsync(folder);
+            Assert.Equal(["a.wav", "b.wav"], commands.Sent.Select(s => Path.GetFileName(s.Value!.GetValue<string>())));
+            Assert.Equal(["Crowd noises", "Crowd noises"], commands.ImportPages);
+            Assert.Equal("Crowd noises", board.SelectedPage);
+            Assert.Equal(new string('x', 40), SoundboardViewModel.FolderPage("/music/" + new string('x', 50)));
+            commands.ImportPages.Clear();
+            commands.Sent.Clear();
+
+            // A drop: a file onto the page shown, a folder onto its own page, all in one import.
+            board.ShowPage(board.Pages[1]);
+            string empty = Directory.CreateDirectory(Path.Combine(Path.GetDirectoryName(folder)!, "empty")).FullName;
+            await board.ImportDroppedAsync([loose, folder, empty], ["remote.wav"]);
+            Assert.Equal(["loose.wav", "a.wav", "b.wav"], commands.Sent.Select(s => Path.GetFileName(s.Value!.GetValue<string>())));
+            Assert.Equal(["Intro", "Crowd noises", "Crowd noises"], commands.ImportPages);
+            Assert.True(board.StatusWarns);
+            Assert.Contains(Localizer.Format("SoundboardImported", 3, 3), board.Status, StringComparison.Ordinal);
+            Assert.Contains(Localizer.Format("SoundboardFileUnreadable", "remote.wav"), board.Status, StringComparison.Ordinal);
+            Assert.Contains(Localizer.Format("SoundboardFolderEmpty", "empty"), board.Status, StringComparison.Ordinal);
+        }
+        finally { Directory.Delete(Path.GetDirectoryName(folder)!, recursive: true); }
+    }
+
+    [Fact]
+    public async Task APageIsRenamedOrEmptiedIntoMain()
+    {
+        (SoundboardViewModel board, Recorder commands) = Model(Paged());
+        Assert.Null(await board.RenamePageAsync("Jingles"));
+        Assert.Empty(commands.Sent);   // the default page has no name to change
+
+        board.ShowPage(board.Pages[1]);
+        Assert.Null(await board.RenamePageAsync("  Jingles "));
+        Assert.Equal("""{"page":"Intro","name":"Jingles"}""", commands.One().Value!.ToJsonString());
+        Assert.Equal("Jingles", board.SelectedPage);
+        board.Apply(Paged(drumroll: "Jingles"), []);
+        Assert.Equal(["drumroll"], board.PageClips.Select(c => c.Id));
+
+        Assert.Null(await board.RemovePageAsync());
+        Assert.Equal("""{"page":"Jingles","name":""}""", commands.One().Value!.ToJsonString());
+        Assert.Equal("", board.SelectedPage);
+
+        board.ShowPage(board.Pages[2]);
+        commands.Refuse = "No clip is on the page Memes.";
+        Assert.Equal("No clip is on the page Memes.", await board.RemovePageAsync());
+        commands.One();
+        Assert.Equal("Memes", board.SelectedPage);
+        Assert.Equal("No clip is on the page Memes.", board.Status);
+    }
+
+    [Fact]
+    public async Task TheLibraryGoesOutAndComesInWithItsSentence()
+    {
+        (SoundboardViewModel board, Recorder commands) = Model();
+        Assert.True(board.CanExport);
+        var running = new List<bool>();
+        board.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(SoundboardViewModel.Transferring)) running.Add(board.Transferring); };
+        commands.Transfer = (path, merge) => new(true, "3 clips were exported to board.zip.");
+        await board.ExportLibraryAsync("/home/me/board.zip");
+        Assert.Equal(("exportSoundboard", "/home/me/board.zip"), (commands.Sent.Single().Command, commands.Sent.Single().Value!.GetValue<string>()));
+        Assert.Equal("3 clips were exported to board.zip.", board.Status);
+        Assert.False(board.StatusWarns);
+        Assert.Equal([true, false], running);
+        commands.Sent.Clear();
+
+        // A partial import warns; a refusal shows the daemon's sentence; no answer says so.
+        commands.Transfer = (path, merge) => new(true, "1 clip was added from the archive. Left out: b: the file is empty.", Partial: true);
+        await board.ImportLibraryAsync("/home/me/board.zip", merge: true);
+        Assert.Equal("""{"path":"/home/me/board.zip","merge":true}""", commands.One().Value!.ToJsonString());
+        Assert.True(board.StatusWarns);
+        commands.Transfer = (path, merge) => new(false, "The file is not a zip archive.");
+        await board.ImportLibraryAsync("/home/me/notes.zip", merge: false);
+        Assert.Equal("""{"path":"/home/me/notes.zip","merge":false}""", commands.One().Value!.ToJsonString());
+        Assert.Equal("The file is not a zip archive.", board.Status);
+        Assert.True(board.StatusWarns);
+        commands.Transfer = (path, merge) => null;
+        await board.ExportLibraryAsync("/home/me/board.zip");
+        commands.One();
+        Assert.Equal(Localizer.Text("SoundboardTransferNoAnswer"), board.Status);
+
+        // A picked name without .zip is refused here, never changed, so the
+        // overwrite question and a portal's grant stay for the name picked.
+        await board.ExportLibraryAsync("/home/me/board");
+        Assert.Empty(commands.Sent);
+        Assert.Equal(Localizer.Text("SoundboardExportNeedsZip"), board.Status);
+        Assert.True(board.StatusWarns);
+
+        // Nothing to export from an empty board, and nothing while the mixer is off.
+        JsonObject empty = Board();
+        empty["clips"] = new JsonArray();
+        board.Apply(empty, []);
+        Assert.False(board.CanExport);
+        await board.ExportLibraryAsync("/home/me/board.zip");
+        Assert.Empty(commands.Sent);
+    }
+
+    [Fact]
+    public async Task TheEditWindowMovesAClipToAPage()
+    {
+        (SoundboardViewModel board, Recorder commands) = Model(Paged());
+        var edit = new SoundClipEditViewModel(board.Clips[1]);
+        Assert.Equal("Intro", edit.Page);
+        Assert.Equal(Localizer.Text("SoundboardMainPage"), edit.MainPage);
+        Assert.Equal(Localizer.Format("SoundClipPageHint", Localizer.Text("SoundboardMainPage")), edit.PageHint);
+        edit.Page = " Memes ";
+        Assert.True(await edit.SaveAsync());
+        Assert.Equal("""{"page":"Memes","clip":"drumroll"}""", commands.One().Value!.ToJsonString());
+        edit.Page = "";
+        Assert.True(await edit.SaveAsync());
+        Assert.Equal("""{"page":"","clip":"drumroll"}""", commands.One().Value!.ToJsonString());
+        edit.Page = "-";
+        Assert.False(await edit.SaveAsync());
+        Assert.Equal(Localizer.Text("SoundClipPageInvalid"), edit.Note);
+        edit.Page = new string('p', 41);
+        Assert.False(await edit.SaveAsync());
+        Assert.Equal(Localizer.Text("SoundClipPageInvalid"), edit.Note);
+        Assert.Empty(commands.Sent);
     }
 
     [Fact]

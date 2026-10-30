@@ -439,6 +439,8 @@ internal sealed class App
             "          i import a file by its path; Ctrl+Up/Down reorder.",
             "          a audition in the monitor mixes, not the stream.",
             "          </> ,/. SFX volume, the board's master.",
+            "          p/P next or previous page; g move a clip to a page;",
+            "          G rename the page shown; - in a page prompt is Main.",
             "Lists     Up/Down or PgUp/PgDn move; Enter or Space acts.",
             "Confirm   Enter accepts; Escape cancels. Deletion needs yes.",
             "Meters    RMS -60 to 0 dBFS; hold 1 s, fall 18 dB/s.",

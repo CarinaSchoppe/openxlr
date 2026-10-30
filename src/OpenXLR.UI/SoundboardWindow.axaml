@@ -4,9 +4,12 @@
         xmlns:vm="using:OpenXLR.UI"
         x:Class="OpenXLR.UI.SoundboardWindow" x:DataType="vm:SoundboardViewModel"
         Title="{loc:Text Key=Soundboard}" Width="760" Height="620" MinWidth="440" MinHeight="400"
-        WindowStartupLocation="CenterOwner" Background="{DynamicResource Ox.Window.Background}">
-  <!-- The soundboard: the switch, SFX's own volume as the board's master, Stop all and
-       Add, then one pad per clip in library order. A pad is a key in the skin's button
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource Ox.Window.Background}"
+        DragDrop.AllowDrop="True">
+  <!-- The soundboard: the switch, SFX's own volume as the board's master, Stop all, Add
+       and the library's export and import, the pages as tabs once there is more than one,
+       then one pad per clip of the page shown, in library order. Sound files and folders
+       dropped on the window are added, a folder as a page of its own. A pad is a key in the skin's button
        face, sized and tinted by the Ox.Soundboard.* tokens, with the clip's own colour
        along its top edge, a ring while it plays and a bar for how far along it is. Every
        colour, size and radius is an Ox.* token or the clip's own colour. -->
@@ -79,10 +82,40 @@
               IsEnabled="{Binding CanAdd}" ToolTip.ShowOnDisabled="True" ToolTip.Tip="{loc:Text Key=SoundboardAddFolderTip}"/>
       <Button Name="SoundboardCancelImport" Content="{loc:Text Key=SoundboardCancelImport}" Click="OnCancelImport"
               IsVisible="{Binding Importing}" ToolTip.Tip="{loc:Text Key=SoundboardCancelImportTip}"/>
+      <Button Name="SoundboardExportLibrary" Content="{loc:Text Key=SoundboardExportLibrary}" Click="OnExportLibrary"
+              IsEnabled="{Binding CanExport}" ToolTip.ShowOnDisabled="True" ToolTip.Tip="{loc:Text Key=SoundboardExportLibraryTip}"/>
+      <Button Name="SoundboardImportLibrary" Content="{loc:Text Key=SoundboardImportLibrary}" Click="OnImportLibrary"
+              IsEnabled="{Binding CanAdd}" ToolTip.ShowOnDisabled="True" ToolTip.Tip="{loc:Text Key=SoundboardImportLibraryTip}"/>
     </WrapPanel>
+
+    <!-- The pages, one tab each, and the shown page's menu: rename it, or move its clips to Main -->
+    <Grid DockPanel.Dock="Top" Name="SoundboardPageBar" ColumnDefinitions="*,Auto" ColumnSpacing="6" Margin="0,0,0,8"
+          IsVisible="{Binding ShowsPages}">
+      <ItemsControl Name="SoundboardPages" ItemsSource="{Binding Pages}" AutomationProperties.Name="{loc:Text Key=SoundboardPages}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate><WrapPanel ItemSpacing="4" LineSpacing="4"/></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:SoundPageViewModel">
+            <Button Name="SoundboardPageTab" Classes="fx" Classes.fxOn="{Binding IsSelected}" Click="OnPage" MaxWidth="240"
+                    AutomationProperties.Name="{Binding Title}" ToolTip.Tip="{Binding Title}">
+              <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Button Grid.Column="1" Name="SoundboardPageMenu" Classes="ghost" Content="⋯" Click="OnPageMenu" VerticalAlignment="Top"
+              IsEnabled="{Binding CanEditPage}" Width="28" Height="24" Padding="0"
+              HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+              MinWidth="{DynamicResource Ox.Mixer.SmallControlMinSize}" MinHeight="{DynamicResource Ox.Mixer.SmallControlMinSize}"
+              ToolTip.ShowOnDisabled="True" AutomationProperties.Name="{loc:Text Key=SoundboardPageMenu}"
+              ToolTip.Tip="{loc:Text Key=SoundboardPageMenuTip}"/>
+    </Grid>
 
     <!-- What the last import or change came to, then Close -->
     <StackPanel DockPanel.Dock="Bottom" Name="SoundboardFooter" Spacing="8" Margin="0,10,0,0">
+      <!-- while files are dragged over the window: where a drop puts them -->
+      <TextBlock Name="SoundboardDropHint" Text="{Binding DropHint}" Classes="hint" TextWrapping="Wrap" IsVisible="{Binding Dropping}"/>
       <!-- a long report, a folder's refusals one per line, scrolls in its own area; the right margin
            keeps the overlay scroll bar off the text -->
       <ScrollViewer Name="SoundboardStatusScroll" IsVisible="{Binding HasStatus}" MaxHeight="132"
@@ -98,7 +131,7 @@
                  IsVisible="{Binding ShowsEmpty}"/>
       <ScrollViewer Name="SoundboardScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <!-- the right margin keeps the overlay scroll bar off the last column of pads -->
-        <ItemsControl Name="SoundboardPads" ItemsSource="{Binding Clips}" Margin="0,0,16,0">
+        <ItemsControl Name="SoundboardPads" ItemsSource="{Binding PageClips}" Margin="0,0,16,0">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate><WrapPanel ItemSpacing="8" LineSpacing="8"/></ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>

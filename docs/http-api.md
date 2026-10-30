@@ -184,12 +184,19 @@ meters, as `clip:<id>` on `/api/v1/events`. A press in `hold` mode, given
 or the clip's own, is refused here: a held clip belongs to the connection
 that pressed it and is released when that closes, and an HTTP request
 closes at once. A script that holds a clip uses `/api/v1/events`.
+`{"cmd":"exportSoundboard","path":"/home/me/board.zip"}` writes the
+library and its clips into one archive, and
+`{"cmd":"importSoundboard","path":"/home/me/board.zip","merge":true}`
+adds an archive's clips, or with `"merge":false` replaces the library
+with them. Their `soundboardExport` and `soundboardImport` replies come
+once the archive is written or every clip in it is checked, which can take
+a minute for a full library, so give the request a generous timeout.
 Both transports share the dispatcher,
 validation and broadcasts. HTTP returns
 `{"apiVersion":"1","ok":true,"messages":[]}` after a successful mutation.
 Read replies are in `messages`; rejected commands return HTTP 400, `ok:false`
 and an error message. This includes failed plugin installation, refused
-clip imports and Windows plugin file operations: their typed reply remains in `messages`, followed by
+clip imports, refused soundboard exports and imports, and Windows plugin file operations: their typed reply remains in `messages`, followed by
 the error or failed `commandResult` when a request id was supplied.
 Some rejected optimistic edits also include current state.
 This reports execution, not a new durability guarantee: saving follows each

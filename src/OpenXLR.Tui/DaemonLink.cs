@@ -89,12 +89,13 @@ internal sealed class DaemonLink : IAsyncDisposable
     private (string? Clip, string? Message) _importReply;
 
     /// <summary>
-    /// Import a file into the soundboard. The outcome lands in
+    /// Import a file into the soundboard, onto <paramref name="page"/>, the
+    /// default page when empty. The outcome lands in
     /// <see cref="LastImport"/> whichever tab is shown, with the clip id from
     /// the daemon's <c>clipImport</c> answer. Without a connection it fails
     /// at once rather than waiting for the timeout.
     /// </summary>
-    public void ImportClip(string path)
+    public void ImportClip(string path, string page = "")
     {
         if (!Connected)
         {
@@ -104,7 +105,11 @@ internal sealed class DaemonLink : IAsyncDisposable
         if (Interlocked.Exchange(ref _importing, 1) != 0) return;
         _importReply = (null, null);
         // Copying and checking a long file can take longer than a fader write.
-        Request("importClip", body => body["path"] = path, TimeSpan.FromMinutes(2)).ContinueWith(task =>
+        Request("importClip", body =>
+        {
+            body["path"] = path;
+            if (page.Length > 0) body["page"] = page;
+        }, TimeSpan.FromMinutes(2)).ContinueWith(task =>
         {
             string? error = task.IsCompletedSuccessfully ? task.Result : "The import did not finish";
             (string? clip, string? message) = _importReply;

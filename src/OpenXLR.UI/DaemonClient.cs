@@ -398,7 +398,8 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
                     && node["site"] is JsonValue siteNode && siteNode.TryGetValue<string>(out string? site))
                     BrowserTabActivationReceived?.Invoke(tabId, site);
             }
-            else if (type is "pluginSetup" or "pluginInstall" or "pluginDiagnostics" or "windowsPluginFiles" or "nativeEditorRules" or "browserSession" or "clipImport") StoreReply(type, node);
+            else if (type is "pluginSetup" or "pluginInstall" or "pluginDiagnostics" or "windowsPluginFiles" or "nativeEditorRules" or "browserSession" or "clipImport"
+                     or "soundboardExport" or "soundboardImport") StoreReply(type, node);
             else if (type == "commandResult" && node["requestId"]?.GetValue<string>() is string requestId)
             {
                 CompleteQuery(requestId);
@@ -705,7 +706,7 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
     /// waiting for its own <c>clipImport</c> answer, so two windows never
     /// share one. Null when the daemon did not answer.
     /// </summary>
-    public async Task<ClipImportResult?> ImportClipAsync(string path)
+    public async Task<ClipImportResult?> ImportClipAsync(string path, string page)
     {
         CancellationToken stopping;
         lock (_lifecycle)
@@ -717,8 +718,9 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
         catch (OperationCanceledException) { return null; }
         try
         {
-            JsonNode? reply = await QueryAsync("clipImport", "importClip", ClipImportTimeout,
-                new Dictionary<string, object> { ["path"] = path });
+            var fields = new Dictionary<string, object> { ["path"] = path };
+            if (page.Length > 0) fields["page"] = page;
+            JsonNode? reply = await QueryAsync("clipImport", "importClip", ClipImportTimeout, fields);
             if (reply is null) return null;
             bool ok = reply["ok"] is JsonValue okValue && okValue.TryGetValue(out bool added) && added;
             string message = reply["message"] is JsonValue text && text.TryGetValue(out string? sentence) ? sentence : "";
@@ -727,6 +729,46 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
         }
         finally { _clipImports.Release(); }
     }
+
+    /// <summary>A library archive holds up to 64 clips, each checked in a helper on import: much longer than one clip.</summary>
+    private static readonly TimeSpan LibraryTransferTimeout = TimeSpan.FromMinutes(10);
+
+    /// <summary>Write the library and its clips into a zip archive. Null when the daemon did not answer.</summary>
+    public Task<SoundboardTransferResult?> ExportSoundboardAsync(string path)
+        => TransferAsync("soundboardExport", "exportSoundboard", new() { ["path"] = path });
+
+    /// <summary>Add a library archive's clips to the library, or replace the library with them. Null when the daemon did not answer.</summary>
+    public Task<SoundboardTransferResult?> ImportSoundboardAsync(string path, bool merge)
+        => TransferAsync("soundboardImport", "importSoundboard", new() { ["path"] = path, ["merge"] = merge });
+
+    /// <summary>
+    /// An export or import of the library, in line with the clip imports so
+    /// two never share one reply.
+    /// </summary>
+    private async Task<SoundboardTransferResult?> TransferAsync(string type, string command, Dictionary<string, object> fields)
+    {
+        CancellationToken stopping;
+        lock (_lifecycle)
+        {
+            if (_disposed) return null;
+            stopping = _cts.Token;
+        }
+        try { await _clipImports.WaitAsync(stopping); }
+        catch (OperationCanceledException) { return null; }
+        try
+        {
+            JsonNode? reply = await QueryAsync(type, command, LibraryTransferTimeout, fields);
+            if (reply is null) return null;
+            bool ok = reply["ok"] is JsonValue okValue && okValue.TryGetValue(out bool done) && done;
+            string message = reply["message"] is JsonValue text && text.TryGetValue(out string? sentence) ? sentence : "";
+            bool partial = reply["skipped"] is JsonArray skipped && skipped.Count > 0;
+            return new SoundboardTransferResult(ok, message, partial);
+        }
+        finally { _clipImports.Release(); }
+    }
+
+    public Task<string?> RenameClipPageAsync(string page, string name)
+        => EditLayoutAsync(new() { ["cmd"] = "renameClipPage", ["page"] = page, ["name"] = name });
 
     public Task<string?> UpdateClipAsync(string clip, IReadOnlyDictionary<string, object> fields)
     {

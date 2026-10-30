@@ -552,6 +552,17 @@ internal sealed record SoundboardEntry
 
     /// <summary>The clip auditioned in the monitor mixes now, or null.</summary>
     public string? Auditioning { get; init; }
+
+    /// <summary>
+    /// The pages the clips are on, in the order the daemon draws them, the
+    /// default page, empty, first; null from a daemon older than pages.
+    /// </summary>
+    public List<string>? Pages { get; init; }
+
+    /// <summary>The pages, worked out from the clips when the daemon does not say them.</summary>
+    [JsonIgnore]
+    public List<string> PageList => Pages is { } pages ? pages
+        : [.. Clips.Select(clip => clip.Page).Distinct(StringComparer.Ordinal).OrderBy(page => page.Length == 0 ? 0 : 1)];
 }
 
 /// <summary>One clip of the soundboard's library.</summary>
@@ -573,6 +584,9 @@ internal sealed record ClipEntry
     public string Status { get; init; } = "off";
     public string? Error { get; init; }
     public bool Playing { get; init; }
+
+    /// <summary>The page the clip is on; empty for the default page.</summary>
+    public string Page { get; init; } = string.Empty;
 
     /// <summary>The press modes in the order a key steps through them.</summary>
     public static readonly string[] Modes = ["overlap", "restart", "toggle", "hold"];

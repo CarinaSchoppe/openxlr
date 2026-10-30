@@ -7,8 +7,9 @@ namespace OpenXLR.Core.Mixing;
 /// The soundboard as clients see it: the channel its clips play into (null
 /// once that channel was deleted), whether it is on, whether this build has
 /// the helper it needs, why it cannot play now (null exactly when it can),
-/// the formats this build decodes, the clips in library order, the ones playing now
-/// and the one auditioned in the monitor mixes, or null.
+/// the formats this build decodes, the clips in library order, the ones playing now,
+/// the one auditioned in the monitor mixes, or null, and the pages the clips
+/// are on, in the order clients draw them.
 /// </summary>
 public sealed record SoundboardState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Channel,
@@ -21,6 +22,12 @@ public sealed record SoundboardState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Auditioning = null)
 {
     public static SoundboardState Off { get; } = new(null, false, false, Mixer.SoundboardOff, [], [], []);
+
+    /// <summary>
+    /// Every page a clip is on: the default page, empty, first while it holds
+    /// a clip, then each named page where its first clip stands in the library.
+    /// </summary>
+    public IReadOnlyList<string> Pages { get; init; } = [];
 }
 
 /// <summary>
@@ -40,7 +47,8 @@ public sealed record SoundboardClipState(
     bool Loaded,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Error,
     bool Playing,
-    string Status = SoundboardClipStatus.Off);
+    string Status = SoundboardClipStatus.Off,
+    string Page = "");
 
 /// <summary>
 /// What a clip's <c>status</c> holds: <c>ready</c> to play, <c>loading</c>
@@ -56,9 +64,9 @@ public static class SoundboardClipStatus
     public const string Off = "off";
 }
 
-/// <summary>What <c>updateClip</c> changes; a null field is kept. An empty colour clears it.</summary>
+/// <summary>What <c>updateClip</c> changes; a null field is kept. An empty colour clears it, an empty page is the default page.</summary>
 public sealed record SoundboardClipChange(string? Name = null, double? Gain = null, string? Mode = null, bool? Loop = null,
-    string? Icon = null, string? Colour = null);
+    string? Icon = null, string? Colour = null, string? Page = null);
 
 public sealed partial class Mixer
 {
@@ -173,8 +181,9 @@ public sealed partial class Mixer
         try
         {
             if (!Directory.Exists(_clipDirectory)) return;
-            foreach (string leftover in Directory.EnumerateFiles(_clipDirectory, ".import-*.tmp"))
-                TryDelete(leftover);
+            foreach (string pattern in new[] { ".import-*.tmp", ".export-*.tmp" })
+                foreach (string leftover in Directory.EnumerateFiles(_clipDirectory, pattern))
+                    TryDelete(leftover);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
@@ -224,10 +233,13 @@ public sealed partial class Mixer
                     : player is null || load is null ? SoundboardClipStatus.Off
                     : load.Loaded ? SoundboardClipStatus.Ready : SoundboardClipStatus.Loading;
                 return new SoundboardClipState(c.Id, c.Name, Math.Round(load is { Loaded: true } ? load.Seconds : c.Seconds, 2),
-                    c.Gain, c.Mode, c.Loop, c.Icon, c.Colour, load?.Loaded == true, error, playing.ContainsKey(c.Id), status);
+                    c.Gain, c.Mode, c.Loop, c.Icon, c.Colour, load?.Loaded == true, error, playing.ContainsKey(c.Id), status, c.Page);
             })],
             [.. board.Clips.Where(c => playing.ContainsKey(c.Id)).Select(c => c.Id)],
-            player?.Auditioning is { } auditioned && board.Clips.Any(c => c.Id == auditioned) ? auditioned : null);
+            player?.Auditioning is { } auditioned && board.Clips.Any(c => c.Id == auditioned) ? auditioned : null)
+        {
+            Pages = SoundboardLibrary.PagesOf(board.Clips),
+        };
     }
 
     /// <summary>
@@ -281,16 +293,18 @@ public sealed partial class Mixer
     /// <summary>
     /// Copy a file the user picked into the clip directory and add it to the
     /// library under an id made from <paramref name="name"/>, or from the
-    /// file's name. The copy is checked by the helper in a process of its
+    /// file's name, on <paramref name="page"/>, the default page when that is
+    /// null or empty. The copy is checked by the helper in a process of its
     /// own before anything else reads it, so a file that crashes the decoder
     /// never reaches the running player. Returns the new clip.
     /// </summary>
-    public SoundboardClip ImportClip(string path, string? name)
+    public SoundboardClip ImportClip(string path, string? name, string? page = null)
     {
         if (string.IsNullOrEmpty(path) || path.Length > 4096 || path.Any(char.IsControl) || !Path.IsPathFullyQualified(path))
             throw new InvalidOperationException("Give the clip's file as an absolute path.");
         if (!_pw.PlayerHostInstalled) throw new InvalidOperationException(SoundboardNeedsHost);
         string clipName = ClipName(name, path);
+        string clipPage = PageName(page);
         string directory;
         lock (_gate)
         {
@@ -320,12 +334,13 @@ public sealed partial class Mixer
                 {
                     Id = id,
                     Name = clipName,
-                    File = $"{id}.{probe.Extension}",
+                    File = FreeFileNameLocked(id, probe.Extension),
                     Seconds = Math.Round(probe.Seconds, 3),
+                    Page = SamePageLocked(clipPage),
                 };
                 string target = Path.Combine(directory, clip.File);
-                // A file under this name that the library does not list is a
-                // leftover of an earlier import; rename replaces it, link or not.
+                // No clip lists this name, so a file under it is a leftover of
+                // an earlier import; rename replaces it, link or not.
                 File.Move(staging, target, overwrite: true);
                 try { SaveBoardLocked(_board with { Clips = [.. _board.Clips, clip] }); }
                 catch
@@ -350,6 +365,20 @@ public sealed partial class Mixer
         finally { TryDelete(staging); }
     }
 
+    /// <summary>
+    /// A clip file name no clip in the library lists, nor any of
+    /// <paramref name="taken"/>: <c>id.ext</c>, or <c>id-2.ext</c> and on
+    /// when that is in use. A clip's file is not always named after its id:
+    /// a replace that met the id here gives the archive's clip the next name.
+    /// </summary>
+    private string FreeFileNameLocked(string id, string extension, ICollection<string>? taken = null)
+    {
+        var listed = new HashSet<string>(_board.Clips.Select(c => c.File), StringComparer.Ordinal);
+        string file = $"{id}.{extension}";
+        for (int n = 2; listed.Contains(file) || taken?.Contains(file) == true; n++) file = $"{id}-{n}.{extension}";
+        return file;
+    }
+
     /// <summary>The name a clip is imported under: the one given, else the file's name without its extension.</summary>
     internal static string ClipName(string? name, string path)
     {
@@ -361,6 +390,27 @@ public sealed partial class Mixer
             throw new InvalidOperationException("The clip's name must have 1 to 60 printable characters.");
         return text;
     }
+
+    /// <summary>A page as the library keeps it, trimmed; refused when it breaks the page rules.</summary>
+    internal static string PageName(string? page)
+    {
+        string text = page?.Trim() ?? "";
+        if (!SoundboardLibrary.IsValidPage(text))
+            throw new InvalidOperationException($"A page name must have at most {SoundboardLibrary.MaxPageLength} printable characters, and cannot be {SoundboardLibrary.DefaultPageWord} alone.");
+        return text;
+    }
+
+    /// <summary>
+    /// The page a clip goes to: one already in the library under the same
+    /// letters in another case keeps its own spelling, so "intro" and "Intro"
+    /// never stand as two tabs. Only the clips <paramref name="others"/>
+    /// takes are looked at, so the clips being moved never decide the
+    /// spelling, and a page's case can be changed.
+    /// </summary>
+    private string SamePageLocked(string page, Func<SoundboardClip, bool>? others = null)
+        => page.Length == 0 ? page
+            : _board.Clips.Where(others ?? (_ => true)).Select(c => c.Page)
+                .FirstOrDefault(p => string.Equals(p, page, StringComparison.OrdinalIgnoreCase)) ?? page;
 
     /// <summary>
     /// Copy a regular file of at most 64 MiB into a new private file. The
@@ -399,7 +449,7 @@ public sealed partial class Mixer
     /// put in the file's place between any check and the open is refused at
     /// once instead of holding the import, and with it the command slot.
     /// </summary>
-    private static FileStream OpenClip(string source)
+    internal static FileStream OpenClip(string source)
     {
         if (!OperatingSystem.IsLinux())
         {
@@ -433,10 +483,16 @@ public sealed partial class Mixer
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
-    /// <summary>Change a clip's name, gain, press mode, loop, icon or colour. Gain and loop reach a playing clip at once.</summary>
+    /// <summary>
+    /// Change a clip's name, gain, press mode, loop, icon, colour or page.
+    /// Gain and loop reach a playing clip at once. A clip moved to another
+    /// page goes to the end of the library, so it is that page's last clip
+    /// and a page it starts comes after the others.
+    /// </summary>
     public void UpdateClip(string id, SoundboardClipChange change)
     {
         ArgumentNullException.ThrowIfNull(change);
+        string? page = change.Page is null ? null : PageName(change.Page);
         lock (_gate)
         {
             SoundboardClip clip = BoardClip(id);
@@ -448,15 +504,40 @@ public sealed partial class Mixer
                 Loop = change.Loop ?? clip.Loop,
                 Icon = change.Icon ?? clip.Icon,
                 Colour = change.Colour is null ? clip.Colour : change.Colour.Length == 0 ? null : change.Colour,
+                Page = page is null ? clip.Page : SamePageLocked(page, c => c.Id != id),
             };
             if (SoundboardLibrary.Problem(next) is { } problem)
                 throw new InvalidOperationException(char.ToUpperInvariant(problem[0]) + problem[1..] + ".");
-            SaveBoardLocked(_board with { Clips = [.. _board.Clips.Select(c => c.Id == id ? next : c)] });
+            SaveBoardLocked(_board with
+            {
+                Clips = next.Page == clip.Page ? [.. _board.Clips.Select(c => c.Id == id ? next : c)]
+                    : [.. _board.Clips.Where(c => c.Id != id), next],
+            });
             if (_player is { } player)
             {
                 if (next.Gain != clip.Gain) player.SetGain(id, next.Gain);
                 if (next.Loop != clip.Loop) player.SetLoop(id, next.Loop);
             }
+        }
+    }
+
+    /// <summary>
+    /// Give every clip on <paramref name="page"/> the page <paramref name="name"/>.
+    /// An empty name moves them to the default page, which is how a page is
+    /// removed; a name another page has joins them to it. The clips keep
+    /// their places in the library.
+    /// </summary>
+    public void RenameClipPage(string page, string name)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        string target = PageName(name);
+        lock (_gate)
+        {
+            if (!_board.Clips.Any(c => c.Page == page))
+                throw new InvalidOperationException(page.Length == 0 ? "No clip is on the default page." : $"No clip is on the page {page}.");
+            target = SamePageLocked(target, c => c.Page != page);
+            if (target == page) return;
+            SaveBoardLocked(_board with { Clips = [.. _board.Clips.Select(c => c.Page == page ? c with { Page = target } : c)] });
         }
     }
 

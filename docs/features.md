@@ -546,7 +546,13 @@ length and mode, a ring while it plays and a bar for how far along it is;
 a pad plays on the pointer or on Space and Enter, and a hold pad stops when
 it comes up. Its header has the board's switch, SFX's own volume as the
 master, Stop all, and adding files or a whole folder through the desktop's
-file picker. Each pad's menu edits, auditions, stops, moves or deletes its clip. See
+file picker or by dropping them on the window from a file manager. Clips
+can be grouped on pages, drawn as tabs, and a folder comes in as a page of
+its own. Each pad's menu edits, auditions, stops, moves or deletes its clip. The whole
+library, clips, settings and pages, exports to one zip file and imports on
+another computer with the same ids, so Deck keys and desktop keys made for
+it keep working; an import can add to the clips there or replace them,
+and every file in it is checked as an added file is. See
 [Play sound clips](manual.md#play-sound-clips). The terminal mixer has the
 board in its Sounds tab ([manual](manual.md#terminal-sounds)); the
 [API](api.md#soundboard) drives it from scripts.
@@ -898,7 +904,8 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   master, and a row per clip with its length, mode, loop, gain, status or
   reason, and a bar while it plays. Keys play, stop, stop all, step the
   gain, mode and loop, reorder, rename and delete, and `i` imports a file
-  by its typed path. A Hold clip plays on one press and stops on the next,
+  by its typed path. Pages stand as tabs over the rows; keys switch page,
+  move a clip to a page and rename a page. A Hold clip plays on one press and stops on the next,
   since a terminal sends no key-up ([manual](manual.md#terminal-sounds))
 - Insert editing opens the plugin's native editor. A blocked or refused
   editor falls back to terminal controls with the reason shown. Controls

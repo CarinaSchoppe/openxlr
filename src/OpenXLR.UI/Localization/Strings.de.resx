@@ -3116,7 +3116,7 @@ Von OpenXLR gesteuertes Interface wählen</value>
     <value>Ordner hinzufügen</value>
   </data>
   <data name="SoundboardAddFolderTip" xml:space="preserve">
-    <value>Jede Tondatei eines Ordners nacheinander hinzufügen; Unterordner bleiben außen vor.</value>
+    <value>Jede Tondatei eines Ordners nacheinander auf eine Seite mit dem Namen des Ordners hinzufügen; Unterordner bleiben außen vor.</value>
   </data>
   <data name="SoundboardTurnOn" xml:space="preserve">
     <value>Einschalten</value>
@@ -3303,5 +3303,83 @@ Von OpenXLR gesteuertes Interface wählen</value>
   </data>
   <data name="DesktopKeysBindUnanswered" xml:space="preserve">
     <value>der Desktop hat auf die neue Tastenliste nicht geantwortet. Die bisher gebundenen Tasten funktionieren weiter.</value>
+  </data>
+  <data name="SoundboardMainPage" xml:space="preserve">
+    <value>Hauptseite</value>
+  </data>
+  <data name="SoundboardPages" xml:space="preserve">
+    <value>Seiten</value>
+  </data>
+  <data name="SoundboardPageMenu" xml:space="preserve">
+    <value>Seitenmenü</value>
+  </data>
+  <data name="SoundboardPageMenuTip" xml:space="preserve">
+    <value>Die angezeigte Seite umbenennen oder ihre Clips auf die Hauptseite verschieben.</value>
+  </data>
+  <data name="SoundboardRenamePage" xml:space="preserve">
+    <value>Seite umbenennen</value>
+  </data>
+  <data name="SoundboardRenamePageTitle" xml:space="preserve">
+    <value>{0} umbenennen</value>
+  </data>
+  <data name="SoundboardRenamePageHint" xml:space="preserve">
+    <value>Bis zu 40 Zeichen. Der Name einer anderen Seite legt die Clips auf dieser Seite zusammen.</value>
+  </data>
+  <data name="SoundboardRemovePage" xml:space="preserve">
+    <value>Ihre Clips nach {0} verschieben</value>
+  </data>
+  <data name="SoundboardExportLibrary" xml:space="preserve">
+    <value>Bibliothek exportieren</value>
+  </data>
+  <data name="SoundboardExportLibraryTip" xml:space="preserve">
+    <value>Alle Clips mit ihren Einstellungen in einer ZIP-Datei sichern, zum Aufbewahren oder zum Importieren auf einem anderen Rechner mit denselben IDs.</value>
+  </data>
+  <data name="SoundboardImportLibrary" xml:space="preserve">
+    <value>Bibliothek importieren</value>
+  </data>
+  <data name="SoundboardImportLibraryTip" xml:space="preserve">
+    <value>Die Clips aus einer Bibliotheks-ZIP-Datei hinzufügen oder die Clips hier durch sie ersetzen. Jede Datei wird geprüft wie bei Clips hinzufügen.</value>
+  </data>
+  <data name="SoundboardPickExport" xml:space="preserve">
+    <value>Soundboard-Bibliothek exportieren</value>
+  </data>
+  <data name="SoundboardPickImport" xml:space="preserve">
+    <value>Soundboard-Bibliothek importieren</value>
+  </data>
+  <data name="SoundboardArchiveType" xml:space="preserve">
+    <value>Soundboard-Bibliothek</value>
+  </data>
+  <data name="SoundboardExporting" xml:space="preserve">
+    <value>Die Bibliothek wird exportiert.</value>
+  </data>
+  <data name="SoundboardImportingLibrary" xml:space="preserve">
+    <value>Die Bibliothek wird importiert. Jeder Clip wird beim Eintreffen geprüft.</value>
+  </data>
+  <data name="SoundboardTransferNoAnswer" xml:space="preserve">
+    <value>Keine Antwort vom Daemon. Prüfen Sie das Soundboard, bevor Sie es erneut versuchen.</value>
+  </data>
+  <data name="SoundboardImportAdd" xml:space="preserve">
+    <value>Hinzufügen</value>
+  </data>
+  <data name="SoundboardImportReplace" xml:space="preserve">
+    <value>Ersetzen</value>
+  </data>
+  <data name="SoundboardImportModeMessage" xml:space="preserve">
+    <value>Die Clips aus {0} zu den {1} Clips hier hinzufügen oder diese ersetzen? Ersetzen löscht die Clips hier und behält die IDs aus der Datei, sodass Tasten mit diesen IDs die importierten Clips abspielen. Es wird nur ersetzt, wenn sich jeder Clip der Datei hier importieren lässt.</value>
+  </data>
+  <data name="SoundboardDropHint" xml:space="preserve">
+    <value>Tondateien hier ablegen, um sie zu {0} hinzuzufügen. Die Tondateien eines Ordners kommen auf eine Seite mit dem Namen des Ordners.</value>
+  </data>
+  <data name="SoundClipPage" xml:space="preserve">
+    <value>Seite</value>
+  </data>
+  <data name="SoundClipPageHint" xml:space="preserve">
+    <value>Leer legt den Clip auf {0}. Ein Name, den noch keine Seite hat, legt eine neue Seite an. Ein auf eine Seite verschobener Clip kommt an deren Ende.</value>
+  </data>
+  <data name="SoundClipPageInvalid" xml:space="preserve">
+    <value>Ein Seitenname hat höchstens 40 Zeichen, keine Steuerzeichen und ist kein einzelner Bindestrich.</value>
+  </data>
+  <data name="SoundboardExportNeedsZip" xml:space="preserve">
+    <value>Wählen Sie einen Dateinamen, der auf .zip endet: Die Bibliothek wird als ZIP-Datei gespeichert.</value>
   </data>
 </root>

@@ -3444,7 +3444,7 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
     <value>Pagdugang og folder</value>
   </data>
   <data name="SoundboardAddFolderTip" xml:space="preserve">
-    <value>Idugang usa-usa ang matag sound file sa usa ka folder; dili apil ang mga subfolder niini.</value>
+    <value>Idugang usa-usa ang matag sound file sa usa ka folder ngadto sa panid nga ginganlan sunod sa folder; dili apil ang mga subfolder niini.</value>
   </data>
   <data name="SoundboardTurnOn" xml:space="preserve">
     <value>I-on</value>
@@ -3631,5 +3631,83 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
   </data>
   <data name="DesktopKeysBindUnanswered" xml:space="preserve">
     <value>wala motubag ang desktop sa bag-ong listahan sa mga key. Molihok gihapon ang mga key nga gi-bind kaniadto.</value>
+  </data>
+  <data name="SoundboardMainPage" xml:space="preserve">
+    <value>Panguna</value>
+  </data>
+  <data name="SoundboardPages" xml:space="preserve">
+    <value>Mga panid</value>
+  </data>
+  <data name="SoundboardPageMenu" xml:space="preserve">
+    <value>Menu sa panid</value>
+  </data>
+  <data name="SoundboardPageMenuTip" xml:space="preserve">
+    <value>Usba ang ngalan sa gipakita nga panid, o ibalhin ang mga clip niini sa panguna nga panid.</value>
+  </data>
+  <data name="SoundboardRenamePage" xml:space="preserve">
+    <value>Usba ang ngalan sa panid</value>
+  </data>
+  <data name="SoundboardRenamePageTitle" xml:space="preserve">
+    <value>Usba ang ngalan sa {0}</value>
+  </data>
+  <data name="SoundboardRenamePageHint" xml:space="preserve">
+    <value>Hangtod 40 ka karakter. Ang ngalan sa laing panid magtapo sa mga clip sa maong panid.</value>
+  </data>
+  <data name="SoundboardRemovePage" xml:space="preserve">
+    <value>Ibalhin ang mga clip niini sa {0}</value>
+  </data>
+  <data name="SoundboardExportLibrary" xml:space="preserve">
+    <value>I-export ang library</value>
+  </data>
+  <data name="SoundboardExportLibraryTip" xml:space="preserve">
+    <value>I-save ang matag clip ug ang mga setting niini sa usa ka zip file, aron tipigan o i-import sa laing kompyuter nga parehas ang mga id.</value>
+  </data>
+  <data name="SoundboardImportLibrary" xml:space="preserve">
+    <value>I-import ang library</value>
+  </data>
+  <data name="SoundboardImportLibraryTip" xml:space="preserve">
+    <value>Idugang ang mga clip gikan sa usa ka zip file sa library, o ilisan niini ang mga clip dinhi. Ang matag file gisusi sama sa pagdugang og mga clip.</value>
+  </data>
+  <data name="SoundboardPickExport" xml:space="preserve">
+    <value>I-export ang library sa soundboard</value>
+  </data>
+  <data name="SoundboardPickImport" xml:space="preserve">
+    <value>Pag-import og library sa soundboard</value>
+  </data>
+  <data name="SoundboardArchiveType" xml:space="preserve">
+    <value>Library sa soundboard</value>
+  </data>
+  <data name="SoundboardExporting" xml:space="preserve">
+    <value>Gi-export ang library.</value>
+  </data>
+  <data name="SoundboardImportingLibrary" xml:space="preserve">
+    <value>Gi-import ang library. Ang matag clip gisusi samtang mosulod.</value>
+  </data>
+  <data name="SoundboardTransferNoAnswer" xml:space="preserve">
+    <value>Walay tubag gikan sa daemon. Susiha ang soundboard sa dili pa mosulay pag-usab.</value>
+  </data>
+  <data name="SoundboardImportAdd" xml:space="preserve">
+    <value>Idugang</value>
+  </data>
+  <data name="SoundboardImportReplace" xml:space="preserve">
+    <value>Ilisan</value>
+  </data>
+  <data name="SoundboardImportModeMessage" xml:space="preserve">
+    <value>Idugang ang mga clip gikan sa {0} sa {1} ka clip dinhi, o ilisan kini? Ang Ilisan mopapas sa mga clip dinhi ug magpabilin sa mga id gikan sa file, busa ang mga key nga nakagapos niadtong mga id motukar sa mga na-import nga clip. Walay ilisan gawas kung ma-import dinhi ang matag clip sa file.</value>
+  </data>
+  <data name="SoundboardDropHint" xml:space="preserve">
+    <value>I-drop ang mga sound file aron idugang sa {0}. Ang mga sound file sa usa ka folder moadto sa panid nga ginganlan sunod sa folder.</value>
+  </data>
+  <data name="SoundClipPage" xml:space="preserve">
+    <value>Panid</value>
+  </data>
+  <data name="SoundClipPageHint" xml:space="preserve">
+    <value>Kung walay sulod, ibutang ang clip sa {0}. Ang ngalan nga wala pay panid maghimo og bag-ong panid. Ang clip nga gibalhin sa usa ka panid moadto sa kataposan niini.</value>
+  </data>
+  <data name="SoundClipPageInvalid" xml:space="preserve">
+    <value>Ang ngalan sa panid adunay labing daghan 40 ka karakter, walay control character, ug dili usa ka gitling lang.</value>
+  </data>
+  <data name="SoundboardExportNeedsZip" xml:space="preserve">
+    <value>Pagpili og ngalan sa file nga matapos sa .zip: gi-save ang library isip zip file.</value>
   </data>
 </root>

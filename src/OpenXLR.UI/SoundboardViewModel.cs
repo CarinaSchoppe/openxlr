@@ -12,14 +12,29 @@ namespace OpenXLR.UI;
 /// <summary>What the daemon answered an import with: whether the clip was added, its sentence and the new clip's id.</summary>
 public sealed record ClipImportResult(bool Ok, string Message, string? Clip);
 
+/// <summary>
+/// What the daemon answered a library export or import with: whether it went
+/// through, its sentence, and whether it left clips out.
+/// </summary>
+public sealed record SoundboardTransferResult(bool Ok, string Message, bool Partial = false);
+
 /// <summary>The soundboard's commands. The daemon client sends them; a test records them.</summary>
 public interface ISoundboardCommands
 {
     /// <summary><c>setSoundboard</c>; resolves to null, or the daemon's refusal.</summary>
     Task<string?> SetSoundboardAsync(bool enabled);
 
-    /// <summary><c>importClip</c> with a path the user picked; null when the daemon did not answer.</summary>
-    Task<ClipImportResult?> ImportClipAsync(string path);
+    /// <summary><c>importClip</c> with a path the user picked, onto <paramref name="page"/>, empty for the default page; null when the daemon did not answer.</summary>
+    Task<ClipImportResult?> ImportClipAsync(string path, string page);
+
+    /// <summary><c>exportSoundboard</c> to a path the user picked; null when the daemon did not answer.</summary>
+    Task<SoundboardTransferResult?> ExportSoundboardAsync(string path);
+
+    /// <summary><c>importSoundboard</c> from a path the user picked; null when the daemon did not answer.</summary>
+    Task<SoundboardTransferResult?> ImportSoundboardAsync(string path, bool merge);
+
+    /// <summary><c>renameClipPage</c>: an empty name moves the page's clips to the default page.</summary>
+    Task<string?> RenameClipPageAsync(string page, string name);
 
     /// <summary><c>updateClip</c> with the fields that change; resolves to null, or the daemon's refusal.</summary>
     Task<string?> UpdateClipAsync(string clip, IReadOnlyDictionary<string, object> fields);
@@ -86,6 +101,10 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
 
     private bool _loop;
     public bool Loop { get => _loop; private set { if (Set(ref _loop, value)) RaiseText(); } }
+
+    private string _page = "";
+    /// <summary>The page the clip is drawn on, empty for the default page.</summary>
+    public string Page { get => _page; private set => Set(ref _page, value); }
 
     /// <summary>The clip's icon and colour, drawn like a channel's.</summary>
     public LayoutAppearanceViewModel Appearance { get; } = new();
@@ -204,6 +223,7 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
         Gain = Math.Clamp(Number(clip["gain"]) ?? 1, 0, 1);
         Mode = Text(clip["mode"]) is { } mode && Modes.Contains(mode) ? mode : "overlap";
         Loop = Flag(clip["loop"]);
+        Page = Text(clip["page"]) ?? "";
         Appearance.Apply(new JsonObject { ["icon"] = Text(clip["icon"]) ?? "", ["colour"] = Text(clip["colour"]), ["defaultIcon"] = DefaultIcon });
         Error = Text(clip["error"]) is { Length: > 0 } error ? error : null;
         // A daemon from before the word worked it out from loaded and error.
@@ -245,6 +265,22 @@ public sealed class SoundClipViewModel : ViewModelBase, IHasId
 
     internal static double? Number(JsonNode? node) => node is JsonValue value && value.TryGetValue(out double number)
         && double.IsFinite(number) ? number : null;
+}
+
+/// <summary>One page of the soundboard as its tab draws it: the daemon's name for it, empty for the default page, and whether it is shown.</summary>
+public sealed class SoundPageViewModel : ViewModelBase
+{
+    internal SoundPageViewModel(string key) => Key = key;
+
+    /// <summary>The page as the daemon names it; empty for the default page.</summary>
+    public string Key { get; }
+
+    /// <summary>The tab's text: the page's name, or Main for the default page.</summary>
+    public string Title => SoundboardViewModel.PageTitle(Key);
+
+    private bool _selected;
+    /// <summary>The window shows this page's pads.</summary>
+    public bool IsSelected { get => _selected; internal set => Set(ref _selected, value); }
 }
 
 /// <summary>
@@ -365,6 +401,41 @@ public sealed class SoundboardViewModel : ViewModelBase
 
     public ObservableCollection<SoundClipViewModel> Clips { get; } = [];
 
+    /// <summary>The pages the clips are on, in the daemon's order: the default page first while it has a clip.</summary>
+    public ObservableCollection<SoundPageViewModel> Pages { get; } = [];
+
+    /// <summary>The clips on the page shown, in library order: the pads the window draws.</summary>
+    public ObservableCollection<SoundClipViewModel> PageClips { get; } = [];
+
+    /// <summary>The tabs show: there is a page other than the default one.</summary>
+    public bool ShowsPages => Pages.Count > 1 || Pages.Count == 1 && Pages[0].Key.Length > 0;
+
+    /// <summary>The longest page name the daemon takes.</summary>
+    internal const int MaxPageLength = 40;
+
+    /// <summary>A page's name as a tab and a sentence say it: Main for the default page.</summary>
+    internal static string PageTitle(string page) => page.Length == 0 ? Localizer.Text("SoundboardMainPage") : page;
+
+    private string _selectedPage = "";
+    /// <summary>The page shown, empty for the default page. Clips added with Add clips or by a drop of files go to it.</summary>
+    public string SelectedPage
+    {
+        get => _selectedPage;
+        set
+        {
+            if (!Set(ref _selectedPage, value ?? "")) return;
+            Raise(nameof(SelectedPageTitle));
+            Raise(nameof(DropHint));
+            SyncPageClips();
+        }
+    }
+
+    /// <summary>The page shown, as its tab says it.</summary>
+    public string SelectedPageTitle => PageTitle(_selectedPage);
+
+    /// <summary>The page shown is a named one, which can be renamed or emptied into the default page.</summary>
+    public bool CanEditPage => _selectedPage.Length > 0 && Pages.Any(p => p.Key == _selectedPage);
+
     public bool HasClips => Clips.Count > 0;
 
     /// <summary>The window shows the line that says there are no clips yet.</summary>
@@ -414,15 +485,16 @@ public sealed class SoundboardViewModel : ViewModelBase
 
     private bool _importing;
     /// <summary>An import is running: the add buttons wait for it.</summary>
-    public bool Importing { get => _importing; private set { if (Set(ref _importing, value)) Raise(nameof(CanAdd)); } }
+    public bool Importing { get => _importing; private set { if (Set(ref _importing, value)) { Raise(nameof(CanAdd)); Raise(nameof(CanExport)); } } }
 
-    public bool CanAdd => CanImport && !_importing;
+    public bool CanAdd => CanImport && !_importing && !_transferring;
 
     private void RaiseBoard()
     {
         Raise(nameof(CanPlay));
         Raise(nameof(CanImport));
         Raise(nameof(CanAdd));
+        Raise(nameof(CanExport));
         Raise(nameof(ShowsTurnOn));
         Raise(nameof(TurnOnText));
         Raise(nameof(Notice));
@@ -470,6 +542,7 @@ public sealed class SoundboardViewModel : ViewModelBase
                 _formats = [];
                 Channel = null;
                 Clips.Clear();
+                SyncPages([]);
                 RaiseClips();
                 return;
             }
@@ -483,7 +556,7 @@ public sealed class SoundboardViewModel : ViewModelBase
             _formats = [.. (state["formats"] as JsonArray ?? []).Select(SoundClipViewModel.Text).OfType<string>()
                 .Where(f => f.Length > 0 && f.All(char.IsAsciiLetterOrDigit))];
             Channel = _channelId is null ? null : _lastChannels.FirstOrDefault(c => c.Id == _channelId);
-            SyncClips(state["clips"] as JsonArray ?? []);
+            SyncClips(state["clips"] as JsonArray ?? [], state["pages"] as JsonArray);
             // A daemon from before auditions says nothing, which is none.
             string? auditioned = SoundClipViewModel.Text(state["auditioning"]);
             foreach (SoundClipViewModel clip in Clips) clip.Auditioned = clip.Id == auditioned;
@@ -492,7 +565,7 @@ public sealed class SoundboardViewModel : ViewModelBase
         finally { _applying = false; }
     }
 
-    private void SyncClips(JsonArray clips)
+    private void SyncClips(JsonArray clips, JsonArray? pages)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         int position = 0;
@@ -516,11 +589,96 @@ public sealed class SoundboardViewModel : ViewModelBase
         }
         for (int i = Clips.Count - 1; i >= 0; i--)
             if (!seen.Contains(Clips[i].Id)) Clips.RemoveAt(i);
+        SyncPages(pages);
         RaiseClips();
         bool fresh = _freshConnection;
         _freshConnection = false;
         LibraryReported?.Invoke(fresh);
     }
+
+    /// <summary>
+    /// Take the pages from a state push, or from the clips when the daemon
+    /// is older than pages. The page shown stays shown while it has clips;
+    /// once it has none, the window shows the page of the same name in
+    /// another case, which a rename to it leaves, or else the first page.
+    /// </summary>
+    private void SyncPages(JsonArray? pages)
+    {
+        List<string> keys = pages is null
+            ? [.. Clips.Select(c => c.Page).Distinct(StringComparer.Ordinal).OrderBy(p => p.Length == 0 ? 0 : 1)]
+            : [.. pages.Select(SoundClipViewModel.Text).OfType<string>().Distinct(StringComparer.Ordinal)];
+        for (int i = 0; i < keys.Count; i++)
+        {
+            SoundPageViewModel? existing = Pages.FirstOrDefault(p => p.Key == keys[i]);
+            if (existing is null) Pages.Insert(i, new SoundPageViewModel(keys[i]));
+            else if (Pages.IndexOf(existing) != i) Pages.Move(Pages.IndexOf(existing), i);
+        }
+        while (Pages.Count > keys.Count) Pages.RemoveAt(Pages.Count - 1);
+        if (keys.Count > 0 && !keys.Contains(_selectedPage, StringComparer.Ordinal))
+            _selectedPage = keys.FirstOrDefault(k => string.Equals(k, _selectedPage, StringComparison.OrdinalIgnoreCase)) ?? keys[0];
+        Raise(nameof(SelectedPage));
+        Raise(nameof(SelectedPageTitle));
+        Raise(nameof(ShowsPages));
+        Raise(nameof(CanEditPage));
+        Raise(nameof(DropHint));
+        SyncPageClips();
+    }
+
+    /// <summary>Show the selected page's clips, keeping each pad that stays, in library order.</summary>
+    private void SyncPageClips()
+    {
+        foreach (SoundPageViewModel page in Pages) page.IsSelected = page.Key == _selectedPage;
+        Raise(nameof(CanEditPage));
+        List<SoundClipViewModel> shown = [.. Clips.Where(c => c.Page == _selectedPage)];
+        for (int i = PageClips.Count - 1; i >= 0; i--)
+            if (!shown.Contains(PageClips[i])) PageClips.RemoveAt(i);
+        for (int i = 0; i < shown.Count; i++)
+        {
+            int at = PageClips.IndexOf(shown[i]);
+            if (at < 0) PageClips.Insert(i, shown[i]);
+            else if (at != i) PageClips.Move(at, i);
+        }
+    }
+
+    /// <summary>Show a page's pads.</summary>
+    public void ShowPage(SoundPageViewModel page) => SelectedPage = page.Key;
+
+    /// <summary>Give the page shown another name; a name another page has puts the clips together on it. Resolves to null, or the refusal.</summary>
+    public async Task<string?> RenamePageAsync(string name)
+    {
+        string page = _selectedPage;
+        string clean = PageName(name);
+        if (page.Length == 0 || clean.Length == 0 || clean == page) return null;
+        string? error = await Run(_commands.RenameClipPageAsync(page, clean));
+        if (error is null) SelectedPage = Pages.FirstOrDefault(p => string.Equals(p.Key, clean, StringComparison.OrdinalIgnoreCase))?.Key ?? clean;
+        return error;
+    }
+
+    /// <summary>Move the page shown's clips to the default page, which ends the page. Resolves to null, or the refusal.</summary>
+    public async Task<string?> RemovePageAsync()
+    {
+        string page = _selectedPage;
+        if (page.Length == 0) return null;
+        string? error = await Run(_commands.RenameClipPageAsync(page, ""));
+        if (error is null) SelectedPage = "";
+        return error;
+    }
+
+    /// <summary>
+    /// A folder's name as a page: printable, trimmed and cut to the length
+    /// the daemon takes. Empty, the default page, for a name with nothing left
+    /// or a lone dash.
+    /// </summary>
+    internal static string PageName(string? name)
+    {
+        string text = new string([.. (name ?? "").Where(c => !char.IsControl(c))]).Trim();
+        text = text.Length > MaxPageLength ? text[..MaxPageLength].TrimEnd() : text;
+        // A lone dash is the default page's word in the terminal mixer, never a page.
+        return text == DefaultPageWord ? "" : text;
+    }
+
+    /// <summary>What the daemon refuses as a page name: it stands for the default page where no empty name can be typed.</summary>
+    internal const string DefaultPageWord = "-";
 
     // No board was reported on the daemon connection yet. Reset runs on the
     // UI thread in order with the states, so a state still queued from the
@@ -539,6 +697,7 @@ public sealed class SoundboardViewModel : ViewModelBase
     private void RaiseClips()
     {
         Raise(nameof(HasClips));
+        Raise(nameof(CanExport));
         Raise(nameof(CanStop));
         Raise(nameof(ShowsEmpty));
         Raise(nameof(AnyPlaying));
@@ -622,9 +781,15 @@ public sealed class SoundboardViewModel : ViewModelBase
     /// </summary>
     public async Task Move(SoundClipViewModel clip, int delta)
     {
-        int at = Clips.IndexOf(clip), to = at + delta;
-        if (at < 0 || to < 0 || to >= Clips.Count) return;
+        // Among the pads of the clip's page: it trades places with its
+        // neighbour there, wherever the two stand in the library.
+        int shown = PageClips.IndexOf(clip), next = shown + delta;
+        if (shown < 0 || next < 0 || next >= PageClips.Count) return;
+        int at = Clips.IndexOf(clip), to = Clips.IndexOf(PageClips[next]);
+        if (at < 0 || to < 0) return;
         Clips.Move(at, to);
+        Clips.Move(at < to ? to - 1 : to + 1, at);
+        SyncPageClips();
         string? error = await Run(_commands.SetClipOrderAsync([.. Clips.Select(c => c.Id)]));
         // Refused: the pads go back to the order the daemon last reported.
         if (error is not null && _lastBoard is { } last) Apply(last.DeepClone(), _lastChannels);
@@ -632,8 +797,8 @@ public sealed class SoundboardViewModel : ViewModelBase
 
     public bool CanMove(SoundClipViewModel clip, int delta)
     {
-        int to = Clips.IndexOf(clip) + delta;
-        return Clips.Contains(clip) && to >= 0 && to < Clips.Count;
+        int to = PageClips.IndexOf(clip) + delta;
+        return PageClips.Contains(clip) && to >= 0 && to < PageClips.Count;
     }
 
     /// <summary>Change a clip's entry; resolves to null, or the daemon's refusal, which the caller shows.</summary>
@@ -658,19 +823,24 @@ public sealed class SoundboardViewModel : ViewModelBase
         if (_importing) _cancelImport = true;
     }
 
+    /// <summary>Import files onto the page shown; see <see cref="ImportOntoAsync"/>.</summary>
+    public Task ImportAsync(IReadOnlyList<string> paths, IReadOnlyList<string>? unreadable = null)
+        => ImportOntoAsync([.. paths.Select(path => (path, _selectedPage))], unreadable);
+
     /// <summary>
-    /// Import each path in turn, one at a time, and say how it went: the
-    /// daemon's own sentence for a single file, a count and the refusals for
-    /// several. Files past the library's room are left out and counted, and
-    /// a cancel stops the import after the file it is on.
+    /// Import each file onto its page in turn, one at a time, and say how it
+    /// went: the daemon's own sentence for a single file, a count and the
+    /// refusals for several. Files past the library's room are left out and
+    /// counted, and a cancel stops the import after the file it is on. The
+    /// window then shows the page the last clip went to.
     /// </summary>
-    public async Task ImportAsync(IReadOnlyList<string> paths, IReadOnlyList<string>? unreadable = null)
+    public async Task ImportOntoAsync(IReadOnlyList<(string Path, string Page)> files, IReadOnlyList<string>? unreadable = null)
     {
         unreadable ??= [];
-        if (paths.Count == 0 && unreadable.Count == 0 || !CanAdd) return;
+        if (files.Count == 0 && unreadable.Count == 0 || !CanAdd) return;
         int room = Math.Max(0, MaxClips - Clips.Count);
-        IReadOnlyList<string> taken = paths.Count > room ? [.. paths.Take(room)] : paths;
-        int skipped = paths.Count - taken.Count;
+        IReadOnlyList<(string Path, string Page)> taken = files.Count > room ? [.. files.Take(room)] : files;
+        int skipped = files.Count - taken.Count;
         Importing = true;
         _cancelImport = false;
         try
@@ -678,17 +848,19 @@ public sealed class SoundboardViewModel : ViewModelBase
             int added = 0, tried = 0;
             var refusals = new List<string>(unreadable.Select(name => Localizer.Format("SoundboardFileUnreadable", name)));
             string? only = null;
-            foreach (string path in taken)
+            string? landed = null;
+            foreach ((string path, string page) in taken)
             {
                 if (_cancelImport) break;
                 tried++;
                 if (taken.Count > 1) ShowReport(Localizer.Format("SoundboardImporting", tried, taken.Count), false);
-                ClipImportResult? result = await _commands.ImportClipAsync(path);
+                ClipImportResult? result = await _commands.ImportClipAsync(path, page);
                 string name = Path.GetFileName(path);
                 if (result is null) refusals.Add(Localizer.Format("NoAnswerForPath", name));
-                else if (result.Ok) { added++; only = result.Message; }
+                else if (result.Ok) { added++; only = result.Message; landed = page; }
                 else refusals.Add(taken.Count > 1 ? $"{name}: {result.Message}" : result.Message);
             }
+            if (landed is not null) SelectedPage = Pages.FirstOrDefault(p => string.Equals(p.Key, landed, StringComparison.OrdinalIgnoreCase))?.Key ?? landed;
             var lines = new List<string>();
             if (taken.Count == 1 && skipped == 0 && unreadable.Count == 0 && tried == 1) lines.Add(refusals.Count > 0 ? refusals[0] : only ?? "");
             else
@@ -727,7 +899,7 @@ public sealed class SoundboardViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Import a folder's clips, or say it has none.</summary>
+    /// <summary>Import a folder's clips onto a page named after the folder, or say it has none.</summary>
     public async Task ImportFolderAsync(string folder)
     {
         if (ClipFilesIn(folder) is not { } files) return;
@@ -736,7 +908,117 @@ public sealed class SoundboardViewModel : ViewModelBase
             ShowReport(Localizer.Format("SoundboardFolderEmpty", Path.GetFileName(folder.TrimEnd('/'))), true);
             return;
         }
-        await ImportAsync(files);
+        string page = FolderPage(folder);
+        await ImportOntoAsync([.. files.Select(f => (f, page))]);
+    }
+
+    /// <summary>The page a folder's clips go to: the folder's own name.</summary>
+    internal static string FolderPage(string folder) => PageName(Path.GetFileName(folder.TrimEnd('/')));
+
+    /// <summary>
+    /// Files and folders dropped on the window: a file goes onto the page
+    /// shown, and a folder's sound files, not its subfolders, onto a page
+    /// named after it, all in one import. A folder that cannot be read, or
+    /// has no sound file, is named in the report.
+    /// </summary>
+    public async Task ImportDroppedAsync(IReadOnlyList<string> paths, IReadOnlyList<string>? unreadable = null)
+    {
+        if (!CanAdd) return;
+        var files = new List<(string Path, string Page)>();
+        var refused = new List<string>(unreadable ?? []);
+        var notes = new List<string>();
+        foreach (string path in paths)
+        {
+            if (!Directory.Exists(path))
+            {
+                files.Add((path, _selectedPage));
+                continue;
+            }
+            string name = Path.GetFileName(path.TrimEnd('/'));
+            IReadOnlyList<string>? inside;
+            try
+            {
+                inside = [.. Directory.EnumerateFiles(path)
+                    .Where(f => _formats.Contains(Path.GetExtension(f).TrimStart('.').ToLowerInvariant(), StringComparer.Ordinal))
+                    .Order(StringComparer.CurrentCultureIgnoreCase)];
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                notes.Add($"{name}: {ex.Message}");
+                continue;
+            }
+            if (inside.Count == 0) notes.Add(Localizer.Format("SoundboardFolderEmpty", name));
+            string page = FolderPage(path);
+            files.AddRange(inside.Select(f => (f, page)));
+        }
+        if (files.Count == 0 && refused.Count == 0)
+        {
+            if (notes.Count > 0) ShowReport(string.Join("\n", notes), true);
+            return;
+        }
+        await ImportOntoAsync(files, refused);
+        if (notes.Count > 0) ShowReport(string.Join("\n", notes.Prepend(Status).Where(l => l.Length > 0)), true);
+    }
+
+    private bool _dropping;
+    /// <summary>Files are being dragged over the window: it says where they would go.</summary>
+    public bool Dropping { get => _dropping; set => Set(ref _dropping, value); }
+
+    /// <summary>What a drop would do, while files are dragged over the window.</summary>
+    public string DropHint => Localizer.Format("SoundboardDropHint", SelectedPageTitle);
+
+    // --- the library as one archive ---
+
+    private bool _transferring;
+    /// <summary>A library export or import is running: the add, export and import buttons wait for it.</summary>
+    public bool Transferring
+    {
+        get => _transferring;
+        private set
+        {
+            if (!Set(ref _transferring, value)) return;
+            Raise(nameof(CanAdd));
+            Raise(nameof(CanExport));
+        }
+    }
+
+    /// <summary>The library can be exported: the daemon reports a board with clips, and nothing else is copying.</summary>
+    public bool CanExport => _mixerRunning && _reported && Clips.Count > 0 && !_importing && !_transferring;
+
+    /// <summary>
+    /// Write the library into a zip archive the user picked, and say how it
+    /// went. The daemon writes only a name that ends in .zip, and the name is
+    /// never changed here, since the overwrite question and a desktop
+    /// portal's grant were for the name picked: another is refused at once.
+    /// </summary>
+    public Task ExportLibraryAsync(string path)
+    {
+        if (CanExport && !path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowReport(Localizer.Text("SoundboardExportNeedsZip"), true);
+            return Task.CompletedTask;
+        }
+        return TransferAsync(CanExport, Localizer.Text("SoundboardExporting"), () => _commands.ExportSoundboardAsync(path));
+    }
+
+    /// <summary>Add a library archive's clips, or replace the library with them, and say how it went.</summary>
+    public Task ImportLibraryAsync(string path, bool merge)
+        => TransferAsync(CanAdd, Localizer.Text("SoundboardImportingLibrary"), () => _commands.ImportSoundboardAsync(path, merge));
+
+    private async Task TransferAsync(bool allowed, string running, Func<Task<SoundboardTransferResult?>> transfer)
+    {
+        if (!allowed) return;
+        Transferring = true;
+        try
+        {
+            ShowReport(running, false);
+            SoundboardTransferResult? result;
+            try { result = await transfer(); }
+            catch (Exception ex) when (ex is InvalidOperationException or IOException) { result = new(false, ex.Message); }
+            if (result is null) ShowReport(Localizer.Text("SoundboardTransferNoAnswer"), true);
+            else ShowReport(result.Message, !result.Ok || result.Partial);
+        }
+        finally { Transferring = false; }
     }
 
     // Whether the line under the pads is a command's refusal, which the next
@@ -782,14 +1064,14 @@ public sealed class SoundboardViewModel : ViewModelBase
 
 /// <summary>
 /// The edit window's copy of one clip: its name, gain, press mode, loop,
-/// icon and colour as the user changes them. Saving sends only the fields
+/// icon, colour and page as the user changes them. Saving sends only the fields
 /// that changed, in one <c>updateClip</c>, and shows the daemon's refusal.
 /// </summary>
 public sealed class SoundClipEditViewModel : ViewModelBase
 {
     private readonly SoundClipViewModel _clip;
     // The clip as the window opened on it: a field is sent only when it differs from this.
-    private readonly string _openName, _openColour, _openIcon;
+    private readonly string _openName, _openColour, _openIcon, _openPage;
     private readonly double _openGainPercent;
     private readonly int _openModeIndex;
     private readonly bool _openLoop;
@@ -803,6 +1085,7 @@ public sealed class SoundClipEditViewModel : ViewModelBase
         _loop = _openLoop = clip.Loop;
         _colour = _openColour = clip.Appearance.Colour ?? "";
         Icon = _openIcon = clip.Appearance.Icon;
+        _page = _openPage = clip.Page;
         ClipError = clip.HasError ? clip.Error! : "";
     }
 
@@ -847,6 +1130,16 @@ public sealed class SoundClipEditViewModel : ViewModelBase
     /// <summary>#RRGGBB, or empty for none.</summary>
     public string Colour { get => _colour; set => Set(ref _colour, value); }
 
+    private string _page;
+    /// <summary>The page the clip is on; empty for the default page.</summary>
+    public string Page { get => _page; set => Set(ref _page, value); }
+
+    /// <summary>The default page's name, shown in the page box while it is empty.</summary>
+    public string MainPage => SoundboardViewModel.PageTitle("");
+
+    /// <summary>What an empty page and a new name do, under the page box.</summary>
+    public string PageHint => Localizer.Format("SoundClipPageHint", MainPage);
+
     /// <summary>The chosen icon's stored value; the window's picker sets it.</summary>
     public string Icon { get; set; }
 
@@ -872,6 +1165,12 @@ public sealed class SoundClipEditViewModel : ViewModelBase
             Note = Localizer.Text("ColourFormatHint");
             return null;
         }
+        string page = (_page ?? "").Trim();
+        if (page.Length > SoundboardViewModel.MaxPageLength || page.Any(char.IsControl) || page == SoundboardViewModel.DefaultPageWord)
+        {
+            Note = Localizer.Text("SoundClipPageInvalid");
+            return null;
+        }
         if (name != _openName) fields["name"] = name;
         // Compared as the percent the window shows, so a rename never sends a rounded gain.
         double percent = Math.Clamp(Math.Round(_gainPercent), 0, 100);
@@ -880,6 +1179,7 @@ public sealed class SoundClipEditViewModel : ViewModelBase
         if (_loop != _openLoop) fields["loop"] = _loop;
         if ((Icon ?? "") != _openIcon) fields["icon"] = Icon ?? "";
         if (!string.Equals(colour, _openColour, StringComparison.OrdinalIgnoreCase)) fields["colour"] = colour;
+        if (page != _openPage) fields["page"] = page;
         return fields;
     }
 

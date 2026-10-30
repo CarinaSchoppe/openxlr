@@ -3444,7 +3444,7 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
     <value>Додај фасциклу</value>
   </data>
   <data name="SoundboardAddFolderTip" xml:space="preserve">
-    <value>Додај један по један сваки звучни фајл из фасцикле; подфасцикле се изостављају.</value>
+    <value>Додај један по један сваки звучни фајл из фасцикле на страницу названу по фасцикли; подфасцикле се изостављају.</value>
   </data>
   <data name="SoundboardTurnOn" xml:space="preserve">
     <value>Укључи</value>
@@ -3631,5 +3631,83 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   </data>
   <data name="DesktopKeysBindUnanswered" xml:space="preserve">
     <value>радна површина није одговорила на нову листу тастера. Раније додељени тастери и даље раде.</value>
+  </data>
+  <data name="SoundboardMainPage" xml:space="preserve">
+    <value>Главна</value>
+  </data>
+  <data name="SoundboardPages" xml:space="preserve">
+    <value>Странице</value>
+  </data>
+  <data name="SoundboardPageMenu" xml:space="preserve">
+    <value>Мени странице</value>
+  </data>
+  <data name="SoundboardPageMenuTip" xml:space="preserve">
+    <value>Преименуј приказану страницу или премести њене клипове на главну страницу.</value>
+  </data>
+  <data name="SoundboardRenamePage" xml:space="preserve">
+    <value>Преименуј страницу</value>
+  </data>
+  <data name="SoundboardRenamePageTitle" xml:space="preserve">
+    <value>Преименуј {0}</value>
+  </data>
+  <data name="SoundboardRenamePageHint" xml:space="preserve">
+    <value>До 40 знакова. Име друге странице спаја клипове на тој страници.</value>
+  </data>
+  <data name="SoundboardRemovePage" xml:space="preserve">
+    <value>Премести њене клипове на {0}</value>
+  </data>
+  <data name="SoundboardExportLibrary" xml:space="preserve">
+    <value>Извези библиотеку</value>
+  </data>
+  <data name="SoundboardExportLibraryTip" xml:space="preserve">
+    <value>Сачувај све клипове и њихова подешавања у један zip фајл, за чување или увоз на други рачунар са истим ознакама.</value>
+  </data>
+  <data name="SoundboardImportLibrary" xml:space="preserve">
+    <value>Увези библиотеку</value>
+  </data>
+  <data name="SoundboardImportLibraryTip" xml:space="preserve">
+    <value>Додај клипове из zip фајла библиотеке или њима замени клипове овде. Сваки фајл се проверава као код додавања клипова.</value>
+  </data>
+  <data name="SoundboardPickExport" xml:space="preserve">
+    <value>Извези библиотеку звучне табле</value>
+  </data>
+  <data name="SoundboardPickImport" xml:space="preserve">
+    <value>Увези библиотеку звучне табле</value>
+  </data>
+  <data name="SoundboardArchiveType" xml:space="preserve">
+    <value>Библиотека звучне табле</value>
+  </data>
+  <data name="SoundboardExporting" xml:space="preserve">
+    <value>Библиотека се извози.</value>
+  </data>
+  <data name="SoundboardImportingLibrary" xml:space="preserve">
+    <value>Библиотека се увози. Сваки клип се проверава при доласку.</value>
+  </data>
+  <data name="SoundboardTransferNoAnswer" xml:space="preserve">
+    <value>Нема одговора од демона. Провери звучну таблу пре новог покушаја.</value>
+  </data>
+  <data name="SoundboardImportAdd" xml:space="preserve">
+    <value>Додај</value>
+  </data>
+  <data name="SoundboardImportReplace" xml:space="preserve">
+    <value>Замени</value>
+  </data>
+  <data name="SoundboardImportModeMessage" xml:space="preserve">
+    <value>Додати клипове из {0} уз {1} клипова овде или их заменити? Замена брише клипове овде и задржава ознаке из фајла, па тастери везани за те ознаке пуштају увезене клипове. Ништа се не замењује ако се сваки клип из фајла не може увести овде.</value>
+  </data>
+  <data name="SoundboardDropHint" xml:space="preserve">
+    <value>Испусти звучне фајлове да их додаш на {0}. Звучни фајлови из фасцикле иду на страницу названу по фасцикли.</value>
+  </data>
+  <data name="SoundClipPage" xml:space="preserve">
+    <value>Страница</value>
+  </data>
+  <data name="SoundClipPageHint" xml:space="preserve">
+    <value>Празно ставља клип на {0}. Име које ниједна страница још нема прави нову страницу. Клип премештен на страницу иде на њен крај.</value>
+  </data>
+  <data name="SoundClipPageInvalid" xml:space="preserve">
+    <value>Име странице има највише 40 знакова, ниједан контролни знак и није сама цртица.</value>
+  </data>
+  <data name="SoundboardExportNeedsZip" xml:space="preserve">
+    <value>Изабери име фајла које се завршава на .zip: библиотека се чува као zip фајл.</value>
   </data>
 </root>

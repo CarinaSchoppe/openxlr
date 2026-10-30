@@ -825,6 +825,133 @@ public sealed class TuiSoundsTests
         Assert.Null(link.ClipProgress("airhorn"));
     }
 
+    /// <summary>Puts the drum roll on Intro and the broken clip on Memes, as the daemon reports pages.</summary>
+    private static void Pages(Session session)
+    {
+        session.Clip(1)["page"] = "Intro";
+        session.Clip(2)["page"] = "Memes";
+        session.Board["pages"] = new JsonArray("", "Intro", "Memes");
+        session.Echo();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PagesStandAsTabsOverTheListOfThePageShown(bool light)
+    {
+        Theme theme = light ? Latte() : Theme.Material;
+        Session session = new(theme);
+        // One page, the default one: no tabs.
+        Assert.DoesNotContain(" Main ", session.Frame(), StringComparison.Ordinal);
+        Pages(session);
+        string frame = session.Frame();
+        (int mainX, int tabs) = session.Find(" Main ");
+        Assert.Equal(tabs, session.Find(" Intro ").Y);
+        Assert.Equal(tabs, session.Find(" Memes ").Y);
+        Assert.Equal(theme.Selection, session.Screen.At(mainX, tabs).Back);
+        Assert.Equal(theme.Card, session.Screen.At(session.Find(" Intro ").X, tabs).Back);
+        // The columns stand under the tabs, and the header still counts the whole board.
+        Assert.Equal(tabs + 1, session.Find("CLIP").Y);
+        Assert.Contains("3 clips", frame, StringComparison.Ordinal);
+        Assert.Contains("Airhorn", frame, StringComparison.Ordinal);
+        Assert.DoesNotContain("Drum roll", frame, StringComparison.Ordinal);
+        Assert.Equal(' ', session.Screen.At(79, 23).Ch);
+
+        session.Key('p');
+        frame = session.Frame();
+        Assert.Contains("Drum roll", frame, StringComparison.Ordinal);
+        Assert.DoesNotContain("Airhorn", frame, StringComparison.Ordinal);
+        Assert.Equal(theme.Selection, session.Screen.At(session.Find(" Intro ").X, tabs).Back);
+        session.Key(Key.Enter);
+        Assert.Equal("drumroll", Text(session.Command(), "clip"));
+        session.Sent.Clear();
+
+        // Round the start to the last page.
+        session.Key('P');
+        session.Key('P');
+        Assert.Contains("Broken", session.Frame(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Drum roll", session.Frame(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ManyPagesKeepTheShownTabInSight()
+    {
+        Session session = new();
+        string[] names = [.. Enumerable.Range(1, 12).Select(i => $"Page number {i}")];
+        session.Clip(2)["page"] = names[^1];
+        session.Board["pages"] = new JsonArray([.. new[] { "" }.Concat(names).Select(n => (JsonNode?)n)]);
+        session.Echo();
+        Assert.Contains("›", session.Frame(), StringComparison.Ordinal);
+        session.Key('P');
+        string frame = session.Frame();
+        Assert.Contains("Page number 12", frame, StringComparison.Ordinal);
+        Assert.Contains("‹", frame, StringComparison.Ordinal);
+        Assert.Contains("Broken", frame, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ClipsMoveBetweenPagesAndAPageIsRenamedOrEmptied()
+    {
+        Session session = new();
+        Pages(session);
+        // On the default page, the airhorn trades places with the next clip
+        // there, the broken one moved off it aside.
+        session.Clip(2)["page"] = "";
+        session.Board["pages"] = new JsonArray("", "Intro");
+        session.Echo();
+        session.Draw();
+        session.Key(Key.Down, ctrl: true);
+        Assert.Equal(["broken", "drumroll", "airhorn"], session.Command()["clips"]!.AsArray().Select(c => c!.GetValue<string>()));
+        session.Sent.Clear();
+
+        // g moves the selected clip to a page by name, and the tab follows it once the daemon says so.
+        session.Key(Key.Home);
+        session.Key('g');
+        session.Key(Key.Backspace);
+        session.Type("intro");
+        session.Key(Key.Enter);
+        JsonObject move = session.Command();
+        Assert.Equal(("updateClip", "airhorn", "intro"), (Text(move, "cmd"), Text(move, "clip"), Text(move, "page")));
+        session.Sent.Clear();
+        session.Clip(0)["page"] = "Intro";
+        session.Echo();
+        string frame = session.Frame();
+        Assert.Contains("Airhorn", frame, StringComparison.Ordinal);
+        Assert.Contains("Drum roll", frame, StringComparison.Ordinal);
+        Assert.DoesNotContain("Broken", frame, StringComparison.Ordinal);
+
+        // i imports onto the page shown.
+        session.Key('i');
+        session.Type("/tmp/applause.flac");
+        session.Key(Key.Enter);
+        Assert.Equal("Intro", Text(session.Command(), "page"));
+        session.Sent.Clear();
+
+        // G renames the page shown; - moves its clips to the default page.
+        session.Key('G');
+        for (int i = 0; i < "Intro".Length; i++) session.Key(Key.Backspace);
+        session.Type("Jingles");
+        session.Key(Key.Enter);
+        JsonObject rename = session.Command();
+        Assert.Equal(("renameClipPage", "Intro", "Jingles"), (Text(rename, "cmd"), Text(rename, "page"), Text(rename, "name")));
+        session.Sent.Clear();
+        session.Key('G');
+        for (int i = 0; i < "Intro".Length; i++) session.Key(Key.Backspace);
+        session.Type("-");
+        session.Key(Key.Enter);
+        Assert.Equal("", Text(session.Command(), "name"));
+        session.Sent.Clear();
+
+        // The default page keeps its name.
+        session.Key('p');
+        Assert.DoesNotContain("Broken", session.Frame(), StringComparison.Ordinal);
+        session.Key('p');
+        Assert.Contains("Broken", session.Frame(), StringComparison.Ordinal);
+        session.Key('G');
+        Assert.False(session.App.Prompting);
+        Assert.Empty(session.Sent);
+    }
+
     [Fact]
     public void ATypedPathIsMadeAbsoluteTheWayTheShellWouldHaveIt()
     {
@@ -849,7 +976,7 @@ public sealed class TuiSoundsTests
         for (int i = 0; i < 12; i++) session.Key(Key.Down);
         frame += session.Frame();
         foreach (string text in new[] { "a hold clip plays until pressed again", "S stop all", "i import a file", "SFX volume",
-                     "a audition in the monitor mixes, not the stream" })
+                     "a audition in the monitor mixes, not the stream", "G rename the page shown" })
             Assert.Contains(text, frame, StringComparison.Ordinal);
     }
 }

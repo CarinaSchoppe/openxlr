@@ -118,7 +118,8 @@ public sealed partial class SoundboardIntegrationTests
     /// another then holds it and lets go, and its voice ends at once instead
     /// of playing to the clip's end. Then a key comes up while an import on
     /// the same connection is still checking its file, and the release is
-    /// taken before the import's reply.
+    /// taken before the import's reply. Last, the library is exported and
+    /// imported back beside itself over that connection.
     /// </summary>
     [MonitorPipeWireFact]
     public async Task AKeyUpEndsItsVoiceAfterAnEndedHoldAndDuringAnImport()
@@ -219,6 +220,20 @@ public sealed partial class SoundboardIntegrationTests
                 Assert.True(imported?["ok"]?.GetValue<bool>(), imported?.ToJsonString());
                 Assert.Equal("snare", imported!["clip"]?.GetValue<string>());
 
+                // The library goes out as an archive and comes back in beside
+                // itself, each clip checked by the real helper: the archive's
+                // ids are in use here, so each clip takes a new one.
+                string archive = Path.Combine(_directory, "board.zip");
+                (JsonNode? exported, string? exportError) = await AskReply(deck, new { cmd = "exportSoundboard", path = archive }, "soundboardExport", deadline.Token);
+                Assert.Null(exportError);
+                Assert.Equal(2, exported?["clips"]?.GetValue<int>());
+                (JsonNode? merged, string? mergeError) = await AskReply(deck, new { cmd = "importSoundboard", path = archive, merge = true }, "soundboardImport", deadline.Token);
+                Assert.Null(mergeError);
+                Assert.Equal(["drum-roll-2", "snare-2"], merged!["clips"]!.AsArray().Select(c => c!.GetValue<string>()));
+                Assert.Equal("drum-roll-2", merged["renamed"]!["drum-roll"]!.GetValue<string>());
+                Assert.True(SpinWait.SpinUntil(() => hub.Snapshot().Mixer!.Soundboard.Clips.Count(c => c.Status == SoundboardClipStatus.Ready) == 4,
+                    TimeSpan.FromSeconds(10)), hub.Snapshot().Mixer!.Soundboard.ToString());
+
                 await terminalDone.CancelAsync();
                 await terminalReads;
                 await terminal.CloseAsync(WebSocketCloseStatus.NormalClosure, "", deadline.Token);
@@ -248,6 +263,24 @@ public sealed partial class SoundboardIntegrationTests
             if (type == "commandResult" && message["requestId"]?.GetValue<string>() == request)
                 return (message["error"]?.GetValue<string>(), before);
             before.Add(type ?? "");
+        }
+    }
+
+    /// <summary>Send one command with a request id; return the reply of <paramref name="type"/> that came before its answer, and its error.</summary>
+    private static async Task<(JsonNode? Reply, string? Error)> AskReply(WebSocket socket, object command, string type, CancellationToken stop)
+    {
+        string request = Guid.NewGuid().ToString("N");
+        JsonObject body = JsonSerializer.SerializeToNode(command)!.AsObject();
+        body["requestId"] = request;
+        await SocketTestServer.Send(socket, body, stop);
+        JsonNode? reply = null;
+        while (true)
+        {
+            JsonNode message = await SocketTestServer.Receive(socket, stop);
+            string? kind = message["type"]?.GetValue<string>();
+            if (kind == type) reply = message;
+            if (kind == "commandResult" && message["requestId"]?.GetValue<string>() == request)
+                return (reply, message["error"]?.GetValue<string>());
         }
     }
 

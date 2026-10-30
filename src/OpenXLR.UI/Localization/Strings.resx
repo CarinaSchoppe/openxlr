@@ -3443,7 +3443,7 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
     <value>Add folder</value>
   </data>
   <data name="SoundboardAddFolderTip" xml:space="preserve">
-    <value>Add every sound file in a folder, one at a time; its subfolders are left out.</value>
+    <value>Add every sound file in a folder, one at a time, onto a page named after the folder; its subfolders are left out.</value>
   </data>
   <data name="SoundboardTurnOn" xml:space="preserve">
     <value>Turn on</value>
@@ -3630,5 +3630,83 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   </data>
   <data name="DesktopKeysBindUnanswered" xml:space="preserve">
     <value>the desktop did not answer the new list of keys. The keys bound before still work.</value>
+  </data>
+  <data name="SoundboardMainPage" xml:space="preserve">
+    <value>Main</value>
+  </data>
+  <data name="SoundboardPages" xml:space="preserve">
+    <value>Pages</value>
+  </data>
+  <data name="SoundboardPageMenu" xml:space="preserve">
+    <value>Page menu</value>
+  </data>
+  <data name="SoundboardPageMenuTip" xml:space="preserve">
+    <value>Rename the page shown, or move its clips to the main page.</value>
+  </data>
+  <data name="SoundboardRenamePage" xml:space="preserve">
+    <value>Rename page</value>
+  </data>
+  <data name="SoundboardRenamePageTitle" xml:space="preserve">
+    <value>Rename {0}</value>
+  </data>
+  <data name="SoundboardRenamePageHint" xml:space="preserve">
+    <value>Up to 40 characters. The name of another page puts the clips together on that page.</value>
+  </data>
+  <data name="SoundboardRemovePage" xml:space="preserve">
+    <value>Move its clips to {0}</value>
+  </data>
+  <data name="SoundboardExportLibrary" xml:space="preserve">
+    <value>Export library</value>
+  </data>
+  <data name="SoundboardExportLibraryTip" xml:space="preserve">
+    <value>Save every clip and its settings in one zip file, to keep or to import on another computer with the same ids.</value>
+  </data>
+  <data name="SoundboardImportLibrary" xml:space="preserve">
+    <value>Import library</value>
+  </data>
+  <data name="SoundboardImportLibraryTip" xml:space="preserve">
+    <value>Add the clips from a library zip file, or replace the clips here with them. Each file is checked as Add clips checks it.</value>
+  </data>
+  <data name="SoundboardPickExport" xml:space="preserve">
+    <value>Export the soundboard library</value>
+  </data>
+  <data name="SoundboardPickImport" xml:space="preserve">
+    <value>Import a soundboard library</value>
+  </data>
+  <data name="SoundboardArchiveType" xml:space="preserve">
+    <value>Soundboard library</value>
+  </data>
+  <data name="SoundboardExporting" xml:space="preserve">
+    <value>Exporting the library.</value>
+  </data>
+  <data name="SoundboardImportingLibrary" xml:space="preserve">
+    <value>Importing the library. Each clip is checked as it comes in.</value>
+  </data>
+  <data name="SoundboardTransferNoAnswer" xml:space="preserve">
+    <value>No answer from the daemon. Check the soundboard before you try again.</value>
+  </data>
+  <data name="SoundboardImportAdd" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="SoundboardImportReplace" xml:space="preserve">
+    <value>Replace</value>
+  </data>
+  <data name="SoundboardImportModeMessage" xml:space="preserve">
+    <value>Add the clips from {0} to the {1} clips here, or replace them? Replace deletes the clips here and keeps the ids from the file, so keys bound to those ids play the imported clips. It replaces nothing unless every clip in the file can be imported here.</value>
+  </data>
+  <data name="SoundboardDropHint" xml:space="preserve">
+    <value>Drop sound files to add them to {0}. A folder's sound files go to a page named after the folder.</value>
+  </data>
+  <data name="SoundClipPage" xml:space="preserve">
+    <value>Page</value>
+  </data>
+  <data name="SoundClipPageHint" xml:space="preserve">
+    <value>Empty puts the clip on {0}. A name no page has yet makes a new page. A clip moved to a page goes last on it.</value>
+  </data>
+  <data name="SoundClipPageInvalid" xml:space="preserve">
+    <value>A page name has at most 40 characters, no control characters, and is not a dash alone.</value>
+  </data>
+  <data name="SoundboardExportNeedsZip" xml:space="preserve">
+    <value>Choose a file name that ends in .zip: the library is saved as a zip file.</value>
   </data>
 </root>

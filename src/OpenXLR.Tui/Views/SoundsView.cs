@@ -2,10 +2,11 @@ namespace OpenXLR.Tui;
 
 /// <summary>
 /// The soundboard: the clips the daemon's player holds, played into the SFX
-/// channel. One row a clip, in library order, with its length, press mode,
-/// loop, gain and status, and a bar for how far a playing clip is. The
-/// board's switch and SFX's own volume, the board's master, head the list;
-/// the daemon's sentence says why the board or a clip cannot play.
+/// channel. One row a clip of the page shown, in library order, with its
+/// length, press mode, loop, gain and status, and a bar for how far a playing
+/// clip is. The board's switch and SFX's own volume, the board's master, head
+/// the list, and the pages stand as tabs over it once there is more than the
+/// default one; the daemon's sentence says why the board or a clip cannot play.
 ///
 /// A terminal sends no key-up, so a clip in hold mode is let go by pressing
 /// it again: the first press holds it, the next one releases it. A key held
@@ -22,6 +23,21 @@ internal sealed class SoundsView : View
     private string? _selected;
     private int _lastIndex;
     private int _scroll;
+
+    // The page shown, empty for the default page. It follows a clip an
+    // import added; once it has no clip, the first page is shown.
+    private string _page = string.Empty;
+
+    // A page asked for by a move or a rename, shown once the daemon's state
+    // has it; in another case too, since the daemon keeps the spelling of a
+    // page it already has.
+    private string? _pendingPage;
+
+    /// <summary>What a prompt takes for the default page, which has no name to type.</summary>
+    internal const string DefaultPageWord = "-";
+
+    /// <summary>The default page's name on its tab.</summary>
+    internal const string DefaultPageTitle = "Main";
 
     /// <summary>How close a second press of a Hold or Toggle clip must follow to be the key repeating.</summary>
     internal static readonly TimeSpan RepeatWindow = TimeSpan.FromMilliseconds(750);
@@ -53,7 +69,7 @@ internal sealed class SoundsView : View
     public override string Title => "Sounds";
 
     public override string Keys =>
-        "Enter play  s stop  S stop all  i import  a audition  b board  -/+ [/] gain  m mode  l loop  r rename  d delete  Ctrl+Up/Down move  </> ,/. SFX volume";
+        "Enter play  s stop  S stop all  i import  a audition  b board  -/+ [/] gain  m mode  l loop  r rename  d delete  Ctrl+Up/Down move  </> ,/. SFX volume  p/P page  g move to page  G rename page";
 
     public override void Draw(Screen screen, Rect area, App app)
     {
@@ -76,17 +92,23 @@ internal sealed class SoundsView : View
 
         Header(screen, area, app, state, board);
 
-        List<ClipEntry> clips = board.Clips;
-        int listY = area.Y + 3;
-        int listHeight = Math.Max(1, area.Height - 4);
-        if (clips.Count == 0)
+        List<ClipEntry> clips = Shown(board);
+        int top = area.Y + 2;
+        if (ShowsPages(board))
+        {
+            Tabs(screen, new Rect(area.X, top, area.Width, 1), app.Theme, board.PageList);
+            top++;
+        }
+        int listY = top + 1;
+        int listHeight = Math.Max(1, area.Bottom - 1 - listY);
+        if (board.Clips.Count == 0)
         {
             screen.Text(area.X + 2, listY, "No clips yet. Press i and type a file's path to import one.",
                 theme.TextMuted, theme.Card, maxWidth: area.Width - 4);
         }
         else
         {
-            Columns(screen, area, theme, area.Y + 2);
+            Columns(screen, area, theme, top);
             int index = Index(clips);
             if (index < _scroll) _scroll = index;
             if (index >= _scroll + listHeight) _scroll = index - listHeight + 1;
@@ -118,10 +140,59 @@ internal sealed class SoundsView : View
         if (link.LastImport is { } outcome && outcome.Serial != _importSeen)
         {
             _importSeen = outcome.Serial;
-            if (outcome.Clip is { } added && board.Clips.Any(clip => clip.Id == added)) _selected = added;
+            if (outcome.Clip is { } added && board.Clips.FirstOrDefault(clip => clip.Id == added) is { } clip)
+            {
+                _selected = added;
+                _page = clip.Page;
+            }
         }
-        if (_selected is null || !board.Clips.Any(clip => clip.Id == _selected))
-            _selected = board.Clips.Count == 0 ? null : board.Clips[Math.Clamp(_lastIndex, 0, board.Clips.Count - 1)].Id;
+        List<string> pages = board.PageList;
+        if (_pendingPage is not null && pages.FirstOrDefault(page => string.Equals(page, _pendingPage, StringComparison.OrdinalIgnoreCase)) is { } arrived)
+        {
+            _page = arrived;
+            _pendingPage = null;
+        }
+        if (!pages.Contains(_page, StringComparer.Ordinal))
+            _page = pages.FirstOrDefault(page => string.Equals(page, _page, StringComparison.OrdinalIgnoreCase))
+                ?? (pages.Count > 0 ? pages[0] : string.Empty);
+        List<ClipEntry> shown = Shown(board);
+        if (_selected is null || !shown.Any(clip => clip.Id == _selected))
+            _selected = shown.Count == 0 ? null : shown[Math.Clamp(_lastIndex, 0, shown.Count - 1)].Id;
+    }
+
+    /// <summary>The clips of the page shown, in library order.</summary>
+    private List<ClipEntry> Shown(SoundboardEntry board) => [.. board.Clips.Where(clip => clip.Page == _page)];
+
+    /// <summary>The tabs show once a page other than the default one has a clip.</summary>
+    private static bool ShowsPages(SoundboardEntry board) => board.PageList is { Count: > 1 } or [{ Length: > 0 }];
+
+    internal static string PageTitle(string page) => page.Length == 0 ? DefaultPageTitle : page;
+
+    /// <summary>
+    /// The pages as tabs, the shown one in the selection's colours. When they
+    /// do not all fit, the row starts at the shown page, with a mark for the
+    /// pages before it and after the last one drawn.
+    /// </summary>
+    private void Tabs(Screen screen, Rect row, Theme theme, List<string> pages)
+    {
+        int shown = Math.Max(0, pages.IndexOf(_page));
+        int width = pages.Sum(page => PageTitle(page).Length + 3);
+        int first = width <= row.Width - 2 ? 0 : shown;
+        int x = row.X + 1;
+        if (first > 0) screen.Set(row.X, row.Y, '‹', theme.TextMuted, theme.Card);
+        for (int at = first; at < pages.Count; at++)
+        {
+            string label = $" {PageTitle(pages[at])} ";
+            int room = row.Right - 2 - x;
+            if (room < 4)
+            {
+                screen.Set(row.Right - 1, row.Y, '›', theme.TextMuted, theme.Card);
+                break;
+            }
+            bool current = at == shown;
+            x += screen.Text(x, row.Y, label, current ? theme.TextPrimary : theme.TextMuted, current ? theme.Selection : theme.Card,
+                bold: current, maxWidth: room) + 1;
+        }
     }
 
     /// <summary>
@@ -356,15 +427,25 @@ internal sealed class SoundsView : View
             }
         }
 
-        List<ClipEntry> clips = board.Clips;
+        if (key.Key == Key.Char && !key.Ctrl)
+        {
+            switch (key.Char)
+            {
+                case 'p': Page(board, 1); return true;
+                case 'P': Page(board, -1); return true;
+                case 'G': RenamePage(app); return true;
+            }
+        }
+
+        List<ClipEntry> clips = Shown(board);
         if (clips.Count == 0) return false;
         int index = Index(clips);
         ClipEntry clip = clips[index];
 
         switch (key.Key)
         {
-            case Key.Up when key.Ctrl: Reorder(link, clips, index, -1); return true;
-            case Key.Down when key.Ctrl: Reorder(link, clips, index, 1); return true;
+            case Key.Up when key.Ctrl: Reorder(link, board, clips, index, -1); return true;
+            case Key.Down when key.Ctrl: Reorder(link, board, clips, index, 1); return true;
             case Key.Up: Select(clips, Move(index, -1, clips.Count)); return true;
             case Key.Down: Select(clips, Move(index, 1, clips.Count)); return true;
             case Key.PageUp: Select(clips, Move(index, -10, clips.Count)); return true;
@@ -395,6 +476,17 @@ internal sealed class SoundsView : View
             case 'l':
                 link.Send("updateClip", body => { body["clip"] = clip.Id; body["loop"] = !clip.Loop; });
                 return true;
+            case 'g':
+                app.Ask($"Page for {clip.Name} ({DefaultPageWord} for {DefaultPageTitle})", clip.Page.Length == 0 ? DefaultPageWord : clip.Page, typed =>
+                {
+                    string page = typed == DefaultPageWord ? string.Empty : typed;
+                    if (page == clip.Page) return;
+                    // The clip leads the way: the tab it went to is shown with it selected.
+                    _pendingPage = page;
+                    _selected = clip.Id;
+                    link.Send("updateClip", body => { body["clip"] = clip.Id; body["page"] = page; });
+                }, limit: MaxPageLength);
+                return true;
             case 'r':
                 app.Ask($"Name for {clip.Name}", clip.Name, name =>
                     link.Send("updateClip", body => { body["clip"] = clip.Id; body["name"] = name; }), limit: 60);
@@ -411,6 +503,43 @@ internal sealed class SoundsView : View
             default:
                 return false;
         }
+    }
+
+    /// <summary>The longest page name the daemon takes.</summary>
+    internal const int MaxPageLength = 40;
+
+    /// <summary>Show the next or the previous page, round the end.</summary>
+    private void Page(SoundboardEntry board, int by)
+    {
+        List<string> pages = board.PageList;
+        if (pages.Count < 2) return;
+        _page = pages[(Math.Max(0, pages.IndexOf(_page)) + by + pages.Count) % pages.Count];
+        _pendingPage = null;
+        _selected = null;
+        _lastIndex = 0;
+        _scroll = 0;
+    }
+
+    /// <summary>
+    /// Rename the page shown. A name another page has puts the clips together
+    /// there; the default page's word moves them to the default page, which
+    /// ends the page.
+    /// </summary>
+    private void RenamePage(App app)
+    {
+        string page = _page;
+        if (page.Length == 0)
+        {
+            app.Say($"The {DefaultPageTitle} page keeps its name; g moves a clip to another page");
+            return;
+        }
+        app.Ask($"New name for {page} ({DefaultPageWord} moves its clips to {DefaultPageTitle})", page, typed =>
+        {
+            string name = typed == DefaultPageWord ? string.Empty : typed;
+            if (name == page) return;
+            _pendingPage = name;
+            app.Link.Send("renameClipPage", body => { body["page"] = page; body["name"] = name; });
+        }, limit: MaxPageLength);
     }
 
     /// <summary>SFX's own volume is the board's master, stepped as the Mixer tab steps a channel's.</summary>
@@ -504,12 +633,14 @@ internal sealed class SoundsView : View
         link.Send("updateClip", body => { body["clip"] = clip.Id; body["gain"] = gain; });
     }
 
-    private void Reorder(DaemonLink link, List<ClipEntry> clips, int index, int by)
+    /// <summary>Swap the selected clip with its neighbour on the page shown, wherever the two stand in the library.</summary>
+    private void Reorder(DaemonLink link, SoundboardEntry board, List<ClipEntry> clips, int index, int by)
     {
         int target = index + by;
         if (target < 0 || target >= clips.Count) return;
-        List<string> order = [.. clips.Select(clip => clip.Id)];
-        (order[index], order[target]) = (order[target], order[index]);
+        List<string> order = [.. board.Clips.Select(clip => clip.Id)];
+        int from = order.IndexOf(clips[index].Id), to = order.IndexOf(clips[target].Id);
+        (order[from], order[to]) = (order[to], order[from]);
         _lastIndex = target;
         link.Send("setClipOrder", body => body["clips"] = new System.Text.Json.Nodes.JsonArray([.. order.Select(id => (System.Text.Json.Nodes.JsonNode?)id)]));
     }
@@ -525,7 +656,7 @@ internal sealed class SoundsView : View
             app.Say("An import is still running");
             return;
         }
-        app.Ask("Path of the file to import", string.Empty, typed =>
+        app.Ask(_page.Length == 0 ? "Path of the file to import" : $"Path of the file to import onto {_page}", string.Empty, typed =>
         {
             string path = ImportPath(typed);
             if (path.Length > MaxPath)
@@ -537,7 +668,7 @@ internal sealed class SoundsView : View
             _importNote = null;
             _importName = Path.GetFileName(path);
             // The answer lands in the link, so it is not lost while another tab shows.
-            link.ImportClip(path);
+            link.ImportClip(path, _page);
         }, limit: MaxPath);
     }
 

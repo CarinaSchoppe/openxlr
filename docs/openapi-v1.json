@@ -572,6 +572,15 @@
                     "engine": "deepfilternet",
                     "strength": 30
                   }
+                },
+                "voiceChanger": {
+                  "summary": "Switch a microphone's voice changer on with the Dracula voice",
+                  "value": {
+                    "cmd": "setVoiceChanger",
+                    "channel": "xlr1",
+                    "enabled": true,
+                    "voice": "dracula"
+                  }
                 }
               }
             }

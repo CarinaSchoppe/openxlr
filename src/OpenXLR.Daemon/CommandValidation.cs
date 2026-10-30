@@ -104,6 +104,8 @@ public static class CommandValidation
                 return CheckEq(cmd, layout, nativeHostInstalled ?? PluginCatalog.HostInstalled);
             case "setNoiseRemoval":
                 return CheckNoise(cmd, layout, nativeHostInstalled ?? PluginCatalog.HostInstalled);
+            case "setVoiceChanger":
+                return CheckVoice(cmd, layout, nativeHostInstalled ?? PluginCatalog.HostInstalled);
             case "getNativeEditorRules":
                 return null;
             case "setNativeEditorRule":
@@ -414,6 +416,26 @@ public static class CommandValidation
         if (change.IsEmpty) return "setNoiseRemoval: need at least one of 'enabled', 'engine' and 'strength'";
         if (MicNoise.Check(change.ApplyTo(MicNoise.Default)) is string problem) return $"setNoiseRemoval: {problem}";
         return cmd.Enabled == true && !hostInstalled ? Mixer.NoiseNeedsHost : null;
+    }
+
+    /// <summary>
+    /// <c>setVoiceChanger</c>: a microphone channel (one that carries the EQ)
+    /// and at least one of <c>enabled</c>, <c>voice</c>, <c>pitch</c> and
+    /// <c>formant</c>, each inside its range; a value outside it is refused,
+    /// not clamped. Switching it on is refused at once when the native helper
+    /// is not installed.
+    /// </summary>
+    internal static string? CheckVoice(Command cmd, ILayoutInfo layout, bool hostInstalled)
+    {
+        if (cmd.Channel is null) return "setVoiceChanger: need 'channel'";
+        if (TooLong(cmd.Channel, 36) || !layout.IsMicrophoneChannel(cmd.Channel))
+            return $"setVoiceChanger: '{Short(cmd.Channel)}' is not a microphone input";
+        var change = new MicVoiceChange(cmd.Enabled, cmd.Voice, cmd.Pitch, cmd.Formant);
+        if (change.IsEmpty) return "setVoiceChanger: need at least one of 'enabled', 'voice', 'pitch' and 'formant'";
+        if (cmd.Voice is not null && (TooLong(cmd.Voice, 32) || MicVoice.VoiceIndex(cmd.Voice) < 0))
+            return $"setVoiceChanger: voice must be one of {string.Join(", ", MicVoice.Voices)}";
+        if (MicVoice.Check(change.ApplyTo(MicVoice.Default)) is string problem) return $"setVoiceChanger: {problem}";
+        return cmd.Enabled == true && !hostInstalled ? Mixer.VoiceNeedsHost : null;
     }
 
     /// <summary>The longest channel or mix list a <c>setDucking</c> may carry.</summary>

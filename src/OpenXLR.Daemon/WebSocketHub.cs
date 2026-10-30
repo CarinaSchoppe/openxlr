@@ -474,6 +474,7 @@ public sealed class WebSocketHub
             case "setEqBand":
             case "setEqProcessing":
             case "setNoiseRemoval":
+            case "setVoiceChanger":
             case "setDucking":
             case "setDuckingProcessing":
             case "setSoundboard":

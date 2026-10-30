@@ -685,6 +685,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             soundCheckChanged |= EnsureSoundboardLocked(rateAway);
             soundCheckChanged |= HealEqStagesLocked();
             soundCheckChanged |= TrackNoiseReportsLocked();
+            soundCheckChanged |= TrackVoiceReportsLocked();
             soundCheckChanged |= HealDuckBusesLocked();
             if (_chains.Count == 0 && _mixDelays.Count == 0 && _latencyReports.Count == 0)
                 return EnsureMixRoutesLocked() || soundCheckChanged;
@@ -1613,6 +1614,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 Eq = new Dictionary<string, MicEq>(_eq, StringComparer.Ordinal),
                 EqProcessing = new Dictionary<string, string>(_eqProcessing, StringComparer.Ordinal),
                 NoiseRemoval = new Dictionary<string, MicNoise>(_noise, StringComparer.Ordinal),
+                VoiceChanger = new Dictionary<string, MicVoice>(_voice, StringComparer.Ordinal),
                 Ducking = DuckingSetupLocked().Copy(),
                 Appearance = ExportAppearanceLocked(),
             };
@@ -1787,6 +1789,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             // runs is machine wiring, read only from this file.
             RecallEqLocked(s.Eq);
             RecallNoiseLocked(s.NoiseRemoval);
+            RecallVoiceLocked(s.VoiceChanger);
             _eqProcessing.Clear();
             foreach ((string channel, string processing) in s.EqProcessing)
                 if (processing == MicEqProcessing.Software) _eqProcessing[channel] = processing;
@@ -1821,6 +1824,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 Inserts = SceneInsertsLocked(),
                 Eq = SceneEqLocked(),
                 NoiseRemoval = SceneNoiseLocked(),
+                VoiceChanger = SceneVoiceLocked(),
                 Ducking = DuckingSetupLocked().ToScene(),
             };
         }
@@ -1927,11 +1931,13 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             // replaces the EQ of each microphone it names. Values reach a
             // running stage live; an EQ switched on is spliced in.
             if (s.Eq is not null) RecallEqLocked(s.Eq);
-            // Noise removal the same way: a profile without it leaves it alone.
+            // Noise removal and the voice changer the same way: a profile
+            // without one leaves it alone.
             if (s.NoiseRemoval is not null) RecallNoiseLocked(s.NoiseRemoval);
+            if (s.VoiceChanger is not null) RecallVoiceLocked(s.VoiceChanger);
             if (chainsChanged || s.Inserts is not null)
                 ApplyChainsLocked(s.Inserts, absentMixesEmpty: true, rebuildAll: false);
-            if (s.Eq is not null || s.NoiseRemoval is not null) SyncEqStagesLocked();
+            if (s.Eq is not null || s.NoiseRemoval is not null || s.VoiceChanger is not null) SyncEqStagesLocked();
             SyncDuckingLocked();
         }
         if (s.OutputVolume is double v) SetOutputVolume(v);
@@ -3282,6 +3288,7 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                     CaptureGain = CaptureGainLocked(c, unitInputs),
                     Eq = CarriesEq(c) ? EqStateLocked(c.Id, unitInputs) : null,
                     Noise = CarriesEq(c) ? NoiseStateLocked(c.Id) : null,
+                    Voice = CarriesEq(c) ? VoiceStateLocked(c.Id) : null,
                 })],
                 RenamedSinceStart = _renamedSinceBuild,
                 DefaultMonitorMix = PrimaryMonitorLocked()?.Id,

@@ -1246,6 +1246,9 @@ public sealed class MixerService : IHostedService, IDisposable
                 case "setNoiseRemoval":
                     _mixer.SetNoiseRemoval(cmd.Channel!, new MicNoiseChange(cmd.Enabled, cmd.Engine, cmd.Strength));
                     break;
+                case "setVoiceChanger":
+                    _mixer.SetVoiceChanger(cmd.Channel!, new MicVoiceChange(cmd.Enabled, cmd.Voice, cmd.Pitch, cmd.Formant));
+                    break;
                 case "setDucking":
                 case "setDuckingProcessing":
                     // Saved in mixer.json before it applies; a failed save

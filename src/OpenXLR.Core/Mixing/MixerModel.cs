@@ -339,6 +339,9 @@ public sealed partial record ChannelStatus(string Id, string Name,
 
     /// <summary>Noise removal, on every channel that carries the EQ; null on every other channel.</summary>
     public MicNoiseState? Noise { get; init; }
+
+    /// <summary>The voice changer, on every channel that carries the EQ; null on every other channel.</summary>
+    public MicVoiceState? Voice { get; init; }
 }
 
 

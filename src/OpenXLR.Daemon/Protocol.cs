@@ -117,12 +117,18 @@ public sealed record Command
     /// <summary>"setEqBand": which existing band, 1 to 16.</summary>
     [JsonPropertyName("band")] public int? Band { get; init; }
 
-    /// <summary>"setEqBand" and "setNoiseRemoval": the fields that change; an absent one is kept.</summary>
+    /// <summary>"setEqBand", "setNoiseRemoval" and "setVoiceChanger": the fields that change; an absent one is kept.</summary>
     [JsonPropertyName("enabled")] public bool? Enabled { get; init; }
     /// <summary>"setNoiseRemoval": <c>rnnoise</c> or <c>deepfilternet</c>.</summary>
     [JsonPropertyName("engine")] public string? Engine { get; init; }
     /// <summary>"setNoiseRemoval": the most the noise is turned down, 0 to 100 dB.</summary>
     [JsonPropertyName("strength")] public double? Strength { get; init; }
+    /// <summary>"setVoiceChanger": one of the voices, from <c>custom</c> to <c>witch</c>.</summary>
+    [JsonPropertyName("voice")] public string? Voice { get; init; }
+    /// <summary>"setVoiceChanger": the custom voice's pitch shift, -12 to 12 semitones.</summary>
+    [JsonPropertyName("pitch")] public double? Pitch { get; init; }
+    /// <summary>"setVoiceChanger": the custom voice's formant shift, -12 to 12 semitones.</summary>
+    [JsonPropertyName("formant")] public double? Formant { get; init; }
     [JsonPropertyName("type")] public string? Type { get; init; }
     [JsonPropertyName("frequency")] public double? Frequency { get; init; }
     [JsonPropertyName("gain")] public double? Gain { get; init; }

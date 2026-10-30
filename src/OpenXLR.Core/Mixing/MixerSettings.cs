@@ -144,6 +144,12 @@ public sealed record MixerSettings
     /// </summary>
     public Dictionary<string, MicNoise> NoiseRemoval { get; init; } = [];
 
+    /// <summary>
+    /// The voice changer by channel id. A microphone absent here has it off.
+    /// An entry for a channel that is not a microphone is kept as it is.
+    /// </summary>
+    public Dictionary<string, MicVoice> VoiceChanger { get; init; } = [];
+
     /// <summary>The ducking setup and processing choice. Absent takes the layout's default targets, switched off.</summary>
     public DuckingSetup? Ducking { get; init; }
 

@@ -279,6 +279,11 @@ public sealed class VoiceChangerViewModel : ViewModelBase
         bool reported = IsReported;
         if (!seen.SequenceEqual(Microphones))
         {
+            foreach (VoiceMicrophone removed in Microphones.Where(m => !_reports.ContainsKey(m.Id)))
+            {
+                SliderSync.Forget($"voicepitch:{removed.Id}");
+                SliderSync.Forget($"voiceformant:{removed.Id}");
+            }
             VoiceMicrophone? keep = _selected is { } was ? seen.FirstOrDefault(m => m.Id == was.Id) : null;
             Microphones.Clear();
             foreach (VoiceMicrophone each in seen) Microphones.Add(each);

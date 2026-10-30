@@ -3345,6 +3345,10 @@ click. Off, the microphone passes through untouched. Pitch and formant
 shifting adds a short delay, the same in every mix and call, so the voice
 stays in step with itself.
 
+If a microphone disappears or the daemon disconnects, its unsent pitch and
+formant changes are discarded. When it returns, the sliders show the
+settings the daemon reports.
+
 Interfaces with a direct monitor send your own voice to their headphone
 jacks in hardware, before any of this. On the MK.2 units, the Wave:3, the
 Wave:3 MK.2 and the Wave:1, you hear the changed voice only through a

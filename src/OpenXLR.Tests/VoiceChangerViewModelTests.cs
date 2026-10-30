@@ -141,6 +141,94 @@ public sealed class VoiceChangerViewModelTests
     });
 
     [Fact]
+    public void RemovingAMicrophoneKeepsOnlyTheOtherMicrophonesPendingShifts() => TestUi.Run(() =>
+    {
+        var sent = new Recorder();
+        var changer = new VoiceChangerViewModel(sent, new ManualTime());
+        try
+        {
+            changer.Apply(Channels(Voice(voice: "custom"), Voice(voice: "custom")));
+            changer.Pitch = 4;
+            changer.Formant = -3;
+            changer.SelectedMicrophone = changer.Microphones.Single(m => m.Id == "guest");
+            changer.Pitch = 2;
+            changer.Formant = -1;
+            Assert.Empty(sent.Sent);
+
+            JsonNode remaining = Channels(Voice());
+            remaining[1]!["present"] = false;
+            changer.Apply(remaining);
+            SliderSync.FlushPending();
+
+            Assert.Equal([("guest", (bool?)null, (string?)null, (double?)2, (double?)null),
+                          ("guest", (bool?)null, (string?)null, (double?)null, (double?)-1)],
+                sent.Sent.OrderBy(s => s.Pitch is null));
+        }
+        finally { ForgetShifts(); }
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnInputReturningBeforeTheFlushDoesNotReceiveOldShifts(bool disconnect) => TestUi.Run(() =>
+    {
+        var sent = new Recorder();
+        var changer = new VoiceChangerViewModel(sent, new ManualTime());
+        try
+        {
+            changer.Apply(Channels(Voice(voice: "custom")));
+            changer.Pitch = 4;
+            changer.Formant = -3;
+            Assert.Empty(sent.Sent);
+
+            if (disconnect) changer.Reset();
+            else
+            {
+                JsonNode remaining = Channels(Voice());
+                remaining.AsArray().RemoveAt(1);
+                changer.Apply(remaining);
+            }
+            changer.Apply(Channels(Voice(voice: "custom", pitch: 1, formant: 2)));
+            changer.SelectedMicrophone = changer.Microphones.Single(m => m.Id == "xlr1");
+            Assert.Equal(1, changer.Pitch);
+            Assert.Equal(2, changer.Formant);
+            SliderSync.FlushPending();
+
+            Assert.Empty(sent.Sent);
+        }
+        finally { ForgetShifts(); }
+    });
+
+    [Fact]
+    public void AReconnectedMicrophonesFreshEditReplacesOnlyItsOwnShift() => TestUi.Run(() =>
+    {
+        var sent = new Recorder();
+        var changer = new VoiceChangerViewModel(sent, new ManualTime());
+        try
+        {
+            changer.Apply(Channels(Voice(voice: "custom")));
+            changer.Pitch = 4;
+            changer.Formant = -3;
+            changer.Reset();
+            changer.Apply(Channels(Voice(voice: "custom")));
+            changer.Pitch = 2;
+            SliderSync.FlushPending();
+
+            Assert.Equal(("xlr1", (bool?)null, (string?)null, (double?)2, (double?)null), Assert.Single(sent.Sent));
+        }
+        finally { ForgetShifts(); }
+    });
+
+    private static void ForgetShifts()
+    {
+        foreach (string mic in new[] { "xlr1", "guest" })
+        {
+            SliderSync.Forget($"voicepitch:{mic}");
+            SliderSync.Forget($"voiceformant:{mic}");
+        }
+    }
+
+    [Fact]
     public void WithoutTheHelperOnlyOffTakesAPressAndTheReasonShows() => TestUi.Run(() =>
     {
         var sent = new Recorder();

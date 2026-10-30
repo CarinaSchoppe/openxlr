@@ -131,6 +131,7 @@ public sealed class SoundboardPlayerTests : IDisposable
         // A clip the player no longer holds has no voice left.
         player.Remove("a");
         Assert.True(player.HoldEnded("a", 3));
+        Until(() => Lines(lines).Contains("unload 0"), "the removal reached the helper");
         Assert.Equal(["play 0 hold 1", "play 1 overlap 2", "play 0 hold 3"], Lines(lines)[2..5]);
         Assert.Equal(["stop 0", "unload 0"], Lines(lines)[^2..]);
     }

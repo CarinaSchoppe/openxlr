@@ -480,8 +480,9 @@ internal static class SoundboardWindowTests
             // Pages: a tab each, the pads of the page shown, the menu for a named page.
             daemon.Clips.Single(c => c["id"]!.GetValue<string>() == "drumroll")["page"] = "Jingles with a long page name for the tab";
             await live.Push(daemon.State());
-            await Until(() => pageBar.IsEffectivelyVisible);
             Button[] Tabs() => [.. board.GetVisualDescendants().OfType<Button>().Where(b => b.Name == "SoundboardPageTab")];
+            // The bar shows before a layout pass has made its tabs.
+            await Until(() => pageBar.IsEffectivelyVisible && Tabs().Length == 2);
             Assert.Equal([Localizer.Text("SoundboardMainPage"), "Jingles with a long page name for the tab"],
                 Tabs().Select(t => ((SoundPageViewModel)t.DataContext!).Title));
             Assert.Contains("fxOn", Tabs()[0].Classes);

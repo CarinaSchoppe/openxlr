@@ -116,7 +116,7 @@
     <value>Тамно</value>
   </data>
   <data name="AppearanceDialogHint" xml:space="preserve">
-    <value>Прозор, терминалски миксер и Stream Deck тастери приказују икону и боју. Усмеравање и нивои се не мењају.</value>
+    <value>Интерфејс, терминалски миксер и Stream Deck тастери приказују икону и боју. Усмеравање и нивои се не мењају.</value>
   </data>
   <data name="AppearanceLight" xml:space="preserve">
     <value>Светло</value>
@@ -1299,7 +1299,7 @@
     <value>Отвори изворни уређивач додатка</value>
   </data>
   <data name="OpenSourceControlSuiteForElgatoXLRInterfaces" xml:space="preserve">
-    <value>Отворени софтвер за контролу Elgato XLR интерфејса на Linux-у (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2): хардверске контроле преко анализираних протокола, PipeWire подмиксер налик Wave Link-у с каналима по апликацији и виртуелним микрофонима, слушање на више излаза, наменски микс за други рачунар на USB Aux порту и OpenDeck додатак за Stream Deck контролу.</value>
+    <value>Отворени софтвер за контролу Elgato XLR интерфејса и USB микрофона на Linux-у (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2, Wave:3, Wave:3 MK.2, Wave:1): хардверске контроле преко анализираних протокола, PipeWire подмиксер налик Wave Link-у с каналима по апликацији и виртуелним микрофонима, слушање на више излаза, наменски микс за други рачунар на USB Aux порту и OpenDeck додатак за Stream Deck контролу.</value>
   </data>
   <data name="OpenTheManualSectionOnInstallingPlugins" xml:space="preserve">
     <value>Отвори одељак упутства о инсталирању додатака</value>
@@ -2254,7 +2254,7 @@
     <value>Ова тема задржава уобичајени распоред прозора.</value>
   </data>
   <data name="SkinLayoutSummary" xml:space="preserve">
-    <value>Ова тема распоређује прозор: {0}. Померања и избори банака чувају се по теми.</value>
+    <value>Ова тема распоређује интерфејс: {0}. Померања и избори банака чувају се по теми.</value>
   </data>
   <data name="LayoutPartColumn" xml:space="preserve">
     <value>одељци један испод другог</value>

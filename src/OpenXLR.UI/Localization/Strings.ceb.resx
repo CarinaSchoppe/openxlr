@@ -116,7 +116,7 @@
     <value>Ngitngit</value>
   </data>
   <data name="AppearanceDialogHint" xml:space="preserve">
-    <value>Ipakita sa window, terminal mixer ug mga Stream Deck key ang icon ug kolor. Dili mausab ang routing ug mga level.</value>
+    <value>Ipakita sa UI, terminal mixer ug mga Stream Deck key ang icon ug kolor. Dili mausab ang routing ug mga level.</value>
   </data>
   <data name="AppearanceLight" xml:space="preserve">
     <value>Hayag</value>
@@ -1299,7 +1299,7 @@
     <value>Ablihi ang kaugalingong editor sa plugin</value>
   </data>
   <data name="OpenSourceControlSuiteForElgatoXLRInterfaces" xml:space="preserve">
-    <value>Open-source nga control suite alang sa mga Elgato XLR interface sa Linux (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2): hardware control pinaagi sa gi-analisar nga mga protocol, PipeWire submixer sama sa Wave Link nga adunay mga channel matag app ug virtual nga mga mikropono, monitoring sa daghang output, gitagana nga mix alang sa ikaduhang computer sa USB Aux port, ug OpenDeck plugin alang sa Stream Deck.</value>
+    <value>Open-source nga control suite alang sa mga Elgato XLR interface ug USB microphone sa Linux (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2, Wave:3, Wave:3 MK.2, Wave:1): hardware control pinaagi sa gi-analisar nga mga protocol, PipeWire submixer sama sa Wave Link nga adunay mga channel matag app ug virtual nga mga mikropono, monitoring sa daghang output, gitagana nga mix alang sa ikaduhang computer sa USB Aux port, ug OpenDeck plugin alang sa Stream Deck.</value>
   </data>
   <data name="OpenTheManualSectionOnInstallingPlugins" xml:space="preserve">
     <value>Ablihi ang manwal sa pag-install og plugin</value>
@@ -2254,7 +2254,7 @@ Pilia ang interface nga kontrolon sa OpenXLR</value>
     <value>Tipigan niining skin ang naandang han-ay sa window.</value>
   </data>
   <data name="SkinLayoutSummary" xml:space="preserve">
-    <value>Ingon niini ihan-ay sa skin ang window: {0}. Lahi nga i-save matag skin ang paghan-ay ug pagpili sa bank.</value>
+    <value>Ingon niini ihan-ay sa skin ang UI: {0}. Lahi nga i-save matag skin ang paghan-ay ug pagpili sa bank.</value>
   </data>
   <data name="LayoutPartColumn" xml:space="preserve">
     <value>mga seksyon nga nagsapaw patindog</value>

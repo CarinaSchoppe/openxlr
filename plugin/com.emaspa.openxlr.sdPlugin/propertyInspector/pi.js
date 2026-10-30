@@ -89,16 +89,16 @@ function fillMonitors(outputs, wanted) {
     group.appendChild(opt);
   }
   sel.appendChild(group);
-  // The same outputs again as feed switches: the key flips the output
-  // between Monitor A and Monitor B (only meaningful once it is ticked
-  // as a monitor output in the window).
+  // The same outputs again as feed switches: the key steps the output's
+  // feed through Monitor A, Monitor B, Monitor A+B and then every other
+  // mix (only meaningful once it is ticked as a monitor output in the UI).
   const feeds = document.createElement("optgroup");
   feeds.id = "feed-group";
-  feeds.label = "Monitor feed (cycles A, B, A+B)";
+  feeds.label = "Monitor feed (cycles A, B, A+B, then every other mix)";
   for (const o of outputs) {
     const opt = document.createElement("option");
     opt.value = "feed:" + o.name;
-    opt.textContent = (o.description || o.name) + ": Monitor A / B";
+    opt.textContent = (o.description || o.name) + ": next feed";
     feeds.appendChild(opt);
   }
   sel.appendChild(feeds);

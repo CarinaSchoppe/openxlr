@@ -117,7 +117,7 @@
     <value>Dark</value>
   </data>
   <data name="AppearanceDialogHint" xml:space="preserve">
-    <value>The window, the terminal mixer and Stream Deck keys show the icon and colour. Routing and levels do not change.</value>
+    <value>The UI, the terminal mixer and Stream Deck keys show the icon and colour. Routing and levels do not change.</value>
   </data>
   <data name="AppearanceLight" xml:space="preserve">
     <value>Light</value>
@@ -1342,7 +1342,7 @@
     <value>Open this plugin's own editor</value>
   </data>
   <data name="OpenSourceControlSuiteForElgatoXLRInterfaces" xml:space="preserve">
-    <value>Open-source control suite for Elgato XLR interfaces on Linux (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2): hardware control over reverse-engineered protocols, a Wave Link style PipeWire submixer with per-application channels and virtual microphones, multi-output monitoring, a dedicated mix for a second computer on the USB Aux port, and an OpenDeck plugin for Stream Deck control.</value>
+    <value>Open-source control suite for Elgato XLR interfaces and USB microphones on Linux (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2, Wave:3, Wave:3 MK.2, Wave:1): hardware control over reverse-engineered protocols, a Wave Link style PipeWire submixer with per-application channels and virtual microphones, multi-output monitoring, a dedicated mix for a second computer on the USB Aux port, and an OpenDeck plugin for Stream Deck control.</value>
   </data>
   <data name="OpenTheManualSectionOnInstallingPlugins" xml:space="preserve">
     <value>Open the manual section on installing plugins</value>
@@ -2307,7 +2307,7 @@ Select the interface OpenXLR drives</value>
     <value>This skin keeps the usual arrangement of the window.</value>
   </data>
   <data name="SkinLayoutSummary" xml:space="preserve">
-    <value>This skin arranges the window: {0}. Arrange moves and bank choices are kept per skin.</value>
+    <value>This skin arranges the UI: {0}. Arrange moves and bank choices are kept per skin.</value>
   </data>
   <data name="LayoutPartColumn" xml:space="preserve">
     <value>the sections one above the other</value>

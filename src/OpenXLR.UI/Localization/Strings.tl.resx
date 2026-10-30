@@ -116,7 +116,7 @@
     <value>Madilim</value>
   </data>
   <data name="AppearanceDialogHint" xml:space="preserve">
-    <value>Ipinapakita sa window, terminal mixer at mga Stream Deck key ang icon at kulay. Hindi nagbabago ang routing at level.</value>
+    <value>Ipinapakita sa UI, terminal mixer at mga Stream Deck key ang icon at kulay. Hindi nagbabago ang routing at level.</value>
   </data>
   <data name="AppearanceLight" xml:space="preserve">
     <value>Maliwanag</value>
@@ -1299,7 +1299,7 @@
     <value>Buksan ang sariling editor ng plugin</value>
   </data>
   <data name="OpenSourceControlSuiteForElgatoXLRInterfaces" xml:space="preserve">
-    <value>Open-source na control suite para sa mga Elgato XLR interface sa Linux (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2): hardware control sa pamamagitan ng sinuring mga protocol, PipeWire submixer na gaya ng Wave Link na may channel bawat app at mga virtual microphone, monitoring sa maraming output, nakalaang mix para sa pangalawang computer sa USB Aux port, at OpenDeck plugin para sa Stream Deck.</value>
+    <value>Open-source na control suite para sa mga Elgato XLR interface at USB microphone sa Linux (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2, Wave:3, Wave:3 MK.2, Wave:1): hardware control sa pamamagitan ng sinuring mga protocol, PipeWire submixer na gaya ng Wave Link na may channel bawat app at mga virtual microphone, monitoring sa maraming output, nakalaang mix para sa pangalawang computer sa USB Aux port, at OpenDeck plugin para sa Stream Deck.</value>
   </data>
   <data name="OpenTheManualSectionOnInstallingPlugins" xml:space="preserve">
     <value>Buksan ang gabay sa pag-install ng plugin</value>
@@ -2254,7 +2254,7 @@ Piliin ang interface na kinokontrol ng OpenXLR</value>
     <value>Pinananatili ng skin na ito ang karaniwang ayos ng window.</value>
   </data>
   <data name="SkinLayoutSummary" xml:space="preserve">
-    <value>Ganito inaayos ng skin ang window: {0}. Hiwalay na sine-save bawat skin ang pag-aayos at pagpili ng bank.</value>
+    <value>Ganito inaayos ng skin ang UI: {0}. Hiwalay na sine-save bawat skin ang pag-aayos at pagpili ng bank.</value>
   </data>
   <data name="LayoutPartColumn" xml:space="preserve">
     <value>mga seksyong patayo ang ayos</value>

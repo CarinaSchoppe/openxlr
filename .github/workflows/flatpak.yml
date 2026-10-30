@@ -67,7 +67,7 @@ jobs:
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
       - name: Install the SDK and plugin extension
         run: |
-          dbus-run-session -- flatpak install --user --noninteractive -y flathub org.flatpak.Builder org.freedesktop.Sdk//25.08 org.freedesktop.Platform//25.08 org.freedesktop.Sdk.Extension.dotnet10//25.08 org.freedesktop.LinuxAudio.Plugins.LSP//25.08
+          dbus-run-session -- flatpak install --user --noninteractive -y flathub org.flatpak.Builder org.freedesktop.Sdk//25.08 org.freedesktop.Platform//25.08 org.freedesktop.Sdk.Extension.dotnet10//25.08 org.freedesktop.Sdk.Extension.rust-stable//25.08 org.freedesktop.LinuxAudio.Plugins.LSP//25.08
       - name: Validate and build offline
         run: |
           appstreamcli validate --no-net packaging/flatpak/io.github.emaspa.openxlr.metainfo.xml

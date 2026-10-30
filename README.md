@@ -251,8 +251,9 @@ real device.
 
 [GPL-3.0](LICENSE). The native plugin host carries third-party code under
 its own licences, each kept beside it: the CLAP headers in `native/clap`
-and the VST3 interface headers in `native/vst3` (MIT), RNNoise 0.2 in
-`native/rnnoise` (BSD-3-Clause), libDF from DeepFilterNet 0.5.6 in
+and the VST3 interface headers in `native/vst3` (MIT), Signalsmith Stretch
+1.4.0 and the Signalsmith Linear headers it builds on in `native/signalsmith`
+(MIT), RNNoise 0.2 in `native/rnnoise` (BSD-3-Clause), libDF from DeepFilterNet 0.5.6 in
 `native/deepfilter/libdf` with the DeepFilterNet3 model it embeds (MIT or
 Apache-2.0), and the Rust crates DeepFilterNet builds on, listed in
 `native/deepfilter/Cargo.lock`, each under its own package's licence (MIT,

@@ -31,6 +31,18 @@ License: BSD-3-clause
 Comment: RNNoise 0.2, with its trained model in src/rnnoise_data.c. Some
  files carry the two-clause form of the same licence.
 
+Files: native/signalsmith/signalsmith-stretch.h native/signalsmith/LICENSE.txt
+Copyright: 2022 Geraint Luff / Signalsmith Audio Ltd.
+License: Expat
+Comment: Signalsmith Stretch 1.4.0, the voice changer's pitch and formant
+ shifter.
+
+Files: native/signalsmith/signalsmith-linear/*
+Copyright: 2025 Signalsmith Audio
+License: Expat
+Comment: The FFT and STFT headers of Signalsmith Linear 0.6.4, which
+ Signalsmith Stretch builds on.
+
 Files: native/deepfilter/libdf/*
 Copyright: 2021 Hendrik Schröter
 License: Expat or Apache-2.0

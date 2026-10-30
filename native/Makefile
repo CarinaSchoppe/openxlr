@@ -1,13 +1,14 @@
 # The optional plugin host: one process per insert, LV2, CLAP and VST3, with
 # the plugin's own editor. The CLAP and VST3 interface headers are vendored
-# under clap/ and vst3/ (both MIT), so building needs nothing beyond the
-# PipeWire, lilv, LV2, X11 and libsndfile development files and a C and C++
-# compiler.
+# under clap/ and vst3/ (both MIT), and the voice changer's pitch shifter,
+# Signalsmith Stretch, under signalsmith/ (MIT, header-only), so building
+# needs nothing beyond the PipeWire, lilv, LV2, X11 and libsndfile
+# development files and a C and C++ compiler.
 PKGS = libpipewire-0.3 lilv-0 lv2 x11 sndfile
 # Taken before the flags below are added: vendored code is built with the
 # caller's flags but not with this project's warnings.
 RNN_CFLAGS := -O2 -g $(CFLAGS) -w
-CPPFLAGS += $(shell pkg-config --cflags $(PKGS)) -isystem clap/include -isystem vst3
+CPPFLAGS += $(shell pkg-config --cflags $(PKGS)) -isystem clap/include -isystem vst3 -isystem signalsmith
 WARN = -O2 -g -Wall -Wextra -Werror -Wno-unused-parameter
 CFLAGS += -std=c11 $(WARN)
 CXXFLAGS += -std=c++17 $(WARN) -fno-exceptions -fno-rtti
@@ -54,11 +55,16 @@ DF_DEPS = $(DEEPFILTER_LIB)
 DF_LINK = -Wl,--gc-sections $(DEEPFILTER_LIB) -lgcc_s -lutil -lrt
 endif
 
-OBJECTS = host.o lv2.o clap.o vst3.o sound-check.o eq.o duck.o level.o player.o denoise.o $(RNN_OBJECTS)
-HEADERS = host.h icon.h denoise.h $(wildcard clap/include/clap/*.h clap/include/clap/*/*.h) \
+OBJECTS = host.o lv2.o clap.o vst3.o sound-check.o eq.o duck.o level.o player.o denoise.o \
+          voice.o voice-stretch.o $(RNN_OBJECTS)
+HEADERS = host.h icon.h denoise.h eq.h voice.h $(wildcard clap/include/clap/*.h clap/include/clap/*/*.h) \
           $(wildcard vst3/pluginterfaces/*/*.h)
 # The stages and their tests link these beside the noise removal objects.
 DENOISE_OBJECTS = denoise.o $(RNN_OBJECTS)
+# The microphone stage (eq.c) runs noise removal first and the voice changer
+# last; its tests link both.
+STAGE_OBJECTS = $(DENOISE_OBJECTS) voice.o voice-stretch.o
+SIGNALSMITH_HEADERS = signalsmith/signalsmith-stretch.h $(wildcard signalsmith/signalsmith-linear/*.h)
 
 openxlr-lv2-host: $(OBJECTS) $(DF_DEPS)
 	$(CXX) $(OBJECTS) -o $@ $(LDFLAGS) $(DF_LINK) $(LDLIBS)
@@ -83,6 +89,9 @@ build-config.h: FORCE
 
 denoise.o: denoise.c build-config.h rnnoise/include/rnnoise.h $(HEADERS)
 	$(CC) $(CPPFLAGS) -Irnnoise/include $(CFLAGS) -c $< -o $@
+
+voice-stretch.o: voice-stretch.cpp $(SIGNALSMITH_HEADERS) $(HEADERS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
 $(DF_MODEL):
 	mkdir -p $(@D)
@@ -207,7 +216,7 @@ clean-sound-check:
 tests/eq.o: tests/eq.c eq.c host.c $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-tests/eq: tests/eq.o $(DENOISE_OBJECTS) lv2.o clap.o vst3.o $(DF_DEPS)
+tests/eq: tests/eq.o $(STAGE_OBJECTS) lv2.o clap.o vst3.o $(DF_DEPS)
 	$(CXX) $(filter %.o,$^) -o $@ $(LDFLAGS) $(DF_LINK) $(LDLIBS)
 
 .PHONY: test-eq clean-eq
@@ -241,7 +250,7 @@ clean-duck:
 tests/denoise.o: tests/denoise.c eq.c host.c build-config.h $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-tests/denoise: tests/denoise.o $(DENOISE_OBJECTS) lv2.o clap.o vst3.o $(DF_DEPS)
+tests/denoise: tests/denoise.o $(STAGE_OBJECTS) lv2.o clap.o vst3.o $(DF_DEPS)
 	$(CXX) $(filter %.o,$^) -o $@ $(LDFLAGS) $(DF_LINK) $(LDLIBS)
 
 # The handoff test compiles denoise.c with a fake DeepFilterNet model.
@@ -261,6 +270,24 @@ clean: clean-denoise
 clean-denoise:
 	rm -f tests/denoise tests/denoise.o tests/denoise-handoff tests/denoise-handoff.o build-config.h $(RNN_OBJECTS) rnnoise/src/x86/*.o
 	rm -rf deepfilter/target deepfilter/model/verified
+
+# The voice changer: every voice driven through the microphone stage over a
+# synthetic voice, with no audio server. `tests/voice --render IN.wav DIR`
+# writes every voice over a recording for listening.
+tests/voice.o: tests/voice.c eq.c host.c $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+tests/voice: tests/voice.o $(STAGE_OBJECTS) lv2.o clap.o vst3.o $(DF_DEPS)
+	$(CXX) $(filter %.o,$^) -o $@ $(LDFLAGS) $(DF_LINK) $(LDLIBS)
+
+.PHONY: test-voice clean-voice
+test: test-voice
+test-voice: tests/voice
+	./tests/voice
+
+clean: clean-voice
+clean-voice:
+	rm -f tests/voice tests/voice.o
 
 # The soundboard player: decoding, resampling, press modes and ramps, driven
 # directly with no audio server. It asks the helper for its `formats` and

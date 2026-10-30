@@ -135,7 +135,8 @@ class PackageTests(unittest.TestCase):
         self.assertIn('export DEEPFILTER=1\n', build)
         # Packaged notices of the code the native helper links.
         for notice in ('native/rnnoise/COPYING', 'native/deepfilter/libdf/LICENSE-MIT',
-                       'native/deepfilter/libdf/LICENSE-APACHE'):
+                       'native/deepfilter/libdf/LICENSE-APACHE', 'native/signalsmith/LICENSE.txt',
+                       'native/signalsmith/signalsmith-linear/LICENSE.txt'):
             self.assertIn(f'install -Dm644 {notice} ', build)
             self.assertTrue((ROOT / notice).is_file(), notice)
 

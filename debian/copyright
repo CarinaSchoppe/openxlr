@@ -57,6 +57,16 @@ Comment: Rust crates that DeepFilterNet's library is built from, vendored
  native/deepfilter:
  cargo metadata --format-version 1 --filter-platform x86_64-unknown-linux-gnu
 
+Files: packaging/starter-sounds/*
+Copyright: freesound, FoolBoyMedia, HowardV, tlwmdbt, Scheffler, plasterbrain,
+ kirbydx, JohnsonBrandEditing, guitarguy1985, gurie, FreethinkerAnon, qubodup,
+ ludvique, CapsLok (Freesound users); Kenney Vleugels and Jeffrey M. Smith
+ (Kenney's Voiceover Pack); 2026 Emanuele Sparvoli (the air horn and the edits)
+License: CC0-1.0
+Comment: The soundboard's starter sounds, installed in
+ /usr/lib/openxlr/daemon/starter-sounds. Their CREDITS names each clip's
+ source address, author and the edits made by tools/starter-sounds.py.
+
 License: GPL-3
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -69,6 +79,14 @@ License: GPL-3
  .
  On Debian systems, the complete text of the GNU General Public
  License version 3 can be found in "/usr/share/common-licenses/GPL-3".
+
+License: CC0-1.0
+ To the extent possible under law, the authors have dedicated all copyright
+ and related and neighboring rights to these works to the public domain
+ worldwide. They are distributed without any warranty.
+ .
+ The CC0 1.0 Universal Public Domain Dedication is at
+ https://creativecommons.org/publicdomain/zero/1.0/legalcode.
 
 License: Expat
  Permission is hereby granted, free of charge, to any person obtaining a copy

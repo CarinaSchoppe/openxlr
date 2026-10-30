@@ -168,7 +168,17 @@ public sealed class MixerService : IHostedService, IDisposable
     /// </summary>
     private bool _prevAuxDesired;
 
+    // Commands and the one-second sweep both sync the selectors. Without one
+    // gate a sweep that read the mixer before a command could write its stale
+    // jack choice after the command's own write.
+    private readonly Lock _selectorGate = new();
+
     private void SyncOutputSelectors()
+    {
+        lock (_selectorGate) SyncOutputSelectorsLocked();
+    }
+
+    private void SyncOutputSelectorsLocked()
     {
         if (_devices.ActiveCapabilities?.OutputRouting is not true)
         {

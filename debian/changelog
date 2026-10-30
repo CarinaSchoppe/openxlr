@@ -1,3 +1,12 @@
+openxlr (0.3.5) resolute; urgency=medium
+
+  * Voice changer on every microphone with eleven voices, in its own window, the terminal mixer, Deck keys and the API
+  * Wave XLR Pro: the microphone reaches the headphone jacks again through the real zero-latency path, at the Monitor send's level
+  * Wave XLR Pro: the Mic/PC crossfade is removed, its byte is the microphone's level in the jacks' mix
+  * Daemon: the Pro's output selector sync is serialised, so a sweep cannot undo a command
+
+ -- Emanuele Sparvoli <sparvoli@gmail.com>  Fri, 30 Oct 2026 20:46:52 +0000
+
 openxlr (0.3.4) resolute; urgency=medium
 
   * Soundboard window opens on its own: it stays open when the UI is minimized and pressing a pad no longer brings the UI forward

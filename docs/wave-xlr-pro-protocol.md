@@ -168,7 +168,7 @@ phantom, low-cut, ClipGuard, headphone, monitor, mic-output) are covered above.
 - **HIGH (via MK.2 field identity)**: low-cut = off1 **bit4** (also corroborated, device reads
   bit4=1 and the Windows config has LowCut ON); expander = bit5; voice-tune = bit6; voice-tune
   strength = off10; HP volume = 0x0005 off0 (dB = −byte0/4); low-impedance = 0x0005 off1 bit1;
-  crossfade = 0x0001 off0. (Note: the MK.2 map reassigns what §3 tentatively called "monitor
+  crossfade = 0x0001 off0 (on the Pro, XLR 1's level in the jacks' mix; see section 12). (Note: the MK.2 map reassigns what §3 tentatively called "monitor
   blend"/"mic-output", 0x0005 off2 and 0x0004 off10, so treat those two as MK.2 says: HP is
   0x0005 off0, and off10 is voice-tune strength. The 0x0005 off2 second level is Pro-specific,
   still unlabeled.)
@@ -295,7 +295,9 @@ second computer on the aux port. Everything below is verified live on Linux by e
     (2026-09-04, issue #8, by ear on hardware): none of off16..33 nor the head cells off3..10
     change what the headphone jacks hear. The jacks' mix membership is in the HEAD: off12
     bit5 (0x20) = USB return pair 2/3 (the Monitor stream) summed into the jacks, off13 bit1
-    (0x02) = the mic's direct zero-latency path. A unit Wave Link left with off12 bit5 clear
+    (0x02) = the mic's direct zero-latency path (CORRECTED 2026-10-30, see "Section 0's input
+    side" in section 12: off13 bit1 is the Aux mix's USB pair 5; the mic's path is off12 bit0 at
+    the level in off0). A unit Wave Link left with off12 bit5 clear
     (reporter's: off12 = 0x90 vs 0x24 here) hears no Monitor mix on Headphones 1 at all; the
     daemon now asserts bit5 whenever a jack is the monitor output and drives bit1 from the
     XLR 1 -> Monitor send's mute. Both need the commit and a playback-stream restart to latch.
@@ -575,13 +577,44 @@ reduce and the headphones stay level.
 
 - What the low bit means alone, and whether setting it on every pair, as
   Wave Link does, changes anything else.
-- Section 0 read through this layout puts XLR 1's level at byte 0 (the
-  crossfade, `c8` would be -28 dB) and pair 5's membership at byte 13 bit 1
-  (which the daemon drives as the microphone's direct path). Both were
-  verified by ear under their present names, so section 0's input side is
-  not settled.
 - Byte 14 of each section, and what section 0's 21 dB lower level comes
   from.
+
+### Section 0's input side (desk measurement of 2026-10-30)
+
+Firmware 1.0.14, the desk unit, daemon stopped. A probe played tones on
+pair 1 (AUX2/AUX3, 440 Hz) and pair 5 (AUX10/AUX11, 1 kHz) and recorded
+section 0's capture (AUX8/AUX9) beside XLR 1's (AUX0). It made one change
+at a time and restarted the sink after each. The layout above holds for
+the input side too:
+
+| Change | 1 kHz from pair 5 in section 0 | XLR 1 into section 0 |
+|---|---|---|
+| byte 13 bit 1 clear | -112 dBFS, absent | |
+| bit 1 set, byte 9 `00` | -72.5 dBFS | |
+| bit 1 set, byte 9 `f4` | -75.3 dBFS | |
+| bit 1 set, byte 9 `88` | -123 dBFS, absent | |
+| byte 12 bit 0 clear | | silent |
+| bit 0 set, byte 0 `00` | | -21.0 dB |
+| bit 0 set, byte 0 `f4` | | -27.0 dB |
+| bit 0 set, byte 0 `64` | | -9.0 dB (held at +12) |
+| bit 0 set, byte 0 `c8` | | -49.6 dB |
+
+The -21 dB at unity is section 0's own offset (see above), the same for
+pair 1. Byte 13 bit 1 with XLR 1 out of the mix carried no microphone.
+So byte 13 bit 1 is pair 5's membership with its level at byte 9, and
+the microphone's direct path is byte 12 bit 0 with its level at byte 0,
+the byte OpenXLR drove as a Mic/PC crossfade from 0 to 200. A second run
+with the daemon running wrote byte 0 alone, without a commit or a stream
+restart: the level moved at once (`00` -21.0 dB, `f4` -27.0 dB).
+
+The daemon drove byte 13 bit 1 as the microphone's path until then: on a
+unit whose Aux port was in use that played the whole Aux mix on the jacks,
+and on an owner's unit (byte 9 `88`, left by Wave Link; byte 12 `30`, so
+XLR 1 out of the mix) it played nothing while the software send was held
+back, and the microphone was missing from the jacks. It now drives byte
+12 bit 0 at the level the Monitor send would play, and clears byte 13
+bit 1 with the Monitor return.
 
 ## 13. Line In and the capture layout (desk measurement of 2026-10-25)
 

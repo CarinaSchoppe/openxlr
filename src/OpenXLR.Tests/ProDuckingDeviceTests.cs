@@ -86,11 +86,12 @@ public sealed class ProDuckingDeviceTests
         byte[] ducked = Fields(unit.Blocks[0x0001]);
         Assert.Equal(new byte[] { 0x5d, 0x5d, 0x5d, 0x5d, 0x5d, 0x5d }, ducked);
 
-        // Every writer of block 0x0001 the Pro has: crossfade, the four
-        // selectors with the aux cell, and the headphone mix membership.
+        // Every writer of block 0x0001 the Pro has: the microphone's level in
+        // the jacks' mix, the four selectors with the aux cell, and the
+        // headphone mix membership.
         Action[] writers =
         [
-            () => pro.SetCrossfade(150), () => pro.SetOutHp1(true), () => pro.SetOutHp2(true),
+            () => pro.SetHpMixMicLevelDb(-6), () => pro.SetOutHp1(true), () => pro.SetOutHp2(true),
             () => pro.SetOutLineOut(true), () => pro.SetOutUsbAux(true), () => pro.SetOutUsbAux(false),
             () => pro.SetHpMixMonitorReturn(false), () => pro.SetHpMixMicDirect(false),
         ];
@@ -100,7 +101,7 @@ public sealed class ProDuckingDeviceTests
             Assert.Equal(ducked, Fields(unit.Blocks[0x0001]));
         }
         byte[] routed = unit.Blocks[0x0001];
-        Assert.Equal((150, 0x1e, 0x1e, 0x1e), (routed[0], routed[90], routed[91], routed[93]));
+        Assert.Equal((0xf4, 0x1e, 0x1e, 0x1e), (routed[0], routed[90], routed[91], routed[93]));
 
         // And ducking off keeps what those writers set.
         pro.SetDucking(ProDuckingTarget.Off);

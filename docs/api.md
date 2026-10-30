@@ -170,7 +170,7 @@ firmware keeps and asserts at the headphone floor, released by a level
 written above it; false on every other model), `lowImpedance`,
 `crossfade`, `phantom`, `clipGuard`,
 `compressor`, their `2` variants for XLR 2, `outHp1`, `outHp2`, `outUsbAux`,
-`outLineOut`, `hpMixMonitorReturn` (the Wave XLR Pro's Monitor return in the mix its headphone jacks and Line Out play, true only at 0 dB with the Line In jack's own path out of that mix, which is how the daemon sets it while a jack is a monitor output), `hpMixMicDirect`, `auxReturnEnabled`,
+`outLineOut`, `hpMixMonitorReturn` (the Wave XLR Pro's Monitor return in the mix its headphone jacks and Line Out play, true only at 0 dB with the Line In jack's own path and the Aux mix's stream out of that mix, which is how the daemon sets it while a jack is a monitor output), `hpMixMicDirect` (XLR 1 in that mix: the Pro's zero-latency microphone path), `hpMixMicLevelDb` (that path's level in dB, -60 to +12 in half-dB steps; 0 on every other model), `auxReturnEnabled`,
 `auxLevelDb`, `auxLevelLock`, `lineInGainDb` (the Line In's gain in dB as the unit reads it back, 0 to `lineInGainMaxDb` once OpenXLR has written it and up to 80 on a unit set higher elsewhere, on a model with `lineInput`; absent on every other model), `lineInLevelLock` (the Line In's level lock, on a model with `lineInput`: while true the unit ignores Line In gain writes through its ALSA control, so the desktop mixer and other applications cannot move the gain, while `lineInGain` still applies; absent on every other model), plus the daemon-stamped `gainLocked`,
 `phantomSettling`, `phantomSettling2`, `phantomSettleSeconds` and
 `phantomSettleSeconds2`), `ducking` (present whenever the daemon runs, see [ducking](#ducking)),
@@ -350,7 +350,7 @@ that final acknowledgement (or an `error` without a request id):
 | `setRecallOnConnect` | `name` | the profile recalled whenever the active device connects fresh (daemon start, replug, switch to it); empty clears it. With none chosen, a device whose capabilities say `retainsSettings: false` gets the last settings the daemon saw on it instead. Refused while no interface is connected |
 | `setDucking` | `value` | change the [ducking](#ducking) setup: an object with any of `enabled`, `key`, `channels`, `mixes`, `sensitivity`, `amount`, `speed`; the fields it leaves out keep their values and an unknown one is refused. Saved in `mixer.json` before it applies. Needs the software mixer, on any device or none |
 | `setDuckingProcessing` | `value` | where [ducking](#ducking) should run: `device` (the default) on the unit when the setup fits it, or `software` on this computer. On the Wave XLR Pro `device` runs ducking on the unit when the setup fits it, and in software otherwise, with the reason in `ducking.device.reason` (see [where ducking runs](#ducking)). Saved in `mixer.json`, never in a profile |
-| `resetDevice` | none | write the recorded defaults back to a device using connect-time restoration and forget its last settings (an error until the daemon has seen the device connect after a power cycle once); on the Wave XLR Pro, which keeps its own settings, write OpenXLR's baseline instead: gain 30 dB on both inputs, every processing stage and phantom off, headphones and aux level at half, the crossfade fully on PC, routing and the Line In gain and level lock untouched, refused while the gain lock is on. The capabilities say `builtInDefaults` when a model has a baseline |
+| `resetDevice` | none | write the recorded defaults back to a device using connect-time restoration and forget its last settings (an error until the daemon has seen the device connect after a power cycle once); on the Wave XLR Pro, which keeps its own settings, write OpenXLR's baseline instead: gain 30 dB on both inputs, every processing stage and phantom off, headphones and aux level at half, routing, the microphone's level in the jacks' mix and the Line In gain and level lock untouched, refused while the gain lock is on. The capabilities say `builtInDefaults` when a model has a baseline |
 | `recoverCapture` | none | bring back the driven unit's microphone. First every link OpenXLR made out of the unit's capture is removed and made again, which leaves the mixes on the unit's own output playing; after 2 seconds the daemon asks the kernel whether the capture runs, and stops there when it does. Only a capture still stopped or missing goes on to the reset: every mix comes off the unit's own output, the unit is reset on USB, and the mixes go back once the reconnected unit's capture runs, or after 30 seconds without it. Only on a unit whose capabilities say `captureRecovery`; an error otherwise, while a recovery is under way, or when the reset fails, in which case the mixes go straight back. The daemon resets the unit by itself, without the relink, when the kernel keeps the capture stopped for 3 seconds while PipeWire runs it and a mix plays into the unit, at most once every 2 minutes and 3 times in 30 minutes |
 | `restartDaemon` | none | stop cleanly with exit code 75, so a service manager with `Restart=on-failure` or `Restart=always` starts the daemon again; a daemon run by hand just stops. The Flatpak UI sends it to a daemon running as a user service ([Flatpak](flatpak.md)) |
 | `getDiagnostics` | none | vendor block dump for bug reports |
@@ -577,11 +577,12 @@ binding change keeps it, and a strip bound to another source, which has no
 gain of its own, keeps its volume as its level control. The Wave XLR Pro's
 direct microphone path (`hpMixMicDirect`, see
 [the interface while a strip is bound](#the-interface-while-a-strip-is-bound))
-carries the microphone to the jacks inside the interface, so the volume of
-the channel that carries the Pro's first input does not reach it. While the
-device reports `hpMixMicDirect` true, that channel's volume changes every
-mix except what the jacks hear of the microphone directly; the daemon does
-not try to follow it there.
+carries the microphone to the jacks inside the interface. The daemon sets
+the path's level (`hpMixMicLevelDb`) to what the jacks' feed would play the
+microphone at through the software send: the send level, the channel volume
+and the feeding mix's volume, on the same cubic scale. The channel volume
+reaches the jacks as it reaches every other mix. The channel's software
+effects do not, because the path carries the raw microphone.
 
 
 Application identities use playback-node metadata, falling back to the
@@ -1028,7 +1029,10 @@ elsewhere. The daemon turns the path on while every monitor output is a Pro
 jack and at least one mix feeding them is unmuted and carries that channel
 unmuted. Muting the feeding mix turns the direct path off. For a summed feed,
 it stays on while any feeding mix and that channel's send to it are both
-unmuted. The daemon mutes that
+unmuted. The path plays at the level that send would have (see
+[channel volume](#channel-volume)). The daemon writes that level before it
+opens the path and again whenever the send, the channel volume or the mix
+volume moves. A level change needs no restart of the playback stream. The daemon mutes that
 channel's monitor send in the graph meanwhile so the microphone is not
 heard twice; it never uses the path while monitoring is paused or that channel
 is in an exclusive group or under Sound Check. With no channel carrying the Pro's first input

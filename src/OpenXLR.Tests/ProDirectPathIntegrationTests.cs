@@ -228,6 +228,26 @@ public sealed partial class MonitorVolumeIntegrationTests
             Assert.True(pro.MicDirect);
             Assert.True(pro.MonitorReturn);
 
+            // The path plays the microphone at the send's level: the send,
+            // the channel volume and the mix volume reach it on the cubic
+            // scale, and none of them writes the membership again.
+            int opened = pro.MicDirectWrites;
+            Run(new() { Cmd = "setLevel", Channel = "xlr1", Mix = "monitor", Value = JsonSerializer.SerializeToElement(1.0) });
+            Run(new() { Cmd = "setMixVolume", Mix = "monitor", Value = JsonSerializer.SerializeToElement(1.0) });
+            Assert.Equal(0, pro.MicLevel);
+            Run(new() { Cmd = "setLevel", Channel = "xlr1", Mix = "monitor", Value = JsonSerializer.SerializeToElement(0.5) });
+            Assert.Equal(-18, pro.MicLevel);
+            Run(new() { Cmd = "setChannelVolume", Channel = "xlr1", Value = JsonSerializer.SerializeToElement(0.5) });
+            Assert.Equal(-36, pro.MicLevel);
+            Run(new() { Cmd = "setMixVolume", Mix = "monitor", Value = JsonSerializer.SerializeToElement(0.0) });
+            Assert.Equal(-60, pro.MicLevel);
+            Run(new() { Cmd = "setMixVolume", Mix = "monitor", Value = JsonSerializer.SerializeToElement(1.0) });
+            Run(new() { Cmd = "setChannelVolume", Channel = "xlr1", Value = JsonSerializer.SerializeToElement(1.0) });
+            Run(new() { Cmd = "setLevel", Channel = "xlr1", Mix = "monitor", Value = JsonSerializer.SerializeToElement(1.0) });
+            Assert.Equal(0, pro.MicLevel);
+            Assert.Equal(opened, pro.MicDirectWrites);
+            Assert.True(pro.MicDirect);
+
             // The monitor moves to the other device: the path goes off, the
             // return pair stays asserted.
             Run(new() { Cmd = "setMonitorOutputs", Devices = [katana] });
@@ -281,6 +301,7 @@ public sealed partial class MonitorVolumeIntegrationTests
         public bool Connected { get; private set; }
         public bool MicDirect { get { lock (this) return _state.HpMixMicDirect; } }
         public bool MonitorReturn { get { lock (this) return _state.HpMixMonitorReturn; } }
+        public double MicLevel { get { lock (this) return _state.HpMixMicLevelDb; } }
         /// <summary>What Wave Link does to the unit from elsewhere: the daemon only reads it.</summary>
         public void LeaveMicDirectOn() => Write(s => s with { HpMixMicDirect = true });
         public DeviceState ReadState() { lock (this) return _state; }
@@ -294,6 +315,8 @@ public sealed partial class MonitorVolumeIntegrationTests
         public void SetOutLineOut(bool on) => Write(s => s with { OutLineOut = on });
         public void SetHpMixMonitorReturn(bool on) => Write(s => s with { HpMixMonitorReturn = on });
         public void SetHpMixMicDirect(bool on) { Interlocked.Increment(ref MicDirectWrites); Write(s => s with { HpMixMicDirect = on }); }
+        public void SetHpMixMicLevelDb(double db)
+            => Write(s => s with { HpMixMicLevelDb = double.IsFinite(db) ? Math.Round(Math.Clamp(db, -60, 12) * 2, MidpointRounding.AwayFromZero) / 2 : -60 });
         public void SetGainDb(int db) => Write(s => s with { GainDb = db });
         public void SetMute(bool on) { } public void SetLowCut(bool on) { } public void SetExpander(bool on) { }
         public void SetVoiceTune(bool on) { } public void SetVoiceTuneStrength(int value) { } public void SetHpVolumeDb(double db) { }

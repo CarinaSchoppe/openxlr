@@ -2063,9 +2063,9 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
     /// The Wave XLR Pro's direct microphone path carries this channel's input
     /// to the headphone jacks: the device reports the path on and this channel
     /// carries the unit's first input. The headphones then hear the
-    /// microphone through the hardware, which the channel volume does not
-    /// reach; the volume still changes every mix. Set by
-    /// <see cref="MainViewModel"/>.
+    /// microphone through the hardware, at the level the daemon gives it from
+    /// the send and the volume, but without the channel's software effects.
+    /// Set by <see cref="MainViewModel"/>.
     /// </summary>
     public bool DirectMonitored
     {
@@ -2073,7 +2073,7 @@ public sealed class ChannelViewModel : ViewModelBase, IHasId
         internal set { if (Set(ref _directMonitored, value)) Raise(nameof(VolumeTip)); }
     }
 
-    /// <summary>The volume fader's tooltip, which says what the volume does not reach while the direct path is on.</summary>
+    /// <summary>The volume fader's tooltip, which says how the headphones hear the microphone while the direct path is on.</summary>
     public string VolumeTip => _directMonitored ? Localizer.Text("ChannelVolumeDirectTip") : Localizer.Text("ChannelVolumeTip");
 
     private double _volume = 1.0;

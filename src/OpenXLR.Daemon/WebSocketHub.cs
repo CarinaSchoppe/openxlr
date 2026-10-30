@@ -530,6 +530,10 @@ public sealed class WebSocketHub
                 error = _devices.ResetToDefaults();   // the state change broadcasts itself
                 if (error is null) _log.LogInformation("reset {dev} to its firmware defaults", ActiveDeviceId());
                 break;
+            case "recoverCapture":
+                // A USB reset can take a few seconds; not on the socket's thread.
+                error = await Task.Run(_mixer.RecoverCapture);
+                break;
             case "restartDaemon":
                 // A daemon the UI did not start (the Flatpak's user service)
                 // is restarted by its service manager after this clean exit.

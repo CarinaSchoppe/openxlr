@@ -27,6 +27,16 @@ public interface IUsbTransport : IDisposable
     /// </summary>
     int ControlTransfer(byte bmRequestType, byte bRequest, ushort wValue, ushort wIndex,
         byte[] data, ushort wLength, uint timeoutMs);
+
+    /// <summary>
+    /// libusb_reset_device on the open device: 0, or a negative libusb
+    /// error. LIBUSB_ERROR_NOT_FOUND (-5) means the device re-enumerated and
+    /// this handle no longer reaches it, which is what a reset of a unit
+    /// whose audio interfaces the kernel drives does. Throws
+    /// <see cref="UsbHungException"/> when the reset never returns. A
+    /// transport that cannot reset answers LIBUSB_ERROR_NOT_SUPPORTED (-12).
+    /// </summary>
+    int Reset() => -12;
 }
 
 /// <summary>Picks the transport every device class uses.</summary>

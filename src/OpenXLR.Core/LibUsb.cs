@@ -75,6 +75,14 @@ internal static class LibUsb
         ushort wValue, ushort wIndex,
         byte[] data, ushort wLength, uint timeout);
 
+    [DllImport(Lib)] internal static extern int libusb_reset_device(IntPtr devHandle);
+
+    /// <summary>libusb's LIBUSB_ERROR_NOT_FOUND: after a reset, the device re-enumerated and this handle is gone.</summary>
+    internal const int ErrorNotFound = -5;
+
+    /// <summary>libusb's LIBUSB_ERROR_NOT_SUPPORTED.</summary>
+    internal const int ErrorNotSupported = -12;
+
     [DllImport(Lib)] internal static extern IntPtr libusb_strerror(int errcode);
     [DllImport(Lib)] private static extern IntPtr libusb_get_version();
 

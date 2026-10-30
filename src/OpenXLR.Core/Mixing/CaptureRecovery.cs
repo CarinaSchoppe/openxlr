@@ -6,13 +6,28 @@ namespace OpenXLR.Core.Mixing;
 /// </summary>
 public readonly record struct UnitPlayback(string Source, string Sink);
 
+/// <summary>What a capture recovery needs from the mixer; the <see cref="Mixer"/> is one, tests fake it.</summary>
+public interface ICaptureRecoveryMixer
+{
+    /// <inheritdoc cref="Mixer.DrivenUnitPlayback"/>
+    UnitPlayback? DrivenUnitPlayback();
+    /// <inheritdoc cref="Mixer.ProbeCapture"/>
+    CaptureRun ProbeCapture(string source);
+    /// <inheritdoc cref="Mixer.BeginCaptureRecovery"/>
+    int? BeginCaptureRecovery();
+    /// <inheritdoc cref="Mixer.EndCaptureRecovery"/>
+    void EndCaptureRecovery();
+    /// <inheritdoc cref="Mixer.CaptureRecoveryActive"/>
+    bool CaptureRecoveryActive { get; }
+}
+
 /// <summary>
 /// Capture first, and the way back when a unit's capture stalls under its
 /// own playback. The hold that keeps a route out of a unit's sink until its
 /// capture runs lives in <c>HoldPlaybackLocked</c>; this part probes the
 /// capture and takes a unit's playback off while the daemon resets it.
 /// </summary>
-public sealed partial class Mixer
+public sealed partial class Mixer : ICaptureRecoveryMixer
 {
     /// <summary>
     /// How long the routes into a unit's sink wait for its capture after a
@@ -25,6 +40,12 @@ public sealed partial class Mixer
     internal Func<string, CaptureRun>? CaptureProbe { get; init; }
 
     private CaptureRun ProbeCaptureLocked(string source) => CaptureProbe is { } probe ? probe(source) : _pw.CaptureRunOf(source);
+
+    /// <summary>A capture source as the graph and the kernel show it now (see <see cref="CaptureRun"/>).</summary>
+    public CaptureRun ProbeCapture(string source)
+    {
+        lock (_gate) return ProbeCaptureLocked(source);
+    }
 
     /// <summary>The source node a strip is fed from now, or before it is wired the driven unit's.</summary>
     private string? CaptureSourceLocked(string strip)

@@ -274,6 +274,21 @@ public class WaveXlrMk2Device : IAudioDevice
     }
 
     /// <summary>
+    /// The USB reset, for a model that recovers its capture this way
+    /// (<see cref="DeviceCapabilities.CaptureRecovery"/>). What the unit
+    /// held is forgotten: it reconnects as after a replug.
+    /// </summary>
+    public int ResetUsb()
+    {
+        if (!Capabilities.CaptureRecovery) throw new InvalidOperationException($"{Info.Model} is not reset on USB");
+        lock (_lock)
+        {
+            ForgetUnitLocked();
+            return _usb.Reset();
+        }
+    }
+
+    /// <summary>
     /// All control transfers go through here. A transfer that never returns
     /// (issue #6) throws UsbHungException; the transport has dropped the
     /// device by then (the helper process is killed), Connected turns false

@@ -674,6 +674,17 @@ not been tried yet; with the rule in place,
 `/proc/asound/MK2/pcm0p/sub0/hw_params` reads `FLOAT_LE` and `channels: 3`
 while the headphones play.
 
+The daemon routes a mix into the headphones only once the kernel reports
+the capture running, and recovers the microphone the way that worked by
+hand: mixes off the headphones, a USB reset, the mixes back once the
+capture runs again. It does this when the kernel keeps the capture
+stopped for 3 seconds, or when three samples taken 10 seconds apart each
+repeat one block exactly (the buzz above looked like a replayed
+buffer), and on **Recover microphone** in Options. The buzz has not
+been recorded raw yet, so whether it repeats bit for bit, which the
+automatic check needs, is still to be confirmed. The capability is
+`captureRecovery`, set for this model only.
+
 The daemon prefers the Wave:3 MK.2 after every XLR interface, next to the
 Wave:3: it is driven when no interface is on the bus, picked from the
 header, or through `OPENXLR_DEVICE=00ca`. The node-name fragment is

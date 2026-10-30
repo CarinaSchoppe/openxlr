@@ -68,6 +68,24 @@ public sealed class InProcessUsbTransport : IUsbTransport
         }
     }
 
+    /// <summary>How long a reset may take before it counts as stuck; libusb has no timeout of its own for it.</summary>
+    private const uint ResetTimeoutMs = 5000;
+
+    public int Reset()
+    {
+        if (_handle == IntPtr.Zero) throw new InvalidOperationException("USB device not open");
+        IntPtr handle = _handle;
+        try
+        {
+            return LibUsb.Guarded(() => LibUsb.libusb_reset_device(handle), ResetTimeoutMs, "libusb_reset_device");
+        }
+        catch (UsbHungException)
+        {
+            _handle = IntPtr.Zero;   // never closed: the stuck native call may still touch it
+            throw;
+        }
+    }
+
     public void Dispose()
     {
         Close();

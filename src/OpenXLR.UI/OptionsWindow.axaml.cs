@@ -192,6 +192,11 @@ public partial class OptionsWindow : Window
             vm.Main.ResetDevice();
     }
 
+    private void OnRecoverMicrophone(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is OptionsViewModel vm) vm.Main.RecoverCapture();
+    }
+
     private void OnClose(object? sender, RoutedEventArgs e) => Close();
 
     private async void OnCheckUpdates(object? sender, RoutedEventArgs e)

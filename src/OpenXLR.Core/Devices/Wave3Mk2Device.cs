@@ -80,5 +80,7 @@ public sealed class Wave3Mk2Device : WaveXlrMk2Device
         XlrJacks = false,   // a capsule, not a jack
         HpOutputs = 1,
         GainMaxDb = GainMaxDb,
+        // Its capture stalls under its own playback; a USB reset clears it.
+        CaptureRecovery = true,
     };
 }

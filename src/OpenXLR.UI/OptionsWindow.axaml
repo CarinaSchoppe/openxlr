@@ -195,6 +195,10 @@
         <TextBlock Text="{Binding Main.ResetDescription}" IsVisible="{Binding Main.ShowResetDefaults}"
                    FontSize="11" Foreground="{DynamicResource Ox.Text.Muted}" TextWrapping="Wrap"/>
         <Button Content="{loc:Text Key=ResetDeviceToDefaults}" Padding="14,5" HorizontalAlignment="Left" Click="OnResetDevice" IsVisible="{Binding Main.ShowResetDefaults}"/>
+        <TextBlock Text="{loc:Text Key=RecoverMicrophoneNote}" IsVisible="{Binding Main.ShowRecoverCapture}"
+                   FontSize="11" Foreground="{DynamicResource Ox.Text.Muted}" TextWrapping="Wrap"/>
+        <Button Name="RecoverMicrophone" Content="{loc:Text Key=RecoverMicrophone}" Padding="14,5" HorizontalAlignment="Left" Click="OnRecoverMicrophone"
+                IsVisible="{Binding Main.ShowRecoverCapture}"/>
         <Button Name="AdditionalInterfaces" Content="{loc:Text Key=AdditionalInterfaces}" Padding="14,5" HorizontalAlignment="Left" Click="OnWaveInterfaces"
                 IsVisible="{Binding Main.ShowWaveInterfaces}"/>
       </StackPanel>

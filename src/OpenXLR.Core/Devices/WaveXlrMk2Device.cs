@@ -19,7 +19,7 @@ namespace OpenXLR.Core.Devices;
 /// headphone volume, low impedance and crossfade were verified on hardware
 /// by a community tester (issue #2, 0.1.10); phantom, ClipGuard and
 /// compressor follow the Pro's bit positions, which the tester's block dump
-/// matched, and await the same verification.
+/// matched, and were confirmed by the same tester in 0.1.12.
 ///
 /// From firmware 1.0.15 the same block carries a four-band EQ the unit runs
 /// on its own DSP: a switch at byte 2 bit 0 and five bytes per band from

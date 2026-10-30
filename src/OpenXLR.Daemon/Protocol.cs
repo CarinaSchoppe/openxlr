@@ -15,9 +15,9 @@ namespace OpenXLR.Daemon;
 public sealed record Command
 {
     /// <summary>
-    /// Command name. <see cref="WebSocketHub"/> owns dispatch; the root README's
-    /// WebSocket table is the canonical public list so this DTO cannot drift
-    /// into a second protocol specification.
+    /// Command name. <see cref="WebSocketHub"/> owns dispatch; the command
+    /// table in docs/api.md is the canonical public list so this DTO cannot
+    /// drift into a second protocol specification.
     /// </summary>
     [JsonPropertyName("cmd")] public string Cmd { get; init; } = "";
 
@@ -423,10 +423,12 @@ public sealed record DetectedDevice(
 /// <summary>
 /// The connected interface. <c>Note</c> is a sentence about how this unit is
 /// driven that differs from the usual, or null: today, an XLR Dock whose
-/// card lacks a mixer control and takes it through the config block, or a
-/// Wave:3 or Wave:1 whose ALSA card was not found. <c>Firmware</c> is the
-/// version the unit reports, null on a model where it is not read (all but
-/// the Wave:3 and Wave:1).
+/// card lacks a mixer control and takes it through the config block, an XLR
+/// Dock MK.2 that answered on its other USB control bank or on neither, or a
+/// Wave XLR, Wave:3 or Wave:1 whose ALSA card was not found. <c>Firmware</c>
+/// is the version the unit reports, null on a model where it is not read;
+/// the Wave:3, the Wave:1, the MK.2 family, the Wave:3 MK.2 (in its own
+/// numbering) and the Wave XLR Pro report one.
 /// </summary>
 public sealed record DeviceDescriptor(string Vendor, string Model, string UsbId, string? Note = null, string? Firmware = null);
 

@@ -211,28 +211,32 @@ public sealed class SoundboardArchiveTests : IDisposable
             File.WriteAllText(victim, "not an archive");
             string link = Path.Combine(folder, "link.zip");
             File.CreateSymbolicLink(link, victim);
-            File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
-            try
+            // Root writes in a read-only folder anyway, so only the writable half applies there.
+            if (Environment.UserName != "root")
             {
-                // A link is refused, and what it points at is untouched.
-                Assert.Equal("The archive's path is a link; choose the file itself.",
-                    Assert.Throws<InvalidOperationException>(() => mixer.ExportSoundboard(link)).Message);
-                Assert.Equal("not an archive", File.ReadAllText(victim));
+                File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+                try
+                {
+                    // A link is refused, and what it points at is untouched.
+                    Assert.Equal("The archive's path is a link; choose the file itself.",
+                        Assert.Throws<InvalidOperationException>(() => mixer.ExportSoundboard(link)).Message);
+                    Assert.Equal("not an archive", File.ReadAllText(victim));
 
-                // An export that fails leaves the chosen file as it was.
-                File.Move(Path.Combine(clips, "horn.wav"), Path.Combine(_directory, "away.wav"));
-                Assert.StartsWith("No clip file could be read",
-                    Assert.Throws<InvalidOperationException>(() => mixer.ExportSoundboard(keep)).Message);
-                Assert.Equal("the user's file", File.ReadAllText(keep));
-                File.Move(Path.Combine(_directory, "away.wav"), Path.Combine(clips, "horn.wav"));
+                    // An export that fails leaves the chosen file as it was.
+                    File.Move(Path.Combine(clips, "horn.wav"), Path.Combine(_directory, "away.wav"));
+                    Assert.StartsWith("No clip file could be read",
+                        Assert.Throws<InvalidOperationException>(() => mixer.ExportSoundboard(keep)).Message);
+                    Assert.Equal("the user's file", File.ReadAllText(keep));
+                    File.Move(Path.Combine(_directory, "away.wav"), Path.Combine(clips, "horn.wav"));
 
-                // One that works writes the archive into the file itself.
-                Assert.Equal(1, mixer.ExportSoundboard(keep).Clips);
-                using (ZipArchive zip = ZipFile.OpenRead(keep))
-                    Assert.Equal(["clips/horn.wav", "soundboard.json"], zip.Entries.Select(e => e.FullName));
-                Assert.Equal(["keep.zip", "link.zip"], Directory.GetFileSystemEntries(folder).Select(Path.GetFileName).Order());
+                    // One that works writes the archive into the file itself.
+                    Assert.Equal(1, mixer.ExportSoundboard(keep).Clips);
+                    using (ZipArchive zip = ZipFile.OpenRead(keep))
+                        Assert.Equal(["clips/horn.wav", "soundboard.json"], zip.Entries.Select(e => e.FullName));
+                    Assert.Equal(["keep.zip", "link.zip"], Directory.GetFileSystemEntries(folder).Select(Path.GetFileName).Order());
+                }
+                finally { File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
             }
-            finally { File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
 
             // In a folder that can be written, a link in the archive's place is replaced, not followed.
             Assert.Equal(1, mixer.ExportSoundboard(link).Clips);

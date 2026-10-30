@@ -89,8 +89,10 @@ applied per mix.
 Ducking comes from captures of Wave Link 3.5 on Windows, firmware 1.0.14. Block
 0x0008 holds twelve entries, one per hardware input and USB playback pair,
 with the key threshold, depth, attack, release and a ducked flag, and each
-of the five mix sections of block 0x0001 holds a 2-bit field per USB pair
-whose high bit Wave Link sets on a ducked pair. With XLR 1 loud the unit
+of the five mix sections of block 0x0001 holds a 2-bit field per USB pair.
+Wave Link sets the high bit of a ducked pair's field in the first three
+sections only, the two at 54 and 72 untouched, and the daemon writes the
+same three. With XLR 1 loud the unit
 lowered the ducked pairs by the configured depth with no host write. The
 daemon can write the same bytes, without the commit block, on the two pairs
 OpenXLR streams to: 2/3 for the jacks and Line Out, 10/11 for the USB Aux

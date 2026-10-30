@@ -115,7 +115,7 @@
     <value>Dunkel</value>
   </data>
   <data name="AppearanceDialogHint" xml:space="preserve">
-    <value>Das Fenster, der Terminal-Mixer und die Stream-Deck-Tasten zeigen das Symbol und die Farbe. Routing und Pegel bleiben unverändert.</value>
+    <value>Die Oberfläche, der Terminal-Mixer und die Stream-Deck-Tasten zeigen das Symbol und die Farbe. Routing und Pegel bleiben unverändert.</value>
   </data>
   <data name="AppearanceLight" xml:space="preserve">
     <value>Hell</value>
@@ -1350,7 +1350,7 @@
     <value>Den eigenen Editor dieses Plugins öffnen</value>
   </data>
   <data name="OpenSourceControlSuiteForElgatoXLRInterfaces" xml:space="preserve">
-    <value>Freie Steuerungssoftware für Elgato-XLR-Interfaces unter Linux (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2): Hardware-Steuerung über analysierte Protokolle, PipeWire-Submixer im Wave-Link-Stil mit Anwendungskanälen und virtuellen Mikrofonen, mehrere Abhörausgänge, eigener Mix für einen zweiten Computer über USB Aux und OpenDeck-Plugin zur Stream-Deck-Steuerung.</value>
+    <value>Freie Steuerungssoftware für Elgato-XLR-Interfaces und USB-Mikrofone unter Linux (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2, Wave:3, Wave:3 MK.2, Wave:1): Hardware-Steuerung über analysierte Protokolle, PipeWire-Submixer im Wave-Link-Stil mit Anwendungskanälen und virtuellen Mikrofonen, mehrere Abhörausgänge, eigener Mix für einen zweiten Computer über USB Aux und OpenDeck-Plugin zur Stream-Deck-Steuerung.</value>
   </data>
   <data name="OpenTheManualSectionOnInstallingPlugins" xml:space="preserve">
     <value>Handbuch zur Plugin-Installation öffnen</value>
@@ -2305,7 +2305,7 @@ Von OpenXLR gesteuertes Interface wählen</value>
     <value>Dieser Skin behält die übliche Anordnung des Fensters.</value>
   </data>
   <data name="SkinLayoutSummary" xml:space="preserve">
-    <value>Dieser Skin ordnet das Fenster an: {0}. Verschiebungen mit Anordnen und die Auswahl der Bänke werden pro Skin gespeichert.</value>
+    <value>Dieser Skin ordnet die Oberfläche an: {0}. Verschiebungen mit Anordnen und die Auswahl der Bänke werden pro Skin gespeichert.</value>
   </data>
   <data name="LayoutPartColumn" xml:space="preserve">
     <value>die Abschnitte untereinander</value>

@@ -117,7 +117,7 @@
     <value>Scuro</value>
   </data>
   <data name="AppearanceDialogHint" xml:space="preserve">
-    <value>La finestra, il mixer da terminale e i tasti dello Stream Deck mostrano l'icona e il colore. Instradamento e livelli non cambiano.</value>
+    <value>L'interfaccia, il mixer da terminale e i tasti dello Stream Deck mostrano l'icona e il colore. Instradamento e livelli non cambiano.</value>
   </data>
   <data name="AppearanceLight" xml:space="preserve">
     <value>Chiaro</value>
@@ -1351,7 +1351,7 @@
     <value>Apri l'editor proprio di questo plugin</value>
   </data>
   <data name="OpenSourceControlSuiteForElgatoXLRInterfaces" xml:space="preserve">
-    <value>Suite di controllo open source per le interfacce XLR di Elgato su Linux (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2): controllo dell'hardware tramite protocolli ricostruiti con reverse engineering, un submixer PipeWire in stile Wave Link con canali per applicazione e microfoni virtuali, monitoraggio su più uscite, un mix dedicato per un secondo computer sulla porta USB Aux e un plugin OpenDeck per il controllo tramite Stream Deck.</value>
+    <value>Suite di controllo open source per le interfacce XLR e i microfoni USB di Elgato su Linux (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2, Wave:3, Wave:3 MK.2, Wave:1): controllo dell'hardware tramite protocolli ricostruiti con reverse engineering, un submixer PipeWire in stile Wave Link con canali per applicazione e microfoni virtuali, monitoraggio su più uscite, un mix dedicato per un secondo computer sulla porta USB Aux e un plugin OpenDeck per il controllo tramite Stream Deck.</value>
   </data>
   <data name="OpenTheManualSectionOnInstallingPlugins" xml:space="preserve">
     <value>Apri la sezione del manuale sull'installazione dei plugin</value>
@@ -2312,7 +2312,7 @@ Seleziona l'interfaccia gestita da OpenXLR</value>
     <value>Questa skin mantiene la disposizione abituale della finestra.</value>
   </data>
   <data name="SkinLayoutSummary" xml:space="preserve">
-    <value>Questa skin dispone la finestra così: {0}. Gli spostamenti fatti con Disponi e le scelte dei banchi vengono conservati per ogni skin.</value>
+    <value>Questa skin dispone l'interfaccia così: {0}. Gli spostamenti fatti con Disponi e le scelte dei banchi vengono conservati per ogni skin.</value>
   </data>
   <data name="LayoutPartColumn" xml:space="preserve">
     <value>le sezioni una sopra l'altra</value>

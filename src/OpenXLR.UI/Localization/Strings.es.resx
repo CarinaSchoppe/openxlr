@@ -117,7 +117,7 @@
     <value>Oscuro</value>
   </data>
   <data name="AppearanceDialogHint" xml:space="preserve">
-    <value>La ventana, el mezclador de terminal y las teclas de Stream Deck muestran el icono y el color. El enrutamiento y los niveles no cambian.</value>
+    <value>La interfaz, el mezclador de terminal y las teclas de Stream Deck muestran el icono y el color. El enrutamiento y los niveles no cambian.</value>
   </data>
   <data name="AppearanceLight" xml:space="preserve">
     <value>Claro</value>
@@ -1343,7 +1343,7 @@
     <value>Abrir el editor propio de este plugin</value>
   </data>
   <data name="OpenSourceControlSuiteForElgatoXLRInterfaces" xml:space="preserve">
-    <value>Conjunto de herramientas de código abierto para controlar interfaces XLR de Elgato en Linux (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2): control de hardware mediante protocolos analizados por ingeniería inversa, un submezclador PipeWire al estilo de Wave Link con canales por aplicación y micrófonos virtuales, monitorización en varias salidas, una mezcla dedicada para un segundo ordenador en el puerto USB Aux y un plugin de OpenDeck para el control con Stream Deck.</value>
+    <value>Conjunto de herramientas de código abierto para controlar interfaces XLR y micrófonos USB de Elgato en Linux (Wave XLR Pro, XLR Dock, XLR Dock MK.2, Wave XLR, Wave XLR MK.2, Wave:3, Wave:3 MK.2, Wave:1): control de hardware mediante protocolos analizados por ingeniería inversa, un submezclador PipeWire al estilo de Wave Link con canales por aplicación y micrófonos virtuales, monitorización en varias salidas, una mezcla dedicada para un segundo ordenador en el puerto USB Aux y un plugin de OpenDeck para el control con Stream Deck.</value>
   </data>
   <data name="OpenTheManualSectionOnInstallingPlugins" xml:space="preserve">
     <value>Abrir la sección del manual sobre instalación de plugins</value>
@@ -2296,7 +2296,7 @@ Selecciona la interfaz que controla OpenXLR</value>
     <value>Este tema mantiene la disposición habitual de la ventana.</value>
   </data>
   <data name="SkinLayoutSummary" xml:space="preserve">
-    <value>Este tema organiza la ventana: {0}. Los cambios con Organizar y la elección de los bancos se guardan para cada tema.</value>
+    <value>Este tema organiza la interfaz: {0}. Los cambios con Organizar y la elección de los bancos se guardan para cada tema.</value>
   </data>
   <data name="LayoutPartColumn" xml:space="preserve">
     <value>las secciones una encima de otra</value>

@@ -32,6 +32,8 @@
     <ComboBox Name="SoundClipIcon" MinWidth="200" MaxDropDownHeight="360" HorizontalAlignment="Left"
               AutomationProperties.Name="{loc:Text Key=Icon}"/>
     <TextBlock Text="{loc:Text Key=Colour}" Classes="h"/>
+    <!-- the palette, which fills the field below; the field still takes a colour of the user's own -->
+    <WrapPanel Name="SoundClipSwatches" ItemSpacing="2" LineSpacing="2"/>
     <TextBox Name="SoundClipColour" Text="{Binding Colour, Mode=TwoWay}" MaxLength="7"
              PlaceholderText="{loc:Text Key=SoundClipColourPlaceholder}" AutomationProperties.Name="{loc:Text Key=Colour}"/>
 

@@ -810,6 +810,44 @@
           "minimum": 2,
           "maximum": 16,
           "description": "the height of that bar, and of the clip's own colour along the pad's top edge"
+        },
+        "Ox.Soundboard.ForegroundOnLight": {
+          "$ref": "#/$defs/brush",
+          "description": "the name, icon, second line and menu button of a pad filled with a light colour"
+        },
+        "Ox.Soundboard.ForegroundOnDark": {
+          "$ref": "#/$defs/brush",
+          "description": "the name, icon, second line and menu button of a pad filled with a dark colour"
+        },
+        "Ox.Soundboard.FillPointerOver": {
+          "$ref": "#/$defs/brush",
+          "description": "laid over a filled pad under the pointer, since the fill hides the face's own hover colour. Translucent, so the clip's colour shows through"
+        },
+        "Ox.Soundboard.FillPressed": {
+          "$ref": "#/$defs/brush",
+          "description": "laid over a filled pad while it is pressed"
+        },
+        "Ox.Soundboard.MenuBackground": {
+          "$ref": "#/$defs/brush",
+          "description": "the face of a filled pad's menu button in place of the ghost button's. Transparent by default, so the clip's colour and the pad's corner show through"
+        },
+        "Ox.Swatch.Size": {
+          "type": "number",
+          "minimum": 16,
+          "maximum": 64,
+          "description": "the width and height of a swatch, ring included; Touch sizing raises it to the small control size"
+        },
+        "Ox.Swatch.CornerRadius": {
+          "$ref": "#/$defs/radius",
+          "description": "a swatch's corners and its ring's"
+        },
+        "Ox.Swatch.BorderThickness": {
+          "$ref": "#/$defs/thickness",
+          "description": "the outline round a swatch's colour, which keeps a colour close to the dialog's own visible"
+        },
+        "Ox.Swatch.SelectedThickness": {
+          "$ref": "#/$defs/thickness",
+          "description": "the ring round the swatch that matches the colour field"
         }
       }
     },

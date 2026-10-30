@@ -606,6 +606,45 @@ public sealed class SoundboardViewModelTests
     }
 
     [Fact]
+    public void AColouredClipFillsItsPadWithLetteringThatReadsOnIt()
+    {
+        (SoundboardViewModel board, _) = Model();
+        SoundClipViewModel airhorn = board.Clips[0], drumroll = board.Clips[1], broken = board.Clips[2];
+        // Orange is light: dark lettering. No colour: the plain face, as before.
+        Assert.True(airhorn.Filled);
+        Assert.True(airhorn.FillIsLight);
+        Assert.False(airhorn.FillIsDark);
+        Assert.False(airhorn.Tinted);
+        Assert.False(drumroll.Filled || drumroll.FillIsLight || drumroll.FillIsDark || drumroll.Tinted);
+
+        // A state push that changes the colour or the clip's health tells the pad.
+        var changed = new List<string?>();
+        airhorn.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        broken.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        JsonObject navy = Board();
+        navy["clips"]![0]!["colour"] = "#1A237E";
+        navy["clips"]![2]!["colour"] = "#FBC02D";
+        board.Apply(navy, []);
+        Assert.True(airhorn.Filled);
+        Assert.True(airhorn.FillIsDark);
+        Assert.False(airhorn.FillIsLight);
+        Assert.Contains(nameof(SoundClipViewModel.FillIsDark), changed);
+        // A clip that cannot load keeps the plain face, its colour along the top.
+        Assert.True(broken.HasError);
+        Assert.False(broken.Filled || broken.FillIsLight || broken.FillIsDark);
+        Assert.True(broken.Tinted);
+        Assert.Contains(nameof(SoundClipViewModel.Tinted), changed);
+
+        // The board off: no pad can play, so every coloured pad goes back to the plain face and its bar.
+        board.Apply(Board(enabled: false), []);
+        Assert.False(airhorn.CanPlay);
+        Assert.False(airhorn.Filled);
+        Assert.True(airhorn.Tinted);
+        board.Apply(Board(), []);
+        Assert.True(airhorn.Filled);
+    }
+
+    [Fact]
     public async Task TheEditWindowSendsOnlyWhatChanged()
     {
         (SoundboardViewModel board, Recorder commands) = Model();

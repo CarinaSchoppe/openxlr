@@ -375,6 +375,45 @@
   <data name="ColourPlaceholder" xml:space="preserve">
     <value>#RRGGBB, or empty for the skin's colours</value>
   </data>
+  <data name="ColourNone" xml:space="preserve">
+    <value>No colour</value>
+  </data>
+  <data name="ColourRed" xml:space="preserve">
+    <value>Red</value>
+  </data>
+  <data name="ColourOrange" xml:space="preserve">
+    <value>Orange</value>
+  </data>
+  <data name="ColourYellow" xml:space="preserve">
+    <value>Yellow</value>
+  </data>
+  <data name="ColourLime" xml:space="preserve">
+    <value>Lime</value>
+  </data>
+  <data name="ColourGreen" xml:space="preserve">
+    <value>Green</value>
+  </data>
+  <data name="ColourTeal" xml:space="preserve">
+    <value>Teal</value>
+  </data>
+  <data name="ColourCyan" xml:space="preserve">
+    <value>Cyan</value>
+  </data>
+  <data name="ColourBlue" xml:space="preserve">
+    <value>Blue</value>
+  </data>
+  <data name="ColourIndigo" xml:space="preserve">
+    <value>Indigo</value>
+  </data>
+  <data name="ColourPurple" xml:space="preserve">
+    <value>Purple</value>
+  </data>
+  <data name="ColourPink" xml:space="preserve">
+    <value>Pink</value>
+  </data>
+  <data name="ColourBrown" xml:space="preserve">
+    <value>Brown</value>
+  </data>
   <data name="CompactShowsOneChannelStripWithEvery" xml:space="preserve">
     <value>Compact shows one channel strip with every send. Mini shows that channel's send into one mix with the mix's master and sets INPUTS, HEADPHONES and APPLICATIONS aside. Pick the channel and mix above the submixer. Levels and routing do not change.</value>
   </data>

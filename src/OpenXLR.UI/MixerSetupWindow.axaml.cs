@@ -204,6 +204,10 @@ public partial class MixerSetupWindow : Window
             : mix is not null ? LayoutDefaultIcons.ForMix(mix.Id, mix.Kind) : "headset");
         var colour = new TextBox { Name = "AppearanceColour", Text = appearance.Colour ?? "", MaxLength = 7,
             PlaceholderText = Localizer.Text("ColourPlaceholder") };
+        AutomationProperties.SetName(colour, Localizer.Text("Colour"));
+        // The palette fills the field; the field still takes a colour of the user's own.
+        var swatches = new WrapPanel { Name = "AppearanceSwatches", ItemSpacing = 2, LineSpacing = 2 };
+        ColourSwatches.Fill(swatches, colour);
         // A channel or a mix can be hidden, under the same rule; a headphone output is hardware and always shows.
         var hidden = new CheckBox { Name = "AppearanceHidden", IsChecked = appearance.Hidden, IsVisible = output is null,
             Content = mix is not null ? Localizer.Text("HideMix") : Localizer.Text("HideChannelStrip") };
@@ -220,7 +224,7 @@ public partial class MixerSetupWindow : Window
                 Children =
                 {
                     new TextBlock { Text = Localizer.Text("Icon") }, icon,
-                    new TextBlock { Text = Localizer.Text("Colour") }, colour,
+                    new TextBlock { Text = Localizer.Text("Colour") }, swatches, colour,
                     hidden,
                     new TextBlock { TextWrapping = TextWrapping.Wrap, Classes = { "hint" },
                         Text = Localizer.Text("AppearanceDialogHint") },
@@ -233,7 +237,7 @@ public partial class MixerSetupWindow : Window
         save.Click += async (_, _) =>
         {
             string? chosen = string.IsNullOrWhiteSpace(colour.Text) ? null : colour.Text.Trim();
-            if (chosen is not null && !IsHexColour(chosen))
+            if (chosen is not null && !LayoutColours.IsHex(chosen))
             {
                 note.Text = Localizer.Text("ColourFormatHint");
                 return;
@@ -252,9 +256,6 @@ public partial class MixerSetupWindow : Window
         cancel.Click += (_, _) => dialog.Close();
         await dialog.ShowDialog(this);
     }
-
-    private static bool IsHexColour(string text) =>
-        text.Length == 7 && text[0] == '#' && text.AsSpan(1).IndexOfAnyExcept("0123456789abcdefABCDEF") < 0;
 
     private static T? Item<T>(object? sender) where T : class => (sender as Control)?.DataContext as T;
 

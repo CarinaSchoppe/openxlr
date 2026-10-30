@@ -15,6 +15,7 @@ public partial class SoundClipWindow : Window
         // The icon picker is the layout editor's, which draws each entry; a clip's default is SFX's.
         LayoutIconPicker.Fill(SoundClipIcon, clip.Appearance.Icon, SoundClipViewModel.DefaultIcon);
         SoundClipIcon.SelectionChanged += (_, _) => edit.Icon = LayoutIconPicker.Chosen(SoundClipIcon);
+        ColourSwatches.Fill(SoundClipSwatches, SoundClipColour);
         Opened += (_, _) => { SoundClipName.Focus(); SoundClipName.SelectAll(); };
     }
 

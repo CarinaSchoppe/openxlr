@@ -51,7 +51,7 @@ internal static class SoundboardWindowTests
         [
             Clip("airhorn", "Airhorn", 2.4, 0.8, "overlap", "#FF7A00"),
             Clip("drumroll", "Drum roll with a name long enough to wrap", 6, 1, "hold", null, icon: "music", loop: true),
-            Clip("broken", "Broken", 0, 1, "restart", null, error: LongError),
+            Clip("broken", "Broken", 0, 1, "restart", "#1A237E", error: LongError),
         ];
 
         private static JsonObject Clip(string id, string name, double seconds, double gain, string mode, string? colour,
@@ -344,11 +344,27 @@ internal static class SoundboardWindowTests
             Assert.Equal(LongError, ((TextBlock)Part("broken", "SoundPadDetail")).Text);
             Assert.Contains("warn", Part("broken", "SoundPadDetail").Classes);
             Assert.Equal(LongError, Avalonia.Automation.AutomationProperties.GetHelpText(Pad("broken")));
-            // A clip's colour tints its icon and its name, as a channel's does.
-            Assert.Equal(Color.Parse("#FF7A00"), ((ISolidColorBrush)((TextBlock)Part("airhorn", "SoundPadName")).Foreground!).Color);
-            Capture(board, "soundboard-error-pad");
-            Assert.True(Part("airhorn", "SoundPadColour").IsEffectivelyVisible);
+            // A clip's colour fills its pad, with lettering that reads on it: orange is light, so dark.
+            Assert.True(Part("airhorn", "SoundPadFill").IsEffectivelyVisible);
+            Assert.Equal(Color.Parse("#FF7A00"), ((ISolidColorBrush)((Border)Part("airhorn", "SoundPadFill")).Background!).Color);
+            foreach (string lettering in new[] { "SoundPadName", "SoundPadDetail", "SoundPadIcon" })
+                Assert.Same(Application.Current!.FindResource("Ox.Soundboard.ForegroundOnLight"), ((TextBlock)Part("airhorn", lettering)).Foreground);
+            Assert.False(Part("airhorn", "SoundPadColour").IsEffectivelyVisible);
+            // No colour: the plain face, as before.
+            Assert.False(Part("drumroll", "SoundPadFill").IsEffectivelyVisible);
             Assert.False(Part("drumroll", "SoundPadColour").IsEffectivelyVisible);
+            // A clip that cannot load keeps the plain face, so its name and warning read in the skin's
+            // colours, with its own colour as a bar along the top.
+            Assert.False(Part("broken", "SoundPadFill").IsEffectivelyVisible);
+            Assert.True(Part("broken", "SoundPadColour").IsEffectivelyVisible);
+            Assert.Equal(Color.Parse("#1A237E"), ((ISolidColorBrush)((Border)Part("broken", "SoundPadColour")).Background!).Color);
+            foreach (string lettering in new[] { "SoundPadName", "SoundPadIcon" })
+            {
+                Assert.Empty(Part("broken", lettering).Classes.Intersect(["layoutAccent", "onLight", "onDark"]));
+                Assert.False(((TextBlock)Part("broken", lettering)).Foreground is ISolidColorBrush { Color: var tint } && tint == Color.Parse("#1A237E"));
+            }
+            Assert.Same(Application.Current!.FindResource("Ox.Soundboard.ForegroundOnLight"), ((Button)Part("airhorn", "SoundPadMenu")).Foreground);
+            Capture(board, "soundboard-error-pad");
             Assert.False(Find<StackPanel>(board, "SoundboardNoticeArea").IsEffectivelyVisible);
             Slider master = Find<Slider>(board, "SoundboardVolume");
             Assert.True(master.IsEffectivelyVisible);
@@ -448,6 +464,20 @@ internal static class SoundboardWindowTests
             Layout(edit, 460, 640);
             AssertFitsDialog(edit);
             Capture(edit, "soundboard-edit");
+            // The swatches fill the colour field and follow it; the field is what Save sends.
+            Button[] swatches = [.. Find<WrapPanel>(edit, "SoundClipSwatches").Children.OfType<Button>()];
+            Assert.Equal(OpenXLR.UI.LayoutColours.Palette.Count + 1, swatches.Length);
+            // The clip's own orange is no palette colour: no swatch is ringed, not even no colour.
+            Assert.DoesNotContain(swatches, Ring);
+            swatches.Single(b => Equals(b.Tag, "#1976D2")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal("#1976D2", edit.Edit!.Colour);
+            Assert.True(Ring(swatches.Single(b => Equals(b.Tag, "#1976D2"))));
+            Assert.Equal(Localizer.Text("ColourBlue"), Avalonia.Automation.AutomationProperties.GetName(swatches.Single(b => Equals(b.Tag, "#1976D2"))));
+            Layout(edit, 460, 640);
+            Capture(edit, "soundboard-edit-swatches");
+            Find<TextBox>(edit, "SoundClipColour").Text = "#ff7a00";
+            Assert.DoesNotContain(swatches, Ring);
+            Assert.Equal("#ff7a00", edit.Edit.Colour);
             Find<Slider>(edit, "SoundClipGain").Value = 40;
             Find<ComboBox>(edit, "SoundClipMode").SelectedIndex = 2;
             JsonNode update = await Sent(() => Find<Button>(edit, "SoundClipSave").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));

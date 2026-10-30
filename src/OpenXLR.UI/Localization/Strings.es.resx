@@ -366,6 +366,45 @@
   <data name="ColourPlaceholder" xml:space="preserve">
     <value>#RRGGBB, o vacío para usar los colores del tema</value>
   </data>
+  <data name="ColourNone" xml:space="preserve">
+    <value>Sin color</value>
+  </data>
+  <data name="ColourRed" xml:space="preserve">
+    <value>Rojo</value>
+  </data>
+  <data name="ColourOrange" xml:space="preserve">
+    <value>Naranja</value>
+  </data>
+  <data name="ColourYellow" xml:space="preserve">
+    <value>Amarillo</value>
+  </data>
+  <data name="ColourLime" xml:space="preserve">
+    <value>Lima</value>
+  </data>
+  <data name="ColourGreen" xml:space="preserve">
+    <value>Verde</value>
+  </data>
+  <data name="ColourTeal" xml:space="preserve">
+    <value>Verde azulado</value>
+  </data>
+  <data name="ColourCyan" xml:space="preserve">
+    <value>Cian</value>
+  </data>
+  <data name="ColourBlue" xml:space="preserve">
+    <value>Azul</value>
+  </data>
+  <data name="ColourIndigo" xml:space="preserve">
+    <value>Índigo</value>
+  </data>
+  <data name="ColourPurple" xml:space="preserve">
+    <value>Morado</value>
+  </data>
+  <data name="ColourPink" xml:space="preserve">
+    <value>Rosa</value>
+  </data>
+  <data name="ColourBrown" xml:space="preserve">
+    <value>Marrón</value>
+  </data>
   <data name="CompactShowsOneChannelStripWithEvery" xml:space="preserve">
     <value>Compacto muestra un canal con todos sus envíos. Mini muestra el envío de ese canal a una mezcla junto con el control maestro de la mezcla y oculta ENTRADAS, AURICULARES y APLICACIONES. Elige el canal y la mezcla encima del submezclador. Los niveles y el enrutamiento no cambian.</value>
   </data>

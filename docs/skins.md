@@ -817,9 +817,12 @@ The Soundboard window's pads, one per clip (see
 [Play sound clips](manual.md#play-sound-clips)). A pad is a key: it wears
 the face the `button` slot chooses and the button colours, so a skin with
 `"button": "cap"` raises the pads with every other key. These tokens size
-a pad and draw what it shows while its clip plays. The clip's own colour,
-which the user picks, runs along the pad's top edge and tints its icon
-and name the way a channel's colour does.
+a pad and draw what it shows while its clip plays. A clip with a colour of
+its own, which the user picks, fills its pad with it. The lettering on a
+filled pad is dark on a light colour and light on a dark one. A pad that
+cannot play, because its clip is loading or cannot be read or the board is
+off, keeps the skin's disabled key face, and its colour runs along the top
+edge instead.
 
 | Token | Kind | Default | Range | What it paints |
 |---|---|---|---|---|
@@ -830,6 +833,27 @@ and name the way a channel's colour does.
 | `Ox.Soundboard.PlayingThickness` | thickness | 2 | 0 to 16 | that ring's width |
 | `Ox.Soundboard.Progress` | brush | #3ecf7a |  | the bar along a playing pad's foot that shows how far along the clip is |
 | `Ox.Soundboard.ProgressHeight` | number | 4 | 2 to 16 | the height of that bar, and of the clip's own colour along the pad's top edge |
+| `Ox.Soundboard.ForegroundOnLight` | brush | #16181d |  | the name, icon, second line and menu button of a pad filled with a light colour |
+| `Ox.Soundboard.ForegroundOnDark` | brush | #ffffff |  | the name, icon, second line and menu button of a pad filled with a dark colour |
+| `Ox.Soundboard.FillPointerOver` | brush | #1fffffff |  | laid over a filled pad under the pointer, since the fill hides the face's own hover colour. Translucent, so the clip's colour shows through |
+| `Ox.Soundboard.FillPressed` | brush | #33000000 |  | laid over a filled pad while it is pressed |
+| `Ox.Soundboard.MenuBackground` | brush | #00000000 |  | the face of a filled pad's menu button in place of the ghost button's. Transparent by default, so the clip's colour and the pad's corner show through |
+
+### Colour swatches
+
+These tokens draw the row of colours above a colour field, in the clip
+editor and in the **Appearance** dialog of a channel, a mix or a headphone
+output. The colours themselves are a fixed palette and not part of the
+skin, because a pick is stored in the layout or the clip. A swatch's
+outline takes `Ox.Text.Secondary`, and the ring round the swatch that
+matches the field takes `Ox.Text.Primary`.
+
+| Token | Kind | Default | Range | What it paints |
+|---|---|---|---|---|
+| `Ox.Swatch.Size` | number | 28 | 16 to 64 | the width and height of a swatch, ring included; Touch sizing raises it to the small control size |
+| `Ox.Swatch.CornerRadius` | radius | 4 | 0 to 48 | a swatch's corners and its ring's |
+| `Ox.Swatch.BorderThickness` | thickness | 1 | 0 to 16 | the outline round a swatch's colour, which keeps a colour close to the dialog's own visible |
+| `Ox.Swatch.SelectedThickness` | thickness | 2 | 0 to 16 | the ring round the swatch that matches the colour field |
 
 ## Images
 

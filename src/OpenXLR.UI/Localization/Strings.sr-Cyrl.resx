@@ -353,6 +353,45 @@
   <data name="ColourPlaceholder" xml:space="preserve">
     <value>#RRGGBB или празно за боје теме</value>
   </data>
+  <data name="ColourNone" xml:space="preserve">
+    <value>Без боје</value>
+  </data>
+  <data name="ColourRed" xml:space="preserve">
+    <value>Црвена</value>
+  </data>
+  <data name="ColourOrange" xml:space="preserve">
+    <value>Наранџаста</value>
+  </data>
+  <data name="ColourYellow" xml:space="preserve">
+    <value>Жута</value>
+  </data>
+  <data name="ColourLime" xml:space="preserve">
+    <value>Светлозелена</value>
+  </data>
+  <data name="ColourGreen" xml:space="preserve">
+    <value>Зелена</value>
+  </data>
+  <data name="ColourTeal" xml:space="preserve">
+    <value>Плавозелена</value>
+  </data>
+  <data name="ColourCyan" xml:space="preserve">
+    <value>Цијан</value>
+  </data>
+  <data name="ColourBlue" xml:space="preserve">
+    <value>Плава</value>
+  </data>
+  <data name="ColourIndigo" xml:space="preserve">
+    <value>Индиго</value>
+  </data>
+  <data name="ColourPurple" xml:space="preserve">
+    <value>Љубичаста</value>
+  </data>
+  <data name="ColourPink" xml:space="preserve">
+    <value>Ружичаста</value>
+  </data>
+  <data name="ColourBrown" xml:space="preserve">
+    <value>Смеђа</value>
+  </data>
   <data name="CompactShowsOneChannelStripWithEvery" xml:space="preserve">
     <value>Сажети приказ показује једну траку канала са свим слањима. Мини приказ показује слање тог канала у један микс с главним нивоом микса и склања УЛАЗЕ, СЛУШАЛИЦЕ и АПЛИКАЦИЈЕ. Изабери канал и микс изнад подмиксера. Нивои и усмеравање се не мењају.</value>
   </data>

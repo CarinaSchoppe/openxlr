@@ -375,6 +375,45 @@
   <data name="ColourPlaceholder" xml:space="preserve">
     <value>#RRGGBB, o vuoto per i colori della skin</value>
   </data>
+  <data name="ColourNone" xml:space="preserve">
+    <value>Nessun colore</value>
+  </data>
+  <data name="ColourRed" xml:space="preserve">
+    <value>Rosso</value>
+  </data>
+  <data name="ColourOrange" xml:space="preserve">
+    <value>Arancione</value>
+  </data>
+  <data name="ColourYellow" xml:space="preserve">
+    <value>Giallo</value>
+  </data>
+  <data name="ColourLime" xml:space="preserve">
+    <value>Lime</value>
+  </data>
+  <data name="ColourGreen" xml:space="preserve">
+    <value>Verde</value>
+  </data>
+  <data name="ColourTeal" xml:space="preserve">
+    <value>Verde acqua</value>
+  </data>
+  <data name="ColourCyan" xml:space="preserve">
+    <value>Ciano</value>
+  </data>
+  <data name="ColourBlue" xml:space="preserve">
+    <value>Blu</value>
+  </data>
+  <data name="ColourIndigo" xml:space="preserve">
+    <value>Indaco</value>
+  </data>
+  <data name="ColourPurple" xml:space="preserve">
+    <value>Viola</value>
+  </data>
+  <data name="ColourPink" xml:space="preserve">
+    <value>Rosa</value>
+  </data>
+  <data name="ColourBrown" xml:space="preserve">
+    <value>Marrone</value>
+  </data>
   <data name="CompactShowsOneChannelStripWithEvery" xml:space="preserve">
     <value>Compatta mostra la striscia di un canale con tutte le sue mandate. Mini mostra la mandata di quel canale verso un mix, con il master del mix, e mette da parte INGRESSI, CUFFIE e APPLICAZIONI. Scegli il canale e il mix sopra il submixer. Livelli e instradamento non cambiano.</value>
   </data>

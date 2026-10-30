@@ -293,7 +293,8 @@ Built from PipeWire nodes, no kernel modules or custom drivers:
   preference. Icons come from a built-in vector set of 23, every item
   starts with one chosen by its kind, and the icon can be picked when the
   channel or mix is added. A skin may redraw an icon or add its own as
-  path data. The UI, the terminal mixer and the Stream Deck keys
+  path data. The colour comes from a row of twelve swatches or is typed
+  as `#RRGGBB`. The UI, the terminal mixer and the Stream Deck keys
   show the same icon and colour. See
   [Edit the mixer layout](manual.md#layout)
 - Arrange mode in the UI: drag handles, or the arrow keys, move the
@@ -541,8 +542,10 @@ in no other mix, so the headphones hear it and the stream never does.
 
 In the UI, the Soundboard window opens from a Soundboard button in the
 SUBMIXER header after Ducking, lit while a clip plays, from the tray menu
-and from Options. It shows a pad per clip with its icon, colour, name,
-length and mode, a ring while it plays and a bar for how far along it is;
+and from Options. It shows a pad per clip with its icon, name, length and
+mode, filled with the clip's colour when it has one, with lettering that
+stays readable on any colour, a ring while it plays and a bar for how far
+along it is;
 a pad plays on the pointer or on Space and Enter, and a hold pad stops when
 it comes up. Its header has the board's switch, SFX's own volume as the
 master, Stop all, and adding files or a whole folder through the desktop's

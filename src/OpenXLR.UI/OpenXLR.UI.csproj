@@ -25,6 +25,8 @@
     <Compile Include="../OpenXLR.Core/AppearanceModes.cs" Link="AppearanceModes.cs" />
     <!-- Shared with the daemon and the terminal mixer: the built-in icon set. -->
     <Compile Include="../OpenXLR.Core/Mixing/LayoutIcons.cs" Link="LayoutIcons.cs" />
+    <!-- Shared with the terminal mixer: the colour palette offered beside a colour field. -->
+    <Compile Include="../OpenXLR.Core/Mixing/LayoutColours.cs" Link="LayoutColours.cs" />
     <!-- Shared with the daemon: the microphone EQ's model, snapping and curve,
          so the editor draws and steps exactly what the daemon runs. -->
     <Compile Include="../OpenXLR.Core/Mixing/MicEq.cs" Link="MicEq.cs" />

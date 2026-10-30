@@ -3,7 +3,7 @@
   "schema": 1,
   "id": "wave",
   "name": "Wave",
-  "description": "A dark mixer: blue faders, green meters and each input against every mix.",
+  "description": "A dark mixer: grey faders, green meters and each input against every mix.",
   "author": "OpenXLR",
   "controls": {
     "button": "flat",

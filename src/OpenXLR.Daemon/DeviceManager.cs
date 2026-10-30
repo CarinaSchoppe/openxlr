@@ -51,6 +51,24 @@ public sealed class DeviceManager : BackgroundService
     // unit taken while the chosen one is away is a stand-in.
     private ushort? _preferredPid;
     private string? _preferredInstance;   // the unit chosen in the picker, by instance id
+    // The model OPENXLR_DEVICE names (or a test passes), which picks a
+    // stand-in while a choice restored from the last run is not attached.
+    private readonly ushort? _startupModel;
+    // The primary keeps setActiveDevice's choice in active-device.json and
+    // starts from it; an additional interface's manager does neither.
+    private readonly bool _keepsChoice;
+    // A choice read back at start whose unit has not been driven in this run
+    // yet; until _choiceWaitUntil no other unit is taken in its place.
+    private bool _choiceRestored;
+    private long _choiceWaitUntil;
+    private bool _choiceAbsentSaid;
+
+    /// <summary>
+    /// How long a restored choice is waited for at start before another unit
+    /// stands in for it, so a chosen unit that enumerates after the others
+    /// is driven from the outset instead of after a stand-in.
+    /// </summary>
+    internal static readonly TimeSpan RestoredChoiceWait = TimeSpan.FromSeconds(10);
     // Units enabled as additional interfaces: never taken over as a stand-in.
     private Func<string, bool> _additional = _ => false;
     // Set on an additional interface's manager: its last settings, defaults
@@ -87,7 +105,7 @@ public sealed class DeviceManager : BackgroundService
     private readonly bool _submixer;
 
     public DeviceManager(ILogger<DeviceManager> log, IConfiguration config, IHostApplicationLifetime? lifetime = null)
-        : this(log, config, DeviceRegistry.DetectAll, lifetime) { }
+        : this(log, config, DeviceRegistry.DetectAll, lifetime, keepsChoice: true) { }
 
     // Set when the host begins to stop. The loop runs on until this service's
     // own turn to stop, after the mixer's teardown; opening a unit meanwhile
@@ -100,8 +118,12 @@ public sealed class DeviceManager : BackgroundService
 
     /// <summary>The detection source is injectable so the reconnect and set-aside logic can be driven by a fake device.</summary>
     /// <param name="preferredModel">The product id OPENXLR_DEVICE names; read from the environment when null. Tests pass it.</param>
+    /// <param name="keepsChoice">
+    /// Save setActiveDevice's choice and start from the saved one, which wins
+    /// over <paramref name="preferredModel"/>: the primary's manager only.
+    /// </param>
     internal DeviceManager(ILogger<DeviceManager> log, IConfiguration config, Func<IReadOnlyList<IAudioDevice>> detect,
-        IHostApplicationLifetime? lifetime = null, TimeProvider? time = null, ushort? preferredModel = null)
+        IHostApplicationLifetime? lifetime = null, TimeProvider? time = null, ushort? preferredModel = null, bool keepsChoice = false)
     {
         _time = time ?? TimeProvider.System;
         lifetime?.ApplicationStopping.Register(StopConnecting);
@@ -111,6 +133,21 @@ public sealed class DeviceManager : BackgroundService
         if (preferredModel is not null) _preferredPid = preferredModel;
         else if (want is not null && ushort.TryParse(want, System.Globalization.NumberStyles.HexNumber, null, out ushort pid))
             _preferredPid = pid;
+        _startupModel = _preferredPid;
+        _keepsChoice = keepsChoice;
+        if (keepsChoice)
+        {
+            if (ActiveDeviceChoice.Load(out string? choiceError) is { } chosen)
+            {
+                _preferredInstance = chosen;
+                _preferredPid = ActiveDeviceChoice.ProductId(chosen);
+                _choiceRestored = true;
+                _choiceWaitUntil = NowMs + (long)RestoredChoiceWait.TotalMilliseconds;
+                _log.LogInformation("{device}, the interface setActiveDevice chose last, is driven again once attached", chosen);
+            }
+            else if (choiceError is not null)
+                _log.LogWarning("the interface chosen last could not be read from {path} ({error}); choosing as if none was", ActiveDeviceChoice.PathName, choiceError);
+        }
         bool launchDefault = config.GetValue("mixer", false) ||
                              Environment.GetEnvironmentVariable("OPENXLR_BUILD_MIXER") == "1";
         _submixer = OpenXLR.Core.DaemonSettings.SubmixerEnabled(launchDefault);
@@ -147,6 +184,10 @@ public sealed class DeviceManager : BackgroundService
                 return $"setActiveDevice: no attached supported device '{usbId}'";
             _preferredPid = pid;
             _preferredInstance = target.InstanceId;
+            _choiceRestored = false;
+            // Kept for the next start; a failed write leaves this run's choice in place.
+            if (_keepsChoice && ActiveDeviceChoice.Save(target.InstanceId) is { } saveError)
+                _log.LogWarning("setActiveDevice: {target} is driven, but the choice was not saved for the next start ({error})", target.DisplayName, saveError);
             if (_device is not null && _device.Info.InstanceId != target.InstanceId)
             {
                 // The one way the primary moves on purpose, said in the journal.
@@ -552,12 +593,14 @@ public sealed class DeviceManager : BackgroundService
             IAudioDevice? dev = awaited is not null ? usable.FirstOrDefault(d => d.Info.InstanceId == awaited)
                 : _preferredInstance is { } instance && usable.FirstOrDefault(d => d.Info.InstanceId == instance) is { } chosen
                 ? chosen
+                : _choiceRestored ? RestoredStandInLocked(all, free)
                 : _preferredInstance is not null && all.Count > 1
                     ? null
                     : _preferredPid is ushort pid
                         ? free.FirstOrDefault(d => d.Info.ProductId == pid) ?? free.FirstOrDefault()
                         : free.FirstOrDefault();
             if (dev is null) return;                    // nothing usable attached; try again next tick
+            if (dev.Info.InstanceId == _preferredInstance) _choiceRestored = false;
             ClaimingDevice?.Invoke(dev.Info.InstanceId);
             try { dev.Connect(); }
             catch (Exception ex)
@@ -620,6 +663,28 @@ public sealed class DeviceManager : BackgroundService
                 DeviceArrived?.Invoke(DevId(dev));
             }
         }
+    }
+
+    /// <summary>
+    /// What to drive while the choice restored from the last run is not
+    /// attached. For <see cref="RestoredChoiceWait"/> after the start nothing,
+    /// unless the one attached unit of the chosen model is there under
+    /// another id (a unit without a serial moved to another port). After the
+    /// wait a stand-in by the rules a start without a choice uses: the model
+    /// OPENXLR_DEVICE names, else the first unit. The stand-in gives way once
+    /// the chosen unit is attached (<see cref="StandInGivesWayLocked"/>).
+    /// </summary>
+    private IAudioDevice? RestoredStandInLocked(IReadOnlyList<IAudioDevice> all, List<IAudioDevice> free)
+    {
+        List<IAudioDevice> sameModel = [.. free.Where(d => d.Info.ProductId == _preferredPid)];
+        if (NowMs < _choiceWaitUntil) return sameModel.Count == 1 && all.Count(d => d.Info.ProductId == _preferredPid) == 1 ? sameModel[0] : null;
+        IAudioDevice? standIn = (_startupModel is ushort model ? free.FirstOrDefault(d => d.Info.ProductId == model) : null) ?? free.FirstOrDefault();
+        if (standIn is not null && !_choiceAbsentSaid)
+        {
+            _choiceAbsentSaid = true;
+            _log.LogWarning("{chosen}, the interface chosen last, is not attached; driving {standIn} until it is", _preferredInstance, standIn.Info.DisplayName);
+        }
+        return standIn;
     }
 
     /// <summary>

@@ -3482,7 +3482,9 @@ rest of this section is for an Elgato device the daemon does not see.
   picker; the mixer's input channels follow the chosen one. Switching
   releases the interface you leave before the chosen one is opened, and
   on an interface whose last settings OpenXLR remembers it saves a
-  change made just before the switch instead of losing it. Two units of
+  change made just before the switch instead of losing it. The daemon
+  remembers the pick and drives the same unit after a restart, even when
+  `OPENXLR_DEVICE` names another model. Two units of
   one model are listed with their USB port. While the chosen unit is
   unplugged the others are left alone, and with several attached and none
   driven the XLR strips stay silent until you pick one
@@ -3906,6 +3908,7 @@ settings. See
 | `~/.config/openxlr/devices/<vid-pid>/last-state.json` | the settings restored on connect when `retainsSettings` is false |
 | `~/.config/openxlr/devices/<vid-pid>/defaults.json` | the firmware defaults of such an interface, recorded after a power cycle, written back by "Reset device to defaults" (the Pro has no such file: its reset writes OpenXLR's baseline) |
 | `~/.config/openxlr/daemon.json` | the submixer on/off preference and the added plugin folders |
+| `~/.config/openxlr/active-device.json` | the interface picked last in the header, driven again after a restart |
 | `~/.config/openxlr/gainlock.json` | which devices have the gain lock set |
 | `~/.config/openxlr/soundboard.json` | the soundboard's clip library and whether it is on, written by the daemon ([api.md](api.md#soundboard)) |
 | `~/.local/share/openxlr/soundboard/` | the soundboard's clips, copied in when imported |

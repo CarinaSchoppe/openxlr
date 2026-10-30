@@ -54,6 +54,11 @@ public sealed class SoundboardViewModelTests
             Sent.Enqueue(("importSoundboard", new JsonObject { ["path"] = path, ["merge"] = merge }));
             return Task.FromResult(Transfer(path, merge));
         }
+        public Task<SoundboardTransferResult?> RestoreStarterSoundsAsync()
+        {
+            Sent.Enqueue(("restoreStarterSounds", null));
+            return Task.FromResult(Transfer("", true));
+        }
         public Task<string?> RenameClipPageAsync(string page, string name) => Record("renameClipPage", new { page, name });
         public Task<string?> UpdateClipAsync(string clip, IReadOnlyDictionary<string, object> fields)
             => Record("updateClip", new Dictionary<string, object>(fields) { ["clip"] = clip });
@@ -831,6 +836,17 @@ public sealed class SoundboardViewModelTests
         await board.ExportLibraryAsync("/home/me/board");
         Assert.Empty(commands.Sent);
         Assert.Equal(Localizer.Text("SoundboardExportNeedsZip"), board.Status);
+        Assert.True(board.StatusWarns);
+
+        // Restoring the starter sounds says what came back, or that nothing was missing.
+        commands.Transfer = (path, merge) => new(true, "2 starter sounds were added back: Cheer, Laugh.");
+        await board.RestoreStarterSoundsAsync();
+        Assert.Equal("restoreStarterSounds", commands.One().Command);
+        Assert.Equal("2 starter sounds were added back: Cheer, Laugh.", board.Status);
+        Assert.False(board.StatusWarns);
+        commands.Transfer = (path, merge) => new(false, "The starter sounds are not installed.");
+        await board.RestoreStarterSoundsAsync();
+        commands.One();
         Assert.True(board.StatusWarns);
 
         // Nothing to export from an empty board, and nothing while the mixer is off.

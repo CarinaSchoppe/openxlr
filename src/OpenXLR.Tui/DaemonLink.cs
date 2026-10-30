@@ -118,6 +118,30 @@ internal sealed class DaemonLink : IAsyncDisposable
         }, TaskScheduler.Default);
     }
 
+    /// <summary>
+    /// Ask the daemon to add back the starter sounds the library no longer
+    /// has. The daemon's sentence lands in <see cref="LastImport"/> as an
+    /// import's does, also when nothing was missing.
+    /// </summary>
+    public void RestoreStarterSounds()
+    {
+        if (!Connected)
+        {
+            Finish(false, "Not connected to the daemon, so the starter sounds were not restored", null);
+            return;
+        }
+        if (Interlocked.Exchange(ref _importing, 1) != 0) return;
+        _importReply = (null, null);
+        // Each clip is copied and checked by the helper, as an import is.
+        Request("restoreStarterSounds", _ => { }, TimeSpan.FromMinutes(2)).ContinueWith(task =>
+        {
+            string? error = task.IsCompletedSuccessfully ? task.Result : "The restore did not finish";
+            string? message = _importReply.Message;
+            Volatile.Write(ref _importing, 0);
+            Finish(error is null, error ?? message ?? "The starter sounds were restored.", null);
+        }, TaskScheduler.Default);
+    }
+
     private void Finish(bool ok, string message, string? clip)
     {
         LastImport = new ClipImportOutcome(Interlocked.Increment(ref _importSerial), ok, message, clip);
@@ -455,6 +479,11 @@ internal sealed class DaemonLink : IAsyncDisposable
             case "clipImport":
                 // The commandResult that follows ends the request; this names the clip.
                 _importReply = (Message(json, "clip"), Message(json));
+                break;
+
+            case "starterSounds":
+                // As for clipImport: the sentence, before the commandResult.
+                _importReply = (null, Message(json));
                 break;
 
             case "nativeEditorRulesChanged":

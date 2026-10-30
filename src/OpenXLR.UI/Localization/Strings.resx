@@ -3649,6 +3649,12 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   <data name="SoundboardImportLibraryTip" xml:space="preserve">
     <value>Add the clips from a library zip file, or replace the clips here with them. Each file is checked as Add clips checks it.</value>
   </data>
+  <data name="SoundboardRestoreStarter" xml:space="preserve">
+    <value>Restore starter sounds</value>
+  </data>
+  <data name="SoundboardRestoreStarterTip" xml:space="preserve">
+    <value>Add back the starter sounds that are no longer on the soundboard, on their Starter page. The clips here are kept, and a starter sound you renamed or moved counts as present.</value>
+  </data>
   <data name="SoundboardPickExport" xml:space="preserve">
     <value>Export the soundboard library</value>
   </data>
@@ -3663,6 +3669,9 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   </data>
   <data name="SoundboardImportingLibrary" xml:space="preserve">
     <value>Importing the library. Each clip is checked as it comes in.</value>
+  </data>
+  <data name="SoundboardRestoringStarter" xml:space="preserve">
+    <value>Adding back the missing starter sounds. Each clip is checked as it comes in.</value>
   </data>
   <data name="SoundboardTransferNoAnswer" xml:space="preserve">
     <value>No answer from the daemon. Check the soundboard before you try again.</value>

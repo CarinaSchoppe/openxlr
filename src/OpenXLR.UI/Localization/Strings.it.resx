@@ -3663,6 +3663,12 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   <data name="SoundboardImportLibraryTip" xml:space="preserve">
     <value>Aggiunge le clip da un file zip di libreria, o sostituisce con esse le clip presenti. Ogni file viene controllato come con Aggiungi clip.</value>
   </data>
+  <data name="SoundboardRestoreStarter" xml:space="preserve">
+    <value>Ripristina suoni iniziali</value>
+  </data>
+  <data name="SoundboardRestoreStarterTip" xml:space="preserve">
+    <value>Aggiunge di nuovo i suoni iniziali che non sono più nella soundboard, nella loro pagina Starter. Le clip presenti restano, e un suono iniziale rinominato o spostato conta come presente.</value>
+  </data>
   <data name="SoundboardPickExport" xml:space="preserve">
     <value>Esporta la libreria della soundboard</value>
   </data>
@@ -3677,6 +3683,9 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   </data>
   <data name="SoundboardImportingLibrary" xml:space="preserve">
     <value>Importazione della libreria. Ogni clip viene controllata all'arrivo.</value>
+  </data>
+  <data name="SoundboardRestoringStarter" xml:space="preserve">
+    <value>Aggiunta dei suoni iniziali mancanti. Ogni clip viene controllata all'arrivo.</value>
   </data>
   <data name="SoundboardTransferNoAnswer" xml:space="preserve">
     <value>Nessuna risposta dal daemon. Controlla la soundboard prima di riprovare.</value>

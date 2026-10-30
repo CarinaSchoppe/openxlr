@@ -69,7 +69,7 @@ internal sealed class SoundsView : View
     public override string Title => "Sounds";
 
     public override string Keys =>
-        "Enter play  s stop  S stop all  i import  a audition  b board  -/+ [/] gain  m mode  l loop  r rename  d delete  Ctrl+Up/Down move  </> ,/. SFX volume  p/P page  g move to page  G rename page";
+        "Enter play  s stop  S stop all  i import  R starter sounds  a audition  b board  -/+ [/] gain  m mode  l loop  r rename  d delete  Ctrl+Up/Down move  </> ,/. SFX volume  p/P page  g move to page  G rename page";
 
     public override void Draw(Screen screen, Rect area, App app)
     {
@@ -419,6 +419,16 @@ internal sealed class SoundsView : View
                     return true;
                 case 'i':
                     Import(app);
+                    return true;
+                case 'R':
+                    if (link.Importing)
+                    {
+                        app.Say("An import is still running");
+                        return true;
+                    }
+                    _importNote = null;
+                    _importName = "the starter sounds";
+                    link.RestoreStarterSounds();
                     return true;
                 case '>': Master(app, state, board, 0.05); return true;
                 case '<': Master(app, state, board, -0.05); return true;

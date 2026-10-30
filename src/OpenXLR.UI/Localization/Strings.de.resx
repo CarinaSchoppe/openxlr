@@ -3322,6 +3322,12 @@ Von OpenXLR gesteuertes Interface wählen</value>
   <data name="SoundboardImportLibraryTip" xml:space="preserve">
     <value>Die Clips aus einer Bibliotheks-ZIP-Datei hinzufügen oder die Clips hier durch sie ersetzen. Jede Datei wird geprüft wie bei Clips hinzufügen.</value>
   </data>
+  <data name="SoundboardRestoreStarter" xml:space="preserve">
+    <value>Startersounds wiederherstellen</value>
+  </data>
+  <data name="SoundboardRestoreStarterTip" xml:space="preserve">
+    <value>Die Startersounds, die nicht mehr auf dem Soundboard sind, auf ihrer Seite Starter wieder hinzufügen. Die Clips hier bleiben erhalten, und ein umbenannter oder verschobener Startersound zählt als vorhanden.</value>
+  </data>
   <data name="SoundboardPickExport" xml:space="preserve">
     <value>Soundboard-Bibliothek exportieren</value>
   </data>
@@ -3336,6 +3342,9 @@ Von OpenXLR gesteuertes Interface wählen</value>
   </data>
   <data name="SoundboardImportingLibrary" xml:space="preserve">
     <value>Die Bibliothek wird importiert. Jeder Clip wird beim Eintreffen geprüft.</value>
+  </data>
+  <data name="SoundboardRestoringStarter" xml:space="preserve">
+    <value>Die fehlenden Startersounds werden wieder hinzugefügt. Jeder Clip wird beim Eintreffen geprüft.</value>
   </data>
   <data name="SoundboardTransferNoAnswer" xml:space="preserve">
     <value>Keine Antwort vom Daemon. Prüfen Sie das Soundboard, bevor Sie es erneut versuchen.</value>

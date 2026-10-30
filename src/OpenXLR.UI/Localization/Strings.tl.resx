@@ -3650,6 +3650,12 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
   <data name="SoundboardImportLibraryTip" xml:space="preserve">
     <value>Idagdag ang mga clip mula sa isang zip file ng library, o palitan ng mga ito ang mga clip dito. Sinusuri ang bawat file gaya ng sa pagdagdag ng mga clip.</value>
   </data>
+  <data name="SoundboardRestoreStarter" xml:space="preserve">
+    <value>Ibalik ang mga panimulang tunog</value>
+  </data>
+  <data name="SoundboardRestoreStarterTip" xml:space="preserve">
+    <value>Idagdag muli ang mga panimulang tunog na wala na sa soundboard, sa kanilang Starter na pahina. Nananatili ang mga clip dito, at ang panimulang tunog na pinalitan mo ng pangalan o inilipat ay itinuturing na naroon.</value>
+  </data>
   <data name="SoundboardPickExport" xml:space="preserve">
     <value>I-export ang library ng soundboard</value>
   </data>
@@ -3664,6 +3670,9 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
   </data>
   <data name="SoundboardImportingLibrary" xml:space="preserve">
     <value>Ini-import ang library. Sinusuri ang bawat clip pagpasok nito.</value>
+  </data>
+  <data name="SoundboardRestoringStarter" xml:space="preserve">
+    <value>Idinadagdag muli ang mga nawawalang panimulang tunog. Sinusuri ang bawat clip pagpasok nito.</value>
   </data>
   <data name="SoundboardTransferNoAnswer" xml:space="preserve">
     <value>Walang sagot mula sa daemon. Suriin ang soundboard bago subukan muli.</value>

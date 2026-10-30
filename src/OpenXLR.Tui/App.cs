@@ -437,6 +437,7 @@ internal sealed class App
             "          s stop the clip; S stop all; b board on or off.",
             "          -/+ [/] gain; m mode; l loop; r rename; d delete.",
             "          i import a file by its path; Ctrl+Up/Down reorder.",
+            "          R restore the starter sounds the board lacks.",
             "          a audition in the monitor mixes, not the stream.",
             "          </> ,/. SFX volume, the board's master.",
             "          p/P next or previous page; g move a clip to a page;",

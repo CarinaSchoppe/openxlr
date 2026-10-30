@@ -728,6 +728,26 @@ public sealed class TuiSoundsTests
     }
 
     [Fact]
+    public void RRestoresTheStarterSoundsAndShowsTheDaemonsSentence()
+    {
+        Session session = new();
+        session.Key('R');
+        JsonObject command = session.Command();
+        Assert.Equal("restoreStarterSounds", Text(command, "cmd"));
+        Assert.Contains("Importing the starter sounds", session.Frame(), StringComparison.Ordinal);
+
+        session.Link.Receive(new JsonObject
+        {
+            ["type"] = "starterSounds", ["ok"] = true, ["message"] = "Every starter sound is on the soundboard already.",
+            ["clips"] = new JsonArray(), ["skipped"] = new JsonArray(),
+        }.ToJsonString());
+        long before = session.Link.LastImport?.Serial ?? 0;
+        session.Link.Receive(new JsonObject { ["type"] = "commandResult", ["requestId"] = Text(command, "requestId"), ["error"] = null }.ToJsonString());
+        Assert.True(SpinWait.SpinUntil(() => (session.Link.LastImport?.Serial ?? 0) > before, TimeSpan.FromSeconds(5)));
+        Assert.Contains("Every starter sound is on the soundboard already.", session.Frame(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AnImportFailsAtOnceWithoutAConnection()
     {
         Session session = new();
@@ -975,7 +995,7 @@ public sealed class TuiSoundsTests
         string frame = session.Frame();
         for (int i = 0; i < 12; i++) session.Key(Key.Down);
         frame += session.Frame();
-        foreach (string text in new[] { "a hold clip plays until pressed again", "S stop all", "i import a file", "SFX volume",
+        foreach (string text in new[] { "a hold clip plays until pressed again", "S stop all", "i import a file", "R restore the starter sounds", "SFX volume",
                      "a audition in the monitor mixes, not the stream", "G rename the page shown" })
             Assert.Contains(text, frame, StringComparison.Ordinal);
     }

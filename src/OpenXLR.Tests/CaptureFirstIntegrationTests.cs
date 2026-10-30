@@ -124,6 +124,127 @@ public sealed partial class MonitorVolumeIntegrationTests
     }
 
     /// <summary>
+    /// A capture that is linked is not yet running: the Wave:3 MK.2 kept its
+    /// PipeWire source running while the kernel left its capture stopped. The
+    /// route into the unit waits until the kernel says the capture runs.
+    /// </summary>
+    [MonitorPipeWireFact]
+    public void ALinkedCaptureTheKernelHasNotStartedKeepsTheRouteWaiting()
+    {
+        using var links = new LinkLog();
+        bool kernel = false;
+        var pw = new PipeWireAdapter(); using var registry = pw.WatchGraph();
+        using var mixer = new Mixer(pw)
+        {
+            Clock = () => 0,
+            CaptureProbe = name => name == Wave3Source ? new CaptureRun(1, Alsa: true, NodeRunning: true, Volatile.Read(ref kernel)) : pw.CaptureRunOf(name),
+        };
+        pw.CreateNullSink(Wave3Sink, "Wave 3 test output");
+        WaitForInputPorts(Wave3Sink, 2);
+        WaveSource(pw, "test_wave3_stopped_parent", Wave3Source);
+        mixer.SetInputDeviceHint(Wave3Hints, hardwareOutputRouting: false, modelFallback: false);
+        links.Start();
+        mixer.Build(HardwareInputConfig, monitorOutputSink: Wave3Sink);
+        mixer.EnsureInputFeeds();
+        mixer.EnsureMonitorRoutes();
+        Assert.Equal(2, IncomingRouteLinks(Xlr1).Length);
+        Assert.Empty(GraphLinksInto(Wave3Sink));
+        Assert.Null(mixer.DrivenUnitPlayback());
+
+        Volatile.Write(ref kernel, true);
+        WaitForRecovery(() => { mixer.EnsureMonitorRoutes(); return GraphLinksInto(Wave3Sink).Length == 2; });
+        links.AssertCaptureFirst();
+        Assert.Equal(new UnitPlayback(Wave3Source, Wave3Sink), mixer.DrivenUnitPlayback());
+    }
+
+    /// <summary>
+    /// A unit that re-enumerates brings its sink back under the port names
+    /// the route remembers, often before its capture. The route is not
+    /// relinked until the capture runs again.
+    /// </summary>
+    [MonitorPipeWireFact]
+    public void ARouteThatLostItsLinksWaitsForTheCaptureAgain()
+    {
+        bool kernel = true;
+        var pw = new PipeWireAdapter(); using var registry = pw.WatchGraph();
+        using var mixer = new Mixer(pw)
+        {
+            Clock = () => 0,
+            CaptureProbe = name => name == Wave3Source ? new CaptureRun(1, Alsa: true, NodeRunning: true, Volatile.Read(ref kernel)) : pw.CaptureRunOf(name),
+        };
+        pw.CreateNullSink(Wave3Sink, "Wave 3 test output");
+        WaitForInputPorts(Wave3Sink, 2);
+        WaveSource(pw, "test_wave3_relink_parent", Wave3Source);
+        mixer.SetInputDeviceHint(Wave3Hints, hardwareOutputRouting: false, modelFallback: false);
+        mixer.Build(HardwareInputConfig, monitorOutputSink: Wave3Sink);
+        WaitForRecovery(() => { mixer.EnsureInputFeeds(); mixer.EnsureMonitorRoutes(); return GraphLinksInto(Wave3Sink).Length == 2; });
+
+        // The unit drops off and comes back: its links are gone and its
+        // capture has not started yet.
+        Volatile.Write(ref kernel, false);
+        pw.Unlink(new PortLink([.. GraphLinksInto(Wave3Sink)]));
+        WaitForRecovery(() => GraphLinksInto(Wave3Sink).Length == 0);
+        mixer.EnsureMonitorRoutes();
+        mixer.EnsureMonitorRoutes();
+        Assert.Empty(GraphLinksInto(Wave3Sink));
+
+        Volatile.Write(ref kernel, true);
+        WaitForRecovery(() => { mixer.EnsureMonitorRoutes(); return GraphLinksInto(Wave3Sink).Length == 2; });
+    }
+
+    /// <summary>
+    /// The way back from a stalled capture: every mix comes off the unit's
+    /// sink, the daemon resets the unit, and the mixes return only once the
+    /// re-enumerated card's capture runs, under a new node.
+    /// </summary>
+    [MonitorPipeWireFact]
+    public void ACaptureRecoveryKeepsThePlaybackOffUntilTheResetCardsCaptureRuns()
+    {
+        long now = 0;
+        int node = 1;
+        var notes = new List<string>();
+        var pw = new PipeWireAdapter(); using var registry = pw.WatchGraph();
+        using var mixer = new Mixer(pw)
+        {
+            Clock = () => Volatile.Read(ref now),
+            InputNote = note => { lock (notes) notes.Add(note); },
+            CaptureProbe = name => name == Wave3Source ? new CaptureRun(Volatile.Read(ref node), true, true, true) : pw.CaptureRunOf(name),
+        };
+        pw.CreateNullSink(Wave3Sink, "Wave 3 test output");
+        WaitForInputPorts(Wave3Sink, 2);
+        WaveSource(pw, "test_wave3_recovery_parent", Wave3Source);
+        mixer.SetInputDeviceHint(Wave3Hints, hardwareOutputRouting: false, modelFallback: false);
+        mixer.Build(HardwareInputConfig, monitorOutputSink: Wave3Sink);
+        WaitForRecovery(() => { mixer.EnsureInputFeeds(); mixer.EnsureMonitorRoutes(); return GraphLinksInto(Wave3Sink).Length == 2; });
+
+        Assert.Equal(1, mixer.BeginCaptureRecovery());
+        Assert.True(mixer.CaptureRecoveryActive);
+        WaitForRecovery(() => GraphLinksInto(Wave3Sink).Length == 0);
+        Assert.Null(mixer.DrivenUnitPlayback());
+        // The old card's capture running is not the way back: the reset has
+        // not happened yet, or has not reached the graph.
+        mixer.EnsureInputFeeds();
+        mixer.EnsureMonitorRoutes();
+        Assert.Empty(GraphLinksInto(Wave3Sink));
+        Assert.Equal(2, IncomingRouteLinks(Xlr1).Length);
+
+        Volatile.Write(ref node, 2);
+        WaitForRecovery(() => { mixer.EnsureInputFeeds(); mixer.EnsureMonitorRoutes(); return GraphLinksInto(Wave3Sink).Length == 2; });
+        Assert.False(mixer.CaptureRecoveryActive);
+        lock (notes) Assert.Contains(notes, note => note.Contains("runs again", StringComparison.Ordinal));
+
+        // A capture that never comes back stops holding the mixes after the limit.
+        Assert.Equal(1, mixer.BeginCaptureRecovery());
+        WaitForRecovery(() => GraphLinksInto(Wave3Sink).Length == 0);
+        mixer.EnsureMonitorRoutes();
+        Assert.Empty(GraphLinksInto(Wave3Sink));
+        Volatile.Write(ref now, (long)Mixer.CaptureRecoveryLimit.TotalMilliseconds);
+        WaitForRecovery(() => { mixer.EnsureMonitorRoutes(); return GraphLinksInto(Wave3Sink).Length == 2; });
+        Assert.False(mixer.CaptureRecoveryActive);
+        lock (notes) Assert.Contains(notes, note => note.Contains("did not run again", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// Puts a pw-link in front of the real one that appends every link it
     /// made, "output input", to a file, and takes it away again on dispose.
     /// </summary>

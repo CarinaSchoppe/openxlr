@@ -3498,10 +3498,14 @@ and one that opens the Wave:3 MK.2's headphones in the unit's float
 format (`55-openxlr-wave3-mk2-playback.conf`). On a source install copy
 them from `packaging/` into `~/.config/wireplumber/wireplumber.conf.d/`
 and restart WirePlumber.
-OpenXLR links the interface's capture before it routes any mix into the
-interface, waiting up to five seconds for it and then routing anyway with
-a journal line, and the same goes for another Elgato interface that XLR 1
-or XLR 2 takes its microphone from. Programs that play straight to the
+OpenXLR starts the interface's capture before it routes any mix into the
+interface, the monitor output on its own headphones included. A linked
+capture is not enough: OpenXLR waits until the kernel reports the capture
+running in `/proc/asound/<card>/stream0`, or until PipeWire runs it where
+that file cannot be read. It waits up to five seconds, then routes anyway
+with a journal line. The same goes for another Elgato interface that XLR 1
+or XLR 2 takes its microphone from, and again whenever the interface
+comes back after a replug or a reset. Programs that play straight to the
 interface can still start playback first, which is why the rules matter.
 
 A second cause, when the microphone is silent only after a reboot: the

@@ -82,8 +82,9 @@ public sealed class SoundboardPlayerTests : IDisposable
         using NativePluginHost host = StartPlayer(out string lines);
         using var player = new SoundboardPlayer(host,
             [("first", 0, "/clips/first slow.wav"), ("second", 1, "/clips/second.wav"), ("broken", 2, "/clips/bad.wav")]);
-        // The second load waits for the first answer, which takes a second.
-        Thread.Sleep(300);
+        // The second load waits for the first answer, which takes a second:
+        // once the first line is in, it stays the only one for that second.
+        Until(() => Lines(lines).Length > 0, "the first load was sent");
         Assert.Equal(["load 0 1 /clips/first slow.wav"], Lines(lines));
         Assert.Equal("first", player.Loading);
         Assert.Equal("First is still loading.", Assert.Throws<InvalidOperationException>(() => player.Play("first", "overlap", "First")).Message);

@@ -886,7 +886,7 @@ name adds an icon, which the layout editor's picker lists after the
 built-in set. The built-in names are `mic`, `microphone`, `headset`, `speaker`, `jack`,
 `music`, `game`, `browser`, `chat`, `people`, `broadcast`, `camera`,
 `bell`, `star`, `globe`, `cog`, `film`, `voice`, `podcast`, `record`,
-`apps`, `burst` and `monitor`.
+`apps`, `burst`, `monitor` and `dollar`.
 
 `path` is SVG path data in a 24 by 24 box with the origin at the top
 left, filled with the text colour of the name beside it, or with the

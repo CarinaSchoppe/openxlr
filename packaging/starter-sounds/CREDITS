@@ -5,8 +5,7 @@ Each author dedicated their clip to the public domain under CC0 1.0:
 CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
 The licence asks for no credit; it is given here because it is due.
 tools/starter-sounds.py in the OpenXLR source makes the edits and holds
-the exact cut, fades and level of every clip. The edits are CC0 1.0 too,
-as is the air horn, which that script makes.
+the exact cut, fades and level of every clip. The edits are CC0 1.0 too.
 
 applause.ogg: Applause
   Source: Freesound sound 25295, claping_ses1
@@ -65,11 +64,11 @@ sad-trombone.ogg: Sad trombone
   Edits: cut from 0 s to 4.95 s of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 100 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
 
 air-horn.ogg: Air horn
-  Source: Air horn, synthesised by tools/starter-sounds.py
-  URL: https://github.com/emaspa/openxlr/blob/main/tools/starter-sounds.py
-  Author: the OpenXLR project
+  Source: Freesound sound 705658, blow-yo-adam-f-king-horns
+  URL: https://freesound.org/people/laffik/sounds/705658/
+  Author: laffik
   Licence: CC0 1.0
-  Edits: level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+  Edits: cut from 0 s to 4.6 s of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 400 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
 
 ding.ogg: Ding
   Source: Freesound sound 173932, ding-ding-small-bell

@@ -20,7 +20,7 @@ public sealed class LayoutIconTests
 {
     // Characters both DejaVu Sans Mono and Noto Sans Mono draw, plus the legacy
     // glyphs, which the terminal mixer has drawn since appearance existed.
-    private static readonly string[] TextFallbacks = ["●", "◆", "▶", "◉", "■", "▲", "○", "◎", "◇", "▣", "◐", "♪", "♫", "✦"];
+    private static readonly string[] TextFallbacks = ["●", "◆", "▶", "◉", "■", "▲", "○", "◎", "◇", "▣", "◐", "♪", "♫", "✦", "$"];
 
     [Fact]
     public void TheBuiltInSetIsNamedBoundedAndDrawable()
@@ -36,7 +36,7 @@ public sealed class LayoutIconTests
             Assert.True(CoreIcons.IsValidPath(icon.Path), icon.Name);
         }
         foreach (string id in new[] { "mic", "microphone", "headset", "speaker", "jack", "music", "game", "browser", "chat", "people",
-                     "broadcast", "camera", "bell", "star", "globe", "cog", "film", "voice", "podcast", "record", "apps", "burst", "monitor" })
+                     "broadcast", "camera", "bell", "star", "globe", "cog", "film", "voice", "podcast", "record", "apps", "burst", "monitor", "dollar" })
             Assert.NotNull(CoreIcons.Find(id));
         Assert.All(CoreIcons.Glyphs, glyph => Assert.False(CoreIcons.IsName(glyph)));
     }

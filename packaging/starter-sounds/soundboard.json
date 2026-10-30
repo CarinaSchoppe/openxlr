@@ -125,7 +125,7 @@
       "id": "cash-register",
       "name": "Cash register",
       "file": "cash-register.ogg",
-      "icon": "",
+      "icon": "dollar",
       "page": "Starter",
       "starter": "cash-register"
     },

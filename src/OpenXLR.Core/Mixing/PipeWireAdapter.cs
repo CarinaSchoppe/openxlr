@@ -2073,6 +2073,28 @@ public sealed class PipeWireAdapter
         }
     }
 
+    /// <summary>
+    /// Remove each pair and link it again straight away, so the ports behind
+    /// it are joined afresh. The number of pairs linked again; one that
+    /// refuses stays removed for the caller's repair to find.
+    /// </summary>
+    public int Relink(IReadOnlyList<(string From, string To)> pairs)
+    {
+        foreach ((string from, string to) in pairs)
+        {
+            try { Run("pw-link", "-d", from, to); }
+            catch (InvalidOperationException) { /* already gone */ }
+        }
+        int linked = 0;
+        foreach ((string from, string to) in pairs)
+        {
+            try { Run("pw-link", from, to); linked++; }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("File exists", StringComparison.Ordinal)) { linked++; }
+            catch (InvalidOperationException) { }
+        }
+        return linked;
+    }
+
     /// <summary>Confirm removal without recreating any pair; a refused removal keeps its owner pending.</summary>
     public bool EnsureUnlinked(PortLink link)
     {

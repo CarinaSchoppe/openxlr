@@ -3518,19 +3518,21 @@ comes back after a replug or a reset. Programs that play straight to the
 interface can still start playback first, which is why the rules matter.
 
 On the Wave:3 MK.2 OpenXLR also watches the microphone while a mix plays
-into its headphones, and brings it back when it stalls. It acts on two
-signs. The kernel keeps the capture stopped for 3 seconds while PipeWire
-runs it, or three short samples taken 10 seconds apart each repeat one
-block of samples exactly. No microphone does the second, since its own
-noise differs in every block, so a quiet room or a muted microphone
-never sets it off. OpenXLR then takes the mixes off the headphones,
-resets the microphone on USB, and routes the mixes back once the
-microphone records again, or after 30 seconds. You hear the headphones
-drop for about 12 seconds. It does this at most once every 2 minutes and
-3 times in 30 minutes; after that the journal asks you to replug the
-microphone. **Recover microphone** in Options, under INTERFACE, does the
-same at once, for a stall the watch did not catch. Each step is in the
-journal (`journalctl --user -u openxlr-daemon`).
+into its headphones, and brings it back when it stalls. The sign it acts
+on is the kernel keeping the capture stopped for 3 seconds while PipeWire
+runs it, which a quiet room or a muted microphone never shows. OpenXLR
+then takes the mixes off the headphones, resets the microphone on USB,
+and routes the mixes back once the microphone records again, or after 30
+seconds. You hear the headphones drop for about 12 seconds. It does this
+at most once every 2 minutes and 3 times in 30 minutes; after that the
+journal asks you to replug the microphone.
+
+**Recover microphone** in Options, under INTERFACE, is for a stall the
+watch does not catch, such as a steady buzz in place of your voice. It
+first removes the microphone's links into its strips and makes them
+again, which leaves the headphones playing. If the kernel still has the
+capture stopped 2 seconds later, it goes on to the USB reset above. Each
+step is in the journal (`journalctl --user -u openxlr-daemon`).
 
 A second cause, when the microphone is silent only after a reboot: the
 dock forgets its gain at every power cycle and comes back at the gain its

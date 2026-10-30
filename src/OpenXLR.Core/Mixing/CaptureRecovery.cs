@@ -6,6 +6,9 @@ namespace OpenXLR.Core.Mixing;
 /// </summary>
 public readonly record struct UnitPlayback(string Source, string Sink);
 
+/// <summary>The driven unit's capture source and how many of its port links were dropped and made again.</summary>
+public readonly record struct UnitRelink(string Source, int Links);
+
 /// <summary>What a capture recovery needs from the mixer; the <see cref="Mixer"/> is one, tests fake it.</summary>
 public interface ICaptureRecoveryMixer
 {
@@ -13,6 +16,8 @@ public interface ICaptureRecoveryMixer
     UnitPlayback? DrivenUnitPlayback();
     /// <inheritdoc cref="Mixer.ProbeCapture"/>
     CaptureRun ProbeCapture(string source);
+    /// <inheritdoc cref="Mixer.RelinkDrivenUnitCapture"/>
+    UnitRelink? RelinkDrivenUnitCapture();
     /// <inheritdoc cref="Mixer.BeginCaptureRecovery"/>
     int? BeginCaptureRecovery();
     /// <inheritdoc cref="Mixer.EndCaptureRecovery"/>
@@ -103,6 +108,28 @@ public sealed partial class Mixer : ICaptureRecoveryMixer
             _captureRecovery = new Recovery(card, ProbeCaptureLocked(source).NodeId, Clock());
             ReleasePlaybackHoldLocked(card);
             return routes.Count;
+        }
+    }
+
+    /// <summary>
+    /// Drop every link the mixer made out of the driven unit's capture
+    /// source (into its strips, an EQ stage at a strip's head, a capture
+    /// input on the same card) and make each again at once. The playback
+    /// into the unit is left alone, so the headphones keep playing. On the
+    /// maintainer's Wave:3 MK.2 a buzz on the capture stopped the moment its
+    /// link into the strip was deleted, which a USB reset never did. A pair
+    /// that cannot be made again is left to the sweep, which heals the feed.
+    /// Null when no unit is driven or the mixer is not built.
+    /// </summary>
+    public UnitRelink? RelinkDrivenUnitCapture()
+    {
+        lock (_gate)
+        {
+            if (!_built || _inputDevice is not { } source) return null;
+            string prefix = source + ":";
+            List<(string From, string To)> pairs = [.. _inputFeeds.Values.Concat(_eqInputs.Values).Concat(_captureFeeds.Values)
+                .SelectMany(l => l.Pairs).Where(p => p.From.StartsWith(prefix, StringComparison.Ordinal)).Distinct()];
+            return new UnitRelink(source, _pw.Relink(pairs));
         }
     }
 

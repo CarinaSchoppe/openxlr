@@ -1209,12 +1209,13 @@ public sealed class DeviceManager : BackgroundService
     /// Drive the Pro's headphone-mix membership toward the wanted state (issue
     /// #8): the Monitor stream's return pair must be a member for the jacks to
     /// hear the Monitor mix at all, and the mic's hardware direct path follows
-    /// the software mixer. A null <paramref name="monitorReturn"/> leaves the
-    /// return pair as the unit holds it. Returns true when a bit was written,
-    /// so the caller can restart the playback stream, which is what latches
-    /// the change.
+    /// the software mixer, at <paramref name="micLevelDb"/>, the level the
+    /// software send would play it at. A null <paramref name="monitorReturn"/>
+    /// leaves the return pair as the unit holds it. Returns true when a
+    /// membership bit was written, so the caller can restart the playback
+    /// stream, which is what latches the change; the level applies at once.
     /// </summary>
-    public bool EnsureHeadphoneMix(bool? monitorReturn, bool micDirect)
+    public bool EnsureHeadphoneMix(bool? monitorReturn, bool micDirect, double micLevelDb = 0)
     {
         lock (_gate)
         {
@@ -1223,12 +1224,18 @@ public sealed class DeviceManager : BackgroundService
             if (s is null) return false;
             try
             {
+                // Half-dB steps, the cell's own. The level is set before the
+                // path opens, so the jacks never hear a level another program
+                // left.
+                bool level = micDirect && HalfDb(s.HpMixMicLevelDb) != HalfDb(micLevelDb);
+                if (level) _device.SetHpMixMicLevelDb(micLevelDb);
                 bool changed = false;
                 if (monitorReturn is { } ret && s.HpMixMonitorReturn != ret) { _device.SetHpMixMonitorReturn(ret); changed = true; }
                 if (s.HpMixMicDirect != micDirect) { _device.SetHpMixMicDirect(micDirect); changed = true; }
                 if (changed)
-                {
                     _log.LogInformation("headphone mix: monitor return {ret}, mic direct {mic}", monitorReturn ?? s.HpMixMonitorReturn, micDirect);
+                if (changed || level)
+                {
                     _last = Stamp(_device.ReadState());
                     RaiseFromLocked();
                 }
@@ -1241,6 +1248,9 @@ public sealed class DeviceManager : BackgroundService
             }
         }
     }
+
+    private static int HalfDb(double db)
+        => double.IsFinite(db) ? (int)Math.Round(Math.Clamp(db, -60, 12) * 2, MidpointRounding.AwayFromZero) : -120;
 
     /// <summary>Vendor block dumps for diagnostics; empty without a device.</summary>
     public IReadOnlyDictionary<string, string> DumpBlocks()

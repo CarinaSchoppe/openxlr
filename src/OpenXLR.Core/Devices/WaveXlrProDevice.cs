@@ -42,7 +42,7 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     {
         Gain = true,
         PhysicalControls = true, Mute = true, LowCut = true, Expander = true, VoiceTune = true,
-        HpVolume = true, LowImpedance = true, Crossfade = true,
+        HpVolume = true, LowImpedance = true,
         Phantom = true, ClipGuard = true, Compressor = true,
         OutputRouting = true, AuxInput = true, LineInput = true, LineInGainMaxDb = WaveXlrProDevice.LineInGainMaxDb,
         XlrInputs = 2, HpOutputs = 2,
@@ -90,7 +90,6 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     private const int AuxLevelOffset = 79;          // block 0x0004 tail, dB = -byte/4 (0..-60)
     private const int HpVolOffset = 0;     // block 0x0005 (headphones 1)
     private const int Hp2VolOffset = 2;    // block 0x0005 (headphones 2)
-    private const int CrossfadeOffset = 0; // block 0x0001
 
     // Physical output MIX ASSIGNMENT in block 0x0001 (captures 2-4 + live jack
     // test): one byte per output, holding a hardware-mix id. 0x1e = the
@@ -104,11 +103,22 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     private const byte OutSourceMonitor = 0x1e;
     private const byte OutSourceAuxMix = 0x20;
     private const byte OutSourceOff = 0x23;
-    // Headphone-mix membership (issue #8, verified by ear): byte 12 bit 5 =
-    // USB return pair 2/3 in the jacks' mix, byte 13 bit 1 = mic direct path.
-    // The notes' "Personal section" at off16..33 does not affect the jacks.
+    // Headphone-mix membership (section 0 of the block, the mix the jacks
+    // play; see the protocol notes, section 12): byte 12 bit 5 = USB return
+    // pair 2/3 in the jacks' mix, byte 12 bit 0 = XLR 1, the microphone's
+    // zero-latency path. Both measured on the desk unit (2026-10-30) through
+    // the mix's capture stream.
     private const int HpMixReturnsOffset = 12;
     private const byte HpMixMonitorReturnMask = 0x20;
+    private const byte HpMixMicDirectMask = 0x01;
+    // XLR 1's level in the jacks' mix, int8 in half dB like every level cell
+    // (desk, 2026-10-30: 00 played the mic at the return's level, f4 6 dB
+    // under it, c8 28 dB under). OpenXLR used to drive this byte as a Mic/PC
+    // crossfade from 0 to 200, which put the centre at the cell's +12 dB cap.
+    // A level write applies at once, with no commit and no stream restart.
+    private const int HpMixMicLevelOffset = 0;
+    private const int HpMixMicLevelFloor = -120;  // 88, -60 dB: Wave Link's floor
+    private const int HpMixMicLevelCeiling = 24;  // 18, +12 dB: the firmware holds anything above
     // Pair 2/3's level in the jacks' mix, int8 in half dB, 0x00 = 0 dB
     // (measured +6.2 dB at 0x0c, -6.1 dB at 0xf4). Wave Link keeps its own
     // fader level here, so a unit that dual-boots plays the Monitor mix that
@@ -119,8 +129,15 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     // the Line In jack straight to the jacks beside the Monitor mix that
     // already carries the Line In channel (an owner's archive: byte 12 `e8`).
     private const byte HpMixLineInMask = 0x08;
-    private const int HpMixInputsOffset = 13;
-    private const byte HpMixMicDirectMask = 0x02;
+    // Byte 13 bit 1 is USB playback pair 5 in the same mix: the Aux mix's
+    // stream on AUX10 and AUX11 (desk, 2026-10-30, a tone on that pair came
+    // and went with the bit, and byte 9 set its level). OpenXLR used to set it
+    // as the microphone's direct path, which played the whole Aux mix on the
+    // jacks beside the Monitor mix, and played nothing where Wave Link had
+    // left byte 9 at its floor. The jacks hear the Aux mix through Monitor A
+    // only, so the bit is cleared with the Monitor return, as Line In's is.
+    private const int HpMixPairsOffset = 13;
+    private const byte HpMixAuxMixMask = 0x02;
 
     // The aux mix's matrix cell for the Music return channel (USB playback
     // pair 10/11), decoded from capture 4 where music was confirmed flowing to
@@ -157,7 +174,6 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     // about 20 dB on an owner's unit, so OpenXLR writes no more than 40.
     public const int LineInGainMaxDb = 40;
     public const int VoiceTuneStrengthMax = 100;
-    public const int CrossfadeMax = 200;
 
     private readonly IUsbTransport _usb;
     private readonly object _lock = new();
@@ -311,7 +327,6 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
             HpVolumeDb = -b5[HpVolOffset] / 4.0,
             Hp2VolumeDb = -b5[Hp2VolOffset] / 4.0,
             LowImpedance = (b5[FlagsOffset] & LowZMask) != 0,
-            Crossfade = b1[CrossfadeOffset],
             Phantom = (f & PhantomMask) != 0,
             ClipGuard = (b4[ClipGuardOffset] & ClipGuardOffMask) == 0,
             Compressor = (f & CompressorMask) != 0,
@@ -329,8 +344,10 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
             OutUsbAux = b1[OutUsbAuxOffset] != OutSourceOff,
             OutLineOut = b1[OutLineOutOffset] != OutSourceOff,
             HpMixMonitorReturn = (b1[HpMixReturnsOffset] & (HpMixMonitorReturnMask | HpMixLineInMask)) == HpMixMonitorReturnMask &&
+                                 (b1[HpMixPairsOffset] & HpMixAuxMixMask) == 0 &&
                                  b1[HpMixMonitorReturnLevelOffset] == 0x00,
-            HpMixMicDirect = (b1[HpMixInputsOffset] & HpMixMicDirectMask) != 0,
+            HpMixMicDirect = (b1[HpMixReturnsOffset] & HpMixMicDirectMask) != 0,
+            HpMixMicLevelDb = Math.Min((int)(sbyte)b1[HpMixMicLevelOffset], HpMixMicLevelCeiling) / 2.0,
             AuxReturnEnabled = b1[AuxMixMusicLevelOffset] == 0x00 &&
                                (b1[AuxMixMusicMemberOffset] & AuxMixMusicMemberMask) != 0,
             AuxLevelDb = -b4[AuxLevelOffset] / 4.0,
@@ -358,13 +375,10 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
         Write(BlockSettings, b);
     }
 
-    public void SetCrossfade(int value)
-    {
-        value = Math.Clamp(value, 0, CrossfadeMax);
-        byte[] b = Read(BlockCrossfade, CrossfadeLen);
-        b[CrossfadeOffset] = (byte)value;
-        Write(BlockCrossfade, b);
-    }
+    // The Pro has no crossfade to offer: the byte once driven as one is XLR
+    // 1's level in the jacks' mix, which follows the Monitor send (see
+    // SetHpMixMicLevelDb), and the capabilities leave the control out.
+    public void SetCrossfade(int value) { }
 
     /// <summary>Set HP volume in dB; the hardware byte is -4*dB (0 = loudest).</summary>
     public void SetHpVolumeDb(double db)
@@ -466,21 +480,35 @@ public sealed class WaveXlrProDevice : IAudioDevice, IDisposable
     // The headphone mix latches membership changes when the host playback
     // stream (re)starts, like the aux return; the caller bounces the sink.
     // Turning the return on also opens its level cell, as the aux return does,
-    // and takes the Line In jack out of the mix: the jacks then hear Line In
-    // only through the Monitor mix, as the aux mix does once OpenXLR drives
-    // its port. Turning it off leaves the Line In bit as it is.
+    // and takes the Line In jack and the Aux mix's stream out of the mix: the
+    // jacks then hear both only through the Monitor mix, as the aux mix does
+    // once OpenXLR drives its port. Turning it off leaves those bits as they are.
     public void SetHpMixMonitorReturn(bool on)
     {
         byte[] b = Read(BlockCrossfade, CrossfadeLen);
         if (on)
         {
             b[HpMixReturnsOffset] = (byte)((b[HpMixReturnsOffset] | HpMixMonitorReturnMask) & ~HpMixLineInMask);
+            b[HpMixPairsOffset] &= unchecked((byte)~HpMixAuxMixMask);
             b[HpMixMonitorReturnLevelOffset] = 0x00;          // 0 dB
         }
         else b[HpMixReturnsOffset] &= unchecked((byte)~HpMixMonitorReturnMask);
         WriteCommitted(BlockCrossfade, b);
     }
-    public void SetHpMixMicDirect(bool on) => SetBlock1Bit(HpMixInputsOffset, HpMixMicDirectMask, on);
+    public void SetHpMixMicDirect(bool on) => SetBlock1Bit(HpMixReturnsOffset, HpMixMicDirectMask, on);
+
+    /// <summary>XLR 1's level in the jacks' mix, held to -60 to +12 dB in half-dB steps.</summary>
+    public void SetHpMixMicLevelDb(double db)
+    {
+        byte[] b = Read(BlockCrossfade, CrossfadeLen);
+        b[HpMixMicLevelOffset] = HpMixMicLevelByte(db);
+        Write(BlockCrossfade, b);
+    }
+
+    internal static byte HpMixMicLevelByte(double db)
+        => unchecked((byte)(sbyte)(double.IsFinite(db)
+            ? Math.Clamp((int)Math.Round(db * 2, MidpointRounding.AwayFromZero), HpMixMicLevelFloor, HpMixMicLevelCeiling)
+            : HpMixMicLevelFloor));
 
     private void SetBlock1Bit(int offset, byte mask, bool on)
     {

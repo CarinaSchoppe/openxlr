@@ -30,16 +30,19 @@ public sealed class HeadphoneMixTests : IDisposable
     private sealed class Pro(bool monitorReturn, bool micDirect) : IAudioDevice
     {
         public bool MonitorReturn = monitorReturn, MicDirect = micDirect;
-        public int ReturnWrites, DirectWrites;
+        public double MicLevelDb = -14;   // what Wave Link might leave
+        public int ReturnWrites, DirectWrites, LevelWrites;
+        public readonly List<string> Order = [];
         public DeviceInfo Info { get; } = new("Elgato", "Wave XLR Pro", 0x0fd9, 0x00b4);
         public DeviceCapabilities Capabilities { get; } = new() { Gain = true, OutputRouting = true, RetainsSettings = true };
         public bool Connected { get; private set; }
         public void Connect() => Connected = true;
         public void Disconnect() => Connected = false;
         public void Dispose() { }
-        public DeviceState ReadState() => new() { GainDb = 30, HpMixMonitorReturn = MonitorReturn, HpMixMicDirect = MicDirect };
-        public void SetHpMixMonitorReturn(bool on) { ReturnWrites++; MonitorReturn = on; }
-        public void SetHpMixMicDirect(bool on) { DirectWrites++; MicDirect = on; }
+        public DeviceState ReadState() => new() { GainDb = 30, HpMixMonitorReturn = MonitorReturn, HpMixMicDirect = MicDirect, HpMixMicLevelDb = MicLevelDb };
+        public void SetHpMixMonitorReturn(bool on) { ReturnWrites++; MonitorReturn = on; Order.Add("return"); }
+        public void SetHpMixMicDirect(bool on) { DirectWrites++; MicDirect = on; Order.Add("direct"); }
+        public void SetHpMixMicLevelDb(double db) { LevelWrites++; MicLevelDb = Math.Round(Math.Clamp(db, -60, 12) * 2) / 2; Order.Add("level"); }
         public void SetGainDb(int db) { } public void SetMute(bool on) { } public void SetLowCut(bool on) { }
         public void SetExpander(bool on) { } public void SetVoiceTune(bool on) { } public void SetVoiceTuneStrength(int v) { }
         public void SetHpVolumeDb(double db) { } public void SetLowImpedance(bool on) { } public void SetCrossfade(int v) { }
@@ -111,5 +114,35 @@ public sealed class HeadphoneMixTests : IDisposable
         Assert.True(manager.EnsureHeadphoneMix(monitorReturn: true, micDirect: false));
         Assert.Equal((true, false), (unit.MonitorReturn, unit.MicDirect));
         Assert.Equal((1, 2), (unit.ReturnWrites, unit.DirectWrites));
+    }
+
+    [Fact]
+    public void ThePathOpensAtTheSendsLevelAndALevelChangeAloneNeedsNoRestart()
+    {
+        var unit = new Pro(monitorReturn: true, micDirect: false);
+        using DeviceManager manager = Connect(unit);
+
+        // The level goes in before the path opens, so the jacks never play
+        // the microphone at the level another program left.
+        Assert.True(manager.EnsureHeadphoneMix(monitorReturn: true, micDirect: true, micLevelDb: 0));
+        Assert.Equal(["level", "direct"], unit.Order);
+        Assert.Equal(0, manager.Snapshot().State!.HpMixMicLevelDb);
+
+        // A send or volume change moves the level only: no membership write,
+        // so the caller does not restart the playback stream.
+        Assert.False(manager.EnsureHeadphoneMix(monitorReturn: true, micDirect: true, micLevelDb: -18.06));
+        Assert.Equal(-18, unit.MicLevelDb);
+        Assert.Equal((2, 1), (unit.LevelWrites, unit.DirectWrites));
+
+        // Within the cell's half-dB step, nothing is written; a send pulled
+        // all the way down takes the floor.
+        Assert.False(manager.EnsureHeadphoneMix(monitorReturn: true, micDirect: true, micLevelDb: -18.1));
+        Assert.Equal(2, unit.LevelWrites);
+        Assert.False(manager.EnsureHeadphoneMix(monitorReturn: true, micDirect: true, micLevelDb: double.NegativeInfinity));
+        Assert.Equal((3, -60.0), (unit.LevelWrites, unit.MicLevelDb));
+
+        // With the path off the level is left as it is.
+        Assert.True(manager.EnsureHeadphoneMix(monitorReturn: true, micDirect: false, micLevelDb: 0));
+        Assert.Equal((3, -60.0), (unit.LevelWrites, unit.MicLevelDb));
     }
 }

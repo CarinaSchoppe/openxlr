@@ -218,11 +218,12 @@ On a Wave XLR Pro, the [zero-latency path](#input-bindings) to the
 headphone jacks is inside the interface. It carries the microphone
 straight to the jacks, so the channel volume cannot reach it. While the
 path is on, the channel that carries the Pro's microphone shows a small
-ⓘ mark beside its volume, and the volume's tooltip says that the volume
-changes Stream, Chat and every other mix, but not what the headphones
-hear of the microphone. To change how loud the microphone is
-in the headphones while the path is on, use the Mic/PC blend in
-HEADPHONES.
+ⓘ mark beside its volume. OpenXLR sets the path's level from the
+microphone's Monitor send, its channel volume and the Monitor mix's
+volume, so these change how loud you hear yourself just as they would
+through the computer. The path skips the channel's software effects, so
+the headphones hear the microphone without software EQ, noise removal, the
+voice changer or plugin inserts. The volume's tooltip says so.
 
 ### Submixer categories
 
@@ -395,9 +396,9 @@ classic INPUTS panel they move under XLR 1's own controls with a heading
 such as "Wave XLR Pro, input 1: plays on Pro mic". With no channel carrying
 the interface's microphone, the heading says it is not in the mixer and the
 controls fold away; the arrow beside the heading opens them, so a hot preamp
-can still be turned down. The Mic/PC blend in HEADPHONES keeps mixing the
-interface's own microphone into its jack, and a line under it says where
-that microphone plays. The light in the header means the interface's
+can still be turned down. On an interface with a Mic/PC blend, the blend
+in HEADPHONES keeps mixing the interface's own microphone into its jack,
+and a line under it says where that microphone plays. The light in the header means the interface's
 connection and nothing else.
 
 On a Wave XLR Pro the zero-latency path to the headphone jacks follows the
@@ -620,9 +621,11 @@ that was the default.
    line-output switches still follow the monitor feed.
 6. The HEADPHONES card holds the interface's own headphone volume,
    low-impedance mode, and, on every interface with a direct monitor (the
-   Pro, the MK.2 family, the Wave:3, the Wave:3 MK.2 and the Wave:1), the
-   Mic ↔ PC crossfade, which is the zero-latency direct monitor inside the
-   device: left is only your microphone, right is only computer audio.
+   MK.2 family, the Wave:3, the Wave:3 MK.2 and the Wave:1), the Mic ↔ PC
+   crossfade, which is the zero-latency direct monitor inside the device:
+   left is only your microphone, right is only computer audio. The Wave XLR
+   Pro has no crossfade: its zero-latency path follows the microphone's
+   Monitor send (see [the channel volume](#volume-direct-monitor)).
 
 With one headphone jack, its volume fader uses the whole row. Two jacks
 share the row equally. In MONITOR, a long output name is shortened to
@@ -2264,8 +2267,8 @@ clean state to record and whatever is set on Linux is what Wave Link
 finds on Windows, and the other way round. For it the same button
 writes OpenXLR's baseline instead: gain 30 dB on both inputs, every
 processing stage and phantom power off, headphones and aux level at
-half, the crossfade fully on PC. Output routing, the Line In gain and
-saved profiles stay. The gain lock has to be off.
+half. Output routing, the microphone's level in the headphones, the Line
+In gain and saved profiles stay. The gain lock has to be off.
 
 <a name="default-devices"></a>
 ### 3.7 Hold the system default devices
@@ -3343,10 +3346,13 @@ shifting adds a short delay, the same in every mix and call, so the voice
 stays in step with itself.
 
 Interfaces with a direct monitor send your own voice to their headphone
-jacks in hardware, before any of this. On the Wave XLR Pro and the MK.2
-units, and on the Wave:3, the Wave:3 MK.2 and the Wave:1, you hear the
-changed voice only through a monitor mix that carries the microphone. Turn
-the Mic ↔ PC crossfade towards PC to hear it as your listeners do.
+jacks in hardware, before any of this. On the MK.2 units, the Wave:3, the
+Wave:3 MK.2 and the Wave:1, you hear the changed voice only through a
+monitor mix that carries the microphone. Turn the Mic ↔ PC crossfade
+towards PC to hear it as your listeners do. On the Wave XLR Pro the jacks
+play the microphone through the
+[zero-latency path](#volume-direct-monitor) while it is on, so they play
+your voice unchanged.
 
 The voice is saved with the mixer and in profiles, so a profile can recall
 a voice; a profile saved before the voice changer leaves it as it is. A

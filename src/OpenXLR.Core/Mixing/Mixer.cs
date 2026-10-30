@@ -2394,6 +2394,30 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         }
     }
 
+    /// <summary>
+    /// The level, in dB, the jacks' feed would play the hardware mic path's
+    /// channel at through its software send: the send level and the channel
+    /// volume, then the feeding mix's volume, all on the desktop's cubic
+    /// scale. For a summed feed the loudest unmuted part counts. Negative
+    /// infinity while no part carries it; the device holds that to its floor.
+    /// </summary>
+    public double HardwareMicLevelDb
+    {
+        get
+        {
+            lock (_gate)
+            {
+                if (_hardwareMicChannel is not { } channel || JackFeedLocked() is not { } feed) return double.NegativeInfinity;
+                double gain = MonitorFeed.Parts(feed)
+                    .Where(m => !_mixMuted.Contains(m) && !_muted.Contains(Cell(channel, m)))
+                    .Select(m => SendGain(_levels.GetValueOrDefault(Cell(channel, m), 0.0), ChannelVolumeLocked(channel), 1)
+                        * Math.Clamp(_mixVolume.GetValueOrDefault(m, 1.0), 0, MixVolumeMaximumLocked(m)))
+                    .DefaultIfEmpty(0).Max();
+                return gain > 0 ? 60 * Math.Log10(gain) : double.NegativeInfinity;
+            }
+        }
+    }
+
     private void SetHardwareMicChannelLocked(string? channel)
     {
         if (_hardwareMicChannel == channel) return;

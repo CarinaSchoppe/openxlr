@@ -50,7 +50,7 @@ public sealed class ProDuckingTests
         block[0] = 0x64;
         block[5] = 0x00;
         block[12] = 0x24;
-        block[13] = 0x0e;
+        block[13] = 0x0c;
         foreach (int at in new[] { 15, 33, 51, 69, 87 })
         {
             block[at] = 0xaa;

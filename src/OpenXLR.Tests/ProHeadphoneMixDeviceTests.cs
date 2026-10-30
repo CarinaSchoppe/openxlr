@@ -149,4 +149,84 @@ public sealed class ProHeadphoneMixDeviceTests
             try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
         }
     }
+
+    /// <summary>
+    /// Block 0x0001 from an owner's archive (2026-10-30) whose microphone was
+    /// missing from the jacks: XLR 1 out of the jacks' mix (byte 12 `30`),
+    /// the Aux mix's stream in it (byte 13 bit 1) at Wave Link's floor (byte
+    /// 9 `88`), and byte 0, XLR 1's level, at `64`, the crossfade's centre.
+    /// </summary>
+    private const string MicMissing =
+        "64888888E700888888888888300200FF5555008800888888880088888888850000BA5555008888888888888888008888000200FE5555" +
+        "E788DB88D7F9EBE7EE888888F50100FDFF570088E788D78888ED88888888950000FEFF571E2320230202020200000000000000000000";
+
+    [Fact]
+    public void TheMicrophonesPathIsXlr1sMembershipAndTheAuxMixLeavesWithTheReturn()
+    {
+        var unit = Unit(MicMissing);
+        using var pro = new WaveXlrProDevice(unit);
+        pro.Connect();
+        Assert.False(pro.Capabilities.Crossfade);
+        DeviceState state = pro.ReadState();
+        // The bit OpenXLR set before is the Aux mix, not the microphone; the
+        // level reads as the firmware plays it, held at +12 dB.
+        Assert.False(state.HpMixMicDirect);
+        Assert.Equal(12, state.HpMixMicLevelDb);
+        Assert.False(state.HpMixMonitorReturn);
+
+        byte[] before = unit.Blocks[0x0001];
+        pro.SetHpMixMonitorReturn(true);
+        byte[] after = unit.Blocks[0x0001];
+        Assert.Equal(0x00, after[13]);
+        for (int i = 0; i < after.Length; i++)
+            if (i != 13) Assert.Equal(before[i], after[i]);
+        Assert.True(pro.ReadState().HpMixMonitorReturn);
+
+        pro.SetHpMixMicLevelDb(0);
+        pro.SetHpMixMicDirect(true);
+        Assert.Equal((0x00, 0x31), (unit.Blocks[0x0001][0], unit.Blocks[0x0001][12]));
+        state = pro.ReadState();
+        Assert.Equal((true, 0.0, true), (state.HpMixMicDirect, state.HpMixMicLevelDb, state.HpMixMonitorReturn));
+
+        pro.SetHpMixMicDirect(false);
+        Assert.Equal(0x30, unit.Blocks[0x0001][12]);
+        Assert.False(pro.ReadState().HpMixMicDirect);
+    }
+
+    [Theory]
+    [InlineData(0.0, 0x00)]
+    [InlineData(-6.0, 0xf4)]
+    [InlineData(-28.0, 0xc8)]
+    [InlineData(-18.06, 0xdc)]
+    [InlineData(10.6, 0x15)]
+    [InlineData(30.0, 0x18)]
+    [InlineData(-80.0, 0x88)]
+    [InlineData(double.NegativeInfinity, 0x88)]
+    [InlineData(double.NaN, 0x88)]
+    public void TheMicLevelIsWrittenInHalfDecibelsBetweenTheFloorAndTheCap(double db, int expected)
+    {
+        var unit = Unit(MicMissing);
+        using var pro = new WaveXlrProDevice(unit);
+        pro.Connect();
+        byte[] before = unit.Blocks[0x0001];
+        unit.Calls.Clear();
+        pro.SetHpMixMicLevelDb(db);
+        byte[] after = unit.Blocks[0x0001];
+        Assert.Equal(expected, after[0]);
+        for (int i = 1; i < after.Length; i++) Assert.Equal(before[i], after[i]);
+        // A level applies at once on the unit: no commit follows.
+        Assert.DoesNotContain(unit.Calls, c => c.Type == 0x41 && c.Block == 0x0003);
+    }
+
+    [Fact]
+    public void TheCrossfadeNoLongerWritesTheMicLevel()
+    {
+        var unit = Unit(MicMissing);
+        using var pro = new WaveXlrProDevice(unit);
+        pro.Connect();
+        unit.Calls.Clear();
+        pro.SetCrossfade(200);
+        Assert.Equal(0x64, unit.Blocks[0x0001][0]);
+        Assert.DoesNotContain(unit.Calls, c => c.Type == 0x41);
+    }
 }

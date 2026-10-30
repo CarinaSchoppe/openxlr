@@ -35,7 +35,7 @@ up to 32 s, and a read that succeeds resets it.
 
 Vendor block protocol decoded and documented in
 [wave-xlr-pro-protocol.md](wave-xlr-pro-protocol.md): config blocks for
-both XLR inputs, headphone block, crossfade and output selectors, and
+both XLR inputs, headphone block, the jacks' mix and output selectors, and
 the commit block every selector write needs.
 
 | Control | State | Notes |
@@ -44,7 +44,7 @@ the commit block every selector write needs.
 | Low cut, expander, voice tune + strength | verified | per input |
 | Phantom 48V, ClipGuard, compressor | verified | ClipGuard is an inverted byte in the protocol. The firmware mutes the input for about 13 s around every 48V change (anti-thump) and unmutes it itself; the UI counts the hold down on the mute button |
 | Headphone volumes x2, low impedance | verified | independent jacks |
-| Mic and PC crossfade | verified | direct monitor inside the device |
+| Zero-latency microphone path | measured on the unit | block 0x0001 byte 12 bit 0, XLR 1's membership in the mix the jacks play, at the level in byte 0. On the desk unit (firmware 1.0.14, 2026-10-30, the mix's capture stream against XLR 1's) the bit put the microphone in the mix and byte 0 set its level in half-dB steps (`00` with the Monitor return, `f4` 6 dB under, `c8` 28 dB under, held at +12 dB), and a level write applied without a commit or a stream restart. OpenXLR used to drive byte 0 as a Mic/PC crossfade and byte 13 bit 1 as this path; that bit is the Aux mix's USB stream, which an owner's unit held at -60 dB, so the microphone was missing from the jacks. The daemon now opens bit 0 at the level the Monitor send would play and clears byte 13 bit 1 with the Monitor return. The Pro shows no crossfade. Not yet checked by ear |
 | Physical output routing | verified | HP1, HP2, Line Out, USB Aux; verified by listening on both jacks |
 | USB Aux input level + lock, aux return | verified | return routing latches at stream open; the daemon bounces the stream |
 | Line In on a channel of its own | measured on the capture source | on the desk unit (firmware 1.0.14, 2026-10-25) the raw capture source has 18 channels, and a source playing into the Line In jack arrived on AUX6 and AUX7, apart from USB Aux on AUX4 and AUX5. The Line In channel takes AUX6 and AUX7 and is shown only on that 18-channel layout. Listening to it through OpenXLR's channel is not yet checked on hardware |
@@ -52,7 +52,7 @@ the commit block every selector write needs.
 | Line In level lock | measured on the unit | block 0x0004 byte 77 bit 3, beside the USB Aux lock at bit 2. On the desk unit (2026-10-26, block writes from a probe with the daemon stopped) the unit ignored Line In gain writes through its ALSA control while the bit was set and took them once it was clear, a write of the block still applied while it was set, and the USB Aux lock did not hold Line In. OpenXLR writes the bit the same way, as it writes the gain, with every other byte as read; toggling it from OpenXLR is not yet checked on hardware |
 | Line In kept out of the jacks' hardware mix | beta | block 0x0001 byte 12 bit 3, Line In's membership in the mix the jacks play, read from the section layout. An owner's unit held it set (byte 12 `e8`), so the Line In jack reached Headphones 1 in hardware beside the Line In channel in Monitor A: raising the send doubled it, and muting it left the jack audible. The daemon clears that bit with the Monitor return while a jack is a monitor output. Hearing the doubled path go is not yet checked on hardware |
 | Ducking on the unit, keyed by XLR 1 | verified on the jacks | blocks 0x0008 and 0x0001 as Wave Link 3.5 writes them (captures of 2026-10-21). A desk probe (2026-10-23) found that the unit ducks a pair only when both bits of its field are set; with both set the jacks dipped by the configured depth, on the feed OpenXLR uses, with a test tone as the key. The daemon now writes both bits, and on the desk (2026-10-23) a voice on XLR 1 ducked the music on Headphones 1 at each amount and speed, with no dropout when switching ducking or its side. XLR 2 does not trigger it, and a muted XLR 1 still does. The USB Aux port's mix ducked on its USB stream and was not listened to, so it stays in software |
-| Reset to OpenXLR's baseline | verified | the device keeps its settings, so the reset writes a known set (gain 30 dB, everything off, levels at half, crossfade on PC) instead of recorded firmware defaults |
+| Reset to OpenXLR's baseline | verified | the device keeps its settings, so the reset writes a known set (gain 30 dB, everything off, levels at half) instead of recorded firmware defaults |
 | Microphone EQ on the unit, firmware 1.0.14 or later | verified | both inputs, captured from Wave Link 3.5 on firmware 1.0.14; the encoder reproduces the captured writes byte for byte. Used on the maintainer's unit and by other owners. On the desk a +12 dB bell at 5 kHz written from OpenXLR read +12.3 to +12.7 dB on the raw USB capture, and software mode left the capture flat. On older firmware, or when the version or the EQ fields cannot be read, both inputs' EQ runs in software |
 
 The [microphone EQ](api.md#where-the-eq-runs) runs on the Pro from

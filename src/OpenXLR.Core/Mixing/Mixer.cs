@@ -2529,15 +2529,21 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
     /// <summary>
     /// Whether a route into <paramref name="target"/> waits for now: the
     /// target is a sink of an Elgato unit whose capture a strip takes, and
-    /// none of the strips that take that unit has its capture linked yet.
-    /// That is the driven interface's own sink while strips are on it, and
-    /// the sink of another unit a strip is bound to. Elgato's full-speed
-    /// units record silence for as long as capture stays open when their
-    /// playback started first (the XLR Dock, the original Wave XLR and the
-    /// Wave:3 on some ports), so the mixer never starts it first. The
-    /// strips' feeds are wired before the monitor routes in every sweep, so
-    /// the route follows as soon as the capture is up, or after
-    /// <see cref="CaptureFirstGrace"/> without it.
+    /// none of the strips that take that unit has its capture linked and
+    /// started yet (<see cref="CaptureRun.Started"/>: the kernel's capture
+    /// stream running, where the card says). That is the driven interface's
+    /// own sink while strips are on it, and the sink of another unit a strip
+    /// is bound to. Elgato's full-speed units record silence for as long as
+    /// capture stays open when their playback started first (the XLR Dock,
+    /// the original Wave XLR and the Wave:3 on some ports), and a Wave:3 MK.2
+    /// left its capture stopped in the kernel while PipeWire showed it
+    /// running, so the mixer never starts playback first. The strips' feeds
+    /// are wired before the monitor routes in every sweep, so the route
+    /// follows as soon as the capture runs, or after
+    /// <see cref="CaptureFirstGrace"/> without it. While the unit recovers
+    /// from a USB reset (<see cref="BeginCaptureRecovery"/>) the route waits
+    /// for the capture of the re-enumerated card instead, up to
+    /// <see cref="CaptureRecoveryLimit"/>.
     /// </summary>
     private bool HoldPlaybackLocked(string target)
     {
@@ -2553,10 +2559,32 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
             if (binding.Unit is not null && InterfaceNodes.CardKey(_stripSources.GetValueOrDefault(strip) ?? binding.Source) == card
                 && _config.Channels.Any(c => c.Id == strip && c.InputPair is not null))
                 takers.Add(strip);
-        if (takers.Count == 0 || takers.Any(_inputFeeds.ContainsKey))
+        if (takers.Count == 0)
         {
-            _playbackHeldSince.Remove(card);
-            _playbackHoldNoted.Remove(card);
+            ReleasePlaybackHoldLocked(card);
+            return false;
+        }
+        List<CaptureRun> captures = [.. takers.Where(_inputFeeds.ContainsKey).Select(CaptureSourceLocked).OfType<string>()
+            .Distinct(StringComparer.Ordinal).Select(ProbeCaptureLocked)];
+        if (_captureRecovery is { } recovery && recovery.Card == card)
+        {
+            // The card the reset brought back publishes its source under a new id.
+            if (captures.Any(run => run.Started && run.NodeId != recovery.Node))
+            {
+                _captureRecovery = null;
+                ReleasePlaybackHoldLocked(card);
+                InputNote?.Invoke($"the interface's capture runs again after its USB reset; routing into {target}");
+                return false;
+            }
+            if (Clock() - recovery.Since < (long)CaptureRecoveryLimit.TotalMilliseconds) return true;
+            _captureRecovery = null;
+            ReleasePlaybackHoldLocked(card);
+            InputNote?.Invoke($"routing into {target} although the interface's capture did not run again within {CaptureRecoveryLimit.TotalSeconds:0} seconds of its USB reset");
+            return false;
+        }
+        if (captures.Any(run => run.Started))
+        {
+            ReleasePlaybackHoldLocked(card);
             return false;
         }
         // The wait counts only while the sink is there: a unit that is
@@ -2574,9 +2602,17 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
         if (_playbackHoldNoted.GetValueOrDefault(card) != target)
         {
             _playbackHoldNoted[card] = target;
-            InputNote?.Invoke($"routing into {target} before the interface's capture is linked; it did not come within {CaptureFirstGrace.TotalSeconds:0} seconds");
+            InputNote?.Invoke(captures.Count > 0
+                ? $"routing into {target} before the interface's capture runs; it was linked but did not start within {CaptureFirstGrace.TotalSeconds:0} seconds"
+                : $"routing into {target} before the interface's capture is linked; it did not come within {CaptureFirstGrace.TotalSeconds:0} seconds");
         }
         return false;
+    }
+
+    private void ReleasePlaybackHoldLocked(string card)
+    {
+        _playbackHeldSince.Remove(card);
+        _playbackHoldNoted.Remove(card);
     }
 
     /// <summary>
@@ -2744,6 +2780,17 @@ public sealed partial class Mixer : IDisposable, ILayoutInfo
                 PortLink? route = _monitorRoutes.GetValueOrDefault(key);
                 if (route is { Pairs.Count: > 0 })
                 {
+                    // A unit that re-enumerates brings its sink back with the
+                    // port names the route remembers, often before its capture.
+                    // Relinking then would start its playback first, so a
+                    // route that lost links waits as a new route does.
+                    if (!_pw.LinksPresent(route) && HoldPlaybackLocked(target))
+                    {
+                        _pw.Unlink(route);
+                        _monitorRoutes[key] = new PortLink([]);
+                        changed = true;
+                        continue;
+                    }
                     LinkHealth health = _pw.EnsureLinks(route);
                     if (health == LinkHealth.Healthy && !_incompleteMonitorRoutes.Contains(key)) continue;
                     // A route that had to be made again is a device that went

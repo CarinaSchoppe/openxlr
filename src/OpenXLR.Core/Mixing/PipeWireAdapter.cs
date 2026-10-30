@@ -2155,6 +2155,61 @@ public sealed class PipeWireAdapter
         lb.Process.Dispose();
     }
 
+    /// <summary>Where the kernel's sound card files are; tests point it elsewhere.</summary>
+    internal string AsoundRoot { get; init; } = "/proc/asound";
+
+    /// <summary>
+    /// A capture source as the graph and its card's kernel stream show it
+    /// (see <see cref="CaptureRun"/>). The card and the stream come from the
+    /// node's own ALSA properties, so a renumbered card after a replug is
+    /// followed. <see cref="CaptureRun.Missing"/> without a graph.
+    /// </summary>
+    public CaptureRun CaptureRunOf(string sourceName)
+    {
+        JsonElement[] objects;
+        try { objects = GraphObjects(); }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException) { return CaptureRun.Missing; }
+        return CaptureRunOf(objects, sourceName, AsoundRoot);
+    }
+
+    internal static CaptureRun CaptureRunOf(IEnumerable<JsonElement> objects, string sourceName, string asoundRoot)
+    {
+        foreach (JsonElement o in objects)
+        {
+            if (o.ValueKind != JsonValueKind.Object
+                || !o.TryGetProperty("type", out JsonElement type) || type.GetString() != "PipeWire:Interface:Node"
+                || !o.TryGetProperty("id", out JsonElement idElement) || !idElement.TryGetInt32(out int id)
+                || !o.TryGetProperty("info", out JsonElement info) || info.ValueKind != JsonValueKind.Object
+                || !info.TryGetProperty("props", out JsonElement props) || props.ValueKind != JsonValueKind.Object
+                || !props.TryGetProperty("node.name", out JsonElement name) || name.GetString() != sourceName) continue;
+            bool running = info.TryGetProperty("state", out JsonElement state) && state.ValueKind == JsonValueKind.String
+                && state.GetString() == "running";
+            int? card = PropInt(props, "api.alsa.pcm.card") ?? PropInt(props, "alsa.card");
+            bool? kernel = card is int number ? CaptureRun.ReadKernelStatus(asoundRoot, number, PropInt(props, "alsa.device") ?? 0) : null;
+            return new CaptureRun(id, card is not null, running, kernel);
+        }
+        return CaptureRun.Missing;
+
+        // PipeWire writes these as numbers, older versions as strings.
+        static int? PropInt(JsonElement props, string key)
+            => !props.TryGetProperty(key, out JsonElement value) ? null
+                : value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int n) ? n
+                : value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out int parsed) ? parsed
+                : null;
+    }
+
+    /// <summary>
+    /// Whether every pair of a route is linked in the graph right now, without
+    /// making any of them; false for a route that came up short.
+    /// </summary>
+    public bool LinksPresent(PortLink link)
+    {
+        if (!link.Complete || link.Pairs.Count == 0) return false;
+        HashSet<(string From, string To)> known = GraphLinks();
+        return link.Pairs.All(known.Contains);
+    }
+
     /// <summary>PipeWire node id for a node.name, or null if absent.</summary>
     public int? FindNodeId(string nodeName)
     {

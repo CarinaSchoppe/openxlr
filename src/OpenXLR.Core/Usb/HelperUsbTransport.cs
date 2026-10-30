@@ -101,6 +101,29 @@ public sealed class HelperUsbTransport : IUsbTransport
         }
     }
 
+    /// <summary>The reset's own deadline in the helper; the reply may take this plus <see cref="Guard"/>.</summary>
+    private static readonly TimeSpan ResetDeadline = TimeSpan.FromSeconds(5);
+
+    public int Reset()
+    {
+        lock (_gate)
+        {
+            if (!IsOpen) throw new InvalidOperationException("USB device not open");
+            var started = Stopwatch.StartNew();
+            byte[] reply = Exchange(UsbHelperProtocol.Reset(), ResetDeadline + Guard, () =>
+            {
+                _open = false;
+                return new UsbHungException($"USB reset did not return after {started.ElapsedMilliseconds} ms (helper process killed)");
+            });
+            if (reply.Length != 4)
+            {
+                Kill();
+                throw new IOException("USB helper reset reply has a payload");
+            }
+            return BinaryPrimitives.ReadInt32LittleEndian(reply);
+        }
+    }
+
     private void EnsureHelper()
     {
         if (_helper is { HasExited: false }) return;

@@ -437,6 +437,10 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
     public Task ResetDeviceAsync()
         => SendAsync(new Dictionary<string, object> { ["cmd"] = "resetDevice" });
 
+    /// <summary>Bring back a microphone that stalled under its own playback, by a USB reset of the unit.</summary>
+    public Task RecoverCaptureAsync()
+        => SendAsync(new Dictionary<string, object> { ["cmd"] = "recoverCapture" });
+
     /// <summary>
     /// Change the ducking setup: <paramref name="fields"/> holds the fields
     /// that change, the others keep their values. Resolves to null, or the

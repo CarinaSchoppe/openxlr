@@ -60,6 +60,8 @@ public sealed class MixerService : IHostedService, IDisposable
     // than let it stack up.
     private int _sweepRunning;
     private string? _lastSweepError;
+    // Brings a unit's stalled capture back by a USB reset (the Wave:3 MK.2).
+    private readonly CaptureRescue _rescue;
 
     private readonly IHostApplicationLifetime? _lifetime;
     private int _graphMissing;
@@ -111,6 +113,7 @@ public sealed class MixerService : IHostedService, IDisposable
         EditorPolicy = editorPolicy ?? new NativeEditorPolicy();
         _pipeWire = new PipeWireAdapter(_progress.Mark, note => _log.LogInformation("{msg}", note));
         _mixer = new(_pipeWire) { InputNote = note => _log.LogWarning("hardware input: {note}", note) };
+        _rescue = new CaptureRescue(_log, _mixer, () => _devices.ActiveInfo, () => _devices.ActiveCapabilities, _devices.ResetUnitUsb);
         _eqPort = new DeviceEqPort(devices, waveInterfaces);
         // A unit confirming or refusing an EQ is followed at once, off the
         // device lock: a hand-over from the unit waits for its confirmation.
@@ -689,6 +692,10 @@ public sealed class MixerService : IHostedService, IDisposable
                 ScheduleSave();
                 changed = true;
             }
+            // A unit whose capture stalls under its own playback is reset,
+            // after the routes are current so the watch sees what plays.
+            stop.ThrowIfCancellationRequested();
+            _rescue.Sweep();
             // A capture input's gain that another program moved is
             // reported, never written back.
             stop.ThrowIfCancellationRequested();
@@ -741,6 +748,13 @@ public sealed class MixerService : IHostedService, IDisposable
         }
         return true;
     }
+
+    /// <summary>
+    /// The recoverCapture command: take the mixes off the driven unit's own
+    /// output, reset it on USB and put them back once its capture runs. Null
+    /// on success, else why nothing was done.
+    /// </summary>
+    public string? RecoverCapture() => _rescue.Recover("a client asked for its microphone to be recovered");
 
     private static string Run(string exe, params string[] args)
     {

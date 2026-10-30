@@ -119,7 +119,7 @@ Replug the interface after reloading the rules.
 
 ## 4. WirePlumber rules
 
-XLR Dock, original Wave XLR and Wave:3 owners need one more file. The
+XLR Dock, original Wave XLR, Wave:3 and Wave:3 MK.2 owners need one more file. The
 Linux kernel starves the dock's capture endpoint whenever playback to it
 starts before capture, and the mic then records pure silence (Windows
 schedules the same duplex fine; the kernel also logs "bad transfer trb
@@ -127,8 +127,10 @@ length" warnings from the dock's malformed feedback endpoint). The
 original Wave XLR (MK.1) has the same ordering bug over its full-speed
 USB link, and so does a Wave:3 on some USB ports and controllers.
 WirePlumber rules keep these capture sources always active, so playback
-can never come first. The following four `.conf` files use WirePlumber 0.5
-syntax. Check the library version with `wireplumber --version`:
+can never come first. The Wave:3 MK.2's microphone stalls while its
+headphones play in the two-channel integer format PipeWire picks, so a
+fifth rule opens them in the unit's float format. The following five
+`.conf` files use WirePlumber 0.5 syntax. Check the library version with `wireplumber --version`:
 
 ```sh
 mkdir -p ~/.config/wireplumber/wireplumber.conf.d
@@ -136,12 +138,13 @@ cp packaging/50-xlr-dock-capture-hold.conf ~/.config/wireplumber/wireplumber.con
 cp packaging/51-openxlr-pro-raw-names.conf ~/.config/wireplumber/wireplumber.conf.d/
 cp packaging/52-openxlr-mk1-capture-hold.conf ~/.config/wireplumber/wireplumber.conf.d/
 cp packaging/53-openxlr-wave3-capture-hold.conf ~/.config/wireplumber/wireplumber.conf.d/
+cp packaging/55-openxlr-wave3-mk2-playback.conf ~/.config/wireplumber/wireplumber.conf.d/
 systemctl --user restart wireplumber
 ```
 
 The raw-name rule gives the Pro's multichannel nodes readable descriptions
 in desktop audio settings. It does not change their routing identities.
-Each of the four files matches only its target hardware, so they can be
+Each of the five files matches only its target hardware, so they can be
 installed together on any supported setup, which is what the packages do.
 
 WirePlumber 0.4, including the version supplied by Ubuntu 24.04, needs a
@@ -345,6 +348,7 @@ cmp -s packaging/50-xlr-dock-capture-hold.conf ~/.config/wireplumber/wireplumber
 cmp -s packaging/51-openxlr-pro-raw-names.conf ~/.config/wireplumber/wireplumber.conf.d/51-openxlr-pro-raw-names.conf && rm -- ~/.config/wireplumber/wireplumber.conf.d/51-openxlr-pro-raw-names.conf
 cmp -s packaging/52-openxlr-mk1-capture-hold.conf ~/.config/wireplumber/wireplumber.conf.d/52-openxlr-mk1-capture-hold.conf && rm -- ~/.config/wireplumber/wireplumber.conf.d/52-openxlr-mk1-capture-hold.conf
 cmp -s packaging/53-openxlr-wave3-capture-hold.conf ~/.config/wireplumber/wireplumber.conf.d/53-openxlr-wave3-capture-hold.conf && rm -- ~/.config/wireplumber/wireplumber.conf.d/53-openxlr-wave3-capture-hold.conf
+cmp -s packaging/55-openxlr-wave3-mk2-playback.conf ~/.config/wireplumber/wireplumber.conf.d/55-openxlr-wave3-mk2-playback.conf && rm -- ~/.config/wireplumber/wireplumber.conf.d/55-openxlr-wave3-mk2-playback.conf
 cmp -s packaging/54-openxlr-owned-state.lua ~/.config/wireplumber/main.lua.d/54-openxlr-owned-state.lua && rm -- ~/.config/wireplumber/main.lua.d/54-openxlr-owned-state.lua
 cmp -s packaging/pipewire-pulse-openxlr.conf ~/.config/systemd/user/pipewire-pulse.service.d/openxlr.conf && rm -- ~/.config/systemd/user/pipewire-pulse.service.d/openxlr.conf
 sed "s|^Exec=openxlr\$|Exec=$PWD/src/OpenXLR.UI/bin/Release/net10.0/OpenXLR.UI|" packaging/openxlr.desktop | cmp -s - ~/.local/share/applications/openxlr.desktop && rm -- ~/.local/share/applications/openxlr.desktop

@@ -3489,7 +3489,7 @@ rest of this section is for an Elgato device the daemon does not see.
   ([Multiple Wave interfaces](wave-interfaces.md)).
 
 <a name="dock-silent"></a>
-### 5.2 Microphone silent on the XLR Dock, the original Wave XLR or the Wave:3
+### 5.2 Microphone silent on the XLR Dock, the original Wave XLR or a Wave:3
 
 The kernel starves the dock's capture when playback to it starts before
 capture, and the microphone records silence. The original Wave XLR (MK.1)
@@ -3497,17 +3497,40 @@ has the same ordering bug, and so does the Wave:3 on some USB ports and
 controllers. On a Wave:3 it shows after a boot as a silent microphone
 while everything else looks normal. Joining a call before starting music
 brings the sound back for a while, and a replug brings it back where
-restarting the daemon does not. The package
-installs WirePlumber rules that keep these capture sources always active
-(`50-xlr-dock-capture-hold.conf`, `52-openxlr-mk1-capture-hold.conf` and
-`53-openxlr-wave3-capture-hold.conf`). On a source install copy them
-from `packaging/` into `~/.config/wireplumber/wireplumber.conf.d/` and
-restart WirePlumber.
-OpenXLR links the interface's capture before it routes any mix into the
-interface, waiting up to five seconds for it and then routing anyway with
-a journal line, and the same goes for another Elgato interface that XLR 1
-or XLR 2 takes its microphone from. Programs that play straight to the
+restarting the daemon does not. The Wave:3 MK.2 has its own form of it.
+While its headphones play, its microphone can give nothing, or a steady
+buzz and no voice. The packages install WirePlumber rules that keep these
+capture sources always active (`50-xlr-dock-capture-hold.conf`,
+`52-openxlr-mk1-capture-hold.conf` and
+`53-openxlr-wave3-capture-hold.conf`, which covers both Wave:3 models),
+and one that opens the Wave:3 MK.2's headphones in the unit's float
+format (`55-openxlr-wave3-mk2-playback.conf`). On a source install copy
+them from `packaging/` into `~/.config/wireplumber/wireplumber.conf.d/`
+and restart WirePlumber.
+OpenXLR starts the interface's capture before it routes any mix into the
+interface, the monitor output on its own headphones included. A linked
+capture is not enough: OpenXLR waits until the kernel reports the capture
+running in `/proc/asound/<card>/stream0`, or until PipeWire runs it where
+that file cannot be read. It waits up to five seconds, then routes anyway
+with a journal line. The same goes for another Elgato interface that XLR 1
+or XLR 2 takes its microphone from, and again whenever the interface
+comes back after a replug or a reset. Programs that play straight to the
 interface can still start playback first, which is why the rules matter.
+
+On the Wave:3 MK.2 OpenXLR also watches the microphone while a mix plays
+into its headphones, and brings it back when it stalls. It acts on two
+signs. The kernel keeps the capture stopped for 3 seconds while PipeWire
+runs it, or three short samples taken 10 seconds apart each repeat one
+block of samples exactly. No microphone does the second, since its own
+noise differs in every block, so a quiet room or a muted microphone
+never sets it off. OpenXLR then takes the mixes off the headphones,
+resets the microphone on USB, and routes the mixes back once the
+microphone records again, or after 30 seconds. You hear the headphones
+drop for about 12 seconds. It does this at most once every 2 minutes and
+3 times in 30 minutes; after that the journal asks you to replug the
+microphone. **Recover microphone** in Options, under INTERFACE, does the
+same at once, for a stall the watch did not catch. Each step is in the
+journal (`journalctl --user -u openxlr-daemon`).
 
 A second cause, when the microphone is silent only after a reboot: the
 dock forgets its gain at every power cycle and comes back at the gain its
@@ -3899,7 +3922,8 @@ settings. See
 | `~/.local/share/openxlr/skins/<id>/skin.json` | a skin you installed; system skins come from `$XDG_DATA_DIRS` ([skins.md](skins.md)) |
 | `openxlr-daemon.service` (systemd user unit) | the daemon; `journalctl --user -u openxlr-daemon` for its log |
 | `/usr/lib/systemd/user/pipewire-pulse.service.d/openxlr.conf` | installed by the packages: raises pipewire-pulse's open-file limit ([section 5.8](#open-files)) |
-| `/usr/share/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf`, `52-openxlr-mk1-capture-hold.conf`, `53-openxlr-wave3-capture-hold.conf` | installed by the packages: keep the capture of the XLR Dock, the original Wave XLR and the Wave:3 running ([section 5.2](#dock-silent)) |
+| `/usr/share/wireplumber/wireplumber.conf.d/50-xlr-dock-capture-hold.conf`, `52-openxlr-mk1-capture-hold.conf`, `53-openxlr-wave3-capture-hold.conf` | installed by the packages: keep the capture of the XLR Dock, the original Wave XLR, the Wave:3 and the Wave:3 MK.2 running ([section 5.2](#dock-silent)) |
+| `/usr/share/wireplumber/wireplumber.conf.d/55-openxlr-wave3-mk2-playback.conf` | installed by the packages: opens the Wave:3 MK.2's headphones in the unit's float format ([section 5.2](#dock-silent)) |
 | `openxlr-tui` | the mixer in a terminal, the same daemon and the same skins ([The terminal mixer](#terminal)) |
 | `$XDG_RUNTIME_DIR/openxlr/control.sock` | the daemon's API, documented in [api.md](api.md); the same commands over HTTP at `/api/v1` ([http-api.md](http-api.md)) |
 

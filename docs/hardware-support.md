@@ -459,8 +459,9 @@ OpenXLR ships a WirePlumber rule
 ([packaging/53-openxlr-wave3-capture-hold.conf](../packaging/53-openxlr-wave3-capture-hold.conf))
 that keeps the Wave:3's capture source always active, as openwave does.
 The owner ran with the same settings over several reboots and the
-silence did not come back. The rule matches `Elgato_Wave_3_` only, so
-the Wave:1 and the Wave XLR models are not touched. The Debian, RPM and
+silence did not come back. The rule matches the Wave:3's node names
+and the Wave:3 MK.2's (see below), so the Wave:1 and the Wave XLR models
+are not touched. The Debian, RPM and
 Nix packages install it; a source install copies it by hand.
 
 The maintainer's unit has not shown the bug. It runs at full speed
@@ -636,11 +637,64 @@ measured on; an older version leaves the EQ in software and says so.
 Both capture channels carry the same signal, bit for bit: a second of
 room noise read with `parec --channel-map=front-left,front-right` gave
 identical samples on the left and the right. The strip takes the pair as
-it takes the Wave:3's. The unit enumerates at high speed, and the
-Wave:3's capture-hold rule (`53-openxlr-wave3-capture-hold.conf`)
-matches only the Wave:3's node names; whether this microphone records
-silence when its playback starts first, as the full-speed units can, has
-not been tried.
+it takes the Wave:3's.
+
+Kernel behaviour: the maintainer's unit has its own form of the ordering
+bug, although it enumerates at high speed. When its playback opened
+before its capture, three things were seen on 2026-10-30:
+
+- After a daemon restart, with the microphone picked as the interface and
+  the monitor output pointed at its headphones right after, the capture
+  stalled. `/proc/asound/MK2/stream0` read `Capture: Status: Stop` next
+  to `Playback: Status: Running`, and the source gave no data while
+  PipeWire showed it running.
+- With the capture held open by a WirePlumber rule, the playback stayed
+  at `Status: Stop` instead and the sink sat at quantum 0 in `pw-top`.
+  That test ran on a unit that was probably already stuck from the case
+  above, so it does not show that the rule fails.
+- After a replug, with the monitor output already on its headphones, both
+  directions read `Running` and the capture delivered a steady buzz with
+  no voice: energy only at multiples of 187.5 Hz, 48000 divided by 256.
+
+A card profile cycle cleared the first case once and not again. What
+cleared every case was to take the monitor output off the microphone so
+its playback closed, reset the USB device (`libusb_reset_device` on
+`0fd9:00ca`, allowed without root by the udev rule), let the capture
+start, then point the monitor output back at the headphones. The buzz
+came back about 15 minutes after one such recovery with nothing
+restarted, and the same steps cleared it again.
+
+Later the same day the pattern was plain: the microphone stalls whenever
+the headphones play and stays clean while the monitor output is another
+device. So the trouble is running both directions at once, not only the
+order they start in. While stalled, the kernel ran the playback on USB
+interface 2 altset 2 (S32_LE, two channels, explicit feedback) and the
+capture on interface 1 altset 1 (FLOAT_LE). The unit also offers playback
+in FLOAT_LE on three channels (FL FR FC, altset 1) and capture in S32_LE
+(altset 2). PipeWire picks the two-channel S32_LE playback, in the Pro
+Audio profile too. A likely reading is that the firmware expects the same
+format both ways, float, which the Windows driver would open.
+
+Two WirePlumber rules cover this unit.
+`53-openxlr-wave3-capture-hold.conf` matches its capture node, so the
+capture is the stream already running whenever anything opens the
+headphones. `55-openxlr-wave3-mk2-playback.conf` asks PipeWire to open its
+playback as FLOAT_LE on three channels; OpenXLR feeds FL and FR and leaves
+the third channel unlinked. Whether the float playback ends the stall has
+not been tried yet; with the rule in place,
+`/proc/asound/MK2/pcm0p/sub0/hw_params` reads `FLOAT_LE` and `channels: 3`
+while the headphones play.
+
+The daemon routes a mix into the headphones only once the kernel reports
+the capture running, and recovers the microphone the way that worked by
+hand: mixes off the headphones, a USB reset, the mixes back once the
+capture runs again. It does this when the kernel keeps the capture
+stopped for 3 seconds, or when three samples taken 10 seconds apart each
+repeat one block exactly (the buzz above looked like a replayed
+buffer), and on **Recover microphone** in Options. The buzz has not
+been recorded raw yet, so whether it repeats bit for bit, which the
+automatic check needs, is still to be confirmed. The capability is
+`captureRecovery`, set for this model only.
 
 The daemon prefers the Wave:3 MK.2 after every XLR interface, next to the
 Wave:3: it is driven when no interface is on the bus, picked from the

@@ -451,6 +451,52 @@ public sealed class DeviceManager : BackgroundService
         Drop();
     }
 
+    /// <summary>How long after a USB reset no other unit stands in for the one reset. Tests shorten it.</summary>
+    internal static TimeSpan ResetReturnWindow = TimeSpan.FromSeconds(20);
+    /// <summary>How long after a USB reset the unit is first reopened. Tests shorten it.</summary>
+    internal static TimeSpan ResetReopenDelay = TimeSpan.FromSeconds(2);
+    // The unit reset on purpose, until it is back on the bus or the window ends.
+    private (string Instance, long Until)? _resetReturn;
+
+    /// <summary>
+    /// Reset the driven unit on the USB bus, for a model that brings its
+    /// capture back this way (<see cref="DeviceCapabilities.CaptureRecovery"/>),
+    /// and drop it: its card re-enumerates and the loop reconnects it as
+    /// after a replug, with no other unit standing in meanwhile. Only the
+    /// unit named by <paramref name="instance"/>, so a switch that came in
+    /// between is never reset. Null on success, else why not.
+    /// </summary>
+    public string? ResetUnitUsb(string instance)
+    {
+        lock (_gate)
+        {
+            if (_device is not { Connected: true } device || device.Info.InstanceId != instance)
+                return "the interface is no longer the one driven";
+            if (!device.Capabilities.CaptureRecovery) return $"{device.Info.DisplayName} is not reset on USB";
+            int code;
+            try { code = device.ResetUsb(); }
+            catch (UsbHungException ex)
+            {
+                NoteHung(ex);
+                return ex.Message;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or IOException)
+            {
+                return ex.Message;
+            }
+            // -5, LIBUSB_ERROR_NOT_FOUND: the unit re-enumerated, which is the point.
+            if (code is not (0 or -5)) return $"the USB reset of {device.Info.DisplayName} failed (libusb error {code})";
+            _log.LogInformation("{dev} was reset on USB (libusb {code}); reconnecting it", device.Info.DisplayName, code);
+            _resetReturn = (instance, NowMs + (long)ResetReturnWindow.TotalMilliseconds);
+            // Give the kernel the moment it takes to let go of the unit and
+            // bind it again, so the reopen does not catch the old device.
+            _reconnectNotBefore = Environment.TickCount64 + (long)ResetReopenDelay.TotalMilliseconds;
+            FlushLastState(force: true);
+            Drop();
+            return null;
+        }
+    }
+
     private static string KernelRelease()
     {
         try { return File.ReadAllText("/proc/sys/kernel/osrelease").Trim(); }
@@ -490,6 +536,11 @@ public sealed class DeviceManager : BackgroundService
             }
             if (_device is { Connected: true } && !StandInGivesWayLocked(all)) return;
             if (_noNewConnections || Environment.TickCount64 < _reconnectNotBefore) return;
+            // A unit reset on purpose is off the bus for a moment: no other
+            // unit stands in for it meanwhile, so its strips are not handed
+            // to another interface and back. It is the one opened next.
+            if (_resetReturn is { } reset && NowMs >= reset.Until) _resetReturn = null;
+            string? awaited = _resetReturn?.Instance;
             List<IAudioDevice> usable = [.. all.Where(d => !_hung.IsSetAside(d.Info.InstanceId))];
             // A stand-in is never a unit enabled as an additional interface:
             // enabling one leaves the primary where it was.
@@ -498,7 +549,8 @@ public sealed class DeviceManager : BackgroundService
             // attached, none of them is taken over: one may be driven as an
             // additional interface. A lone unit is driven whatever its id,
             // so a unit without a serial still connects after a port change.
-            IAudioDevice? dev = _preferredInstance is { } instance && usable.FirstOrDefault(d => d.Info.InstanceId == instance) is { } chosen
+            IAudioDevice? dev = awaited is not null ? usable.FirstOrDefault(d => d.Info.InstanceId == awaited)
+                : _preferredInstance is { } instance && usable.FirstOrDefault(d => d.Info.InstanceId == instance) is { } chosen
                 ? chosen
                 : _preferredInstance is not null && all.Count > 1
                     ? null
@@ -518,6 +570,7 @@ public sealed class DeviceManager : BackgroundService
                 if (ex is not UsbHungException) _reconnectNotBefore = Environment.TickCount64 + (long)OpenRetryDelay.TotalMilliseconds;
                 throw;
             }
+            if (dev.Info.InstanceId == awaited) _resetReturn = null;
             _device = dev;
             _last = null;
             ForgetEq();

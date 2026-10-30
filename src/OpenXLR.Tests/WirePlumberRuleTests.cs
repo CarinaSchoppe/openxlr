@@ -14,6 +14,7 @@ public sealed class WirePlumberRuleTests
     private const string Dock = "50-xlr-dock-capture-hold.conf";
     private const string Mk1 = "52-openxlr-mk1-capture-hold.conf";
     private const string Wave3 = "53-openxlr-wave3-capture-hold.conf";
+    private const string Mk2Playback = "55-openxlr-wave3-mk2-playback.conf";
     private const string OwnedState = "54-openxlr-owned-state.lua";
 
     // Node names as udev and the ALSA monitor build them: the product string
@@ -27,6 +28,11 @@ public sealed class WirePlumberRuleTests
         { "alsa_input.usb-Elgato_Systems_Elgato_Wave_3_A011A53710KH3Y-00.mono-fallback", Wave3 },
         { "alsa_input.usb-Elgato_Systems_Elgato_Wave_3_A011A53710KH3Y-00.pro-input-0", Wave3 },
         { "alsa_output.usb-Elgato_Systems_Elgato_Wave_3_A011A53710KH3Y-00.analog-stereo", null },
+        { "alsa_input.usb-Elgato_Elgato_Wave_3_MK.2_AD0JH55014KSN3-00.analog-stereo", Wave3 },
+        { "alsa_input.usb-Elgato_Elgato_Wave_3_MK.2_AD0JH55014KSN3-00.pro-input-0", Wave3 },
+        { "alsa_output.usb-Elgato_Elgato_Wave_3_MK.2_AD0JH55014KSN3-00.analog-stereo", null },
+        // A dot in the model name is literal, not any character.
+        { "alsa_input.usb-Elgato_Elgato_Wave_3_MKx2_AD0JH55014KSN3-00.analog-stereo", null },
         { "alsa_input.usb-Elgato_Systems_Elgato_Wave_1_A011A53710KH3Y-00.mono-fallback", null },
         { "alsa_input.usb-Elgato_Elgato_Wave_XLR_Pro_0123456789-00.pro-input-0", null },
         { "alsa_input.usb-Elgato_Elgato_Wave_XLR_Pro_0123456789-00.multichannel-input", null },
@@ -38,6 +44,26 @@ public sealed class WirePlumberRuleTests
     {
         string[] matching = [.. new[] { Dock, Mk1, Wave3 }.Where(file => NodePattern(file).IsMatch(node))];
         Assert.Equal(rule is null ? [] : [rule], matching);
+    }
+
+    [Theory]
+    [InlineData("alsa_output.usb-Elgato_Elgato_Wave_3_MK.2_AD0JH55014KSN3-00.analog-stereo", true)]
+    [InlineData("alsa_output.usb-Elgato_Elgato_Wave_3_MK.2_AD0JH55014KSN3-00.pro-output-0", true)]
+    [InlineData("alsa_input.usb-Elgato_Elgato_Wave_3_MK.2_AD0JH55014KSN3-00.analog-stereo", false)]
+    [InlineData("alsa_output.usb-Elgato_Systems_Elgato_Wave_3_A011A53710KH3Y-00.analog-stereo", false)]
+    [InlineData("alsa_output.usb-Elgato_Elgato_Wave_XLR_MK.2_0123456789-00.analog-stereo", false)]
+    [InlineData("alsa_output.usb-Elgato_Elgato_Wave_XLR_Pro_0123456789-00.pro-output-0", false)]
+    public void TheMk2PlaybackRuleMatchesOnlyTheWave3Mk2Outputs(string node, bool matches)
+        => Assert.Equal(matches, NodePattern(Mk2Playback).IsMatch(node));
+
+    [Fact]
+    public void TheMk2PlaybackRuleAsksForTheUnitsFloatFormat()
+    {
+        string text = File.ReadAllText(Path.Combine(Root(), "packaging", Mk2Playback));
+        // FLOAT_LE comes with three channels only on this unit: FL FR FC.
+        Assert.Contains("audio.format = \"F32LE\"", text);
+        Assert.Contains("audio.channels = 3", text);
+        Assert.Contains("audio.position = \"FL,FR,FC\"", text);
     }
 
     [Theory]
@@ -58,6 +84,7 @@ public sealed class WirePlumberRuleTests
         string root = Root();
         string[] rules = [.. Directory.GetFiles(Path.Combine(root, "packaging"), "5*.conf").Select(path => Path.GetFileName(path)).Order()];
         Assert.Contains(Wave3, rules);
+        Assert.Contains(Mk2Playback, rules);
         Assert.Equal(rules, OpenXLR.UI.FlatpakSetup.Rules.Order());
         string debian = File.ReadAllText(Path.Combine(root, "debian", "rules"));
         string spec = File.ReadAllText(Path.Combine(root, "packaging", "rpm", "openxlr.spec"));
@@ -143,13 +170,16 @@ public sealed class WirePlumberRuleTests
         Assert.DoesNotContain(OwnedState, OpenXLR.UI.FlatpakSetup.Rules);
     }
 
-    /// <summary>The rule's node.name regex, unescaped from its SPA JSON string.</summary>
+    /// <summary>
+    /// The rule's node.name regexes, unescaped from their SPA JSON strings
+    /// and joined: a node matches the rule when it matches any of them.
+    /// </summary>
     private static Regex NodePattern(string file)
     {
         string text = File.ReadAllText(Path.Combine(Root(), "packaging", file));
-        Match match = Regex.Match(text, "node\\.name = \"~((?:[^\"\\\\]|\\\\.)*)\"");
-        Assert.True(match.Success, $"{file} has no node.name regex");
-        return new Regex(Regex.Replace(match.Groups[1].Value, @"\\(.)", "$1"));
+        MatchCollection matches = Regex.Matches(text, "node\\.name = \"~((?:[^\"\\\\]|\\\\.)*)\"");
+        Assert.True(matches.Count > 0, $"{file} has no node.name regex");
+        return new Regex(string.Join('|', matches.Select(m => "(?:" + Regex.Replace(m.Groups[1].Value, @"\\(.)", "$1") + ")")));
     }
 
     private static string Root()

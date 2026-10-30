@@ -227,6 +227,11 @@ public sealed partial class MainViewModel : ViewModelBase
     private bool _showResetDefaults;
     public bool ShowResetDefaults { get => _showResetDefaults; private set => Set(ref _showResetDefaults, value); }
 
+    // A unit whose microphone stalls under its own playback (the Wave:3
+    // MK.2) can be reset on USB to bring it back.
+    private bool _showRecoverCapture;
+    public bool ShowRecoverCapture { get => _showRecoverCapture; private set => Set(ref _showRecoverCapture, value); }
+
     // The daemon's sentence about a unit driven differently from the usual
     // (an XLR Dock taking a control through its config block), or empty.
     private string _deviceNote = "";
@@ -239,7 +244,7 @@ public sealed partial class MainViewModel : ViewModelBase
         private set { if (Set(ref _deviceFirmware, value)) { Raise(nameof(FirmwareText)); Raise(nameof(ShowInterfaceCard)); } }
     }
     public string FirmwareText => DeviceFirmware.Length > 0 ? Localizer.Format("DeviceFirmware", DeviceFirmware) : "";
-    public bool ShowInterfaceCard => ShowResetDefaults || DeviceNote.Length > 0 || DeviceFirmware.Length > 0 || ShowWaveInterfaces;
+    public bool ShowInterfaceCard => ShowResetDefaults || ShowRecoverCapture || DeviceNote.Length > 0 || DeviceFirmware.Length > 0 || ShowWaveInterfaces;
 
     // The daemon-side gain lock cannot stop a physical dial, so it only
     // shows for devices without one.
@@ -923,6 +928,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 CapPhysicalControls = Cap("physicalControls");
                 CapRetainsSettings = caps["retainsSettings"]?.GetValue<bool>() ?? true;
                 CapBuiltInDefaults = caps["builtInDefaults"]?.GetValue<bool>() ?? false;
+                _capCaptureRecovery = caps["captureRecovery"]?.GetValue<bool>() ?? false;
             }
 
             if (node["state"] is JsonNode s)
@@ -986,6 +992,7 @@ public sealed partial class MainViewModel : ViewModelBase
             ShowSoftClipGuard = HasMixer && (mixerNode?["softClipGuardApplicable"]?.GetValue<bool>() ?? (DeviceConnected && !CapClipGuard));
             ShowGainLock = DeviceConnected && !CapPhysicalControls;
             ShowResetDefaults = DeviceConnected && (!CapRetainsSettings || CapBuiltInDefaults);
+            ShowRecoverCapture = DeviceConnected && HasMixer && _capCaptureRecovery;
             Raise(nameof(ResetDescription));
             Raise(nameof(ShowInterfaceCard));
             RefreshBindings();
@@ -1087,6 +1094,11 @@ public sealed partial class MainViewModel : ViewModelBase
 
     /// <summary>Write the firmware defaults back to an interface without settings memory.</summary>
     public void ResetDevice() => _ = _client.ResetDeviceAsync();
+
+    private bool _capCaptureRecovery;
+
+    /// <summary>Take the mixes off the unit's own output, reset it on USB and put them back once its microphone records.</summary>
+    public void RecoverCapture() => _ = _client.RecoverCaptureAsync();
 
     public void SaveProfile(string name)
     {

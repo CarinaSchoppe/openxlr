@@ -72,7 +72,29 @@ public sealed class UsbHelperTests
             if ((t & 0x80) != 0) for (int k = 0; k < len; k++) data[k] = (byte)(k + 1);
             return len;
         }
+        public int Reset() { Calls.Add("reset"); return -5; }
         public void Dispose() { }
+    }
+
+    [Fact]
+    public void TheProtocolCarriesAResetOnlyToAnOpenDevice()
+    {
+        var requests = new MemoryStream();
+        UsbHelperProtocol.WriteFrame(requests, UsbHelperProtocol.Reset());   // nothing open yet
+        UsbHelperProtocol.WriteFrame(requests, UsbHelperProtocol.Open(0x0fd9, 0x00b4));
+        UsbHelperProtocol.WriteFrame(requests, UsbHelperProtocol.Reset());
+        requests.Position = 0;
+        var replies = new MemoryStream();
+        var fake = new FakeUsb();
+        UsbHelperProtocol.Serve(requests, replies, fake);
+
+        replies.Position = 0;
+        Assert.Equal(UsbHelperProtocol.NoDevice, BinaryPrimitives.ReadInt32LittleEndian(UsbHelperProtocol.ReadFrame(replies)!));
+        Assert.Equal(0, BinaryPrimitives.ReadInt32LittleEndian(UsbHelperProtocol.ReadFrame(replies)!));
+        byte[] reset = UsbHelperProtocol.ReadFrame(replies)!;
+        Assert.Equal(-5, BinaryPrimitives.ReadInt32LittleEndian(reset));   // re-enumerated
+        Assert.Equal(4, reset.Length);
+        Assert.Equal(["open 0fd9:00b4", "reset"], fake.Calls);
     }
 
     [Fact]

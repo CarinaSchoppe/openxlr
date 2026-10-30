@@ -58,10 +58,11 @@ To update OpenXLR, download the newer file and run
 `flatpak install --user --reinstall ./openxlr-*-x86_64.flatpak`. To remove
 it, run the service script's `remove` if you used it, then
 `flatpak uninstall --user io.github.emaspa.openxlr`, and delete
-`/etc/udev/rules.d/70-openxlr.rules` and the four rules in
+`/etc/udev/rules.d/70-openxlr.rules` and the five rules in
 `~/.config/wireplumber/wireplumber.conf.d`: `50-xlr-dock-capture-hold.conf`,
-`51-openxlr-pro-raw-names.conf`, `52-openxlr-mk1-capture-hold.conf` and
-`53-openxlr-wave3-capture-hold.conf`.
+`51-openxlr-pro-raw-names.conf`, `52-openxlr-mk1-capture-hold.conf`,
+`53-openxlr-wave3-capture-hold.conf` and
+`55-openxlr-wave3-mk2-playback.conf`.
 
 On GNOME the tray icon needs an AppIndicator extension enabled. Without
 a tray, set "When closing" to "Quit app" in Options.
@@ -131,7 +132,7 @@ Tray hosts can request the complete menu with an empty item list.
 ## Host setup
 
 The first launch explains this setup and offers Set up. Set up installs
-the four WirePlumber rules in the host user's
+the five WirePlumber rules in the host user's
 `~/.config/wireplumber/wireplumber.conf.d`, readable like the packaged
 copies, and leaves that directory's permissions as they were. Cancel
 writes nothing and asks again at the next launch. Identical files

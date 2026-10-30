@@ -1644,6 +1644,12 @@ Saving will replace it with the current scene.</value>
   <data name="Record" xml:space="preserve">
     <value>Record</value>
   </data>
+  <data name="RecoverMicrophone" xml:space="preserve">
+    <value>Recover microphone</value>
+  </data>
+  <data name="RecoverMicrophoneNote" xml:space="preserve">
+    <value>This microphone can stall while its own headphones play, giving silence or a steady buzz. OpenXLR watches for it and recovers it: it takes the mixes off the headphones, resets the microphone on USB and puts them back once it records again. The button recovers it right away.</value>
+  </data>
   <data name="Refresh" xml:space="preserve">
     <value>Refresh</value>
   </data>

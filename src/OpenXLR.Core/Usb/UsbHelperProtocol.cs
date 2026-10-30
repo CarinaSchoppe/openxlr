@@ -10,7 +10,7 @@ namespace OpenXLR.Core;
 /// </summary>
 public static class UsbHelperProtocol
 {
-    public const byte OpPing = 1, OpOpen = 2, OpClose = 3, OpTransfer = 4;
+    public const byte OpPing = 1, OpOpen = 2, OpClose = 3, OpTransfer = 4, OpReset = 5;
     /// <summary>Reply code when the device was not found or could not be opened.</summary>
     public const int NotOpened = -1000;
     /// <summary>Reply code for a transfer attempted with no device open.</summary>
@@ -31,6 +31,9 @@ public static class UsbHelperProtocol
     }
 
     public static byte[] Close() => [OpClose];
+
+    /// <summary>Reset the open device on the bus (libusb_reset_device); the reply is its code.</summary>
+    public static byte[] Reset() => [OpReset];
 
     public static byte[] Transfer(byte bmRequestType, byte bRequest, ushort wValue, ushort wIndex,
         ushort wLength, uint timeoutMs, ReadOnlySpan<byte> outData)
@@ -118,6 +121,9 @@ public static class UsbHelperProtocol
                     case OpClose:
                         backend.Close();
                         reply = Reply(0);
+                        break;
+                    case OpReset:
+                        reply = Reply(backend.IsOpen ? backend.Reset() : NoDevice);
                         break;
                     case OpTransfer:
                     {

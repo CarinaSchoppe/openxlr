@@ -264,6 +264,8 @@ public static class CommandValidation
                 return null;   // no arguments; toggle the current state under the mixer lock
             case "resetDevice":
                 return null;   // no arguments; the device manager checks the device
+            case "recoverCapture":
+                return null;   // no arguments; the driven unit's capabilities decide
             case "restartDaemon":
                 return null;   // no arguments
             case "setMonitorFeed":

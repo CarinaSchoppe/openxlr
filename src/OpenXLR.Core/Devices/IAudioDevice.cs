@@ -39,6 +39,17 @@ public interface IAudioDevice : IDisposable
     void Connect();
     void Disconnect();
 
+    /// <summary>
+    /// Reset the unit on the USB bus (libusb_reset_device through its open
+    /// handle): 0 or a negative libusb error, -5 when it re-enumerated, which
+    /// a unit whose audio the kernel drives does. Its card and its PipeWire
+    /// nodes go away and come back, and the daemon reconnects it as after a
+    /// replug. Only a model with <see cref="DeviceCapabilities.CaptureRecovery"/>
+    /// is reset.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The model is never reset, or the unit is not open.</exception>
+    int ResetUsb() => throw new InvalidOperationException("this unit is not reset on USB");
+
     /// <summary>Read every supported control field into one snapshot.</summary>
     DeviceState ReadState();
 
@@ -284,4 +295,14 @@ public sealed record DeviceCapabilities
     /// still be reset to a known state.
     /// </summary>
     public bool BuiltInDefaults { get; init; }
+
+    /// <summary>
+    /// Whether the daemon brings the unit's microphone back by resetting the
+    /// unit on USB when its capture stalls under its own playback, and
+    /// offers the same as the recoverCapture command. True on the Wave:3
+    /// MK.2 only: its capture stopped in the kernel, or delivered a steady
+    /// buzz, while its headphones played, and a USB reset with capture
+    /// started before playback cleared it every time.
+    /// </summary>
+    public bool CaptureRecovery { get; init; }
 }

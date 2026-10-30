@@ -27,6 +27,7 @@
     <Compile Include="../OpenXLR.Core/Mixing/LayoutColours.cs" Link="LayoutColours.cs" />
     <Compile Include="../OpenXLR.Core/Mixing/MicEq.cs" Link="MicEq.cs" />
     <Compile Include="../OpenXLR.Core/Mixing/MicNoise.cs" Link="MicNoise.cs" />
+    <Compile Include="../OpenXLR.Core/Mixing/MicVoice.cs" Link="MicVoice.cs" />
   </ItemGroup>
 
   <ItemGroup>

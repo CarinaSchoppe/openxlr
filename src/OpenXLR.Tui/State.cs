@@ -112,6 +112,9 @@ internal sealed record ChannelEntry
     /// <summary>A microphone's noise removal, or null for a channel that has none and from a daemon that predates it.</summary>
     public NoiseEntry? Noise { get; init; }
 
+    /// <summary>A microphone's voice changer, or null for a channel that has none and from a daemon that predates it.</summary>
+    public VoiceEntry? Voice { get; init; }
+
     /// <summary>XLR 1 or XLR 2, the strips a binding can move to another source.</summary>
     public bool Bindable => Hardware && Id is "xlr1" or "xlr2";
 
@@ -391,6 +394,30 @@ internal sealed record NoiseEntry
         : $"on, {EngineName(Active)}, adds {ms:0} ms";
 
     internal static string EngineName(string engine) => engine == MicNoise.DeepFilterNet ? "DeepFilterNet" : "RNNoise";
+}
+
+/// <summary>A microphone's voice changer as the daemon reports it (docs/api.md, voice changer).</summary>
+internal sealed record VoiceEntry
+{
+    public bool Enabled { get; init; }
+    public string Voice { get; init; } = MicVoice.DefaultVoice;
+    public double Pitch { get; init; }
+    public double Formant { get; init; }
+    /// <summary>The voice heard now, or null.</summary>
+    public string? Active { get; init; }
+    public bool Available { get; init; }
+    public string? Error { get; init; }
+
+    /// <summary>What runs, in a few words.</summary>
+    [JsonIgnore]
+    public string Status => Error is { Length: > 0 } error ? error
+        : !Available ? "cannot run"
+        : !Enabled ? "off"
+        : Active != Voice ? "on, starting"
+        : $"on, {VoiceName(Voice)}";
+
+    /// <summary>A voice's name as the Inputs tab lists it: the id with a capital.</summary>
+    internal static string VoiceName(string voice) => voice.Length == 0 ? voice : char.ToUpperInvariant(voice[0]) + voice[1..];
 }
 
 internal sealed record EqEntry

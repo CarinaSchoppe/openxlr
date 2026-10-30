@@ -3740,4 +3740,112 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   <data name="SoundboardExportNeedsZip" xml:space="preserve">
     <value>Изабери име фајла које се завршава на .zip: библиотека се чува као zip фајл.</value>
   </data>
+  <data name="VoiceChanger" xml:space="preserve">
+    <value>Мењач гласа</value>
+  </data>
+  <data name="VoiceChangerButtonTip" xml:space="preserve">
+    <value>Дајте микрофону други глас: робот, радио, чудовиште или сопствену висину и формант.</value>
+  </data>
+  <data name="VoiceChangerMicrophone" xml:space="preserve">
+    <value>Микрофон</value>
+  </data>
+  <data name="VoiceChangerMicrophoneTip" xml:space="preserve">
+    <value>Микрофон на који се гласови примењују. Сваки микрофон чува свој глас.</value>
+  </data>
+  <data name="VoiceChangerMonitorNote" xml:space="preserve">
+    <value>Интерфејси са директним мониторингом, као што су Wave XLR Pro и MK.2 уређаји, шаљу ваш сопствени глас на излазе за слушалице. Промењени глас чујете кроз монитор микс.</value>
+  </data>
+  <data name="VoiceTileSelected" xml:space="preserve">
+    <value>{0}, укључено</value>
+  </data>
+  <data name="VoiceShiftValue" xml:space="preserve">
+    <value>{0} полутонова</value>
+  </data>
+  <data name="VoiceStarting" xml:space="preserve">
+    <value>Глас се покреће.</value>
+  </data>
+  <data name="VoicePitch" xml:space="preserve">
+    <value>Висина</value>
+  </data>
+  <data name="VoicePitchTip" xml:space="preserve">
+    <value>Колико прилагођени глас помера висину тона, у полутоновима.</value>
+  </data>
+  <data name="VoiceFormant" xml:space="preserve">
+    <value>Формант</value>
+  </data>
+  <data name="VoiceFormantTip" xml:space="preserve">
+    <value>Колико прилагођени глас помера форманте, који одређују колико глас звучи велико, у полутоновима.</value>
+  </data>
+  <data name="VoiceOff" xml:space="preserve">
+    <value>Искључено</value>
+  </data>
+  <data name="VoiceOffHint" xml:space="preserve">
+    <value>Ваш сопствени глас</value>
+  </data>
+  <data name="VoiceCustom" xml:space="preserve">
+    <value>Прилагођено</value>
+  </data>
+  <data name="VoiceCustomHint" xml:space="preserve">
+    <value>Ваша висина и формант</value>
+  </data>
+  <data name="VoiceDeep" xml:space="preserve">
+    <value>Дубок</value>
+  </data>
+  <data name="VoiceDeepHint" xml:space="preserve">
+    <value>Нижи и тамнији</value>
+  </data>
+  <data name="VoiceHigh" xml:space="preserve">
+    <value>Висок</value>
+  </data>
+  <data name="VoiceHighHint" xml:space="preserve">
+    <value>Виши и светлији</value>
+  </data>
+  <data name="VoiceRobot" xml:space="preserve">
+    <value>Робот</value>
+  </data>
+  <data name="VoiceRobotHint" xml:space="preserve">
+    <value>Метални и звонак</value>
+  </data>
+  <data name="VoiceRadio" xml:space="preserve">
+    <value>Радио</value>
+  </data>
+  <data name="VoiceRadioHint" xml:space="preserve">
+    <value>Узак и мало храпав</value>
+  </data>
+  <data name="VoiceAlien" xml:space="preserve">
+    <value>Ванземаљац</value>
+  </data>
+  <data name="VoiceAlienHint" xml:space="preserve">
+    <value>Висок, звонак и таласаст</value>
+  </data>
+  <data name="VoiceDracula" xml:space="preserve">
+    <value>Дракула</value>
+  </data>
+  <data name="VoiceDraculaHint" xml:space="preserve">
+    <value>Дубок, у дворани замка</value>
+  </data>
+  <data name="VoiceFrankenstein" xml:space="preserve">
+    <value>Франкенштајн</value>
+  </data>
+  <data name="VoiceFrankensteinHint" xml:space="preserve">
+    <value>Веома дубок, са режањем</value>
+  </data>
+  <data name="VoiceMummy" xml:space="preserve">
+    <value>Мумија</value>
+  </data>
+  <data name="VoiceMummyHint" xml:space="preserve">
+    <value>Храпав, у дугој гробници</value>
+  </data>
+  <data name="VoiceWerewolf" xml:space="preserve">
+    <value>Вукодлак</value>
+  </data>
+  <data name="VoiceWerewolfHint" xml:space="preserve">
+    <value>Дубок и груб</value>
+  </data>
+  <data name="VoiceWitch" xml:space="preserve">
+    <value>Вештица</value>
+  </data>
+  <data name="VoiceWitchHint" xml:space="preserve">
+    <value>Висок, са подрхтавањем</value>
+  </data>
 </root>

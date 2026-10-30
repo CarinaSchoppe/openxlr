@@ -16,7 +16,7 @@ namespace OpenXLR.UI;
 /// <see cref="StateReceived"/> for every pushed state. State is handed over as a
 /// JsonNode so the UI can bind to it without duplicating the daemon's records.
 /// </summary>
-public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands, IDuckingCommands, ISoundboardCommands
+public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands, IVoiceCommands, IDuckingCommands, ISoundboardCommands
 {
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -506,6 +506,17 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
         if (enabled is bool on) payload["enabled"] = on;
         if (engine is not null) payload["engine"] = engine;
         if (strength is double db) payload["strength"] = db;
+        return SendAsync(payload);
+    }
+
+    /// <summary>Part of a microphone's voice changer: the fields given change, the others keep their values.</summary>
+    public Task SetVoiceChangerAsync(string channel, bool? enabled = null, string? voice = null, double? pitch = null, double? formant = null)
+    {
+        var payload = new Dictionary<string, object> { ["cmd"] = "setVoiceChanger", ["channel"] = channel };
+        if (voice is not null) payload["voice"] = voice;
+        if (pitch is double p) payload["pitch"] = p;
+        if (formant is double f) payload["formant"] = f;
+        if (enabled is bool on) payload["enabled"] = on;
         return SendAsync(payload);
     }
 

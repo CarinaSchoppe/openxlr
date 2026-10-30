@@ -43,6 +43,9 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <summary>The soundboard the Soundboard window plays; reported by every daemon that has one.</summary>
     public SoundboardViewModel Soundboard { get; }
 
+    /// <summary>The voice changer the Voice changer window sets; reported on every microphone by a daemon that has it.</summary>
+    public VoiceChangerViewModel VoiceChanger { get; }
+
     private readonly DaemonClient _client;
     private bool _applying;
 
@@ -54,6 +57,7 @@ public sealed partial class MainViewModel : ViewModelBase
         DaemonRestart = daemonRestart;
         Ducking = new DuckingViewModel(client);
         Soundboard = new SoundboardViewModel(client);
+        VoiceChanger = new VoiceChangerViewModel(client);
         LoadMixerView();
         OutputVolumeRange = new VolumeRangeViewModel(() => OutputVolume = Math.Min(OutputVolume, 1));
         OutputVolumeRange.Changed += RequestDesktopVolumeBoost;
@@ -71,6 +75,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 ResetBrowserTabs();
                 ResetAppRouting();
                 Soundboard.Reset();
+                VoiceChanger.Reset();
                 Inserts.ResetForNewConnection(); Inserts2.ResetForNewConnection();
                 foreach (MixViewModel mv in Mixes) mv.Inserts.ResetForNewConnection();
                 foreach (ChannelViewModel channel in Channels) channel.Inserts?.ResetForNewConnection();
@@ -984,6 +989,7 @@ public sealed partial class MainViewModel : ViewModelBase
             ApplyAppRouting(node["mixer"]);
             Ducking.Apply(node["ducking"], node["mixer"]);
             Soundboard.Apply(node["mixer"]?["soundboard"], Channels, node["mixer"] is JsonObject);
+            VoiceChanger.Apply(node["mixer"]?["channels"]);
             // The daemon says whether XLR 1's signal has a hardware low cut and
             // ClipGuard in front of it; an older daemon leaves the window to
             // work it out from the interface's capabilities.

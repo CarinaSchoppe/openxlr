@@ -154,6 +154,7 @@ public partial class MainWindow : Window
             _mixerWindow?.Close();
             _options?.Close();
             SoundboardWindow.Current?.Close();
+            VoiceChangerWindow.Current?.Close();
             _lifetime.Cancel();
             DisposeTray();
             _desktopKeys.Dispose();
@@ -371,6 +372,12 @@ public partial class MainWindow : Window
     {
         if (_reallyExit) return;
         SoundboardWindow.Open(this, _vm.Soundboard);
+    }
+
+    /// <summary>The SUBMIXER header's Voice changer button, which stays in this window while the mixer is popped out.</summary>
+    private void OnVoiceChanger(object? sender, RoutedEventArgs e)
+    {
+        if (!_reallyExit) VoiceChangerWindow.Open(this, _vm.VoiceChanger);
     }
 
     private void OnAbout(object? sender, RoutedEventArgs e)

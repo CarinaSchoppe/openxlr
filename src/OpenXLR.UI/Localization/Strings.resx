@@ -3445,15 +3445,6 @@ The Wave XLR Pro UCM profile remains a manual host setup. Install LV2 plugins fr
   <data name="SoundboardAddFolderTip" xml:space="preserve">
     <value>Add every sound file in a folder, one at a time, onto a page named after the folder; its subfolders are left out.</value>
   </data>
-  <data name="SoundboardTurnOn" xml:space="preserve">
-    <value>Turn on</value>
-  </data>
-  <data name="SoundboardTurnOnCreate" xml:space="preserve">
-    <value>Turn on and create SFX</value>
-  </data>
-  <data name="SoundboardTurnOnTip" xml:space="preserve">
-    <value>Start the player. Without an SFX channel the daemon creates one, muted in every mix, so open its sends to hear the clips.</value>
-  </data>
   <data name="SoundboardEmpty" xml:space="preserve">
     <value>No clips yet. Add a WAV, FLAC, Ogg, Opus or MP3 file of up to 30 seconds.</value>
   </data>

@@ -3459,15 +3459,6 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   <data name="SoundboardAddFolderTip" xml:space="preserve">
     <value>Aggiunge uno alla volta tutti i file audio di una cartella in una pagina con il nome della cartella; le sottocartelle restano fuori.</value>
   </data>
-  <data name="SoundboardTurnOn" xml:space="preserve">
-    <value>Attiva</value>
-  </data>
-  <data name="SoundboardTurnOnCreate" xml:space="preserve">
-    <value>Attiva e crea SFX</value>
-  </data>
-  <data name="SoundboardTurnOnTip" xml:space="preserve">
-    <value>Avvia il lettore. Senza un canale SFX il daemon ne crea uno, silenziato in ogni mix: apri le sue mandate per sentire le clip.</value>
-  </data>
   <data name="SoundboardEmpty" xml:space="preserve">
     <value>Nessuna clip per ora. Aggiungi un file WAV, FLAC, Ogg, Opus o MP3 lungo fino a 30 secondi.</value>
   </data>

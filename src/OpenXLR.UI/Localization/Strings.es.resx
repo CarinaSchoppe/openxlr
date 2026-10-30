@@ -3094,15 +3094,6 @@ Selecciona la interfaz que controla OpenXLR</value>
   <data name="SoundboardAddFolderTip" xml:space="preserve">
     <value>Añadir uno a uno todos los archivos de sonido de una carpeta a una página con el nombre de la carpeta; sus subcarpetas quedan fuera.</value>
   </data>
-  <data name="SoundboardTurnOn" xml:space="preserve">
-    <value>Activar</value>
-  </data>
-  <data name="SoundboardTurnOnCreate" xml:space="preserve">
-    <value>Activar y crear SFX</value>
-  </data>
-  <data name="SoundboardTurnOnTip" xml:space="preserve">
-    <value>Iniciar el reproductor. Sin un canal SFX, el daemon crea uno, silenciado en todas las mezclas; abre sus envíos para oír los clips.</value>
-  </data>
   <data name="SoundboardEmpty" xml:space="preserve">
     <value>Aún no hay clips. Añade un archivo WAV, FLAC, Ogg, Opus o MP3 de hasta 30 segundos.</value>
   </data>

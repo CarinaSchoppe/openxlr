@@ -3193,8 +3193,8 @@ Some things follow from the clips sharing SFX:
   loud, and the clips with it. Untick SFX in the Ducking window to keep
   the clips at their level.
 - Renaming or hiding SFX keeps the board playing. Deleting SFX turns the
-  board off; the Soundboard window says so and offers **Turn on and create SFX**,
-  which makes a new SFX channel, muted in every mix. Open its sends
+  board off and the Soundboard window says so. Ticking **Soundboard on**
+  again makes a new SFX channel, muted in every mix. Open its sends
   before you expect to hear anything. The clips stay in the library
   meanwhile.
 - While the software mixer is off, or waiting for the audio server, the

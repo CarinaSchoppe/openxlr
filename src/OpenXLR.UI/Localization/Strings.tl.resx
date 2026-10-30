@@ -3446,15 +3446,6 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
   <data name="SoundboardAddFolderTip" xml:space="preserve">
     <value>Idagdag isa-isa ang bawat sound file sa isang folder sa pahinang ipinangalan sa folder; hindi kasama ang mga subfolder nito.</value>
   </data>
-  <data name="SoundboardTurnOn" xml:space="preserve">
-    <value>I-on</value>
-  </data>
-  <data name="SoundboardTurnOnCreate" xml:space="preserve">
-    <value>I-on at gumawa ng SFX</value>
-  </data>
-  <data name="SoundboardTurnOnTip" xml:space="preserve">
-    <value>Simulan ang player. Kung walang SFX channel, gagawa ang daemon ng isa, naka-mute sa bawat mix; buksan ang mga send nito para marinig ang mga clip.</value>
-  </data>
   <data name="SoundboardEmpty" xml:space="preserve">
     <value>Wala pang clip. Magdagdag ng WAV, FLAC, Ogg, Opus o MP3 file na hanggang 30 segundo.</value>
   </data>

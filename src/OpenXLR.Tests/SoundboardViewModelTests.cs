@@ -141,7 +141,6 @@ public sealed class SoundboardViewModelTests
         Assert.Equal("The file could not be decoded.", broken.Detail);
         Assert.Equal(["wav", "flac", "ogg", "opus", "mp3"], board.Formats);
         Assert.False(board.HasNotice);
-        Assert.False(board.ShowsTurnOn);
         Assert.Empty(commands.Sent);
 
         // A second state keeps the pads, follows the daemon's order and drops a deleted clip.
@@ -282,48 +281,44 @@ public sealed class SoundboardViewModelTests
         Assert.False(board.IsReported);
         Assert.Equal(Localizer.Text("SoundboardNotReported"), board.Notice);
         Assert.False(board.CanImport);
-        Assert.False(board.ShowsTurnOn);
 
         // No native helper: the daemon's sentence, even while off, and nothing to add or turn on.
         board.Apply(Board(available: false, enabled: false), []);
         Assert.Equal(NeedsHost, board.Notice);
         Assert.True(board.NoticeWarns);
         Assert.False(board.CanImport);
-        Assert.False(board.ShowsTurnOn);
         Assert.All(board.Clips, c => Assert.Equal("off", c.Status));
 
-        // Off by choice: the daemon's sentence, not a warning, and the way to turn it on.
+        // Off by choice: the daemon's sentence, not a warning, and the switch to turn it on.
         var sfx = new ChannelViewModel(new DaemonClient("ws://127.0.0.1:1/ws"), "sfx", "Effects", []);
         board.Apply(Board(enabled: false), [sfx]);
         Assert.Equal(Off, board.Notice);
         Assert.False(board.NoticeWarns);
-        Assert.True(board.ShowsTurnOn);
-        Assert.Equal(Localizer.Text("SoundboardTurnOn"), board.TurnOnText);
+        Assert.True(board.CanImport);
+        Assert.False(board.Enabled);
         Assert.Same(sfx, board.Channel);
         Assert.Equal("Effects", board.ChannelName);
         // An off pad says its length and mode; the notice says why it cannot play.
         Assert.False(board.Clips[0].CanPlay);
         Assert.Equal(Localizer.Format("SoundClipDetail", 2.4, Localizer.Text("SoundClipModeOverlap")), board.Clips[0].Detail);
 
-        // SFX deleted: the daemon's sentence, and a button that creates SFX again.
+        // SFX deleted: the daemon's sentence, and the switch, which creates SFX again.
         board.Apply(Board(enabled: false, channel: null), [sfx]);
         Assert.Equal(Deleted, board.Notice);
         Assert.True(board.NoticeWarns);
-        Assert.True(board.ShowsTurnOn);
-        Assert.Equal(Localizer.Text("SoundboardTurnOnCreate"), board.TurnOnText);
+        Assert.False(board.Enabled);
         Assert.Null(board.Channel);
         Assert.False(board.CanPlay);
         // Clips can still be added while it is off.
         Assert.True(board.CanImport);
         Assert.Empty(commands.Sent);
-        board.TurnOn();
+        board.Enabled = true;
         Assert.Equal(("setSoundboard", "true"), Pair(commands.One()));
 
         // Starting: the daemon's sentence, loading pads, nothing to press.
         board.Apply(Board(error: "The soundboard is starting.", airhornLoaded: false), [sfx]);
         Assert.Equal("The soundboard is starting.", board.Notice);
         Assert.False(board.CanPlay);
-        Assert.False(board.ShowsTurnOn);
 
         // Playing: no notice at all.
         board.Apply(Board(airhornLoaded: false), [sfx]);

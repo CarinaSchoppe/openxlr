@@ -3446,15 +3446,6 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   <data name="SoundboardAddFolderTip" xml:space="preserve">
     <value>Додај један по један сваки звучни фајл из фасцикле на страницу названу по фасцикли; подфасцикле се изостављају.</value>
   </data>
-  <data name="SoundboardTurnOn" xml:space="preserve">
-    <value>Укључи</value>
-  </data>
-  <data name="SoundboardTurnOnCreate" xml:space="preserve">
-    <value>Укључи и направи SFX</value>
-  </data>
-  <data name="SoundboardTurnOnTip" xml:space="preserve">
-    <value>Покрени плејер. Без SFX канала демон прави један, утишан у сваком миксу; отвори његова слања да би чуо клипове.</value>
-  </data>
   <data name="SoundboardEmpty" xml:space="preserve">
     <value>Још нема клипова. Додај WAV, FLAC, Ogg, Opus или MP3 фајл до 30 секунди.</value>
   </data>

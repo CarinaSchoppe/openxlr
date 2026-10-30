@@ -19,12 +19,20 @@ function connect(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inAct
     ws.send(JSON.stringify({ event: inRegisterEvent, uuid: piUuid }));
     const sel = document.getElementById("target");
     const iconSel = document.getElementById("icon");
+    // A voice changer key's press mode, on the toggle page only.
+    const modeSel = document.getElementById("voiceMode");
+    const modeRow = document.getElementById("voice-mode-row");
+    const showMode = () => { if (modeRow) modeRow.hidden = !(sel.value || wanted || "").startsWith("voice:"); };
     if (wanted) sel.value = wanted;
     if (iconSel && settings.icon) iconSel.value = settings.icon;
+    if (modeSel) modeSel.value = settings.voiceMode === "hold" ? "hold" : "toggle";
+    showMode();
     const save = () => {
       settings.target = sel.value;
       wanted = sel.value;
       if (iconSel) settings.icon = iconSel.value;
+      if (modeSel) settings.voiceMode = modeSel.value;
+      showMode();
       // Insert options carry {plugin, index} so the key survives a chain
       // rebuild that hands the insert a new id.
       const opt = sel.selectedOptions[0];
@@ -36,6 +44,7 @@ function connect(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inAct
     };
     sel.addEventListener("change", save);
     iconSel?.addEventListener("change", save);
+    modeSel?.addEventListener("change", save);
     // Ask the plugin for the live output-device list, the insert chains and
     // the saved profiles.
     for (const request of ["layout", "outputs", "inserts", "profiles"])

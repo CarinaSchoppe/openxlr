@@ -3,6 +3,7 @@
 // existing OpenDeck actions.
 import fs from "node:fs";
 import { eqChoices } from "./microphone-eq.mjs";
+import { voiceChoices } from "./voice-changer.mjs";
 
 // The built-in icon set, generated from LayoutIcons.cs by tools/deck-icons.py.
 const ICON_TABLE = JSON.parse(fs.readFileSync(new URL("./icons.json", import.meta.url), "utf8"));
@@ -153,7 +154,8 @@ export function layoutChoices(mixer, devices = []) {
       `send:${channel.id}:${mix.id}`, `${channel.name} in ${mix.name}`)),
   });
   const eq = eqChoices(mixer);
-  return { toggleGroups: [...toggleGroups, ...eq.toggleGroups], levelGroups: [...levelGroups, ...eq.levelGroups] };
+  const voices = voiceChoices(mixer);
+  return { toggleGroups: [...toggleGroups, ...eq.toggleGroups, ...voices.toggleGroups], levelGroups: [...levelGroups, ...eq.levelGroups] };
 }
 
 // The member of an exclusive group heard in some mix, by channel id, or null.
@@ -180,7 +182,7 @@ export function targetAppearance(mixer, target) {
   if (typeof target !== "string") return { icon: "", path: null, colour: null };
   let item;
   if (/^(mixmute|mixvol):/.test(target)) item = mixer?.mixes?.find(m => m.id === target.split(":")[1]);
-  else if (/^(sendmute|send|focus|chvol|chgain|chmute|chphantom|chlowcut|chclipguard|eq|eqband|eqtype|eqfreq|eqgain|eqq):/.test(target)) item = mixer?.channels?.find(c => c.id === target.split(":")[1]);
+  else if (/^(sendmute|send|focus|chvol|chgain|chmute|chphantom|chlowcut|chclipguard|eq|eqband|eqtype|eqfreq|eqgain|eqq|voice):/.test(target)) item = mixer?.channels?.find(c => c.id === target.split(":")[1]);
   else if (target.startsWith("group:")) {
     const open = openGroupMember(mixer, mixer?.exclusiveGroups?.find(g => g.id === target.slice(6)));
     item = open === null ? undefined : mixer?.channels?.find(c => c.id === open);

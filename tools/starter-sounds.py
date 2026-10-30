@@ -7,7 +7,7 @@ once, on a page of their own. They live in packaging/starter-sounds: the
 library file soundboard.json, which lists them as a soundboard archive
 does, their Ogg Vorbis files under clips/, and CREDITS, which names each
 clip's source, author, licence and the edits made here. Every source is
-CC0 1.0, and the air horn is made by this script.
+CC0 1.0.
 
 The table below is the one place a clip's trim, fades and level are
 written. A clip is cut from START to END seconds of its original; from
@@ -73,10 +73,9 @@ CLIPS = [
     dict(id="sad-trombone", name="Sad trombone", icon="music", freesound=175409, author="kirbydx",
          title="wah-wah-sad-trombone", start=0.0, end=4.95, fade_in=0.005, fade_out=0.1,
          why="The whole phrase; the 0.2 s of silence before it is skipped."),
-    dict(id="air-horn", name="Air horn", icon="burst", synth="airhorn", author="the OpenXLR project",
-         title="Air horn, synthesised by tools/starter-sounds.py", start=0.0, end=None, fade_in=0.0,
-         fade_out=0.0,
-         why="Made here: three blasts of detuned sawtooth and square partials around 466 Hz."),
+    dict(id="air-horn", name="Air horn", icon="burst", freesound=705658, author="laffik",
+         title="blow-yo-adam-f-king-horns", start=0.0, end=4.6, fade_in=0.005, fade_out=0.4,
+         why="A stadium horn and its echo down to -55 dB; the 0.45 s of silence before it is skipped."),
     dict(id="ding", name="Ding", icon="bell", freesound=173932, author="JohnsonBrandEditing",
          title="ding-ding-small-bell", start=0.0, end=3.0, fade_in=0.005, fade_out=0.3,
          why="The first ding of the file and its ring to -56 dB; the later double ding is left out."),
@@ -95,7 +94,7 @@ CLIPS = [
     dict(id="record-scratch", name="Record scratch", icon="record", freesound=71853, author="ludvique",
          title="record_scratch", start=0.0, end=None, fade_in=0.002, fade_out=0.05,
          why="The whole 0.45 s scratch, too short for the loudness gate, so its peak is set instead."),
-    dict(id="cash-register", name="Cash register", icon="", freesound=184438, author="CapsLok",
+    dict(id="cash-register", name="Cash register", icon="dollar", freesound=184438, author="CapsLok",
          title="cash-register-fake", start=0.0, end=1.5, fade_in=0.005, fade_out=0.1,
          why="The ring and the drawer; the 70 ms before it and the silent last 0.7 s are cut."),
     dict(id="you-win", name="You win", icon="game", kenney="Male/you_win.ogg",
@@ -110,30 +109,10 @@ CLIPS = [
 
 KENNEY_URL = "https://kenney.nl/assets/voiceover-pack"
 
-# Three blasts, short, short, long, each a few detuned sawtooth voices and
-# a square an octave down, with a 12 ms attack and a 40 ms release.
-AIRHORN_BLASTS = [(0.0, 0.26), (0.34, 0.60), (0.68, 1.75)]
-
-
-def airhorn_expression():
-    def saw(f):
-        return f"(2*({f}*t-floor(0.5+{f}*t)))"
-
-    def square(f):
-        return f"(2*gte(mod({f}*t,1),0.5)-1)"
-
-    tone = f"({saw(466.2)}+{saw(469.6)}+{saw(462.9)}+0.6*{square(233.1)}+0.35*{saw(932.4)})/3.95"
-    gate = "+".join(
-        f"between(t,{s},{e})*min(1,(t-{s})/0.012)*min(1,({e}-t)/0.04)" for s, e in AIRHORN_BLASTS)
-    return f"{tone}*({gate})"
-
-
 def url(clip):
     if "freesound" in clip:
         return f"https://freesound.org/people/{clip['author']}/sounds/{clip['freesound']}/"
-    if "kenney" in clip:
-        return KENNEY_URL
-    return "https://github.com/emaspa/openxlr/blob/main/tools/starter-sounds.py"
+    return KENNEY_URL
 
 
 def source_name(clip):
@@ -150,16 +129,15 @@ def library_text():
 
 def edits(clip):
     parts = []
-    if "synth" not in clip:
-        span = f"{clip['start']:g} s to {clip['end']:g} s" if clip["end"] is not None else f"{clip['start']:g} s to the end"
-        parts.append(f"cut from {span} of the original, leading audio under {SILENCE_DBFS:g} dBFS skipped")
-        fades = []
-        if clip["fade_in"]:
-            fades.append(f"{clip['fade_in'] * 1000:g} ms fade in")
-        if clip["fade_out"]:
-            fades.append(f"{clip['fade_out'] * 1000:g} ms fade out")
-        if fades:
-            parts.append(", ".join(fades))
+    span = f"{clip['start']:g} s to {clip['end']:g} s" if clip["end"] is not None else f"{clip['start']:g} s to the end"
+    parts.append(f"cut from {span} of the original, leading audio under {SILENCE_DBFS:g} dBFS skipped")
+    fades = []
+    if clip["fade_in"]:
+        fades.append(f"{clip['fade_in'] * 1000:g} ms fade in")
+    if clip["fade_out"]:
+        fades.append(f"{clip['fade_out'] * 1000:g} ms fade out")
+    if fades:
+        parts.append(", ".join(fades))
     parts.append(f"level set to {TARGET_LUFS:g} LUFS integrated, or lower where the true peak reaches {CEILING_DBTP:g} dBTP")
     parts.append(f"resampled to {RATE // 1000} kHz and encoded as Ogg Vorbis")
     return "; ".join(parts) + "."
@@ -174,8 +152,7 @@ def credits_text():
         CC0,
         "The licence asks for no credit; it is given here because it is due.",
         "tools/starter-sounds.py in the OpenXLR source makes the edits and holds",
-        "the exact cut, fades and level of every clip. The edits are CC0 1.0 too,",
-        "as is the air horn, which that script makes.",
+        "the exact cut, fades and level of every clip. The edits are CC0 1.0 too.",
         "",
     ]
     for clip in CLIPS:
@@ -226,11 +203,9 @@ def source_of(clip, freesound, kenney):
         if len(found) != 1:
             sys.exit(f"{clip['id']}: expected one file named {clip['freesound']}__* in {freesound}")
         return found[0]
-    if "kenney" in clip:
-        if kenney is None:
-            sys.exit("--kenney is needed to build the clips")
-        return kenney / clip["kenney"]
-    return None
+    if kenney is None:
+        sys.exit("--kenney is needed to build the clips")
+    return kenney / clip["kenney"]
 
 
 def channels_of(path):
@@ -241,12 +216,6 @@ def channels_of(path):
 
 def decode(clip, path):
     """The clip's original as raw 32-bit float at RATE, and its channel count."""
-    if path is None:
-        end = AIRHORN_BLASTS[-1][1] + 0.05
-        raw = run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
-                   f"aevalsrc=exprs='{airhorn_expression()}':s={RATE}:d={end}",
-                   "-af", "lowpass=f=5000,highpass=f=120", "-f", "f32le", "-"]).stdout
-        return raw, 1
     channels = channels_of(path)
     raw = run(["ffmpeg", "-v", "error", "-i", str(path), "-ac", str(channels), "-ar", str(RATE),
                "-f", "f32le", "-"]).stdout

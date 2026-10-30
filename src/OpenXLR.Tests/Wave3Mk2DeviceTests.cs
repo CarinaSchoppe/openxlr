@@ -108,7 +108,8 @@ public sealed class Wave3Mk2DeviceTests
         Assert.Equal(34, s.GainDb);
         Assert.False(s.Mute);
         Assert.Equal(-12, s.HpVolumeDb);
-        Assert.Equal(50, s.Crossfade);
+        // Byte 0x32 runs the other way from the crossfade: 150, mostly computer.
+        Assert.Equal(150, s.Crossfade);
         // Flags 0x62 hold bits 0x02, 0x20 and 0x40, phantom, expander and
         // voice tune on the XLR MK.2; on this microphone nobody knows them.
         Assert.False(s.Phantom);
@@ -144,11 +145,15 @@ public sealed class Wave3Mk2DeviceTests
 
         device.SetHpVolumeDb(-20);
         Assert.Equal(new byte[] { 0x50, 0x00 }, unit.Writes.Last().Data);
-        device.SetCrossfade(100);
-        Assert.Equal(Convert.FromHexString("640102030200"), unit.Writes.Last().Data);
+        // OpenXLR's crossfade puts the microphone at 0; this model's byte puts it at 200.
+        device.SetCrossfade(40);
+        Assert.Equal(Convert.FromHexString("a00102030200"), unit.Writes.Last().Data);
+        device.SetCrossfade(250);
+        Assert.Equal(0, unit.Blocks[0x0001][0]);
+        device.SetCrossfade(40);
 
         DeviceState s = device.ReadState();
-        Assert.Equal((40, false, -20.0, 100), (s.GainDb, s.Mute, s.HpVolumeDb, s.Crossfade));
+        Assert.Equal((40, false, -20.0, 40), (s.GainDb, s.Mute, s.HpVolumeDb, s.Crossfade));
         Assert.All(unit.Calls, call => Assert.Equal(0x0103, call.Bank));
         // Everything but the gain and the mute bit is as the unit had it.
         Assert.Equal(settings[1..], unit.Blocks[0x0004][1..]);

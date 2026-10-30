@@ -15,7 +15,7 @@ brand works in the mixer without hardware controls; see
 | Wave XLR MK.2 | `0fd9:00b6` | exposed controls verified on hardware by a community tester; the microphone EQ on the unit verified on hardware |
 | XLR Dock MK.2 | `0fd9:00c7` | MK.2 backend with bank detection; exposed controls verified on the original 0x0103 unit, and the microphone EQ on the unit verified on firmware 1.0.15 |
 | Wave:3 | `0fd9:0070` | coded from public protocol research; on the maintainer's unit every control writes and reads back, and the gain, the monitor balance and the desktop volume controls are verified |
-| Wave:3 MK.2 | `0fd9:00ca` | the Wave XLR MK.2's backend; on the maintainer's unit gain, mute, headphone volume and the microphone EQ on the unit are verified and the crossfade writes and reads back; phantom power and the MK.2's other flags are not exposed |
+| Wave:3 MK.2 | `0fd9:00ca` | the Wave XLR MK.2's backend; on the maintainer's unit gain, mute, headphone volume, the crossfade and the microphone EQ on the unit are verified; phantom power and the MK.2's other flags are not exposed |
 | Wave:1 | `0fd9:006e` | the Wave:3's backend under the Wave:1's id; an owner's two archives showed the Wave:3's block, firmware line and desktop volume mirror, and the gain, mute and headphone volume writes taking effect; ClipGuard and the mix are not yet confirmed |
 
 ## USB access
@@ -585,7 +585,7 @@ script logged every byte that changed:
 | `0x0004` | 2, bit 0, and 18 to 37 | the MK.2's EQ switch and four bands; the unit came with the Wave XLR MK.2's factory bands |
 | `0x0004` | 10 | moved (0 to 0x32 seen) by one of the dial's modes; voice tune strength on the XLR MK.2, not identified here |
 | `0x0005` | 0 | headphone attenuation in quarter dB, 0 to 240 for 0 to -60 dB; the kernel's 'Playback Volume' reads 240 minus it |
-| `0x0001` | 0 | crossfade, 0 to 200, 100 the centre, as on the XLR MK.2 |
+| `0x0001` | 0 | crossfade, 0 to 200 with 100 the centre, but the other way from the XLR MK.2: 0 is the computer alone and 200 the microphone alone, so the backend mirrors it |
 | `0x0016` | 60 | the dial's mode: 02 gain, 04 the byte 10 parameter, 06 headphones, 08 crossfade |
 | `0x0006` | 14 | flips between 0 and 1 with dial and mute activity; not identified |
 | `0x0002` | | changes all the time; probably meters |
@@ -599,7 +599,7 @@ block read the same before and after.
 | Gain 0 to 40 dB | verified on hardware | 20, 40 and 34 written, read back from the block and from the kernel's capture control; the captured noise floor fell and rose with it; 45 is held to 40 |
 | Mute | verified on hardware | the flag byte's bit 0; the kernel's capture switch turned off and the capture went silent, then came back on unmute |
 | Headphone volume -60 to 0 dB | verified on hardware | -20, -60, -12.25 and -12 dB written; the kernel's playback control read 160, 0, 191 and 192. Not listened to |
-| Crossfade | written and read back | 100, 0 and 200 written and read back (250 held to 200); the mix was not listened to |
+| Crossfade | verified on hardware | 100, 0 and 200 written and read back (250 held to 200). The maintainer heard the direction reversed with the byte mapped straight, so the backend mirrors it |
 | Microphone EQ on the unit | verified on hardware | measured with the microphone's own noise, see below |
 | Phantom power, low cut, expander, voice tune, compressor, ClipGuard, low impedance | not exposed | none identified on this model; the backend refuses each setter before any transfer and reports each as off |
 | Low cut, gain lock | software | the submixer's and the daemon's, as on the Wave:3 |
@@ -638,7 +638,7 @@ header, or through `OPENXLR_DEVICE=00ca`. The node-name fragment is
 
 What is left for an owner: replug the microphone with nothing written on
 connect and say whether the gain and headphone level come back as set;
-listen to the crossfade and the headphone level; and, with Wave Link on
+listen to the headphone level; and, with Wave Link on
 Windows or macOS, name the setting behind byte 10 and the three unknown
 flag bits, and the firmware version Wave Link shows.
 

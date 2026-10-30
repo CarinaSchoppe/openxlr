@@ -9,7 +9,10 @@ namespace OpenXLR.Core.Devices;
 /// block protocol at wIndex 0x0103 (0x0203 stalls) with the MK.2's block
 /// layout: gain in dB at block 0x0004 byte 0, mute at bit 0 of byte 1, the
 /// headphone attenuation in quarter-dB steps at block 0x0005 byte 0 and the
-/// direct monitor crossfade at block 0x0001 byte 0. Block 0x0003 stalls, so
+/// direct monitor crossfade at block 0x0001 byte 0, which runs the other way
+/// from the XLR MK.2's: 0 is the computer alone and 200 the microphone alone,
+/// as the maintainer heard on 2026-10-30 after the crossfade had been mapped
+/// straight. Block 0x0003 stalls, so
 /// there is no commit block, as on the MK.2s.
 ///
 /// Mapped on the maintainer's unit (bcdDevice 2.20, build
@@ -55,7 +58,8 @@ public sealed class Wave3Mk2Device : WaveXlrMk2Device
 
     public Wave3Mk2Device() : this(null) { }
 
-    internal Wave3Mk2Device(IUsbTransport? usb) : base(ProductId, "Wave:3 MK.2", vIndex: 0x0103, Controls, EqFirmware, usb: usb) { }
+    internal Wave3Mk2Device(IUsbTransport? usb) : base(ProductId, "Wave:3 MK.2", vIndex: 0x0103, Controls, EqFirmware, usb: usb,
+        crossfadeReversed: true) { }
 
     /// <summary>The firmware the EQ was measured on, in this model's own numbering.</summary>
     internal static Version EqFirmware { get; } = new(0, 2, 3);

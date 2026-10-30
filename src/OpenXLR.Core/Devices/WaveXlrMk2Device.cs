@@ -95,6 +95,9 @@ public class WaveXlrMk2Device : IAudioDevice
     // EQ reason and no updater advice.
     private readonly Version? _eqFirmware;
 
+    // Whether the model's crossfade byte is the mirror of OpenXLR's crossfade.
+    private readonly bool _crossfadeReversed;
+
     /// <summary>The version block 0x0000 reports, as major.minor.patch; null until read.</summary>
     public string? Firmware { get; private set; }
 
@@ -123,13 +126,17 @@ public class WaveXlrMk2Device : IAudioDevice
     /// <param name="eqFirmware">The first firmware, in the model's own
     /// numbering, on which the unit runs the EQ on its DSP; null for a model
     /// without one, whose <see cref="EqSupport"/> stays null.</param>
+    /// <param name="crossfadeReversed">The model's crossfade byte runs from
+    /// the computer at 0 to the microphone at 200, the mirror of OpenXLR's
+    /// crossfade and of the Wave XLR MK.2's byte.</param>
     protected WaveXlrMk2Device(ushort productId, string model, ushort vIndex, DeviceCapabilities capabilities, Version? eqFirmware,
-        ushort? alternateVIndex = null, IUsbTransport? usb = null)
+        ushort? alternateVIndex = null, IUsbTransport? usb = null, bool crossfadeReversed = false)
     {
         _preferredVIndex = _vIndex = vIndex;
         _alternateVIndex = alternateVIndex;
         _usb = usb ?? UsbTransport.Create();
         _eqFirmware = eqFirmware;
+        _crossfadeReversed = crossfadeReversed;
         Info = UsbTransport.WithLocation(new DeviceInfo("Elgato", model, VendorId, productId));
         Capabilities = _modelCapabilities = capabilities with { HardwareEq = false };
     }
@@ -355,7 +362,7 @@ public class WaveXlrMk2Device : IAudioDevice
             VoiceTuneStrength = c.VoiceTune ? s[10] : 0,
             HpVolumeDb = -hp[0] / 4.0,
             LowImpedance = c.LowImpedance && (hp[1] & LowZMask) != 0,
-            Crossfade = xf[0],
+            Crossfade = CrossfadeByte(xf[0]),
         };
     }
 
@@ -403,7 +410,18 @@ public class WaveXlrMk2Device : IAudioDevice
     public void SetCrossfade(int value)
     {
         Require(_modelCapabilities.Crossfade, "crossfade");
-        Modify(BlockCrossfade, CrossfadeLen, CrossfadeUsed, b => b[0] = (byte)Math.Clamp(value, 0, 200));
+        Modify(BlockCrossfade, CrossfadeLen, CrossfadeUsed, b => b[0] = (byte)CrossfadeByte(value));
+    }
+
+    /// <summary>
+    /// OpenXLR's crossfade (0 the microphone alone, 200 the computer alone)
+    /// as the model's byte, held to 0 to 200, and back: the same number on a
+    /// model whose byte runs that way, its mirror on one whose byte does not.
+    /// </summary>
+    private int CrossfadeByte(int value)
+    {
+        int held = Math.Clamp(value, 0, 200);
+        return _crossfadeReversed ? 200 - held : held;
     }
 
     public void SetPhantom(bool on) => Flag(_modelCapabilities.Phantom, "phantom power", PhantomMask, on);

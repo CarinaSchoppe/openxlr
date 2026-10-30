@@ -10,8 +10,9 @@ namespace OpenXLR.Tests;
 /// <summary>
 /// The way back from a Wave:3 MK.2 capture stalled under its own playback:
 /// the mixes come off its output, the unit is reset on USB, its capture comes
-/// back and only then its playback. Models without the capability are never
-/// touched.
+/// back and only then its playback. Asked for by a client, the capture links
+/// are made again first and the reset follows only for a capture the kernel
+/// still holds stopped. Models without the capability are never touched.
 /// </summary>
 [Collection("xdg-config")]
 public sealed class CaptureRescueTests
@@ -30,7 +31,15 @@ public sealed class CaptureRescueTests
         public UnitPlayback? Playing = new(Source, Sink);
         public bool CaptureRecoveryActive { get; private set; }
         public UnitPlayback? DrivenUnitPlayback() => CaptureRecoveryActive ? null : Playing;
-        public CaptureRun ProbeCapture(string source) => Run;
+        public CaptureRun ProbeCapture(string source) { Assert.Equal(Source, source); return Run; }
+        /// <summary>What the capture reads once its links are made again; null keeps it as it was.</summary>
+        public CaptureRun? AfterRelink;
+        public UnitRelink? RelinkDrivenUnitCapture()
+        {
+            calls.Add("relink");
+            if (AfterRelink is { } after) Run = after;
+            return new UnitRelink(Source, 2);
+        }
         public int? BeginCaptureRecovery() { calls.Add("playback off"); CaptureRecoveryActive = true; return 1; }
         public void EndCaptureRecovery() { calls.Add("playback held no more"); CaptureRecoveryActive = false; }
         /// <summary>What the mixer does when the reset card's capture runs: the routes go back.</summary>
@@ -46,7 +55,7 @@ public sealed class CaptureRescueTests
         var watch = new CaptureWatch(() => now);
         var rescue = new CaptureRescue(NullLogger.Instance, mixer, () => Mk2, () => capabilities,
             reset ?? (unit => { calls.Add("reset " + unit); return null; }), watch,
-            _ => throw new InvalidOperationException("not sampled while the kernel says Stop"));
+            wait => { Assert.Equal(CaptureRescue.RelinkSettle, wait); calls.Add("settle"); });
         return (rescue, mixer, calls, ms => now += ms);
     }
 
@@ -74,21 +83,53 @@ public sealed class CaptureRescueTests
     {
         (CaptureRescue rescue, _, List<string> calls, Func<long, long> advance) = Build(Plain);
         for (int i = 0; i < 600; i++, advance(1000)) rescue.Sweep();
-        Assert.NotNull(rescue.Recover("asked"));
+        Assert.NotNull(rescue.Recover());
         Assert.Empty(calls);
+    }
+
+    [Fact]
+    public void AskedForTheCaptureLinksAreMadeAgainAndARunningCaptureIsNotReset()
+    {
+        // A buzz on a capture the kernel runs: the relink is the whole cure
+        // tried, and the headphones keep playing.
+        (CaptureRescue rescue, Mixer mixer, List<string> calls, _) = Build(Recovers);
+        mixer.Run = new(10, true, true, true);
+        Assert.Null(rescue.Recover());
+        Assert.Equal(["relink", "settle"], calls);
+        Assert.False(mixer.CaptureRecoveryActive);
+    }
+
+    [Theory]
+    [InlineData("stopped")]
+    [InlineData("missing")]
+    public void AskedForACaptureStillDownAfterTheRelinkIsResetOnUsb(string after)
+    {
+        (CaptureRescue rescue, Mixer mixer, List<string> calls, _) = Build(Recovers);
+        mixer.AfterRelink = after == "stopped" ? new CaptureRun(10, true, true, false) : CaptureRun.Missing;
+        Assert.Null(rescue.Recover());
+        Assert.Equal(["relink", "settle", "playback off", "reset 0fd9:00ca"], calls);
+    }
+
+    [Fact]
+    public void ARelinkThatBringsTheCaptureBackSavesTheReset()
+    {
+        (CaptureRescue rescue, Mixer mixer, List<string> calls, _) = Build(Recovers);
+        mixer.AfterRelink = new CaptureRun(10, true, true, true);
+        Assert.Null(rescue.Recover());
+        Assert.Equal(["relink", "settle"], calls);
     }
 
     [Fact]
     public void AFailedResetPutsThePlaybackBackAndAManualRecoveryWaitsForTheFirst()
     {
         (CaptureRescue rescue, _, List<string> calls, _) = Build(Recovers, _ => "the USB reset failed (libusb error -12)");
-        Assert.Contains("failed", rescue.Recover("asked"), StringComparison.Ordinal);
-        Assert.Equal(["playback off", "playback held no more"], calls);
+        Assert.Contains("failed", rescue.Recover(), StringComparison.Ordinal);
+        Assert.Equal(["relink", "settle", "playback off", "playback held no more"], calls);
 
         (rescue, _, calls, _) = Build(Recovers);
-        Assert.Null(rescue.Recover("asked"));
-        Assert.Contains("under way", rescue.Recover("asked again"), StringComparison.Ordinal);
-        Assert.Equal(["playback off", "reset 0fd9:00ca"], calls);
+        Assert.Null(rescue.Recover());
+        Assert.Contains("under way", rescue.Recover(), StringComparison.Ordinal);
+        Assert.Equal(["relink", "settle", "playback off", "reset 0fd9:00ca"], calls);
     }
 
     /// <summary>A unit that counts its USB resets; it goes off the bus for the reset.</summary>

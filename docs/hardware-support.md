@@ -685,15 +685,25 @@ not been tried yet; with the rule in place,
 `/proc/asound/MK2/pcm0p/sub0/hw_params` reads `FLOAT_LE` and `channels: 3`
 while the headphones play.
 
+Recordings of the buzz, made with the graph at quantum 256, show it does
+not repeat bit for bit. The difference between two blocks of 256 samples
+in a row sits about 28.5 dB below the signal. Measured over about a
+second, 70 to 94 % of its energy sat within 3 Hz of multiples of 187.5 Hz,
+the strongest at 187.5, 375, 562.5, 750 and 937.5 Hz, at -41 to -48 dBFS.
+Room noise on the same unit put 2 to 4 % there. It also came while no mix
+played into the headphones. A USB reset did not clear it once; removing
+the link from the capture into the strip cleared it at once, so it looks
+like a glitch in each graph cycle rather than a stalled stream.
+
 The daemon routes a mix into the headphones only once the kernel reports
-the capture running, and recovers the microphone the way that worked by
-hand: mixes off the headphones, a USB reset, the mixes back once the
-capture runs again. It does this when the kernel keeps the capture
-stopped for 3 seconds, or when three samples taken 10 seconds apart each
-repeat one block exactly (the buzz above looked like a replayed
-buffer), and on **Recover microphone** in Options. The buzz has not
-been recorded raw yet, so whether it repeats bit for bit, which the
-automatic check needs, is still to be confirmed. The capability is
+the capture running. When the kernel keeps the capture stopped for 3
+seconds while the headphones play, it recovers the microphone the way
+that worked by hand: mixes off the headphones, a USB reset, the mixes
+back once the capture runs again. It does not look for the buzz.
+**Recover microphone** in Options removes the capture's links and makes
+them again first, and resets the unit on USB only when the kernel still
+has the capture stopped 2 seconds later. That the relink cures the buzz
+rests on the one observation above. The capability is
 `captureRecovery`, set for this model only.
 
 The daemon prefers the Wave:3 MK.2 after every XLR interface, next to the

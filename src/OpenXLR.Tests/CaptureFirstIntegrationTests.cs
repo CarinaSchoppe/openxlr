@@ -245,6 +245,35 @@ public sealed partial class MonitorVolumeIntegrationTests
     }
 
     /// <summary>
+    /// The first step of a recovery asked for by a client: the links out of
+    /// the unit's capture are dropped and made again, and the mix playing
+    /// into the unit's own sink is left where it is.
+    /// </summary>
+    [MonitorPipeWireFact]
+    public void ARelinkMakesTheCaptureLinksAgainAndLeavesThePlayback()
+    {
+        using var links = new LinkLog();
+        var pw = new PipeWireAdapter(); using var registry = pw.WatchGraph();
+        using var mixer = new Mixer(pw) { Clock = () => 0 };
+        pw.CreateNullSink(Wave3Sink, "Wave 3 test output");
+        WaitForInputPorts(Wave3Sink, 2);
+        WaveSource(pw, "test_wave3_relink_parent", Wave3Source);
+        mixer.SetInputDeviceHint(Wave3Hints, hardwareOutputRouting: false, modelFallback: false);
+        mixer.Build(HardwareInputConfig, monitorOutputSink: Wave3Sink);
+        WaitForRecovery(() => { mixer.EnsureInputFeeds(); mixer.EnsureMonitorRoutes(); return GraphLinksInto(Wave3Sink).Length == 2; });
+
+        links.Start();
+        UnitRelink? relink = mixer.RelinkDrivenUnitCapture();
+        Assert.Equal(new UnitRelink(Wave3Source, 2), relink);
+        string[] made = links.Made();
+        Assert.Equal(2, made.Length);
+        Assert.All(made, l => Assert.StartsWith(Wave3Source + ":", l, StringComparison.Ordinal));
+        Assert.Equal(2, IncomingRouteLinks(Xlr1).Length);
+        Assert.Equal(2, GraphLinksInto(Wave3Sink).Length);
+        Assert.False(mixer.CaptureRecoveryActive);
+    }
+
+    /// <summary>
     /// Puts a pw-link in front of the real one that appends every link it
     /// made, "output input", to a file, and takes it away again on dispose.
     /// </summary>
@@ -272,9 +301,12 @@ public sealed partial class MonitorVolumeIntegrationTests
         /// <summary>Record from now on; links made by the fixture setup are left out.</summary>
         public void Start() => File.WriteAllText(Log + ".on", "");
 
+        /// <summary>Every link made since <see cref="Start"/>, "output input".</summary>
+        public string[] Made() => File.Exists(Log) ? File.ReadAllLines(Log) : [];
+
         public void AssertCaptureFirst(string source = Wave3Source, string sink = Wave3Sink)
         {
-            string[] made = File.Exists(Log) ? File.ReadAllLines(Log) : [];
+            string[] made = Made();
             int capture = Array.FindIndex(made, l => l.StartsWith(source + ":", StringComparison.Ordinal)
                 && l.Contains(" " + Xlr1 + ":", StringComparison.Ordinal));
             int playback = Array.FindIndex(made, l => l.Contains(" " + sink + ":", StringComparison.Ordinal));

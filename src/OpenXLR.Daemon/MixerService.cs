@@ -60,7 +60,7 @@ public sealed class MixerService : IHostedService, IDisposable
     // than let it stack up.
     private int _sweepRunning;
     private string? _lastSweepError;
-    // Brings a unit's stalled capture back by a USB reset (the Wave:3 MK.2).
+    // Brings a unit's stalled capture back by a relink or a USB reset (the Wave:3 MK.2).
     private readonly CaptureRescue _rescue;
 
     private readonly IHostApplicationLifetime? _lifetime;
@@ -750,11 +750,12 @@ public sealed class MixerService : IHostedService, IDisposable
     }
 
     /// <summary>
-    /// The recoverCapture command: take the mixes off the driven unit's own
-    /// output, reset it on USB and put them back once its capture runs. Null
-    /// on success, else why nothing was done.
+    /// The recoverCapture command: drop and remake the driven unit's capture
+    /// links, and only when the kernel still does not run its capture take
+    /// the mixes off its own output, reset it on USB and put them back once
+    /// its capture runs. Null on success, else why nothing was done.
     /// </summary>
-    public string? RecoverCapture() => _rescue.Recover("a client asked for its microphone to be recovered");
+    public string? RecoverCapture() => _rescue.Recover();
 
     private static string Run(string exe, params string[] args)
     {

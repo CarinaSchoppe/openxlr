@@ -28,7 +28,12 @@ attached unit is driven whatever its id, so a unit without a serial still
 connects after a port change.
 
 Only the header picker (`setActiveDevice`) moves the primary, and the
-journal says when it does. Until a unit is picked, the primary is a unit of
+journal says when it does. The daemon saves the pick in
+`~/.config/openxlr/active-device.json` and drives the same unit after a
+restart, ahead of `OPENXLR_DEVICE`. At start it waits up to 10 seconds for
+that unit, so one that enumerates after the others is still the first one
+driven. If it stays away, another unit stands in as below until it comes
+back. Until a unit is picked, the primary is a unit of
 the model `OPENXLR_DEVICE` names, or the first attached unit. Enabling or
 disabling an additional interface never changes it, and a unit enabled as
 additional is never driven as the primary in place of an absent one. Another

@@ -16,7 +16,8 @@ Version: 0.3.4
 Release:        1%{?dist}
 Summary:        Linux Wave Link replacement for Elgato XLR interfaces and Wave microphones
 # OpenXLR is GPL-3.0-only. The native helper links RNNoise (BSD-3-Clause),
-# libDF and the DeepFilterNet 3 model (MIT OR Apache-2.0) and the Rust
+# Signalsmith Stretch and Signalsmith Linear (MIT), libDF and the
+# DeepFilterNet 3 model (MIT OR Apache-2.0) and the Rust
 # crates DeepFilterNet is built from: most give a choice of MIT or
 # Apache-2.0, some are MIT only, prost is Apache-2.0, and the memchr and
 # regex families offer Unlicense OR MIT. `cargo metadata --filter-platform
@@ -192,6 +193,10 @@ install -Dm644 native/deepfilter/libdf/LICENSE-MIT \
     %{buildroot}%{_licensedir}/openxlr/deepfilter/LICENSE-MIT
 install -Dm644 native/deepfilter/libdf/LICENSE-APACHE \
     %{buildroot}%{_licensedir}/openxlr/deepfilter/LICENSE-APACHE
+install -Dm644 native/signalsmith/LICENSE.txt \
+    %{buildroot}%{_licensedir}/openxlr/signalsmith/stretch/LICENSE.txt
+install -Dm644 native/signalsmith/signalsmith-linear/LICENSE.txt \
+    %{buildroot}%{_licensedir}/openxlr/signalsmith/linear/LICENSE.txt
 install -Dm644 native/clap/LICENSE %{buildroot}%{_licensedir}/openxlr/clap/LICENSE
 install -Dm644 native/vst3/LICENSE %{buildroot}%{_licensedir}/openxlr/vst3/LICENSE
 # The starter sounds' sources and authors; the clips are installed beside the daemon.
@@ -215,6 +220,7 @@ MSG
 %license %{_licensedir}/openxlr/LICENSE
 %license %{_licensedir}/openxlr/rnnoise/
 %license %{_licensedir}/openxlr/deepfilter/
+%license %{_licensedir}/openxlr/signalsmith/
 %license %{_licensedir}/openxlr/clap/
 %license %{_licensedir}/openxlr/vst3/
 %license %{_licensedir}/openxlr/starter-sounds/

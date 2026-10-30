@@ -12,8 +12,8 @@ The distribution packages build and install it, and its presence changes
 nothing for existing LV2 inserts: they use filter-chain until explicitly
 switched in the controls window. CLAP and VST3 always use this helper, and
 so do OpenXLR's own stages: Sound Check, the level meter, the microphone EQ
-with noise removal, ducking and the soundboard player, each described
-below.
+with noise removal and the voice changer, ducking and the soundboard
+player, each described below.
 
 ## Build
 
@@ -513,6 +513,113 @@ each engine's processing time.
 The same target runs `tests/denoise-handoff` with a fake model: a worker
 returned during a tick, repeated switches while it is borrowed, and a
 retry after loading fails. All created models must be freed at unload.
+
+## Voice changer
+
+The same stage ends with a voice changer (`voice.c`), after noise removal
+and the EQ, so the EQ shapes the human voice and the character goes on
+last. Its controls sit beside the others: `voice_enabled` (0 or 1),
+`voice_preset` (0 to 10, below) and, for Custom only, `voice_pitch` and
+`voice_formant` (-12 to 12 semitones). It reports two meters:
+`voice_active`, the voice heard now (-1 the dry voice), and
+`voice_status`, why a voice asked for does not run (0 it runs, 1 the
+pitch shifter could not start, at a rate outside 16 to 192 kHz or without
+memory, 2 a voice put out something that is not a number and was cut off
+until a voice is asked for again).
+
+| preset | voice | what it does |
+|---|---|---|
+| 0 | custom | pitch and formant from the two controls |
+| 1 | deep | pitch -4, formant -3, a 2 dB low shelf at 180 Hz |
+| 2 | high | pitch +5, formant +4 |
+| 3 | robot | ring modulator at 55 Hz and a metallic 7.5 ms comb |
+| 4 | radio | 300 Hz to 3.4 kHz band, a mid lift and light saturation |
+| 5 | alien | pitch +3, formant +5, light ring modulator, a swept flanger |
+| 6 | dracula | pitch -3, formant -2, a large hall |
+| 7 | frankenstein | pitch -6, formant -4, saturation, dark top |
+| 8 | mummy | pitch -2, raspy band and saturation, a long tomb |
+| 9 | werewolf | pitch -5, formant -3, slow ring modulator roughness, growl |
+| 10 | witch | pitch +4, formant +3, a 6.5 Hz quiver, a small room |
+
+Each voice is a row of the table in `voice.c` over the same blocks, in
+this order: the pitch and formant shift, a ring modulator, a comb with
+feedback (fixed or swept), tanh saturation, up to four biquads from
+`eq_coefficients`, a mono Freeverb (eight combs and four all-passes, its
+public-domain tuning) and a gain that brings the voice back near the input's
+level. A voice that shifts nothing runs through a plain delay as long as the
+shifter's, so every voice is equally late. A soft ceiling above 0.9 keeps
+the output below full scale. Formant shifts are relative to the input's own
+formants, so pitch alone keeps the speaker's vowels.
+
+The shifter is Signalsmith Stretch, configured for live speech instead of
+its 100 to 120 ms presets: a 1600-sample block (33.3 ms at 48 kHz, and the
+same 1/30 s at other rates) analysed every 5 ms. Its delay is its block,
+1600 samples at 48 kHz, which the stage adds to its `latency` while a voice
+runs. 1440 samples (30 ms) was tried first. Stretch pads 1600 to a
+2048-point transform but 1440 only to 1536, and on recorded speech Deep's
+autocorrelation peak, a measure of how much of the harmonics survive, rose
+from 0.54 at 1440 to 0.59 at 1600 (the dry voice scores 0.67). Blocks of
+2160 and 2880 reached 0.60 and 0.61. Measured on an AMD Ryzen 9 9950X3D at
+48 kHz in blocks of 256, a voice that shifts costs about 1.1 to 1.2
+percent of one core, robot and radio about 0.1 percent, and the dry voice
+nothing.
+
+Two slots each hold a shifter and the blocks' state, all allocated at
+load, so nothing allocates or locks on the audio thread. A new voice starts
+in the free slot, hears one shifter delay of input while what played keeps
+playing, and then the two crossfade over 20 ms at equal power. Turning the
+changer off crossfades the voice to the dry input; after that the stage
+copies its input to its output, bit for bit, and reports no delay. A second
+switch waits for the first to finish. Custom's pitch and formant follow
+their controls without a fade, at the shifter's next 5 ms step; the witch's
+quiver moves the pitch once a block.
+
+The pitch shifter is vendored under `signalsmith/`, both parts MIT with
+their licences beside them, unchanged from their tags:
+
+- Signalsmith Stretch 1.4.0
+  (<https://github.com/Signalsmith-Audio/signalsmith-stretch>), tag
+  `1.4.0` at commit `a670068d9aeb64913331d5cc29337b19a457a7df`:
+  `signalsmith-stretch.h` (the header under `include/` only includes this
+  one; its own version constant still reads 1.3.2) and `LICENSE.txt`.
+- Signalsmith Linear 0.6.4 (<https://github.com/Signalsmith-Audio/linear>),
+  the tag Stretch's CMakeLists fetches, at commit
+  `de55e6a50ffcf6f8f43f649692d94691c7025151`: `stft.h`, `fft.h` and
+  `LICENSE.txt` under `signalsmith/signalsmith-linear/`. The rest of that
+  repository is used only behind `SIGNALSMITH_USE_*` switches this build
+  does not set.
+
+SHA-256 of the vendored files:
+
+```
+1188667959ac19dd40c0a6abbce694e44705615ec4f0e8db8af0f1cfb4c5dea7  signalsmith/signalsmith-stretch.h
+ee2ef82481ffb445ecdd4b3a4c1f82c0cddb2da8fe39d8e8dc384fffb3e7f06f  signalsmith/LICENSE.txt
+7422ff5ddc2a017dc0587dcce99ce5ba30a2414bc2996081f6b00d56905d9b8c  signalsmith/signalsmith-linear/stft.h
+fb55f69ac14cdbac66b9c76053069ff63bc36d18af20d8c028b9acc0aad6516a  signalsmith/signalsmith-linear/fft.h
+072b5e9eb5b22880bdf6256324654cf3ce53dba828edb911921121e1be09d9c3  signalsmith/signalsmith-linear/LICENSE.txt
+```
+
+`voice-stretch.cpp` puts a C interface in front of it and is compiled with
+the flags `vst3.cpp` uses (C++17, no exceptions, no RTTI); the headers come
+in through `-isystem`, so this project's warnings do not apply to them.
+Stretch allocates only when it is configured, at load; the wrapper seeds
+its random generator with a constant instead of `std::random_device`.
+
+`make test-voice` drives the stage with no audio server, counting every
+allocation made while it processes a block (there must be none). It checks
+the controls and meters against the names above; that off passes the input
+through bit for bit with no delay; that Custom at 0 and 0 lines up with the
+input at the reported latency; that every voice over a synthetic voice stays
+finite and below full scale, comes out within 4 dB of the input's level,
+dies away to below -100 dBFS within 5 s of the voice stopping, and turns
+silence into exact silence; that switching through every voice, on and off,
+on a steady buzz never makes a larger sample-to-sample step than either
+voice makes on its own, and ends bit-exact when it ends off; and that
+44.1 kHz keeps the delay while 8 kHz stays dry with status 1. It prints each
+voice's latency, CPU and level. `./tests/voice --render IN.wav DIR` runs
+every voice over a recording and writes `DIR/00-dry.wav` to
+`DIR/11-witch.wav` with each one's level against the input, for tuning the
+table by ear.
 
 ## Soundboard player
 

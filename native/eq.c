@@ -15,15 +15,18 @@
 // belongs to another filter: the new filter is first run over the band's
 // recent input, then faded in over 5 ms while the old one fades out.
 //
-// Noise removal (denoise.c) runs first, so the EQ shapes the cleaned voice.
-// Its controls live in this stage as denoise_*, and its delay is the stage's
-// latency.
+// Noise removal (denoise.c) runs first, so the EQ shapes the cleaned voice,
+// and the voice changer (voice.c) runs last, so the character goes on the
+// shaped voice. Their controls live in this stage as denoise_* and voice_*,
+// and their delays add up to the stage's latency.
 //
 // Who writes what. The daemon writes the controls' desired values through
 // the command pipe; only the audio thread reads them, at the start of a
 // block, and only the audio thread touches the filters.
 #include "denoise.h"
+#include "eq.h"
 #include "host.h"
+#include "voice.h"
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>
@@ -31,17 +34,12 @@
 #include <string.h>
 
 enum { EQ_BANDS = 4, EQ_MAX_BANDS = 16, EQ_TYPES = 6, EQ_HISTORY = 8192 };
-enum { LOW_CUT, LOW_SHELF, PEAK, NOTCH, HIGH_SHELF, HIGH_CUT };
 static const double EQ_PI = 3.14159265358979323846;
 
 // Below this a filter's state is silence: flushing it keeps the arithmetic
 // out of subnormal numbers, which are slow on most CPUs, as a loud burst
 // decays.
 #define EQ_FLUSH 1e-25
-
-typedef struct {
-  double b0, b1, b2, a1, a2;
-} EqCoefficients;
 
 typedef struct {
   EqCoefficients c;
@@ -64,6 +62,8 @@ typedef struct {
   Control *enabled;
   Denoise *denoise;
   float *cleaned;          // noise removal's output, the EQ's input
+  Voice *voice;
+  float *shaped;           // the EQ's output, the voice changer's input
   unsigned band_count;
   double mix, mix_target;  // the EQ's on switch
   uint32_t fade;           // 5 ms in samples
@@ -158,8 +158,10 @@ static bool eq_load_count(Host *h, unsigned bands) {
   h->impl = e;
   e->band_count = bands;
   e->cleaned = calloc(MAX_FRAMES, sizeof(float));
+  e->shaped = calloc(MAX_FRAMES, sizeof(float));
   e->denoise = denoise_load(h);
-  if (!e->cleaned || !e->denoise) return false;
+  e->voice = voice_load(h);
+  if (!e->cleaned || !e->shaped || !e->denoise || !e->voice) return false;
   e->fade = (uint32_t)lrint(h->rate * 0.005);
   if (e->fade == 0) e->fade = 1;
   e->step = 1.0 / e->fade;
@@ -205,7 +207,7 @@ static bool eq_load_bands(Host *h, char **arguments) {
 // without any fade, as if the EQ had always been set this way.
 static bool eq_activate(Host *h) {
   Eq *e = h->impl;
-  if (!denoise_activate(e->denoise)) return false;
+  if (!denoise_activate(e->denoise) || !voice_activate(e->voice)) return false;
   e->mix = e->mix_target = eq_on(e->enabled);
   for (unsigned i = 0; i < e->band_count; i++) {
     EqBand *b = &e->bands[i];
@@ -226,7 +228,9 @@ static void eq_unload(Host *h) {
     if (strncmp(h->controls[i].symbol, "band", 4) == 0)
       free((char *)h->controls[i].symbol);
   denoise_unload(e->denoise);
+  voice_unload(e->voice);
   free(e->cleaned);
+  free(e->shaped);
   free(e);
   h->impl = NULL;
 }
@@ -284,13 +288,21 @@ static void eq_process(Host *h, uint32_t frames, float *const *in, float *const 
       u += (y - u) * b->mix;
     }
     e->mix = eq_ramp(e->mix, e->mix_target, e->step);
-    out[0][n] = (float)(x + (u - x) * e->mix);
+    e->shaped[n] = (float)(x + (u - x) * e->mix);
   }
+  voice_process(e->voice, e->shaped, out[0], frames);
 }
 
-static void eq_main_thread(Host *h) { denoise_main_thread(((Eq *)h->impl)->denoise); }
+static void eq_main_thread(Host *h) {
+  Eq *e = h->impl;
+  denoise_main_thread(e->denoise);
+  voice_main_thread(e->voice);
+}
 
-static uint32_t eq_latency(Host *h) { return denoise_latency(((Eq *)h->impl)->denoise); }
+static uint32_t eq_latency(Host *h) {
+  Eq *e = h->impl;
+  return denoise_latency(e->denoise) + voice_latency(e->voice);
+}
 
 const Backend eq_backend = {
   .name = "EQ", .argument_count = 0,

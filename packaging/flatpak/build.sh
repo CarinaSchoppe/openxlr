@@ -42,6 +42,8 @@ install -Dm644 LICENSE /app/share/licenses/openxlr/LICENSE
 install -Dm644 native/rnnoise/COPYING /app/share/licenses/openxlr/rnnoise/COPYING
 install -Dm644 native/deepfilter/libdf/LICENSE-MIT /app/share/licenses/openxlr/deepfilter/LICENSE-MIT
 install -Dm644 native/deepfilter/libdf/LICENSE-APACHE /app/share/licenses/openxlr/deepfilter/LICENSE-APACHE
+install -Dm644 native/signalsmith/LICENSE.txt /app/share/licenses/openxlr/signalsmith/stretch/LICENSE.txt
+install -Dm644 native/signalsmith/signalsmith-linear/LICENSE.txt /app/share/licenses/openxlr/signalsmith/linear/LICENSE.txt
 install -Dm644 native/clap/LICENSE /app/share/licenses/openxlr/clap/LICENSE
 install -Dm644 native/vst3/LICENSE /app/share/licenses/openxlr/vst3/LICENSE
 # The starter sounds' sources and authors; the clips are installed beside the daemon.

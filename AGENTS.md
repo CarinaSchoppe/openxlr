@@ -76,6 +76,7 @@ make -C native test-sound-check  # Sound Check loop backend, no audio server
 make -C native test-eq  # microphone EQ backend against the cookbook table, no audio server
 make -C native test-duck  # duck detector, gain depth and timing, no audio server
 make -C native test-denoise  # noise removal, RNNoise and DeepFilterNet when built (cargo), no audio server
+make -C native test-voice  # voice changer: every voice bounded and near the input level, exact when off, clean switches, no audio server
 make -C native test-player  # soundboard player: decoding, limits, press modes and ramps, libsndfile, no audio server
 python3 tools/eq-reference.py --check  # regenerate with no flag after changing the EQ reference settings
 python3 tools/starter-sounds.py --check  # the soundboard's starter sounds; regenerate with no flag after changing their table

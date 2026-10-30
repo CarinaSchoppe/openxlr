@@ -3232,15 +3232,6 @@ Selecciona la interfaz que controla OpenXLR</value>
   <data name="SoundClipColourPlaceholder" xml:space="preserve">
     <value>#RRGGBB, o vacío para ninguno</value>
   </data>
-  <data name="SoundsButton" xml:space="preserve">
-    <value>Sonidos</value>
-  </data>
-  <data name="SoundsButtonTip" xml:space="preserve">
-    <value>Abrir la botonera, cuyos clips suenan en este canal.</value>
-  </data>
-  <data name="SoundsButtonName" xml:space="preserve">
-    <value>Botonera de {0}</value>
-  </data>
   <data name="SoundboardMixerOff" xml:space="preserve">
     <value>El mezclador por software no está en marcha, así que la botonera no puede sonar. Sus botones vuelven con el mezclador.</value>
   </data>

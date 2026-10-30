@@ -19,9 +19,10 @@ using static OpenXLR.Tests.WindowLayoutTests;
 namespace OpenXLR.Tests;
 
 /// <summary>
-/// The Soundboard window against a fake daemon: the Sounds button stands on
-/// SFX's tile alone and keeps the tiles level, it, the tray and Options open
-/// the one window, a pad plays on Space and a hold pad releases when the key
+/// The Soundboard window against a fake daemon: the Soundboard button stands
+/// in the SUBMIXER header right after Ducking, lights while a clip plays,
+/// stays in the main window while the mixer is popped out and leaves the
+/// tiles level; it, the tray and Options open the one window, a pad plays on Space and a hold pad releases when the key
 /// comes up, a pad that cannot play is off, the meters light the ring and the
 /// bar, Stop all and the pad's menu send their commands, the edit window
 /// sends what changed, a refused import shows the daemon's sentence, a
@@ -29,8 +30,8 @@ namespace OpenXLR.Tests;
 /// the whole window fits at its narrowest and at 2400 logical pixels in the
 /// font <c>OPENXLR_LAYOUT_FONT</c> names. Run from the window layout test, on
 /// its UI thread. <see cref="CheckSkins"/> runs from the skin test: the
-/// button in the classic tiles, the input rack and the mix matrix, and the
-/// pads in the skins' own faces.
+/// header button over the classic tiles, the mix banks and the mix matrix,
+/// and the pads in the skins' own faces.
 /// </summary>
 internal static class SoundboardWindowTests
 {
@@ -97,6 +98,13 @@ internal static class SoundboardWindowTests
             JsonNode state = JsonNode.Parse(InputBindingModelTests.ProState(""))!;
             state["type"] = "state";
             state["mixer"] = MixerOff ? null : Mixer(HasSfx, Board());
+            // Ducking reported, so its header button shows beside the Soundboard button.
+            state["ducking"] = new JsonObject
+            {
+                ["enabled"] = false, ["key"] = "xlr1", ["channels"] = new JsonArray("game"), ["mixes"] = new JsonArray("monitor"),
+                ["sensitivity"] = "medium", ["amount"] = "medium", ["speed"] = "medium", ["processing"] = "software",
+                ["backend"] = "software", ["available"] = true, ["error"] = null, ["device"] = null,
+            };
             return state;
         }
 
@@ -250,21 +258,41 @@ internal static class SoundboardWindowTests
             await Until(() => main.Soundboard.IsReported && main.Soundboard.Clips.Count == 3);
             Layout(window, 1040, 900);
 
-            // The classic tiles: SFX's tile alone carries the Sounds button, and the handle row stays as tall in every tile.
-            Button[] sounds = [.. window.GetVisualDescendants().OfType<Button>().Where(b => b.Name == "ChannelSounds" && b.IsEffectivelyVisible)];
-            Button fromStrip = Assert.Single(sounds);
-            Assert.Equal("sfx", ((ChannelViewModel)fromStrip.DataContext!).Id);
-            Assert.Equal(Localizer.Text("SoundsButton"), fromStrip.Content);
-            AssertInside(fromStrip, window);
+            // The SUBMIXER header carries the Soundboard button right after Ducking, dark while nothing plays;
+            // no tile carries a button of its own, and every tile's rows stay level.
+            await Until(() => main.Ducking.IsReported);
+            Layout(window, 1040, 900);
+            Button fromHeader = AssertHeaderButton(window, "classic tiles");
+            Assert.True(Find<Button>(window, "DuckingButton").IsEffectivelyVisible);
+            Assert.DoesNotContain("fxOn", fromHeader.Classes);
             AssertTilesLevel(window, "classic tiles");
             Capture(window, "soundboard-classic-tiles");
 
-            fromStrip.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            fromHeader.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Dispatcher.UIThread.RunJobs();
             board = window.OwnedWindows.OfType<SoundboardWindow>().Single();
             Assert.Same(main.Soundboard, board.DataContext);
             // The tray's entry raises the same window rather than opening a second.
             window.OpenSoundboard();
+            Assert.Same(board, SoundboardWindow.Current);
+
+            // The mixer popped out: the header stays in the main window, and its button opens the board under it.
+            board.Close();
+            Dispatcher.UIThread.RunJobs();
+            MixerWindow popped = window.PopOutMixer();
+            Layout(popped, 800, 480);
+            Layout(window, 1040, 900);
+            Assert.Same(fromHeader, AssertHeaderButton(window, "with the mixer popped out"));
+            Assert.DoesNotContain(popped.GetVisualDescendants().OfType<Button>(), b => b.Name == "SoundboardButton");
+            fromHeader.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+            board = SoundboardWindow.Current!;
+            Assert.Same(window, board.Owner);
+            Assert.Same(main.Soundboard, board.DataContext);
+            popped.Close();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Null(window.DetachedMixer);
+            Layout(window, 1040, 900);
             Assert.Same(board, SoundboardWindow.Current);
 
             // Options, AUDIO: the button beside Ducking raises the same window, which stays the mixer's,
@@ -331,11 +359,11 @@ internal static class SoundboardWindowTests
             JsonNode released = await Sent(() => Key(Pad("drumroll"), Avalonia.Input.Key.Enter, false));
             Assert.Equal("releaseClip", released["cmd"]!.GetValue<string>());
 
-            // The meters light the ring and the bar; the strip's Sounds button lights while a clip plays.
+            // The meters light the ring and the bar; the header's Soundboard button lights while a clip plays.
             await live!.Push(JsonNode.Parse("""{"type":"meters","levels":{"ch:sfx":[0.4,0.4],"clip:airhorn":[0.5,1]}}""")!);
             await Until(() => Part("airhorn", "SoundPadRing").IsEffectivelyVisible && ((ProgressBar)Part("airhorn", "SoundPadProgress")).Value == 0.5);
             Assert.True(Part("airhorn", "SoundPadProgress").IsEffectivelyVisible);
-            Assert.Contains("fxOn", fromStrip.Classes);
+            Assert.Contains("fxOn", fromHeader.Classes);
             Assert.Contains("fxOn", Find<Button>(board, "SoundboardStopAll").Classes);
             foreach (double width in new[] { 440d, 2400 })
             {
@@ -349,6 +377,7 @@ internal static class SoundboardWindowTests
             Assert.Equal("stopClips", (await Sent(() => Find<Button>(board, "SoundboardStopAll").RaiseEvent(new RoutedEventArgs(Button.ClickEvent))))["cmd"]!.GetValue<string>());
             await live.Push(JsonNode.Parse("""{"type":"meters","levels":{"ch:sfx":[0,0]}}""")!);
             await Until(() => !main.Soundboard.AnyPlaying && !Part("airhorn", "SoundPadRing").IsEffectivelyVisible);
+            Assert.DoesNotContain("fxOn", fromHeader.Classes);
             MenuFlyout menu = board.PadMenu(main.Soundboard, main.Soundboard.Clips[0]);
             MenuItem[] items = [.. menu.Items.OfType<MenuItem>()];
             Assert.Equal(["SoundClipEdit", "SoundClipAudition", "SoundClipStop", "SoundClipEarlier", "SoundClipLater", "SoundClipDelete"],
@@ -517,7 +546,7 @@ internal static class SoundboardWindowTests
             main.Soundboard.Dropping = false;
             Layout(board, 760, 620);
 
-            // SFX deleted: the daemon's sentence, no strip button, and the button that creates SFX again.
+            // SFX deleted: the daemon's sentence and the button that creates SFX again; the header keeps its button.
             const string deleted = "The soundboard is off because the SFX channel was deleted. Turn it on again to create SFX, muted in every mix.";
             daemon.HasSfx = false;
             daemon.Enabled = false;
@@ -529,7 +558,7 @@ internal static class SoundboardWindowTests
             Assert.Equal(Localizer.Text("SoundboardTurnOnCreate"), turnOn.Content);
             Assert.False(Pad("airhorn").IsEnabled);
             Assert.False(Find<StackPanel>(board, "SoundboardMaster").IsEffectivelyVisible);
-            Assert.DoesNotContain(window.GetVisualDescendants().OfType<Button>(), b => b.Name == "ChannelSounds" && b.IsEffectivelyVisible);
+            Assert.True(fromHeader.IsEffectivelyVisible);
             foreach (double width in new[] { 440d, 2400 })
             {
                 Layout(board, width, 900);
@@ -545,6 +574,8 @@ internal static class SoundboardWindowTests
             daemon.MixerOff = true;
             await live.Push(daemon.State());
             await Until(() => notice.IsEffectivelyVisible && notice.Text == Localizer.Text("SoundboardMixerOff") && !kept.IsEnabled);
+            // No mixer, no header button; the tray and Options still reach the window.
+            Assert.False(fromHeader.IsEffectivelyVisible);
             Assert.Same(kept, Pad("airhorn"));
             Assert.Equal(4, main.Soundboard.Clips.Count);
             Assert.False(Find<StackPanel>(board, "SoundboardMaster").IsEffectivelyVisible);
@@ -554,7 +585,7 @@ internal static class SoundboardWindowTests
             Capture(board, "soundboard-mixer-off");
             daemon.MixerOff = false;
             await live.Push(daemon.State());
-            await Until(() => kept.IsEnabled && !notice.IsEffectivelyVisible);
+            await Until(() => kept.IsEnabled && !notice.IsEffectivelyVisible && fromHeader.IsEffectivelyVisible);
 
             // No native helper: the sentence, and nothing to add or turn on.
             daemon.Available = false;
@@ -596,9 +627,36 @@ internal static class SoundboardWindowTests
     }
 
     /// <summary>
-    /// The classic tiles stay level: every tile's name line is as tall, the
-    /// one with the Sounds button too, so every meter and send row starts at
-    /// one height across the panel.
+    /// The SUBMIXER header's Soundboard button: shown, right after Ducking in
+    /// the row and on screen, labelled, inside the window and clear of the
+    /// header's other controls.
+    /// </summary>
+    internal static Button AssertHeaderButton(Window window, string where)
+    {
+        Button button = Find<Button>(window, "SoundboardButton");
+        Button ducking = Find<Button>(window, "DuckingButton");
+        var row = (WrapPanel)button.Parent!;
+        Assert.Same(row, ducking.Parent);
+        Assert.True(row.Children.IndexOf(button) == row.Children.IndexOf(ducking) + 1, $"{where}: the Soundboard button does not follow Ducking.");
+        Assert.True(button.IsEffectivelyVisible, $"{where}: the header has no Soundboard button.");
+        Assert.Equal(Localizer.Text("Soundboard"), button.Content);
+        Assert.Equal(Localizer.Text("SoundboardButtonTip"), ToolTip.GetTip(button));
+        Assert.True(button.Bounds.Height > 0 && button.Bounds.Width > 0, $"{where}: the Soundboard button has no size.");
+        AssertInside(button, window);
+        AssertNoOverlap([.. row.Children.Where(c => c.IsEffectivelyVisible)]);
+        if (ducking.IsEffectivelyVisible)
+        {
+            // After Ducking on its line, or on a later line where the header wraps.
+            Point d = ducking.TranslatePoint(default, row)!.Value, b = button.TranslatePoint(default, row)!.Value;
+            Assert.True(b.X >= d.X + ducking.Bounds.Width - 0.5 || b.Y >= d.Y + ducking.Bounds.Height - 0.5,
+                $"{where}: the Soundboard button at {b} stands before Ducking at {d}.");
+        }
+        return button;
+    }
+
+    /// <summary>
+    /// The classic tiles stay level: every tile's name line is as tall, so
+    /// every meter and send row starts at one height across the panel.
     /// </summary>
     internal static void AssertTilesLevel(Window window, string where)
     {
@@ -655,9 +713,10 @@ internal static class SoundboardWindowTests
     // --- under the skins ---
 
     /// <summary>
-    /// The Sounds button in the classic tiles, an input rack and the mix
-    /// matrix of Broadcast and Wave, one per view, inside the window and
-    /// opening the window; and the pads under the default, OpenDeck and
+    /// The header's Soundboard button over the classic tiles, an input rack
+    /// with mix banks and the mix matrix of Broadcast and Wave: right after
+    /// Ducking, lit while a clip plays, inside the window and opening the
+    /// window, with no button left on a strip; and the pads under the default, OpenDeck and
     /// Broadcast skins, each in its button face with the soundboard tokens.
     /// Run from the skin test, on its UI thread.
     /// </summary>
@@ -686,24 +745,16 @@ internal static class SoundboardWindowTests
             CaptureInputWindowTests.Apply(main, state);
             main.Soundboard.ApplyMeters(JsonNode.Parse("""{"clip:airhorn":[0.6,1]}""")!.AsObject());
             window.Show();
-            foreach ((string skin, string button) in new[]
-            {
-                ("default", "ChannelSounds"), ("sounds-rack", "RackSounds"), ("broadcast", "MatrixSounds"), ("wave", "MatrixSounds"),
-            })
+            foreach (string skin in new[] { "default", "sounds-rack", "broadcast", "wave" })
             {
                 Assert.Empty(SkinService.Apply(skin == "default" ? new SkinEntry(SkinPackage.Default, [])
                     : Assert.Single(SkinCatalog.Discover(), e => e.Id == skin)));
                 Layout(window, 1280, 1200);
-                Button[] shown = [.. window.GetVisualDescendants().OfType<Button>().Where(b => b.IsEffectivelyVisible
-                    && b.Name is "ChannelSounds" or "RackSounds" or "MatrixSounds")];
-                Button sounds = Assert.Single(shown);
-                Assert.True(sounds.Name == button, $"{skin}: the Sounds button is {sounds.Name}, not {button}.");
-                Assert.True(sounds.Classes.Contains("fxOn"), $"{skin}: the Sounds button does not light while a clip plays.");
-                Assert.Equal(Localizer.Format("SoundsButtonName", "SFX"), Avalonia.Automation.AutomationProperties.GetName(sounds));
-                AssertInside(sounds, window);
-                Assert.True(sounds.Bounds.Height > 0 && sounds.Bounds.Width > 0, $"{skin}: the Sounds button has no size.");
-                if (button == "ChannelSounds") AssertTilesLevel(window, skin);
-                Shot(window, $"soundboard-strip-{skin}");
+                Button sounds = AssertHeaderButton(window, skin);
+                Assert.True(sounds.Classes.Contains("fxOn"), $"{skin}: the Soundboard button does not light while a clip plays.");
+                Assert.Single(window.GetVisualDescendants().OfType<Button>(), b => b.IsEffectivelyVisible && Equals(b.Content, Localizer.Text("Soundboard")));
+                if (skin == "default") AssertTilesLevel(window, skin);
+                Shot(window, $"soundboard-header-{skin}");
                 sounds.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Dispatcher.UIThread.RunJobs();
                 board = SoundboardWindow.Current;

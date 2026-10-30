@@ -3597,15 +3597,6 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   <data name="SoundClipColourPlaceholder" xml:space="preserve">
     <value>#RRGGBB, o vuoto per nessuno</value>
   </data>
-  <data name="SoundsButton" xml:space="preserve">
-    <value>Suoni</value>
-  </data>
-  <data name="SoundsButtonTip" xml:space="preserve">
-    <value>Apri la soundboard, le cui clip suonano in questo canale.</value>
-  </data>
-  <data name="SoundsButtonName" xml:space="preserve">
-    <value>Soundboard di {0}</value>
-  </data>
   <data name="SoundboardMixerOff" xml:space="preserve">
     <value>Il mixer software non è in esecuzione, quindi la soundboard non può suonare. I suoi pad tornano con il mixer.</value>
   </data>

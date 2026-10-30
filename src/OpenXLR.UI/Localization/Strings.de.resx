@@ -3256,15 +3256,6 @@ Von OpenXLR gesteuertes Interface wählen</value>
   <data name="SoundClipColourPlaceholder" xml:space="preserve">
     <value>#RRGGBB oder leer für keine</value>
   </data>
-  <data name="SoundsButton" xml:space="preserve">
-    <value>Sounds</value>
-  </data>
-  <data name="SoundsButtonTip" xml:space="preserve">
-    <value>Das Soundboard öffnen, dessen Clips in diesen Kanal spielen.</value>
-  </data>
-  <data name="SoundsButtonName" xml:space="preserve">
-    <value>Soundboard von {0}</value>
-  </data>
   <data name="SoundboardMixerOff" xml:space="preserve">
     <value>Der Software-Mixer läuft nicht, daher kann das Soundboard nichts spielen. Seine Pads kehren mit dem Mixer zurück.</value>
   </data>

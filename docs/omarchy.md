@@ -121,7 +121,8 @@ This needs Omarchy 4's plugin host, a running OpenXLR daemon in the same
 user session, and Arch's `qt6-websockets` package. It does not need the
 OpenXLR UI. The Arch package installs the plugin under
 `/usr/share/openxlr/omarchy/openxlr.mixer/` and the enable command under
-`/usr/bin/`. Once the package includes them, run inside your Omarchy session:
+`/usr/bin/` when it is built on an Omarchy host. Then run inside your
+Omarchy session:
 
 ```sh
 openxlr-omarchy-enable
@@ -163,8 +164,8 @@ command before enabling the packaged copy.
 
 ## Arch package recipe
 
-The AUR `PKGBUILD` is maintained outside this repository. Add these lines
-after its dependency arrays. Omarchy 4 packages live under
+The AUR `PKGBUILD` is maintained outside this repository and carries
+these lines after its dependency arrays. Omarchy 4 packages live under
 `/usr/share/omarchy`; `omarchy-dev` supplies the same shell. This tests the
 build host for that shell rather than treating every Arch machine as Omarchy.
 

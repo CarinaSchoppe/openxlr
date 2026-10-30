@@ -4,8 +4,14 @@ openxlr for Ubuntu
 After installing:
 
  1. Replug your interface once so the udev rule applies.
- 2. Start the daemon:  systemctl --user enable --now openxlr-daemon
- 3. Start the mixer:   openxlr   (or from your application menu)
+ 2. Log out and back in, or run  systemctl --user restart wireplumber,
+    so the packaged WirePlumber rules load.
+ 3. Start the daemon:  systemctl --user enable --now openxlr-daemon
+ 4. Start the mixer:   openxlr   (or from your application menu)
+
+On GNOME on Wayland, routing the focused application needs the packaged
+OpenXLR Focus extension:  gnome-extensions enable openxlr-focus@emaspa.github.com
+and a new login.
 
 Packages built for WirePlumber 0.4, including Ubuntu 24.04, include an owned
 node state rule under /usr/share/wireplumber/main.lua.d. It keeps old desktop

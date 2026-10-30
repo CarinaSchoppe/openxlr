@@ -23,7 +23,7 @@ rate limits and reply envelopes are unchanged.
 | `GET /api/v1/channels`, `/channels/{id}` | Every channel, or the one with that id |
 | `GET /api/v1/mixes`, `/mixes/{id}` | Every mix, or the one with that id |
 | `GET /api/v1/inserts`, `/inserts/{id}` | Every insert chain by key, or one chain |
-| `GET /api/v1/soundboard` | The state's `mixer.soundboard`: the board's channel, switch, clips and the clips playing |
+| `GET /api/v1/soundboard` | The state's `mixer.soundboard`: the board's channel, switch, availability, error, formats, clips, the clips playing and auditioning, and its pages |
 | `GET /api/v1/plugins` | v1 result containing a plugins message |
 | `GET /api/v1/plugin-setup` | v1 result containing a pluginSetup message |
 | `GET /api/v1/plugin-diagnostics` | v1 result containing a pluginDiagnostics message |
@@ -36,7 +36,7 @@ rate limits and reply envelopes are unchanged.
 identity. It lets `openxlr doctor` compare the running build with the one
 installed on disk without restarting it. See [installation.md](installation.md).
 `daemonBuildVersion` keeps the full informational version, including the
-source commit when the build provides one. It is independent of the window's
+source commit when the build provides one. It is independent of the UI's
 build and does not change `daemonVersion`'s release-number format. Older
 daemons omit it.
 
@@ -144,8 +144,9 @@ preset:
 `{"cmd":"setEq","channel":"xlr1","eq":{"enabled":true,"bands":[{"enabled":true,"type":"lowCut","frequency":80,"gain":0,"q":0.7047},{"enabled":true,"type":"peak","frequency":250,"gain":-3.5,"q":1.4},{"enabled":true,"type":"peak","frequency":3500,"gain":2.5,"q":1},{"enabled":false,"type":"highCut","frequency":15049,"gain":0,"q":0.7047}]}}`.
 `GET /api/v1/channels/xlr1` reads the EQ back as `eq`, with every value as
 the daemon snapped it, and `GET /api/v1/mixer` carries `eqLimits`. On a
-Wave XLR MK.2 or XLR Dock MK.2 from firmware 1.0.15, and on a Wave XLR Pro
-from firmware 1.0.14, the unit's own DSP runs the EQ, `eq.backend` reads `device` and `eq.device` names the unit;
+Wave XLR MK.2 or XLR Dock MK.2 from firmware 1.0.15, a Wave:3 MK.2 from
+its firmware 0.2.3, and a Wave XLR Pro from firmware 1.0.14, the unit's
+own DSP runs the EQ, `eq.backend` reads `device` and `eq.device` names the unit;
 `{"cmd":"setEqProcessing","channel":"xlr1","value":"software"}` moves XLR 1's
 EQ to this computer and `"value":"device"` back to the unit (see
 [where the EQ runs](api.md#where-the-eq-runs)).
@@ -211,15 +212,15 @@ unavailable profile metadata uses the empty/null values documented in
 [the state contract](api.md).
 
 Error status codes: 400 a body that is not valid UTF-8, or a plain request
-on the events route without a WebSocket upgrade; 401 a request without an authenticated transport;
+on the events route without a WebSocket upgrade; 401 a request under `/api/v1` without an authenticated transport (the events route answers 403);
 403 foreign Origin; 404 unknown resource id; 408 body-read deadline; 413
 body over 64 KiB; 415 wrong Content-Type; 429 budget exhausted, or another
 HTTP command or command-backed read in flight; 503 mixer resource while the
 mixer is off. Chunked bodies have the same 64 KiB cap and five-second
 deadline. One HTTP command or command-backed read runs at a time, with no
 waiting queue; snapshot reads answer while a command runs. Every
-authenticated HTTP request, read or write, takes from one budget shared by
-every HTTP caller, the size of a socket's own (bursts of 300, a sustained
+authenticated request under `/api/v1`, read or write, the events route
+apart, takes from one budget shared by every HTTP caller, the size of a socket's own (bursts of 300, a sustained
 100 per second).
 All authenticated HTTP responses use `Cache-Control: no-store`.
 
@@ -326,7 +327,9 @@ source may be offline. See [capture inputs](mixer-layout.md#capture-inputs).
 
 `{"cmd":"routeFocusedApp","channel":"music"}` uses the same focused-application
 routing as PC and OpenDeck keys. Enable **Desktop keys** in the running UI.
-KDE Plasma supplies the focused process; GLib's `gdbus` must be installed.
+KDE Plasma, Sway, Hyprland, Niri, X11 (through `xprop`) or GNOME Shell on
+Wayland with the optional OpenXLR Focus extension supplies the focused
+process; GLib's `gdbus` must be installed. The Flatpak UI cannot do this.
 An unavailable desktop service, absent audio client or ambiguous identity
 returns the normal command error response and does not select a guessed app.
 

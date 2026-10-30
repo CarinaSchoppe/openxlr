@@ -408,7 +408,7 @@ reads the same.
 
 ## Values
 
-A token holds one of six kinds of value: a **brush**, a **colour** (a
+A token holds one of seven kinds of value: a **brush**, a **colour** (a
 brush that must stay flat), a **number**, a **radius**, a **thickness**, a
 **family** or a **weight**. The kind is in the tables below, and a value
 of the wrong kind is refused with a message naming the token.
@@ -1918,7 +1918,8 @@ you intend to share is worth checking against the same ones by eye:
 
 Walk the windows before you share a skin: the mixer, Options, the audio
 flow window, the plugin controls window, the mixer layout window, the EQ
-editor, the Ducking window, the input binding dialog, the desktop keys
+editor, Mic setup, the Ducking window, the Soundboard window and its clip
+editor, the Browser tabs window, the input binding dialog, the desktop keys
 dialog, a confirmation dialog, a tooltip and a dropdown list. The pointer-over, pressed, checked and disabled
 states are separate tokens, and an appearance that only sets the resting
 ones looks broken as soon as the pointer moves.

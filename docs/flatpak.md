@@ -187,5 +187,7 @@ Flatpak mappings. They never replace bundles in the host's folders.
 
 Desktop-specific helper features, such as Plasma's shared maximum-volume
 preference, require helpers not included in the Freedesktop runtime. The
-normal mixer volume controls still work. The installation doctor does not
+normal mixer volume controls still work. Focused application routing is
+not available in the Flatpak, since the sandbox cannot ask the compositor
+which window has focus. The installation doctor does not
 yet inventory the manual Flatpak host setup; use the exact paths above.

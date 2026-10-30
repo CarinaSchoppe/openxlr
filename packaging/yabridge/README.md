@@ -162,7 +162,8 @@ python3 openxlr-packaging/build.py stage --source . --output out \
 RPM retains the distribution's stripping and writes the receipt afterwards.
 Debian source builds select the Debian manager when staging and regenerate
 the receipt before collecting the final package checksums.
-The source pin and companion revision are unchanged. Options shows the
+OpenXLR 0.3.3 carries the companion at 5.1.1.54 revision 2, unchanged
+from 0.3.1. Options shows the
 selected bridge with its version and path. `OPENXLR_YABRIDGE` selects an
 installed bridge outside the standard locations in both the daemon and the
 wrapper. See [installation receipts](../../docs/installation.md).

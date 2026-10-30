@@ -5,14 +5,14 @@ flowchart TD
     UI["Avalonia UI / OpenDeck"] -->|"authenticated WebSocket"| Daemon["OpenXLR daemon"]
     Scripts["Scripts / tools"] -->|"authenticated HTTP or WebSocket"| Daemon
     Clients["Terminal mixer / Omarchy plugin"] -->|"authenticated WebSocket"| Daemon
-    UI -->|"D-Bus"| Desktop["Desktop portal: global shortcuts; compositor: focused process"]
+    UI -->|"D-Bus or compositor tool"| Desktop["Desktop portal: global shortcuts; compositor: focused process"]
     Daemon -->|"gdbus: matching audio process keys"| UI
     Daemon --> Core["Core: device control, mixer, profiles"]
     Core --> USB["USB helper: libusb vendor transfers"]
     Core --> ALSA["amixer: first XLR Dock controls"]
     Core --> Graph["PipeWire modules and port links"]
     Core --> Catalog["lilv: LV2 catalogue"]
-    Core --> Host["Native helper: LV2, CLAP, VST3"]
+    Core --> Host["Native helper: LV2, CLAP, VST3 and built-in stages (EQ and noise removal, ducking, soundboard player, Sound Check, level)"]
     Host <-->|"audio ports"| Graph
     Host --> Bridge["Optional yabridge / Wine: Windows plugins"]
 ```
@@ -80,8 +80,14 @@ modules or custom drivers:
   names its targets by pattern (`slaves=~OpenXLR_mix_`), and PipeWire's
   combine keeps watching the registry, so a mix sink created later gets
   its own stream in every combine and a removed one loses them without
-  any channel being reloaded. The default layout's 9 channels and 5
-  mixes are 14 sinks and no loopback processes.
+  any channel being reloaded. The default layout's 10 channels and 5
+  mixes are 15 sinks, plus a post sink per virtual microphone, and no
+  loopback processes.
+- A microphone with the EQ or noise removal on in software gets one
+  native stage, `OpenXLR_eq_<id>`, at the head of its route, before the
+  low cut, ClipGuard and inserts. The same process runs RNNoise or
+  DeepFilterNet ahead of the EQ. A unit that runs the EQ itself gets no
+  stage.
 - Core's internal ducking plan can send selected cells through a hidden
   null sink per mix, `OpenXLR_mix_<id>.duck`, and a native stereo stage,
   `OpenXLR_duck_<id>`. The bus matches the combine pattern and grows a leg
@@ -248,6 +254,11 @@ refused.
 The eight devices use vendor-block and class-request protocols plus ALSA
 controls, all reached without detaching the kernel's audio driver:
 
+- Wave:3 and Wave:1: the Wave XLR's class-request dialect (`wIndex
+  0x3303`) with a 16-byte config block at `wValue 0` and a device info
+  block at `wValue 0x000A`; the Wave:1 runs the Wave:3's backend under its
+  own product id
+
 - Wave XLR Pro, Wave XLR MK.2, XLR Dock MK.2 and Wave:3 MK.2: a vendor
   block bank on the unclaimed interface (`bmRequestType 0x41/0xC1`,
   `bRequest 1`, `wIndex 0x0103` on the Pro and the Wave:3 MK.2, `0x0203`
@@ -291,6 +302,7 @@ reopened after 2 s, doubling on each further failure up to 32 s.
 
 ```
 src/            .NET solution: Core (device + mixer), Daemon, UI, Tui, Probe, Tests
+browser/        the Chromium tab routing companion and its native host manifest
 native/         optional C/C++ plugin host, vendored interface headers, noise removal
                 (RNNoise under rnnoise/, DeepFilterNet's Rust wrapper under deepfilter/), tests
 plugin/         the OpenDeck (Stream Deck) plugin
@@ -300,7 +312,8 @@ tools/          proprobe.py, a standalone Python probe for the vendor protocol,
                 document's shape, the rpm recipe's %files)
 packaging/      systemd unit, the pipewire-pulse open-file drop-in, udev rule,
                 WirePlumber rules, UCM profile, rpm and nix packaging, OpenDeck patches,
-                the Omarchy bar plugin and its enable command,
-                optional yabridge companion source and package recipes
+                the Omarchy bar plugin and its enable command, the GNOME Shell
+                focus extension, the Flatpak and PPA recipes, the soundboard's
+                starter sounds, optional yabridge companion source and package recipes
 debian/         Debian/Ubuntu packaging
 ```

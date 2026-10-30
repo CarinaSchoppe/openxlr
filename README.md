@@ -47,11 +47,11 @@ These Elgato devices also get their hardware controls over USB:
 |---|---|---|
 | Wave XLR Pro | 0fd9:00b4 | controls and the EQ on the unit verified on hardware; ducking on the unit accepted by ear on the headphone jacks |
 | XLR Dock (Stream Deck+ module) | 0fd9:00a6 | gain, mute, headphone volume, 48V phantom power, low impedance; verified |
-| Wave XLR | 0fd9:007d | gain, mute, headphone volume and low impedance verified by community testers; phantom power; verified by a community tester |
-| Wave XLR MK.2 | 0fd9:00b6 | gain, mute, phantom power, DSP, ClipGuard, compressor, headphone volume, crossfade; verified by a community tester |
+| Wave XLR | 0fd9:007d | gain, mute, headphone volume, low impedance and phantom power verified by community testers |
+| Wave XLR MK.2 | 0fd9:00b6 | gain, mute, phantom power, low impedance, DSP, ClipGuard, compressor, headphone volume, crossfade, verified by a community tester; the EQ on the unit from firmware 1.0.15, verified |
 | XLR Dock MK.2 (Stream Deck+ module) | 0fd9:00c7 | the Wave XLR MK.2's controls, verified |
-| Wave:3 | 0fd9:0070 | gain, mute, ClipGuard, headphone volume and the monitor balance, each written and read back on the maintainer's unit |
-| Wave:3 MK.2 | 0fd9:00ca | gain, mute, headphone volume, crossfade and the EQ on the unit, verified on the maintainer's unit |
+| Wave:3 | 0fd9:0070 | gain, mute, ClipGuard, headphone volume and the monitor balance, each written and read back on the maintainer's unit; gain, mute, the monitor balance and the desktop volume controls verified there |
+| Wave:3 MK.2 | 0fd9:00ca | gain, mute, headphone volume, crossfade, the EQ on the unit, low cut, compressor and voice tune verified on the maintainer's unit; expander and ClipGuard mapped from the Wave XLR MK.2 |
 | Wave:1 | 0fd9:006e | the Wave:3's controls; gain, mute and headphone volume confirmed by an owner |
 
 [Hardware support](docs/hardware-support.md) has every control's state,
@@ -167,7 +167,9 @@ The [module options](packaging/nix/module.nix) cover LV2 plugins, software
 ClipGuard and the Windows bridge.
 
 **After installing**, replug an Elgato device once so the udev rule
-applies. For the Stream Deck, install `com.emaspa.openxlr.sdPlugin.zip`
+applies, and log out and back in, or run
+`systemctl --user restart wireplumber`, so the packaged WirePlumber rules
+load. For the Stream Deck, install `com.emaspa.openxlr.sdPlugin.zip`
 from the release with OpenDeck's install-from-file. Inserts list the LV2,
 CLAP and VST3 plugins you have installed (`lsp-plugins-lv2` is a good
 start); the software ClipGuard needs `swh-plugins`; Windows plugins need
@@ -175,8 +177,9 @@ start); the software ClipGuard needs `swh-plugins`; Windows plugins need
 ([manual](docs/manual.md#windows-plugins)).
 
 **Upgrading**: reboot, or run `systemctl --user restart openxlr-daemon`
-and reopen the UI. Replug the interface only when the release says the
-udev rule changed.
+and reopen the UI. When the release says a WirePlumber rule was added or
+changed, run `systemctl --user restart wireplumber` before the daemon;
+replug the interface only when it says the udev rule changed.
 
 **From source**: [the source guide](docs/install-from-source.md) lists the
 prerequisites, then:
@@ -202,8 +205,11 @@ AI-assisted development.
 - On the Pro, the unit's ducking runs only on the headphone jacks and only
   keyed by XLR 1; other setups duck in software. The mix maximizer, the
   channel booster and mixing on the unit itself are not available yet.
-- Routing the focused application asks KDE Plasma's KWin which window has
-  focus, so that key works on Plasma only.
+- Routing the focused application needs a compositor the UI can ask which
+  window has focus: KWin, Hyprland, Sway, Niri, X11 through `xprop`, or
+  GNOME Shell with the optional OpenXLR Focus extension
+  ([gnome-focus.md](docs/gnome-focus.md)). Other Wayland compositors have
+  no focus source yet.
 - Windows plugins depend on Wine and yabridge. An editor that misbehaves
   there can be swapped for OpenXLR's generated controls.
 
@@ -232,7 +238,7 @@ To contribute, read [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Status
 
 Developed and used daily by the author with a Wave XLR Pro, an XLR Dock,
-an XLR Dock MK.2, a Wave:3 and a Stream Deck + XL; community testers
+an XLR Dock MK.2, a Wave:3, a Wave:3 MK.2 and a Stream Deck + XL; community testers
 verified the Wave XLR and Wave XLR MK.2. Tests against a private PipeWire
 server cover setups without Elgato hardware. The two maintainers write
 the code, with AI tooling (Anthropic's Claude and OpenAI's Codex)

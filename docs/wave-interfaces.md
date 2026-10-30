@@ -182,8 +182,11 @@ choice of additional units are not part of a profile.
 A Wave XLR Pro as the primary with an XLR Dock as an additional interface has
 run on real hardware: the dock was listed by its instance id, driven with its
 settings restored and its source preselected, and a capture channel was added
-from it and removed again when it was disabled. The rest rests on the code and
-on tests with simulated units and a private PipeWire server:
+from it and removed again when it was disabled. A Wave:3 beside the same Pro
+has run too: its controls were written and read back while the Pro's were
+left alone ([hardware-support.md](hardware-support.md#input-bindings)). The
+rest rests on the code and on tests with simulated units and a private
+PipeWire server:
 
 - Two Wave XLRs, two MK.2s or two XLR Docks: each opens at its own address,
   the instance ids stay put across replugs, and the daemon finds the

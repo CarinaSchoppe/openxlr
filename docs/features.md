@@ -69,7 +69,13 @@ the EQ, low cut, compressor and voice tune were measured on the capsule's
 noise. The low cut sits where the XLR MK.2 keeps phantom power. A replug
 is not yet checked. Like the Wave:3, the daemon
 drives it only when no XLR interface is attached or when picked from the
-header.
+header. Its microphone can stall while its own headphones play. Options,
+INTERFACE, has **Recover microphone**, which links the microphone into
+its strips again and, if the unit's capture is still stopped, resets the
+unit on USB and puts its mixes back once it records. OpenXLR does the
+reset by itself when the kernel keeps the capture stopped for three
+seconds while a mix plays into the unit's headphones, at most once every
+two minutes and three times in half an hour.
 
 Wave:1: the same controls as the Wave:3, from the same backend under the
 Wave:1's product id. An owner's diagnostics showed the
@@ -115,7 +121,10 @@ provides them (below).
 Every attached unit has an instance id from its USB serial, or its USB port
 when it has no serial, and is opened at its exact USB address, so two units
 of one model are two devices. The header picker chooses the primary, whose
-microphone feeds the hardware strips. Up to four more units can be driven as
+microphone feeds the hardware strips; the pick is kept in
+`~/.config/openxlr/active-device.json`, and the daemon drives the same
+unit again after a restart, waiting up to ten seconds for it at start
+even when another unit appears first. Up to four more units can be driven as
 additional interfaces, each with its own device manager, controls and
 remembered settings, and each feeding a capture channel from one port of its
 source. The daemon finds the capture node, the Pro's card profile and its
@@ -123,7 +132,8 @@ outputs by the unit's serial, then by its model while no other attached unit
 shares the name. With one interface attached, any Wave XLR source still feeds
 the strips, driven or not. A name that matches two cards is used for neither.
 Each XLR Dock drives the ALSA card at its own USB address. A Wave XLR Pro with
-an XLR Dock beside it has run this way; two units of one model have not. See [Multiple Wave interfaces](wave-interfaces.md).
+an XLR Dock beside it, and with a Wave:3 beside it, has run this way; two
+units of one model have not. See [Multiple Wave interfaces](wave-interfaces.md).
 
 ## Software controls
 
@@ -168,7 +178,8 @@ physical gain dial.
   sends each band's changes at most every 20 ms, and the editor shows the
   values the daemon keeps. The [control API](api.md#microphone-eq) drives
   the same EQ. On a Wave XLR MK.2 or XLR Dock MK.2 from firmware 1.0.15,
-  and on a Wave XLR Pro from 1.0.14 for each of its inputs, the unit's own
+  a Wave:3 MK.2 from its firmware 0.2.3, and on a Wave XLR Pro from 1.0.14
+  for each of its inputs, the unit's own
   DSP runs it instead, with the same values and the same
   curves: each change is one write of the unit's settings block, at most
   ten a second, read back by the next poll. Moving between the unit and
@@ -269,8 +280,9 @@ Built from PipeWire nodes, no kernel modules or custom drivers:
   capture input) lowers chosen channels in chosen mixes while it is loud,
   by 6, 12 or 24 dB with the Wave XLR Pro's sensitivity and speed presets.
   The key is never lowered. A native stage per ducked mix runs it on this
-  computer with no added latency, on the Wave XLR Pro too, and the state
-  says why the Pro's own ducking is not used. Saved with the mixer, carried by profiles, and reported as a
+  computer with no added latency. On a Wave XLR Pro whose setup fits what
+  the unit can do, the unit runs it instead; otherwise the state says why
+  it does not. Saved with the mixer, carried by profiles, and reported as a
   `duck:<mix>` reduction meter while software runs. Set up in the
   Ducking window, opened from the SUBMIXER header, the layout editor and
   Options, with
@@ -302,7 +314,7 @@ Built from PipeWire nodes, no kernel modules or custom drivers:
   while its audio, sends, outputs and apps carry on. Every mix can be
   hidden, Monitor A, Monitor B, Stream, Chat and Aux included. Show hidden
   in the SUBMIXER header draws them faded in their places, as a UI
-  preference. Icons come from a built-in vector set of 23, every item
+  preference. Icons come from a built-in vector set of 24, every item
   starts with one chosen by its kind, and the icon can be picked when the
   channel or mix is added. A skin may redraw an icon or add its own as
   path data. The colour comes from a row of twelve swatches or is typed
@@ -388,8 +400,9 @@ Built from PipeWire nodes, no kernel modules or custom drivers:
 - Level meters throughout, dB-scaled, pushed at 15 Hz
 
 Each channel is a combine sink with one internal stream per mix; that
-stream's volume is the send fader. The default layout's 9 by 5 matrix
-is 14 sinks and no loopback processes, and mixes come and go without
+stream's volume is the send fader. The default layout's 10 by 5 matrix
+is 15 channel and mix sinks, plus a post sink for each virtual
+microphone, and no loopback processes, and mixes come and go without
 touching the channel nodes. Details in [architecture.md](architecture.md).
 
 On the Wave XLR Pro the headphone jacks are fed by a mix inside the
@@ -687,7 +700,8 @@ or `~/.vst3`. Windows installers must run in Wine first; OpenXLR bridges
 the installed plugins and rescans automatically. Options offers a rescan,
 a Windows sync, detected Wine folders and the selected bridge's status.
 
-The `openxlr-yabridge` companion is packaged on every channel OpenXLR is,
+The `openxlr-yabridge` companion is packaged for every channel OpenXLR
+is, the Flatpak bundle apart,
 and includes the Wine 9.22+ editor input fix. It creates wrappers under
 `~/.local/share/openxlr/yabridge` and keeps its controller registry under
 `~/.config/openxlr/bridge`, honoring XDG overrides. Other DAWs' wrappers and controller settings remain separate.
@@ -913,15 +927,15 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 - Capture microphones in Inputs show their source, connection and carried
   unit controls. Inserts includes mono and stereo capture chains, using the
   width the daemon reports; an older daemon keeps XLR and mix chains only
-- Microphone EQ in Inputs: open a microphone's bands to edit its four
-  switches, types, frequencies, gains and Q values, plus the EQ's own
+- Microphone EQ in Inputs: open a microphone's bands to edit each band's
+  switch, type, frequency, gain and Q, plus the EQ's own
   switch. Enter on a number asks for an exact value. The shared EQ model
   supplies the ranges, steps and defaults; reset keeps the EQ's on/off
   state and changes only that microphone
 - The soundboard in Sounds: the board's switch, SFX's volume as its
   master, and a row per clip with its length, mode, loop, gain, status or
-  reason, and a bar while it plays. Keys play, stop, stop all, step the
-  gain, mode and loop, reorder, rename and delete, `i` imports a file
+  reason, and a bar while it plays. Keys play, audition, stop, stop all,
+  step the gain, mode and loop, reorder, rename and delete, `i` imports a file
   by its typed path, and `R` restores the starter sounds. Pages stand as tabs over the rows; keys switch page,
   move a clip to a page and rename a page. A Hold clip plays on one press and stops on the next,
   since a terminal sends no key-up ([manual](manual.md#terminal-sounds))
@@ -971,10 +985,13 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   at the top of the daemon process, before the device connects, since
   connecting switches the card's profile and WirePlumber then moves the
   defaults to the card's new nodes
-- Capture hold: WirePlumber rules keep the XLR Dock's, the original
-  Wave XLR's and the Wave:3's capture node running. On those devices a playback stream
-  opened before the capture stream silences the microphone for the life
-  of that capture stream, so capture is never allowed to suspend
+- Capture hold: WirePlumber rules keep the capture node of the XLR Dock,
+  the original Wave XLR, the Wave:3 and the Wave:3 MK.2 running. On those
+  devices a playback stream opened before the capture stream silences the
+  microphone for the life of that capture stream, so capture is never
+  allowed to suspend. A further rule opens the Wave:3 MK.2's headphones
+  in the unit's float format, since the two-channel format PipeWire picks
+  stalls its microphone
 - Desktop monitor volume: the default output can follow the first selected
   MONITOR device. Keyboard volume controls and the desktop applet then use
   the same output volume as the mixer in the UI, including synchronization to
@@ -993,7 +1010,7 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   [api.md](api.md). The same commands are served over HTTP at `/api/v1`
   with an OpenAPI document ([http-api.md](http-api.md)), next to read
   resources for devices, profiles, the mixer, single channels, mixes and
-  insert chains, plugin setup and diagnostics
+  insert chains, the soundboard, plugin setup and diagnostics
 - The daemon follows the PipeWire graph through one `pw-dump --monitor`
   subscription and keeps an incremental snapshot keyed by object id, so
   the one-second sweep reads memory instead of launching a dump. A
@@ -1020,11 +1037,11 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   a bezel, a flat or a bevelled mute cap. A meter is coloured by position on
   its scale, so a skin can give it a hi-fi green, amber and red ladder
   without the bar ever repainting itself end to end. What a skin leaves out
-  keeps the shipped default. Sixteen appearances ship, all compiled into
+  keeps the shipped default. Seventeen appearances ship, all compiled into
   the application: Material, the classic look, Deck, built from the
   OpenDeck plugin's key and dial art, one for each of the eleven
-  Omarchy palettes, two of them light, Nyan Pink, Broadcast and Wave. The
-  last two also arrange the UI. Broadcast is the default: a new
+  Omarchy palettes, two of them light, Nyan Pink, Broadcast, Compact Desk
+  and Wave. The last three also arrange the UI. Broadcast is the default: a new
   install, or one that never picked a skin, starts on it, and a skin the
   user picked, Material included, is kept. The picker is in Options, the
   choice lives in `ui.json` alone, and switching

@@ -231,7 +231,8 @@ every save. Every field is optional on read; an absent one is empty or off.
 | `lowCutHz` | the software low cut, 0, 80 or 120 |
 | `softClipGuard` | the software ClipGuard |
 | `inserts` | insert chains by `xlr1`, `xlr2`, capture channel id or `mix:<id>` |
-| `eq` | the [microphone EQ](api.md#microphone-eq) of `xlr1` and `xlr2`, by channel id |
+| `eq` | the [microphone EQ](api.md#microphone-eq) of `xlr1`, `xlr2` and every capture input on one mono port, by channel id |
+| `noiseRemoval` | channel id to `{enabled, engine, strength}`, the microphone's [noise removal](api.md#noise-removal); a microphone absent here has it off |
 | `eqProcessing` | channel id to `device` or `software`, where that microphone's EQ runs; machine wiring, never in a profile |
 | `compensateMixLatency` | the latency compensation switch across mixes, see [api.md](api.md) |
 | `exclusiveGroups` | exclusive channel groups, see [Exclusive groups](#exclusive-groups) |
@@ -320,7 +321,7 @@ debounced, retried behaviour.
 - `setLayoutOrder {channels, mixes}` reorders the editable ids. Supply every
   application and capture channel id and every monitor or virtual microphone
   mix id exactly once; only hardware inputs and Aux keep their positions. No node
-  changes. Open windows apply the published order to channel tiles, mix
+  changes. The UI applies the published order to channel tiles, mix
   controls and send rows while retaining the existing controls and their
   values. The layout editor's arrows, a tile dragged in the UI's
   Arrange mode and Ctrl+Left/Right in the terminal mixer all send this

@@ -34,7 +34,7 @@ or as a staged payload with `--root`; it does not require the main package.
 
 ## What is recorded
 
-New Debian, RPM and Nix packages include a receipt at
+New Debian, RPM, Arch (AUR) and Nix packages include a receipt at
 `<prefix>/share/openxlr/installations/openxlr.json`. The optional bridge
 can use its own `openxlr-yabridge.json` in that directory. This inventory is
 separate from the bridge's existing compatibility marker under
@@ -51,7 +51,8 @@ the receipt itself; this is an inventory, not a signed attestation.
 
 The inventory includes the packaged unit, udev rule, WirePlumber rules,
 pipewire-pulse drop-in, desktop entry, binaries, plugin host and other
-payload files. NixOS generates its user unit outside the package output;
+payload files under the prefix. Files outside it, such as the browser
+companion's native messaging manifests under `/etc`, are not recorded. NixOS generates its user unit outside the package output;
 that declarative configuration belongs to NixOS, not to the package's
 receipt. Profiles, mixer settings, plugins installed separately by the
 user, runtime sockets and caches are user data, not installation payload.
@@ -92,8 +93,8 @@ individually with `--receipt`.
 
 Ownership before receipts were introduced cannot be reconstructed safely.
 An external package recipe must include the inventory hook below to supply
-one. In particular, adding the hook here does not change an external AUR
-recipe. Package receipts do not take ownership of `/etc` overrides or
+one. The AUR recipe, maintained outside this repository, runs the hook
+from 0.3.3; another external recipe has to add it itself. Package receipts do not take ownership of `/etc` overrides or
 files supplied by another installer.
 
 ## Startup ownership

@@ -3,10 +3,12 @@
 ## Requirements
 
 - Linux with PipeWire, `pipewire-pulse` and WirePlumber; `pactl`,
-  `pw-cli`, `pw-link`, `pw-dump`, `pw-loopback`, `parec`, `wpctl` and
-  `amixer` on PATH
+  `pw-cli`, `pw-link`, `pw-dump`, `pw-loopback`, `pw-metadata`, `parec`,
+  `wpctl` and `amixer` on PATH
 - `gdbus` (the GLib command-line tools) for focused application routing
-  from desktop and Deck keys; `xdg-open` for the links the UI opens
+  from desktop and Deck keys, and `xprop` for it on X11 sessions; GNOME
+  on Wayland also needs the [OpenXLR Focus extension](gnome-focus.md);
+  `xdg-open` for the links the UI opens
 - gdk-pixbuf with the librsvg loader for the applications' own desktop
   icons; without them the UI falls back to PNG icons
 - `swh-plugins` (LADSPA) for the software ClipGuard; everything else
@@ -38,18 +40,18 @@ The native editor tests additionally use Xvfb and xauth.
 
 ```sh
 # Arch Linux, CachyOS and Omarchy
-sudo pacman -S --needed dotnet-sdk aspnet-runtime pipewire pipewire-pulse wireplumber libusb libpulse alsa-utils glib2 xdg-utils gdk-pixbuf2 librsvg
+sudo pacman -S --needed dotnet-sdk aspnet-runtime pipewire pipewire-pulse wireplumber libusb libpulse alsa-utils glib2 xdg-utils gdk-pixbuf2 librsvg xorg-xprop
 # optional: software ClipGuard for the XLR Dock, and LV2 plugins for inserts
 sudo pacman -S --needed swh-plugins lilv lsp-plugins-lv2
 # native host and editor test dependencies (rust, or rustup with a toolchain)
 sudo pacman -S --needed base-devel lv2 libx11 libsndfile libxtst xorg-server-xvfb xorg-xauth rust
 
 # Fedora
-sudo dnf install dotnet-sdk-10.0 aspnetcore-runtime-10.0 pipewire pipewire-pulseaudio wireplumber libusb1 pulseaudio-utils alsa-utils glib2 xdg-utils gdk-pixbuf2 librsvg2 ladspa-swh-plugins lilv-libs lsp-plugins-lv2
+sudo dnf install dotnet-sdk-10.0 aspnetcore-runtime-10.0 pipewire pipewire-pulseaudio wireplumber libusb1 pulseaudio-utils alsa-utils glib2 xdg-utils gdk-pixbuf2 librsvg2 xprop ladspa-swh-plugins lilv-libs lsp-plugins-lv2
 sudo dnf install gcc-c++ make pkgconf-pkg-config pipewire-devel lilv-devel lv2-devel libX11-devel libsndfile-devel libXtst xorg-x11-server-Xvfb xorg-x11-xauth cargo rust
 
 # Debian / Ubuntu (dotnet from Microsoft's feed if the distro lacks 10.0)
-sudo apt install dotnet-sdk-10.0 aspnetcore-runtime-10.0 pipewire pipewire-pulse wireplumber libusb-1.0-0 pulseaudio-utils alsa-utils libglib2.0-bin xdg-utils libgdk-pixbuf-2.0-0 librsvg2-common swh-plugins liblilv-0-0 lsp-plugins-lv2
+sudo apt install dotnet-sdk-10.0 aspnetcore-runtime-10.0 pipewire pipewire-pulse wireplumber libusb-1.0-0 pulseaudio-utils alsa-utils libglib2.0-bin xdg-utils libgdk-pixbuf-2.0-0 librsvg2-common x11-utils swh-plugins liblilv-0-0 lsp-plugins-lv2
 sudo apt install build-essential pkg-config libpipewire-0.3-dev liblilv-dev lv2-dev libx11-dev libsndfile1-dev libxtst6 xvfb xauth cargo rustc curl
 ```
 
@@ -75,7 +77,8 @@ Binaries land in `src/OpenXLR.Daemon/bin/Release/net10.0/` and
 headers are vendored.
 
 You may omit the flag for hardware control and LV2 filter-chain inserts
-without native editors. CLAP and VST3 require the helper. Keep the flag
+without native editors. CLAP, VST3, the microphone EQ in software, noise
+removal, ducking and the soundboard require the helper. Keep the flag
 on every later build once you rely on it: an existing helper is retained
 without the flag, but it is not rebuilt and may miss native fixes. See
 [plugin editors](manual.md#plugin-editors).
@@ -119,7 +122,8 @@ Replug the interface after reloading the rules.
 
 ## 4. WirePlumber rules
 
-XLR Dock, original Wave XLR, Wave:3 and Wave:3 MK.2 owners need one more file. The
+XLR Dock, original Wave XLR, Wave:3 and Wave:3 MK.2 owners need a
+WirePlumber rule, and the Wave:3 MK.2 a second one. The
 Linux kernel starves the dock's capture endpoint whenever playback to it
 starts before capture, and the mic then records pure silence (Windows
 schedules the same duplex fine; the kernel also logs "bad transfer trb
@@ -173,13 +177,13 @@ cmp -s packaging/54-openxlr-owned-state.lua ~/.config/wireplumber/main.lua.d/54-
 
 ## 5. First run
 
-Quit an already running window through its tray menu before testing the
-source window. OpenXLR allows one window per user; a second launch brings
-the existing window forward instead of running the newly built one.
+Quit a running UI through its tray menu before testing the source build.
+OpenXLR allows one UI per user; a second launch brings the existing UI
+forward instead of running the newly built one.
 
 If a packaged daemon is already running, stop it before testing the source
 build with `systemctl --user stop openxlr-daemon`. This interrupts OpenXLR
-audio until the source daemon starts. Opening just the newly built window
+audio until the source daemon starts. Opening just the newly built UI
 still connects to the installed daemon. Restore the installed service after
 the test with `systemctl --user start openxlr-daemon`, after stopping the
 source daemon.
@@ -194,7 +198,7 @@ OPENXLR_BUILD_MIXER=1 ./src/OpenXLR.Daemon/bin/Release/net10.0/OpenXLR.Daemon
 
 The log should show your device connecting and `submix graph built`.
 A source build may show the same release number as an installed package.
-Collect diagnostics to check the window's build in `meta.txt` and the running
+Collect diagnostics to check the UI's build in `meta.txt` and the running
 daemon's build in `daemon-state.json`, including source commits when the
 build stamped them. A build without source metadata cannot identify its
 commit from the version alone.
@@ -322,6 +326,8 @@ systemctl --user restart openxlr-daemon.service
 ```
 
 Restart the UI and, if you use it, recopy the OpenDeck plugin folder.
+When `packaging/70-openxlr.rules` or a WirePlumber rule changed, repeat
+sections 3 and 4 above, then replug the interface.
 
 ## Uninstall
 
@@ -332,7 +338,7 @@ systemctl --user daemon-reload
 ```
 
 This removes startup entries recorded by Options and adopts unchanged
-entries generated by older windows or copied from the reference unit
+entries generated by older versions of the UI or copied from the reference unit
 above, including a copy with only `ExecStart` adjusted, whether it came
 from the current reference unit or the one v0.1.37 to v0.1.70 shipped.
 Changed or foreign files are refused; `openxlr doctor` names them and gives
@@ -360,8 +366,9 @@ A failed comparison leaves that file untouched. Inspect edited files before
 moving them. No service or WirePlumber directory needs to be removed.
 
 Stop the UI as well. Remove the OpenDeck plugin through its plugin manager. On Omarchy, `omarchy plugin remove openxlr.mixer`
-unlinks the bar plugin. These commands preserve unrelated service overrides. Saved settings and private
-Windows wrappers remain in `~/.config/openxlr` and
+unlinks the bar plugin. These commands preserve unrelated service overrides. Saved settings, soundboard clips and private
+Windows wrappers remain in `~/.config/openxlr`,
+`~/.local/share/openxlr/soundboard` and
 `~/.local/share/openxlr/yabridge`; back them up before removing them if you
 want a clean slate. Restart WirePlumber at a convenient time to unload the
 removed rules. If you installed the optional UCM profile, use its revert
@@ -387,4 +394,4 @@ shell export does not update an already running service.
 | `LSP_WS_LIB_GLXSURFACE` | native helper defaults to `0` for LSP software rendering; explicit `1` tests OpenGL |
 | `DISPLAY`, `XAUTHORITY` | X11/XWayland session and authentication for native editors; the daemon can obtain these from the systemd user manager |
 | `OPENXLR_HOST_TRACE=1` | VST3 bus and initial processing diagnostics in the daemon log |
-| `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_RUNTIME_DIR` | configuration, private wrapper and runtime roots; see [files and services](manual.md#files) |
+| `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_RUNTIME_DIR` | configuration, private wrapper and soundboard clip, and runtime roots; see [files and services](manual.md#files) |

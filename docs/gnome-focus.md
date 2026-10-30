@@ -40,8 +40,8 @@ gnome-extensions disable openxlr-focus@emaspa.github.com
 
 Remove a manual user copy by deleting only the four files you copied from
 that extension directory. Package-installed files belong to the package
-manager. The AUR recipe is external: its maintainer must add these files
-when this extension lands. No Flatpak host bridge or new sandbox permission
+manager. The AUR recipe, maintained outside this repository, installs the
+same four files. No Flatpak host bridge or new sandbox permission
 is part of this feature; the OpenXLR Flatpak still cannot query the compositor.
 
 ## Access and compatibility

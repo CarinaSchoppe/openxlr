@@ -20,17 +20,21 @@ is measured over one that is described.
 - [x] Devices. The Wave XLR Pro, the XLR Dock (MK.1 and MK.2 modules),
   the Wave XLR and the Wave XLR MK.2 have their exposed hardware controls
   verified by owners of each device. The microphone EQ runs on the unit
-  on the MK.2 family from firmware 1.0.15 and on the Pro from 1.0.14,
+  on the Wave XLR MK.2 and the XLR Dock MK.2 from firmware 1.0.15, on the
+  Wave:3 MK.2 from its 0.2.3 and on the Pro from 1.0.14,
   verified on hardware; other models and older firmware run it in
   software. The Pro runs ducking itself for a setup keyed by XLR 1 on its
   headphone jacks, accepted by ear. On the maintainer's Wave:3 every
   control writes and reads back, and the gain, mute, monitor balance and
   desktop volume controls are verified; a Wave:1 owner confirmed gain,
   mute and headphone volume. On the maintainer's Wave:3 MK.2, on the Wave
-  XLR MK.2's backend, gain, mute, headphone volume and the EQ on the unit
-  are verified and the crossfade writes and reads back. The Wave XLR and the first XLR Dock get their
+  XLR MK.2's backend, gain, mute, headphone volume, the crossfade, the EQ
+  on the unit, the low cut, the compressor and voice tune are verified;
+  the expander and ClipGuard are driven at the Wave XLR MK.2's offsets.
+  The Wave XLR and the first XLR Dock get their
   last settings back on connect. Up to four additional interfaces run
-  beside the primary one.
+  beside the primary one, and the one picked last is driven again after a
+  restart.
 - [x] Mixer. Hardware, application and capture channels, monitor mixes,
   virtual microphones and Aux, in a layout edited live from the UI or the
   API, with every change saved before it is acknowledged. An output
@@ -40,7 +44,8 @@ is measured over one that is described.
   removal and Mic setup when mono, and the controls of the unit behind
   it. Exclusive channel groups, ducking on every device, profiles with one recalled on
   connect, and browser tabs routed to channels through the Chromium
-  companion.
+  companion. A soundboard plays clips into SFX, with pages, audition,
+  export and import, starter sounds, and keys on the Deck and the desktop.
 - [x] Plugins. LV2, CLAP and VST3 inserts on every input and mix, with
   generated controls and the plugin's own editor; Windows plugins through
   yabridge and the optional companion; installation from the UI; presets
@@ -96,8 +101,9 @@ them for a while before more is built on top.
   - the Pro's ducking on the USB Aux port, by ear;
   - the Wave:3's dial modes, LED ring, ClipGuard and headphones by ear,
     and a replug; ClipGuard and the mic/PC mix on a Wave:1, from an owner;
-  - the Wave:3 MK.2's crossfade and headphones by ear, a replug, and the
-    settings behind its byte 10 and three unknown flag bits;
+  - the Wave:3 MK.2's headphone level by ear, a replug, whether the float
+    playback rule ends its microphone stall, and a Wave Link capture of
+    its expander and ClipGuard switches;
   - two units of one model at once, from an owner of two;
   - the Omarchy bar's live theme switch and its popout's hardware
     controls;
@@ -116,7 +122,7 @@ them for a while before more is built on top.
   native stage: RNNoise or DeepFilterNet per microphone, with a strength,
   in Mic setup, the terminal mixer, a Deck key and the API, and both
   engines in every package.
-- [ ] A soundboard: a clip library played into the SFX channel by the
+- [x] A soundboard: a clip library played into the SFX channel by the
   native helper, so the clips take SFX's fader, mute and sends; triggered
   from Deck keys, desktop keys, the UI and the terminal mixer, with per
   clip gain, press modes, loop and stop all. Clips are decoded with

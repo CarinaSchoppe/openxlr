@@ -12,7 +12,7 @@ flowchart TD
     Core --> ALSA["amixer: first XLR Dock controls"]
     Core --> Graph["PipeWire modules and port links"]
     Core --> Catalog["lilv: LV2 catalogue"]
-    Core --> Host["Native helper: LV2, CLAP, VST3 and built-in stages (EQ and noise removal, ducking, soundboard player, Sound Check, level)"]
+    Core --> Host["Native helper: LV2, CLAP, VST3 and built-in stages (EQ, noise removal and voice changer, ducking, soundboard player, Sound Check, level)"]
     Host <-->|"audio ports"| Graph
     Host --> Bridge["Optional yabridge / Wine: Windows plugins"]
 ```
@@ -83,11 +83,11 @@ modules or custom drivers:
   any channel being reloaded. The default layout's 10 channels and 5
   mixes are 15 sinks, plus a post sink per virtual microphone, and no
   loopback processes.
-- A microphone with the EQ or noise removal on in software gets one
-  native stage, `OpenXLR_eq_<id>`, at the head of its route, before the
-  low cut, ClipGuard and inserts. The same process runs RNNoise or
-  DeepFilterNet ahead of the EQ. A unit that runs the EQ itself gets no
-  stage.
+- A microphone with the EQ in software, noise removal or the voice
+  changer on gets one native stage, `OpenXLR_eq_<id>`, at the head of its
+  route, before the low cut, ClipGuard and inserts. The same process runs
+  RNNoise or DeepFilterNet ahead of the EQ and the voice changer after it.
+  A unit that runs the EQ itself gets no stage for the EQ alone.
 - Core's internal ducking plan can send selected cells through a hidden
   null sink per mix, `OpenXLR_mix_<id>.duck`, and a native stereo stage,
   `OpenXLR_duck_<id>`. The bus matches the combine pattern and grows a leg

@@ -3301,6 +3301,59 @@ files in `~/.local/share/openxlr/soundboard/` (see
 [section 6](#files)). Profiles do not carry the library; they recall
 SFX's sends and volume like any channel's.
 
+<a name="voice-changer"></a>
+### 3.15 Change your voice
+
+The voice changer gives a microphone another voice: a robot, an old radio,
+an alien, a vampire, a monster, or your own pitch and formant. It works on
+XLR 1, XLR 2 and every capture input on one mono port, each with its own
+voice. It runs last in the microphone's processing, after noise removal and
+the EQ. Your plugins, your mixes, your calls and Mic setup's loop all get
+the changed voice. It needs the native plugin host every package ships.
+
+1. Press **Voice changer** in the SUBMIXER header, right after
+   **Soundboard**. The button shows while the software mixer runs and turns
+   green while any microphone has a voice on. The Voice changer window
+   stands on its own, as the Soundboard window does: it stays open when the
+   UI is minimized, and pressing a tile does not bring the UI forward.
+2. Pick the microphone at the top right. It starts on XLR 1.
+3. Press a voice. Its tile turns green and the microphone takes that voice
+   at once. Press **Off** to get your own voice back.
+
+The voices:
+
+- **Custom**: your own pitch and formant, from -12 to 12 semitones each.
+  Pitch moves how high or low you sound; formant moves how big the voice
+  sounds, so a lower formant with the same pitch sounds like a larger
+  person. The two sliders show only while Custom is chosen.
+- **Deep** and **High**: lower and darker, or higher and lighter.
+- **Robot**: metallic and ringing.
+- **Radio**: a narrow band with a little crunch, like an old radio or a
+  phone.
+- **Alien**: higher, ringing and wobbling.
+- **Dracula**: low, in a castle hall.
+- **Frankenstein**: very low, with a growl.
+- **Mummy**: raspy, in a long tomb.
+- **Werewolf**: low and rough.
+- **Witch**: high, with a quiver.
+
+Changing the voice, or switching it on or off, crossfades, so it does not
+click. Off, the microphone passes through untouched. Pitch and formant
+shifting adds a short delay, the same in every mix and call, so the voice
+stays in step with itself.
+
+Interfaces with a direct monitor send your own voice to their headphone
+jacks in hardware, before any of this. On the Wave XLR Pro and the MK.2
+units, and on the Wave:3, the Wave:3 MK.2 and the Wave:1, you hear the
+changed voice only through a monitor mix that carries the microphone. Turn
+the Mic ↔ PC crossfade towards PC to hear it as your listeners do.
+
+The voice is saved with the mixer and in profiles, so a profile can recall
+a voice; a profile saved before the voice changer leaves it as it is. A
+[Deck key](#voice-keys) switches a voice on and off, the terminal mixer's
+Inputs tab has the same choice, and `setVoiceChanger` in the
+[control API](api.md#voice-changer) drives it from a script.
+
 <a name="stream-deck"></a>
 ## 4. Stream Deck (OpenDeck)
 
@@ -3403,6 +3456,18 @@ microphone restores the target. Changing an action's target or reconnecting
 discards its unsent EQ turns; cycling an unchanged stack keeps its last
 turn. EQ changes use the existing microphone EQ and its normal mixer and
 profile persistence.
+
+<a name="voice-keys"></a>
+Where the daemon reports the [voice changer](#voice-changer) for a
+microphone, the Toggle action has a **Voice changer** group for it with a
+key per voice. The key wears the microphone's icon and colour and lights
+while the microphone plays that voice. **Press** in the key's settings
+chooses how it works. **Toggle** switches the voice on, or off when it is
+the voice playing; **Hold** plays the voice while the key is down and
+switches the voice changer off when it comes up. Inside a multi-action a
+hold key toggles, since OpenDeck lets the key up straight away there. A key
+cannot switch a voice on without the native plugin host. The saved target
+is `voice:<channel>:<voice>`, with the voice's name as the API spells it.
 
 Capture chains also appear in the insert key and dial choices, named by
 their channel. Saved insert targets keep the channel id through a rename.
@@ -4519,6 +4584,12 @@ Below it, **Noise removal** lists each microphone's
 does not run; its on switch; the engine, offered when the daemon's plugin
 host carries both; and the strength, in steps of 6 dB with `[` and `]`
 moving one, and **no limit** at the top.
+
+Below that, **Voice changer** lists each microphone's
+[voice changer](#voice-changer): the voice heard now, or why it does not
+run, and one choice that steps through **Off** and every voice. With
+**Custom** chosen, its pitch and formant follow in whole semitones, and
+`[` and `]` move them by a half.
 
 The mixer opens as a desk of vertical channel strips; the Matrix section
 shows the same sends as one grid, every channel against every mix. The left bank shows

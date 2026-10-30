@@ -3740,4 +3740,112 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
   <data name="SoundboardExportNeedsZip" xml:space="preserve">
     <value>Pagpili og ngalan sa file nga matapos sa .zip: gi-save ang library isip zip file.</value>
   </data>
+  <data name="VoiceChanger" xml:space="preserve">
+    <value>Tig-usab sa tingog</value>
+  </data>
+  <data name="VoiceChangerButtonTip" xml:space="preserve">
+    <value>Hatagi og laing tingog ang mikropono: robot, radyo, monster, o kaugalingon nimong pitch ug formant.</value>
+  </data>
+  <data name="VoiceChangerMicrophone" xml:space="preserve">
+    <value>Mikropono</value>
+  </data>
+  <data name="VoiceChangerMicrophoneTip" xml:space="preserve">
+    <value>Ang mikropono nga apektado sa mga tingog. Ang matag mikropono adunay kaugalingong tingog.</value>
+  </data>
+  <data name="VoiceChangerMonitorNote" xml:space="preserve">
+    <value>Ang mga interface nga adunay direct monitor, sama sa Wave XLR Pro ug sa mga MK.2 unit, mopadala sa imong kaugalingong tingog ngadto sa ilang headphone jack. Madungog nimo ang giusab nga tingog pinaagi sa usa ka monitor mix.</value>
+  </data>
+  <data name="VoiceTileSelected" xml:space="preserve">
+    <value>{0}, naka-on</value>
+  </data>
+  <data name="VoiceShiftValue" xml:space="preserve">
+    <value>{0} semitone</value>
+  </data>
+  <data name="VoiceStarting" xml:space="preserve">
+    <value>Nagsugod ang tingog.</value>
+  </data>
+  <data name="VoicePitch" xml:space="preserve">
+    <value>Pitch</value>
+  </data>
+  <data name="VoicePitchTip" xml:space="preserve">
+    <value>Unsa kalayo ang custom nga tingog mobalhin sa imong pitch, sa semitone.</value>
+  </data>
+  <data name="VoiceFormant" xml:space="preserve">
+    <value>Formant</value>
+  </data>
+  <data name="VoiceFormantTip" xml:space="preserve">
+    <value>Unsa kalayo ang custom nga tingog mobalhin sa mga formant, nga nagtakda kung unsa kadako ang tingog, sa semitone.</value>
+  </data>
+  <data name="VoiceOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="VoiceOffHint" xml:space="preserve">
+    <value>Imong kaugalingong tingog</value>
+  </data>
+  <data name="VoiceCustom" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="VoiceCustomHint" xml:space="preserve">
+    <value>Imong pitch ug formant</value>
+  </data>
+  <data name="VoiceDeep" xml:space="preserve">
+    <value>Lawom</value>
+  </data>
+  <data name="VoiceDeepHint" xml:space="preserve">
+    <value>Mas ubos ug mas ngitngit</value>
+  </data>
+  <data name="VoiceHigh" xml:space="preserve">
+    <value>Taas</value>
+  </data>
+  <data name="VoiceHighHint" xml:space="preserve">
+    <value>Mas taas ug mas gaan</value>
+  </data>
+  <data name="VoiceRobot" xml:space="preserve">
+    <value>Robot</value>
+  </data>
+  <data name="VoiceRobotHint" xml:space="preserve">
+    <value>Metaliko ug nagbagting</value>
+  </data>
+  <data name="VoiceRadio" xml:space="preserve">
+    <value>Radyo</value>
+  </data>
+  <data name="VoiceRadioHint" xml:space="preserve">
+    <value>Pig-ot ug gamay nga gaspang</value>
+  </data>
+  <data name="VoiceAlien" xml:space="preserve">
+    <value>Alien</value>
+  </data>
+  <data name="VoiceAlienHint" xml:space="preserve">
+    <value>Taas, nagbagting ug nagbalod</value>
+  </data>
+  <data name="VoiceDracula" xml:space="preserve">
+    <value>Dracula</value>
+  </data>
+  <data name="VoiceDraculaHint" xml:space="preserve">
+    <value>Ubos, sa hawanan sa kastilyo</value>
+  </data>
+  <data name="VoiceFrankenstein" xml:space="preserve">
+    <value>Frankenstein</value>
+  </data>
+  <data name="VoiceFrankensteinHint" xml:space="preserve">
+    <value>Ubos kaayo, nga may ngulob</value>
+  </data>
+  <data name="VoiceMummy" xml:space="preserve">
+    <value>Mummy</value>
+  </data>
+  <data name="VoiceMummyHint" xml:space="preserve">
+    <value>Paos, sa taas nga lubnganan</value>
+  </data>
+  <data name="VoiceWerewolf" xml:space="preserve">
+    <value>Werewolf</value>
+  </data>
+  <data name="VoiceWerewolfHint" xml:space="preserve">
+    <value>Ubos ug gaspang</value>
+  </data>
+  <data name="VoiceWitch" xml:space="preserve">
+    <value>Ungo</value>
+  </data>
+  <data name="VoiceWitchHint" xml:space="preserve">
+    <value>Taas, nga may pagkurog</value>
+  </data>
 </root>

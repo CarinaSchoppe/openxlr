@@ -25,10 +25,10 @@ internal interface IMicEqBackend
 /// <summary>
 /// The EQ in the native helper's <c>eq</c> backend: a mono node at the head
 /// of a microphone's route, which runs the microphone's noise removal ahead
-/// of the EQ (native/denoise.c). Values go down the helper's command pipe;
-/// the helper takes them at its next block, keeping its filter state, so a
-/// change spawns nothing and builds no node. Only the controls that changed
-/// are written.
+/// of the EQ (native/denoise.c) and its voice changer after it
+/// (native/voice.c). Values go down the helper's command pipe; the helper
+/// takes them at its next block, keeping its filter state, so a change spawns
+/// nothing and builds no node. Only the controls that changed are written.
 /// </summary>
 internal sealed class SoftwareEqBackend(PipeWireAdapter pw, FilterHandle stage, MicEq applied, MicNoise? noise = null) : IMicEqBackend
 {
@@ -39,9 +39,22 @@ internal sealed class SoftwareEqBackend(PipeWireAdapter pw, FilterHandle stage, 
     /// </summary>
     internal const string ActiveMeter = "denoise_active", StatusMeter = "denoise_status", LateMeter = "denoise_late";
 
-    internal static readonly IReadOnlySet<string> Meters = new HashSet<string>([ActiveMeter, StatusMeter, LateMeter], StringComparer.Ordinal);
+    /// <summary>
+    /// The stage's voice changer meters: the voice that plays (-1 none, else
+    /// its number in <see cref="MicVoice.Voices"/>) and why one asked for
+    /// does not.
+    /// </summary>
+    internal const string VoiceActiveMeter = "voice_active", VoiceStatusMeter = "voice_status";
 
-    private readonly Dictionary<string, double> _written = Controls(applied, noise ?? MicNoise.Default);
+    internal static readonly IReadOnlySet<string> Meters = new HashSet<string>(
+        [ActiveMeter, StatusMeter, LateMeter, VoiceActiveMeter, VoiceStatusMeter], StringComparer.Ordinal);
+
+    // The voice changer's controls are never part of the stage's start: a
+    // helper from before the voice changer refuses to start with a control it
+    // does not declare, which would take noise removal and the EQ down with
+    // it. The stage starts on the voice changer's own defaults, which are
+    // the default setting's, and a voice is written live once it runs.
+    private readonly Dictionary<string, double> _written = Startup(applied, noise ?? MicNoise.Default);
     private MicEq _applied = applied;
 
     public string Kind => "software";
@@ -76,11 +89,32 @@ internal sealed class SoftwareEqBackend(PipeWireAdapter pw, FilterHandle stage, 
         ["denoise_strength"] = noise.Strength,
     };
 
-    /// <summary>Every control of the stage, which it starts with.</summary>
+    /// <summary>Every control of the stage the daemon starts it with: the EQ's and noise removal's.</summary>
     public static Dictionary<string, double> Controls(MicEq eq, MicNoise noise)
     {
         Dictionary<string, double> controls = Controls(eq);
         foreach ((string symbol, double value) in Controls(noise)) controls[symbol] = value;
+        return controls;
+    }
+
+    /// <summary>
+    /// The helper's controls for the voice changer, by the symbols
+    /// native/voice.c declares, in the order they are written: the voice
+    /// before the switch, so switching on starts on the voice asked for.
+    /// </summary>
+    public static Dictionary<string, double> Controls(MicVoice voice) => new(StringComparer.Ordinal)
+    {
+        ["voice_preset"] = Math.Max(0, MicVoice.VoiceIndex(voice.Voice)),
+        ["voice_pitch"] = voice.Pitch,
+        ["voice_formant"] = voice.Formant,
+        ["voice_enabled"] = voice.Enabled ? 1 : 0,
+    };
+
+    /// <summary>What a stage holds once started: the values it was given, and the voice changer's defaults.</summary>
+    private static Dictionary<string, double> Startup(MicEq eq, MicNoise noise)
+    {
+        Dictionary<string, double> controls = Controls(eq, noise);
+        foreach ((string symbol, double value) in Controls(MicVoice.Default)) controls[symbol] = value;
         return controls;
     }
 
@@ -94,6 +128,16 @@ internal sealed class SoftwareEqBackend(PipeWireAdapter pw, FilterHandle stage, 
     /// <summary>The microphone's noise removal, live.</summary>
     /// <exception cref="InvalidOperationException">The helper did not take a value.</exception>
     public void ApplyNoise(MicNoise noise) => Write(Controls(noise));
+
+    /// <summary>
+    /// The microphone's voice changer, live. Off, only the switch is written,
+    /// and only when it was on: a voice changer that was never switched on
+    /// writes nothing, so a helper without one is never sent a control it
+    /// lacks.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The helper did not take a value.</exception>
+    public void ApplyVoice(MicVoice voice)
+        => Write(voice.Enabled ? Controls(voice) : new Dictionary<string, double>(StringComparer.Ordinal) { ["voice_enabled"] = 0 });
 
     private void Write(Dictionary<string, double> controls)
     {

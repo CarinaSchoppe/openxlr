@@ -81,6 +81,8 @@ untested device, open an issue with a diagnostics archive
 - **Soundboard**: short clips played into the SFX channel from pads in
   the UI, each with its own gain, press mode and loop, and Stop all.
   Eighteen CC0 starter sounds come with it.
+- **Voice changer** on any microphone: a robot, a radio, monsters, or your
+  own pitch and formant, from its own window or a Deck key.
 - **Plugin inserts**: LV2, CLAP and VST3 chains on each microphone input
   and each mix, with native editors, generated controls and bypass.
   Windows VST3 and CLAP plugins run through `openxlr-yabridge`.

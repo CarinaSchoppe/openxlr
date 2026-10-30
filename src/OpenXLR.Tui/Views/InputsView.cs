@@ -105,6 +105,7 @@ internal sealed class InputsView : View
         Bindings(rows, app, state);
         Equalisers(rows, app, state);
         NoiseRemovals(rows, app.Link, state);
+        VoiceChangers(rows, app.Link, state);
 
         // The software low cut and ClipGuard run in the mixer, so they act on
         // any microphone on XLR 1; the gain lock guards the interface's gain.
@@ -334,6 +335,48 @@ internal sealed class InputsView : View
             rows.Add(new NumberRow($"{channel.Name} strength", noise.Strength, MicNoise.MinStrength, MicNoise.MaxStrength, 6,
                 value => value >= MicNoise.MaxStrength ? "no limit" : $"{value:0} dB",
                 value => Send("strength", MicNoise.SnapStrength(value))) { FineStep = MicNoise.StrengthStep, Integer = true });
+        }
+    }
+
+    /// <summary>
+    /// Each microphone's voice changer: one choice of Off or a voice, sent as
+    /// one setVoiceChanger with the switch and the voice together, and the
+    /// custom voice's pitch and formant in semitones, each sent on its own,
+    /// with what runs and why not beside them.
+    /// </summary>
+    private static void VoiceChangers(List<Row> rows, DaemonLink link, Snapshot state)
+    {
+        List<ChannelEntry> microphones = [.. state.Mixer.Shown.Where(channel => channel.Voice is not null)];
+        if (microphones.Count == 0) return;
+        rows.Add(new HeadingRow("Voice changer"));
+        string[] choices = ["Off", .. MicVoice.Voices.Select(VoiceEntry.VoiceName)];
+        foreach (ChannelEntry channel in microphones)
+        {
+            VoiceEntry voice = channel.Voice!;
+            string id = channel.Id;
+            void Send(Action<System.Text.Json.Nodes.JsonObject> fields) => link.Send("setVoiceChanger", body =>
+            {
+                body["channel"] = id;
+                fields(body);
+            });
+            rows.Add(new TextRow($"{channel.Name} voice changer", voice.Status));
+            if (!voice.Available) continue;
+            int selected = voice.Enabled ? Math.Max(0, MicVoice.VoiceIndex(voice.Voice)) + 1 : 0;
+            rows.Add(new ChoiceRow($"{channel.Name} voice", choices, selected, index => Send(body =>
+            {
+                if (index == 0) body["enabled"] = false;
+                else
+                {
+                    body["enabled"] = true;
+                    body["voice"] = MicVoice.Voices[index - 1];
+                }
+            })));
+            if (voice.Voice != MicVoice.Custom) continue;
+            static string Semitones(double value) => $"{value:+0.#;-0.#;0} st";
+            rows.Add(new NumberRow($"{channel.Name} pitch", voice.Pitch, MicVoice.MinShift, MicVoice.MaxShift, 1, Semitones,
+                value => Send(body => body["pitch"] = MicVoice.SnapShift(value))) { FineStep = MicVoice.ShiftStep });
+            rows.Add(new NumberRow($"{channel.Name} formant", voice.Formant, MicVoice.MinShift, MicVoice.MaxShift, 1, Semitones,
+                value => Send(body => body["formant"] = MicVoice.SnapShift(value))) { FineStep = MicVoice.ShiftStep });
         }
     }
 

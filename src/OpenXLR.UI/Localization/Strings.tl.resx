@@ -3740,4 +3740,112 @@ Mano-manong host setup pa rin ang Wave XLR Pro UCM profile. I-install ang mga LV
   <data name="SoundboardExportNeedsZip" xml:space="preserve">
     <value>Pumili ng pangalan ng file na nagtatapos sa .zip: sine-save ang library bilang zip file.</value>
   </data>
+  <data name="VoiceChanger" xml:space="preserve">
+    <value>Pampalit ng boses</value>
+  </data>
+  <data name="VoiceChangerButtonTip" xml:space="preserve">
+    <value>Bigyan ng ibang boses ang mikropono: robot, radyo, halimaw, o sarili mong pitch at formant.</value>
+  </data>
+  <data name="VoiceChangerMicrophone" xml:space="preserve">
+    <value>Mikropono</value>
+  </data>
+  <data name="VoiceChangerMicrophoneTip" xml:space="preserve">
+    <value>Ang mikroponong tinatamaan ng mga boses. May sariling boses ang bawat mikropono.</value>
+  </data>
+  <data name="VoiceChangerMonitorNote" xml:space="preserve">
+    <value>Ang mga interface na may direct monitor, gaya ng Wave XLR Pro at ng mga MK.2 unit, ay nagpapadala ng sarili mong boses sa kanilang headphone jack. Maririnig mo ang binagong boses sa isang monitor mix.</value>
+  </data>
+  <data name="VoiceTileSelected" xml:space="preserve">
+    <value>{0}, naka-on</value>
+  </data>
+  <data name="VoiceShiftValue" xml:space="preserve">
+    <value>{0} semitone</value>
+  </data>
+  <data name="VoiceStarting" xml:space="preserve">
+    <value>Nagsisimula ang boses.</value>
+  </data>
+  <data name="VoicePitch" xml:space="preserve">
+    <value>Pitch</value>
+  </data>
+  <data name="VoicePitchTip" xml:space="preserve">
+    <value>Gaano kalayo inililipat ng custom na boses ang pitch mo, sa semitone.</value>
+  </data>
+  <data name="VoiceFormant" xml:space="preserve">
+    <value>Formant</value>
+  </data>
+  <data name="VoiceFormantTip" xml:space="preserve">
+    <value>Gaano kalayo inililipat ng custom na boses ang mga formant, na nagtatakda kung gaano kalaki ang tunog ng boses, sa semitone.</value>
+  </data>
+  <data name="VoiceOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="VoiceOffHint" xml:space="preserve">
+    <value>Sarili mong boses</value>
+  </data>
+  <data name="VoiceCustom" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="VoiceCustomHint" xml:space="preserve">
+    <value>Sarili mong pitch at formant</value>
+  </data>
+  <data name="VoiceDeep" xml:space="preserve">
+    <value>Malalim</value>
+  </data>
+  <data name="VoiceDeepHint" xml:space="preserve">
+    <value>Mas mababa at mas madilim</value>
+  </data>
+  <data name="VoiceHigh" xml:space="preserve">
+    <value>Matinis</value>
+  </data>
+  <data name="VoiceHighHint" xml:space="preserve">
+    <value>Mas mataas at mas magaan</value>
+  </data>
+  <data name="VoiceRobot" xml:space="preserve">
+    <value>Robot</value>
+  </data>
+  <data name="VoiceRobotHint" xml:space="preserve">
+    <value>Metaliko at umaalingawngaw</value>
+  </data>
+  <data name="VoiceRadio" xml:space="preserve">
+    <value>Radyo</value>
+  </data>
+  <data name="VoiceRadioHint" xml:space="preserve">
+    <value>Makitid at medyo magaspang</value>
+  </data>
+  <data name="VoiceAlien" xml:space="preserve">
+    <value>Alien</value>
+  </data>
+  <data name="VoiceAlienHint" xml:space="preserve">
+    <value>Mataas, umaalingawngaw at umaalon</value>
+  </data>
+  <data name="VoiceDracula" xml:space="preserve">
+    <value>Dracula</value>
+  </data>
+  <data name="VoiceDraculaHint" xml:space="preserve">
+    <value>Mababa, sa bulwagan ng kastilyo</value>
+  </data>
+  <data name="VoiceFrankenstein" xml:space="preserve">
+    <value>Frankenstein</value>
+  </data>
+  <data name="VoiceFrankensteinHint" xml:space="preserve">
+    <value>Napakababa, may ungol</value>
+  </data>
+  <data name="VoiceMummy" xml:space="preserve">
+    <value>Mummy</value>
+  </data>
+  <data name="VoiceMummyHint" xml:space="preserve">
+    <value>Paos, sa mahabang libingan</value>
+  </data>
+  <data name="VoiceWerewolf" xml:space="preserve">
+    <value>Werewolf</value>
+  </data>
+  <data name="VoiceWerewolfHint" xml:space="preserve">
+    <value>Mababa at magaspang</value>
+  </data>
+  <data name="VoiceWitch" xml:space="preserve">
+    <value>Mangkukulam</value>
+  </data>
+  <data name="VoiceWitchHint" xml:space="preserve">
+    <value>Mataas, may panginginig</value>
+  </data>
 </root>

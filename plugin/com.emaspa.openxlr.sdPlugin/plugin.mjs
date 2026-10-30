@@ -10,6 +10,7 @@ import { channelName, mixName, mixShortName, defaultMonitorMix, monitorFeed, lay
 import { SkinPalette } from "./skin-palette.mjs";
 import { captureGainOf, channelUnitControl, channelUnitTarget, deviceTargetSupported, duckingEnabled, duckingToggle, unitDialLabel, unitKeyLabel, unitMeterKey } from "./unit-inputs.mjs";
 import { isEqTarget, eqTarget, eqStep, eqCommand, eqLabel, eqDial } from "./microphone-eq.mjs";
+import { isVoiceTarget, voiceTarget, voiceMode, voicePress, voiceRelease, voiceLabel } from "./voice-changer.mjs";
 import { CLIP_ACTION, clipKey, clipIdOf, clipPress, clipProgress, progressBucket, clipAppearance, clipChoices } from "./soundboard.mjs";
 
 // ---------- launch arguments ----------
@@ -135,6 +136,7 @@ function connectDaemon() {
     keyCommands.disconnect();
     // The daemon releases this connection's held clips when it closes.
     heldClips.clear(); holdCount.clear();
+    heldVoices.clear();
     refreshAll();
     refreshMeters();
     publishClips();
@@ -320,6 +322,7 @@ host.onmessage = (e) => {
       break;
     case "willDisappear":
       releaseHeldClip(m.context);
+      releaseHeldVoice(m.context);
       keyCommands.clear(m.context);
       clearEqTurns(m.context);
       instances.delete(m.context);
@@ -329,6 +332,7 @@ host.onmessage = (e) => {
       break;
     case "didReceiveSettings":
       releaseHeldClip(m.context);
+      releaseHeldVoice(m.context);
       keyCommands.clear(m.context);
       if (inst) {
         const previous = eqBinding(inst);
@@ -340,10 +344,11 @@ host.onmessage = (e) => {
       break;
     case "keyDown":
       if (inst?.action === CLIP_ACTION) onClipDown(m.context, inst, m.payload?.isInMultiAction === true);
-      else if (inst) onKeyDown(m.context, inst);
+      else if (inst) onKeyDown(m.context, inst, m.payload?.isInMultiAction === true);
       break;
     case "keyUp":
       releaseHeldClip(m.context);
+      releaseHeldVoice(m.context);
       break;
     case "dialRotate":
       if (inst) onDialRotate(m.context, inst, m.payload?.ticks ?? 0);
@@ -440,6 +445,7 @@ const supported = (target) => deviceTargetSupported(daemonState?.capabilities, t
 // need the key's saved meta for id fallback, so they take the instance.
 function toggleValue(target, inst) {
   if (!target) return null;
+  if (isVoiceTarget(target)) return voiceTarget(mixer(), target)?.lit ?? null;
   if (isEqTarget(target)) {
     const eq = eqTarget(mixer(), target);
     if (!eq) return null;
@@ -579,6 +585,7 @@ function outputVolume(name) {
 
 function toggleLabel(target, inst) {
   if (!target) return "OpenXLR";
+  if (isVoiceTarget(target)) return voiceLabel(voiceTarget(mixer(), target), target);
   if (isEqTarget(target)) {
     const eq = eqTarget(mixer(), target);
     return eqLabel(eq, eq?.field === "type" ? dialNow(target, eq.value) : eq?.value);
@@ -880,6 +887,24 @@ function onClipDown(context, inst, inMultiAction) {
     holdCount.set(key.id, (holdCount.get(key.id) ?? 0) + 1);
   }
 }
+// A voice key switches its voice on the press; in hold mode the release
+// switches the voice changer off again. The release goes as it is, never
+// dropped behind an unanswered press.
+const heldVoices = new Map();   // context -> channel held in hold mode
+function onVoiceDown(context, inst, target, inMultiAction) {
+  const entry = voiceTarget(mixer(), target);
+  const press = daemonUp ? voicePress(entry, voiceMode(inst.settings), inMultiAction) : null;
+  if (!press) { send({ event: "showAlert", context }); return; }
+  releaseHeldVoice(context);
+  // A press that was not sent holds nothing, so its key up releases nothing.
+  if (keyCommands.enqueue(context, press.payload) && press.hold) heldVoices.set(context, entry.channel.id);
+}
+function releaseHeldVoice(context) {
+  const channel = heldVoices.get(context);
+  if (channel === undefined) return;
+  heldVoices.delete(context);
+  cmd(voiceRelease(channel));
+}
 function releaseHeldClip(context) {
   const id = heldClips.get(context);
   if (id === undefined) return;
@@ -890,10 +915,11 @@ function releaseHeldClip(context) {
   cmd({ cmd: "releaseClip", clip: id });
 }
 
-function onKeyDown(context, inst) {
+function onKeyDown(context, inst, inMultiAction = false) {
   const t = inst.settings.target;
   const cur = toggleValue(t, inst);
   if (cur === null) { send({ event: "showAlert", context }); return; }
+  if (isVoiceTarget(t)) { onVoiceDown(context, inst, t, inMultiAction); return; }
   if (isEqTarget(t)) {
     const eq = eqTarget(mixer(), t);
     const value = eq.field === "type" ? eqStep(eq, dialNow(t, eq.value), 1) : !cur;

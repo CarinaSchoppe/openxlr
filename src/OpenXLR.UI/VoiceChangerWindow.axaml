@@ -1,0 +1,77 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:loc="using:OpenXLR.UI.Localization"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:OpenXLR.UI"
+        x:Class="OpenXLR.UI.VoiceChangerWindow" x:DataType="vm:VoiceChangerViewModel"
+        Title="{loc:Text Key=VoiceChanger}" Width="660" Height="560" MinWidth="420" MinHeight="380"
+        Background="{DynamicResource Ox.Window.Background}">
+  <!-- The voice changer: the microphone it works on (XLR 1 when there is one), why the voice
+       does not run, an Off tile and one tile per voice, lit while it is what the microphone
+       plays, and for the custom voice its pitch and formant. Tiles are effect buttons in the
+       skin's face; every colour, size and radius is an Ox.* token. -->
+  <Window.Styles>
+    <!-- the mixer's own styles: control sizing -->
+    <StyleInclude Source="avares://OpenXLR.UI/MixerStyles.axaml"/>
+    <Style Selector="Button.voiceTile">
+      <Setter Property="Width" Value="140"/>
+      <Setter Property="MinHeight" Value="72"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Padding" Value="10,6"/>
+    </Style>
+  </Window.Styles>
+
+  <DockPanel Margin="16">
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,0,0,8">
+      <TextBlock Text="{loc:Text Key=VoiceChanger}" Classes="title" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+      <TextBlock Grid.Column="1" Text="{loc:Text Key=VoiceChangerMicrophone}" VerticalAlignment="Center"/>
+      <ComboBox Grid.Column="2" Name="VoiceMicrophone" ItemsSource="{Binding Microphones}" SelectedItem="{Binding SelectedMicrophone, Mode=TwoWay}"
+                IsEnabled="{Binding CanPickMicrophone}" MinWidth="140" MaxWidth="240" VerticalAlignment="Center"
+                AutomationProperties.Name="{loc:Text Key=VoiceChangerMicrophone}" ToolTip.Tip="{loc:Text Key=VoiceChangerMicrophoneTip}"/>
+    </Grid>
+
+    <!-- Why the voice does not run, or that it is starting -->
+    <TextBlock DockPanel.Dock="Top" Name="VoiceStatus" Text="{Binding Status}" Classes="hint" Classes.warn="{Binding HasError}"
+               TextWrapping="Wrap" Margin="0,0,0,8" IsVisible="{Binding HasStatus}"/>
+
+    <!-- What the jacks of an interface with a direct monitor carry, then Close -->
+    <StackPanel DockPanel.Dock="Bottom" Name="VoiceFooter" Spacing="8" Margin="0,10,0,0">
+      <TextBlock Name="VoiceMonitorNote" Text="{loc:Text Key=VoiceChangerMonitorNote}" Classes="hint" TextWrapping="Wrap"/>
+      <Button Name="VoiceClose" Content="{loc:Text Key=Close}" HorizontalAlignment="Right" Padding="18,6" Click="OnClose" IsCancel="True"/>
+    </StackPanel>
+
+    <!-- The custom voice's own shifts, shown while it is the chosen voice -->
+    <Grid DockPanel.Dock="Bottom" Name="VoiceCustom" ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="6"
+          Margin="0,10,0,0" IsVisible="{Binding ShowsCustom}">
+      <TextBlock Text="{loc:Text Key=VoicePitch}" VerticalAlignment="Center"/>
+      <Slider Grid.Column="1" Name="VoicePitch" vm:FaderInput.Step="0.5" Minimum="-12" Maximum="12"
+              Value="{Binding Pitch, Mode=TwoWay}" AutomationProperties.Name="{loc:Text Key=VoicePitch}" ToolTip.Tip="{loc:Text Key=VoicePitchTip}"/>
+      <TextBlock Grid.Column="2" Name="VoicePitchText" Text="{Binding PitchText}" Classes="val" VerticalAlignment="Center" MinWidth="96" TextAlignment="Right"/>
+      <TextBlock Grid.Row="1" Text="{loc:Text Key=VoiceFormant}" VerticalAlignment="Center"/>
+      <Slider Grid.Row="1" Grid.Column="1" Name="VoiceFormant" vm:FaderInput.Step="0.5" Minimum="-12" Maximum="12"
+              Value="{Binding Formant, Mode=TwoWay}" AutomationProperties.Name="{loc:Text Key=VoiceFormant}" ToolTip.Tip="{loc:Text Key=VoiceFormantTip}"/>
+      <TextBlock Grid.Row="1" Grid.Column="2" Name="VoiceFormantText" Text="{Binding FormantText}" Classes="val" VerticalAlignment="Center" MinWidth="96" TextAlignment="Right"/>
+    </Grid>
+
+    <ScrollViewer Name="VoiceScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <!-- the right margin keeps the overlay scroll bar off the last column of tiles -->
+      <ItemsControl Name="VoiceTiles" ItemsSource="{Binding Tiles}" Margin="0,0,16,0">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate><WrapPanel ItemSpacing="8" LineSpacing="8"/></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:VoiceTileViewModel">
+            <Button Name="VoiceTile" Classes="fx voiceTile" Classes.fxOn="{Binding IsSelected}" IsEnabled="{Binding IsEnabled}" Click="OnTile"
+                    AutomationProperties.Name="{Binding AutomationName}" ToolTip.Tip="{Binding Hint}">
+              <StackPanel Spacing="2">
+                <TextBlock Name="VoiceTileName" Text="{Binding Name}" FontWeight="{DynamicResource Ox.Label.FontWeight}" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Name="VoiceTileHint" Text="{Binding Hint}" Classes="hint" FontSize="{DynamicResource Ox.Label.FontSize}"
+                           TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"/>
+              </StackPanel>
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

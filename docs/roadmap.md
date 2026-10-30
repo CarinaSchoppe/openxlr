@@ -127,6 +127,11 @@ them for a while before more is built on top.
   from Deck keys, desktop keys, the UI and the terminal mixer, with per
   clip gain, press modes, loop and stop all. Clips are decoded with
   libsndfile, which every package now builds against.
+- [ ] A voice changer on every microphone that has the EQ, last in its
+  native stage: custom pitch and formant and ten preset voices, from its
+  own window in the UI, the terminal mixer, Deck keys and the API. Coded and
+  tested offline and on a private PipeWire server; each voice is tuned by
+  ear on the desk before it is called done.
 
 ### Devices
 

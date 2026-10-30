@@ -3753,4 +3753,112 @@ Il profilo UCM del Wave XLR Pro resta una configurazione manuale sull'host. Inst
   <data name="SoundboardExportNeedsZip" xml:space="preserve">
     <value>Scegli un nome di file che finisca con .zip: la libreria viene salvata come file zip.</value>
   </data>
+  <data name="VoiceChanger" xml:space="preserve">
+    <value>Cambia voce</value>
+  </data>
+  <data name="VoiceChangerButtonTip" xml:space="preserve">
+    <value>Dai a un microfono un'altra voce: un robot, una radio, un mostro, o tono e formante a tua scelta.</value>
+  </data>
+  <data name="VoiceChangerMicrophone" xml:space="preserve">
+    <value>Microfono</value>
+  </data>
+  <data name="VoiceChangerMicrophoneTip" xml:space="preserve">
+    <value>Il microfono a cui si applicano le voci. Ogni microfono tiene la propria voce.</value>
+  </data>
+  <data name="VoiceChangerMonitorNote" xml:space="preserve">
+    <value>Le interfacce con un monitor diretto, come la Wave XLR Pro e le unità MK.2, mandano la tua voce originale alle uscite cuffie. La voce cambiata si sente attraverso un mix di monitor.</value>
+  </data>
+  <data name="VoiceTileSelected" xml:space="preserve">
+    <value>{0}, attiva</value>
+  </data>
+  <data name="VoiceShiftValue" xml:space="preserve">
+    <value>{0} semitoni</value>
+  </data>
+  <data name="VoiceStarting" xml:space="preserve">
+    <value>La voce si sta avviando.</value>
+  </data>
+  <data name="VoicePitch" xml:space="preserve">
+    <value>Tono</value>
+  </data>
+  <data name="VoicePitchTip" xml:space="preserve">
+    <value>Di quanto la voce personalizzata sposta il tono, in semitoni.</value>
+  </data>
+  <data name="VoiceFormant" xml:space="preserve">
+    <value>Formante</value>
+  </data>
+  <data name="VoiceFormantTip" xml:space="preserve">
+    <value>Di quanto la voce personalizzata sposta le formanti, che danno la grandezza percepita della voce, in semitoni.</value>
+  </data>
+  <data name="VoiceOff" xml:space="preserve">
+    <value>Spento</value>
+  </data>
+  <data name="VoiceOffHint" xml:space="preserve">
+    <value>La tua voce</value>
+  </data>
+  <data name="VoiceCustom" xml:space="preserve">
+    <value>Personalizzata</value>
+  </data>
+  <data name="VoiceCustomHint" xml:space="preserve">
+    <value>Il tuo tono e la tua formante</value>
+  </data>
+  <data name="VoiceDeep" xml:space="preserve">
+    <value>Profonda</value>
+  </data>
+  <data name="VoiceDeepHint" xml:space="preserve">
+    <value>Più bassa e scura</value>
+  </data>
+  <data name="VoiceHigh" xml:space="preserve">
+    <value>Acuta</value>
+  </data>
+  <data name="VoiceHighHint" xml:space="preserve">
+    <value>Più alta e chiara</value>
+  </data>
+  <data name="VoiceRobot" xml:space="preserve">
+    <value>Robot</value>
+  </data>
+  <data name="VoiceRobotHint" xml:space="preserve">
+    <value>Metallica e risonante</value>
+  </data>
+  <data name="VoiceRadio" xml:space="preserve">
+    <value>Radio</value>
+  </data>
+  <data name="VoiceRadioHint" xml:space="preserve">
+    <value>Stretta e un po' ruvida</value>
+  </data>
+  <data name="VoiceAlien" xml:space="preserve">
+    <value>Alieno</value>
+  </data>
+  <data name="VoiceAlienHint" xml:space="preserve">
+    <value>Alta, risonante e ondeggiante</value>
+  </data>
+  <data name="VoiceDracula" xml:space="preserve">
+    <value>Dracula</value>
+  </data>
+  <data name="VoiceDraculaHint" xml:space="preserve">
+    <value>Bassa, in una sala del castello</value>
+  </data>
+  <data name="VoiceFrankenstein" xml:space="preserve">
+    <value>Frankenstein</value>
+  </data>
+  <data name="VoiceFrankensteinHint" xml:space="preserve">
+    <value>Molto bassa, con un ringhio</value>
+  </data>
+  <data name="VoiceMummy" xml:space="preserve">
+    <value>Mummia</value>
+  </data>
+  <data name="VoiceMummyHint" xml:space="preserve">
+    <value>Roca, in una lunga tomba</value>
+  </data>
+  <data name="VoiceWerewolf" xml:space="preserve">
+    <value>Lupo mannaro</value>
+  </data>
+  <data name="VoiceWerewolfHint" xml:space="preserve">
+    <value>Bassa e ruvida</value>
+  </data>
+  <data name="VoiceWitch" xml:space="preserve">
+    <value>Strega</value>
+  </data>
+  <data name="VoiceWitchHint" xml:space="preserve">
+    <value>Alta, con un tremolio</value>
+  </data>
 </root>

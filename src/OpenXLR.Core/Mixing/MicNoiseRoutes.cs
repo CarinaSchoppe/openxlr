@@ -34,11 +34,12 @@ public sealed partial class Mixer
 
     /// <summary>
     /// Whether a route built now would put the microphone stage at the
-    /// channel's head: the channel carries the EQ, and its software EQ or its
-    /// noise removal is on.
+    /// channel's head: the channel carries the EQ, and its software EQ, its
+    /// noise removal or its voice changer is on.
     /// </summary>
     private bool StageWantedLocked(string channel)
-        => CarriesEqLocked(channel) && (SoftwareEqLocked(channel).Enabled || NoiseLocked(channel).Enabled);
+        => CarriesEqLocked(channel)
+            && (SoftwareEqLocked(channel).Enabled || NoiseLocked(channel).Enabled || VoiceLocked(channel).Enabled);
 
     /// <summary>The engines this installation's helper carries, in <see cref="MicNoise.Engines"/> order.</summary>
     public IReadOnlyList<string> NoiseEngines => _pw.NoiseEngines;

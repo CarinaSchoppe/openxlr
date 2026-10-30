@@ -159,6 +159,13 @@ down by at most 30 dB, and `{"cmd":"setNoiseRemoval","channel":"xlr1","strength"
 lets it work unlimited. `GET /api/v1/channels/xlr1` reads it back as
 `noise`, with the engines this installation carries in `noise.engines`, the
 one heard now in `noise.active` and the delay it adds in `noise.latencyMs`.
+The [voice changer](api.md#voice-changer) works the same way:
+`{"cmd":"setVoiceChanger","channel":"xlr1","enabled":true,"voice":"dracula"}`
+gives XLR 1 the Dracula voice, `{"cmd":"setVoiceChanger","channel":"xlr1","voice":"custom","pitch":-4,"formant":-2}`
+picks the custom voice four semitones down, and
+`{"cmd":"setVoiceChanger","channel":"xlr1","enabled":false}` switches it off.
+`GET /api/v1/channels/xlr1` reads it back as `voice`, with the voice heard
+now in `voice.active`.
 [Ducking](api.md#ducking) is one setup on any device:
 `{"cmd":"setDucking","value":{"enabled":true,"channels":["music","game"],"mixes":["monitor"],"amount":"high"}}`
 lowers Music and Game in Monitor A by 24 dB while XLR 1 is loud. The fields

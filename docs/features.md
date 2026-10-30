@@ -210,6 +210,17 @@ physical gain dial.
   RNNoise and says so. Mic setup's Shape step, the terminal mixer, a Deck key and
   [`setNoiseRemoval`](api.md#noise-removal) control it, and it is saved
   with the mixer and in profiles.
+- Voice changer: on the same microphones, last in the same native stage,
+  after noise removal and the EQ, a voice per microphone. Custom shifts
+  the pitch and the formant by -12 to 12 semitones each; Deep, High,
+  Robot, Radio, Alien, Dracula, Frankenstein, Mummy, Werewolf and Witch
+  are presets. Changing the voice or switching it crossfades. Interfaces
+  with a direct monitor, the Wave XLR Pro and the MK.2 units among them,
+  send the dry voice to their jacks, so the changed one is heard through a
+  monitor mix. The Voice changer window, opened from the SUBMIXER header
+  after Soundboard, the terminal mixer, a Deck key with toggle and hold
+  modes and [`setVoiceChanger`](api.md#voice-changer) control it, and it is
+  saved with the mixer and in profiles.
 - Gain lock: the daemon rejects every gain change while the lock is set,
   from any client, and stores the lock per device in `gainlock.json`.
   Shown only for devices without a physical gain dial, which would
@@ -877,6 +888,11 @@ deleted clip, a deleted SFX, the board turned off and a missing native host
 each read as one grey word on the key, and as the daemon's sentence in the
 key's settings.
 
+Voice changer: a Toggle key per microphone and voice switches that voice
+on, or off when it is the one playing; in hold mode the voice plays while
+the key is down. The key wears the microphone's icon and colour and lights
+while the voice plays ([manual](manual.md#voice-keys)).
+
 Profiles: a key can recall one of the active device's saved profiles,
 listed live in the property inspector; it lights while that profile is
 the last one recalled or saved.
@@ -939,6 +955,8 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
   by its typed path, and `R` restores the starter sounds. Pages stand as tabs over the rows; keys switch page,
   move a clip to a page and rename a page. A Hold clip plays on one press and stops on the next,
   since a terminal sends no key-up ([manual](manual.md#terminal-sounds))
+- The voice changer in Inputs: a choice of Off or a voice per microphone,
+  and the custom voice's pitch and formant
 - Insert editing opens the plugin's native editor. A blocked or refused
   editor falls back to terminal controls with the reason shown. Controls
   follow the catalogue's order, defaults, switches, named scale points and

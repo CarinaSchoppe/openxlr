@@ -304,7 +304,7 @@ public sealed class NoiseRemovalTests
         Assert.Equal(21 + 3, all.Count);
         // The C side declares the same symbols and meters.
         string source = File.ReadAllText(Path.Combine(MicEqTests.RepoRoot, "native", "denoise.c"));
-        foreach (string symbol in controls.Keys.Concat(SoftwareEqBackend.Meters))
+        foreach (string symbol in controls.Keys.Concat(SoftwareEqBackend.Meters.Where(m => m.StartsWith("denoise_", StringComparison.Ordinal))))
             Assert.Contains($"\"{symbol}\"", source);
         Assert.Contains("\"denoise_strength\", 0, 100, 100", source);
     }

@@ -98,6 +98,9 @@ public class WaveXlrMk2Device : IAudioDevice
     // Whether the model's crossfade byte is the mirror of OpenXLR's crossfade.
     private readonly bool _crossfadeReversed;
 
+    // The flag byte's low cut bit, which differs between models.
+    private readonly byte _lowCutMask;
+
     /// <summary>The version block 0x0000 reports, as major.minor.patch; null until read.</summary>
     public string? Firmware { get; private set; }
 
@@ -129,14 +132,18 @@ public class WaveXlrMk2Device : IAudioDevice
     /// <param name="crossfadeReversed">The model's crossfade byte runs from
     /// the computer at 0 to the microphone at 200, the mirror of OpenXLR's
     /// crossfade and of the Wave XLR MK.2's byte.</param>
+    /// <param name="lowCutMask">The flag byte's low cut bit on the model:
+    /// 0x10 on the Wave XLR MK.2 and the XLR Dock MK.2, 0x02 on the Wave:3
+    /// MK.2, where 0x02 is phantom power on the others.</param>
     protected WaveXlrMk2Device(ushort productId, string model, ushort vIndex, DeviceCapabilities capabilities, Version? eqFirmware,
-        ushort? alternateVIndex = null, IUsbTransport? usb = null, bool crossfadeReversed = false)
+        ushort? alternateVIndex = null, IUsbTransport? usb = null, bool crossfadeReversed = false, byte lowCutMask = LowCutMask)
     {
         _preferredVIndex = _vIndex = vIndex;
         _alternateVIndex = alternateVIndex;
         _usb = usb ?? UsbTransport.Create();
         _eqFirmware = eqFirmware;
         _crossfadeReversed = crossfadeReversed;
+        _lowCutMask = lowCutMask;
         Info = UsbTransport.WithLocation(new DeviceInfo("Elgato", model, VendorId, productId));
         Capabilities = _modelCapabilities = capabilities with { HardwareEq = false };
     }
@@ -353,7 +360,7 @@ public class WaveXlrMk2Device : IAudioDevice
         {
             GainDb = s[0],
             Mute = c.Mute && (s[1] & MuteMask) != 0,
-            LowCut = c.LowCut && (s[1] & LowCutMask) != 0,
+            LowCut = c.LowCut && (s[1] & _lowCutMask) != 0,
             Expander = c.Expander && (s[1] & ExpanderMask) != 0,
             VoiceTune = c.VoiceTune && (s[1] & VoiceTuneMask) != 0,
             Phantom = c.Phantom && (s[1] & PhantomMask) != 0,
@@ -385,7 +392,7 @@ public class WaveXlrMk2Device : IAudioDevice
     }
 
     public void SetMute(bool on) => Flag(_modelCapabilities.Mute, "mute", MuteMask, on);
-    public void SetLowCut(bool on) => Flag(_modelCapabilities.LowCut, "low cut", LowCutMask, on);
+    public void SetLowCut(bool on) => Flag(_modelCapabilities.LowCut, "low cut", _lowCutMask, on);
     public void SetExpander(bool on) => Flag(_modelCapabilities.Expander, "expander", ExpanderMask, on);
     public void SetVoiceTune(bool on) => Flag(_modelCapabilities.VoiceTune, "voice tune", VoiceTuneMask, on);
 

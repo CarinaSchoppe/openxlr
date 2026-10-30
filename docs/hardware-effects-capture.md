@@ -11,7 +11,7 @@ or change a device. Software LV2, CLAP and VST3 inserts are a separate path.
 |---|---|---|
 | Wave XLR Pro | `00b4` | A ducking key other than XLR Mic 1, mix maximizer, channel booster. For the EQ only a change of band type, band enable or Q in Wave Link; its layout, switch and band gain and frequency are mapped on firmware 1.0.14, see [hardware support](hardware-support.md#wave-xlr-pro-0fd900b4) |
 | Wave XLR MK.2 | `00b6` | For the EQ only a change of band type or band enable in Wave Link; the rest of its layout and its master enable are mapped on firmware 1.0.15, see the [findings](mk2-eq-findings.md) |
-| Wave:3 MK.2 | `00ca` | The setting behind block `0x0004` byte 10, which one dial mode moves, and flag byte bits `0x02`, `0x20` and `0x40`; the EQ is mapped and measured on firmware 0.2.3, see [hardware support](hardware-support.md#wave3-mk2-0fd900ca) |
+| Wave:3 MK.2 | `00ca` | A capture of the expander and ClipGuard switches in Wave Link, to confirm the XLR MK.2 offsets they are driven at; the low cut, compressor, voice tune and EQ are measured, see [hardware support](hardware-support.md#wave3-mk2-0fd900ca) |
 | XLR Dock MK.2 | `00c7` | As for the Wave XLR MK.2: on firmware 1.0.15 the dock takes the same EQ layout. On firmware 1.0.0 Wave Link runs the EQ on the computer. See the [findings](mk2-eq-findings.md) |
 
 The original Wave XLR, first XLR Dock, Wave:3 and Wave:1 do not gain these controls

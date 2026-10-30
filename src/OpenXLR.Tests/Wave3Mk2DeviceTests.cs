@@ -6,10 +6,10 @@ namespace OpenXLR.Tests;
 
 /// <summary>
 /// The Wave:3 MK.2 on the Wave XLR MK.2's backend, against a unit modelled as
-/// the blocks the maintainer's unit returned: bank 0x0103 only, the four
-/// controls verified on it and nothing else advertised or written, the flag
-/// bits nobody has identified on this model kept out of the state and the
-/// block, and the EQ gated on this model's own firmware numbering.
+/// the blocks the maintainer's unit returned: bank 0x0103 only, the controls
+/// mapped on it, the low cut on bit 0x02 where the XLR MK.2 has phantom
+/// power, phantom and low impedance neither advertised nor written, and the
+/// EQ gated on this model's own firmware numbering.
 /// </summary>
 public sealed class Wave3Mk2DeviceTests
 {
@@ -86,7 +86,8 @@ public sealed class Wave3Mk2DeviceTests
         Assert.Equal("Wave_3_MK.2", device.Info.ModelNameFragment);
         DeviceCapabilities c = device.Capabilities;
         Assert.True(c.Gain && c.Mute && c.HpVolume && c.Crossfade);
-        Assert.False(c.Phantom || c.LowCut || c.Expander || c.VoiceTune || c.Compressor || c.ClipGuard || c.LowImpedance);
+        Assert.True(c.LowCut && c.Expander && c.VoiceTune && c.Compressor && c.ClipGuard);
+        Assert.False(c.Phantom || c.LowImpedance);
         Assert.False(c.XlrJacks);
         Assert.Equal(1, c.XlrInputs);
         Assert.Equal(1, c.HpOutputs);
@@ -101,7 +102,7 @@ public sealed class Wave3Mk2DeviceTests
     }
 
     [Fact]
-    public void ReadsTheVerifiedFieldsAndLeavesTheUnknownBitsOut()
+    public void ReadsTheMappedFieldsWithTheLowCutOnBit0x02()
     {
         using Wave3Mk2Device device = Connected(new Unit());
         DeviceState s = device.ReadState();
@@ -110,13 +111,16 @@ public sealed class Wave3Mk2DeviceTests
         Assert.Equal(-12, s.HpVolumeDb);
         // Byte 0x32 runs the other way from the crossfade: 150, mostly computer.
         Assert.Equal(150, s.Crossfade);
-        // Flags 0x62 hold bits 0x02, 0x20 and 0x40, phantom, expander and
-        // voice tune on the XLR MK.2; on this microphone nobody knows them.
+        // Flags 0x62: the low cut (0x02, phantom on the XLR MK.2), the
+        // expander (0x20) and voice tune (0x40) on, at strength 16; byte 2
+        // 0x00 leaves ClipGuard's off bit clear.
+        Assert.True(s.LowCut);
+        Assert.True(s.Expander);
+        Assert.True(s.VoiceTune);
+        Assert.Equal(16, s.VoiceTuneStrength);
+        Assert.False(s.Compressor);
+        Assert.True(s.ClipGuard);
         Assert.False(s.Phantom);
-        Assert.False(s.Expander);
-        Assert.False(s.VoiceTune);
-        Assert.Equal(0, s.VoiceTuneStrength);
-        Assert.False(s.ClipGuard);
         Assert.False(s.LowImpedance);
     }
 
@@ -152,10 +156,33 @@ public sealed class Wave3Mk2DeviceTests
         Assert.Equal(0, unit.Blocks[0x0001][0]);
         device.SetCrossfade(40);
 
+        // The low cut is bit 0x02 here; the XLR MK.2's low cut bit 0x10 is never touched.
+        device.SetLowCut(false);
+        Assert.Equal(0x60, unit.Blocks[0x0004][1]);
+        device.SetLowCut(true);
+        Assert.Equal(0x62, unit.Blocks[0x0004][1]);
+        device.SetCompressor(true);
+        Assert.Equal(0xE2, unit.Blocks[0x0004][1]);
+        device.SetCompressor(false);
+        device.SetVoiceTune(false);
+        Assert.Equal(0x22, unit.Blocks[0x0004][1]);
+        device.SetVoiceTune(true);
+        device.SetExpander(false);
+        Assert.Equal(0x42, unit.Blocks[0x0004][1]);
+        device.SetExpander(true);
+        device.SetVoiceTuneStrength(100);
+        Assert.Equal(100, unit.Blocks[0x0004][10]);
+        device.SetVoiceTuneStrength(16);
+        // Byte 2 also holds the EQ switch (bit 0, off in this block); only bit 0x04 moves.
+        device.SetClipGuard(false);
+        Assert.Equal(0x04, unit.Blocks[0x0004][2]);
+        device.SetClipGuard(true);
+        Assert.Equal(0x00, unit.Blocks[0x0004][2]);
+
         DeviceState s = device.ReadState();
         Assert.Equal((40, false, -20.0, 40), (s.GainDb, s.Mute, s.HpVolumeDb, s.Crossfade));
         Assert.All(unit.Calls, call => Assert.Equal(0x0103, call.Bank));
-        // Everything but the gain and the mute bit is as the unit had it.
+        // Everything but the gain is as the unit had it once each switch is put back.
         Assert.Equal(settings[1..], unit.Blocks[0x0004][1..]);
     }
 
@@ -167,17 +194,15 @@ public sealed class Wave3Mk2DeviceTests
         unit.Calls.Clear();
         Action[] lacking =
         [
-            () => device.SetPhantom(true), () => device.SetLowCut(true), () => device.SetExpander(true),
-            () => device.SetVoiceTune(true), () => device.SetVoiceTuneStrength(50), () => device.SetCompressor(true),
-            () => device.SetClipGuard(false), () => device.SetLowImpedance(true),
+            () => device.SetPhantom(true), () => device.SetLowImpedance(true),
         ];
         foreach (Action set in lacking)
             Assert.Contains("Wave:3 MK.2 has no", Assert.Throws<InvalidOperationException>(set).Message);
         Assert.Empty(unit.Calls);
         // The daemon refuses the same controls by name before reaching the device.
-        foreach (string control in new[] { "phantom", "lowCut", "expander", "voiceTune", "voiceTuneStrength", "compressor", "clipGuard", "lowImpedance", "gain2" })
+        foreach (string control in new[] { "phantom", "lowImpedance", "gain2" })
             Assert.NotNull(DeviceManager.UnsupportedControlReason(device.Capabilities, control));
-        foreach (string control in new[] { "gain", "mute", "hpVolumeDb", "crossfade" })
+        foreach (string control in new[] { "gain", "mute", "hpVolumeDb", "crossfade", "lowCut", "expander", "voiceTune", "voiceTuneStrength", "compressor", "clipGuard" })
             Assert.Null(DeviceManager.UnsupportedControlReason(device.Capabilities, control));
     }
 

@@ -95,11 +95,11 @@ them changed, collect diagnostics and open an issue
 
 The Wave:3 MK.2 speaks the Wave XLR MK.2's protocol, not the Wave:3's,
 and OpenXLR drives it with the MK.2 backend. Gain, mute, headphone
-volume, the mic/PC crossfade and the microphone EQ on the unit work on the
-maintainer's unit. The microphone keeps the desktop's capture and playback
-volume in step with its gain and headphone level by itself. Other
-settings Wave Link shows for it have no control in OpenXLR yet, and the
-low cut is the submixer's, as on the Wave:3. Nobody has checked yet
+volume, the mic/PC crossfade, the microphone EQ, low cut, expander,
+voice tune and its strength, compressor and ClipGuard all run on the unit
+and work on the maintainer's unit. The microphone keeps the
+desktop's capture and playback volume in step with its gain and headphone
+level by itself. It has no phantom power and no low impedance mode. Nobody has checked yet
 whether it keeps its settings when unplugged, so OpenXLR writes nothing to
 it on connect.
 

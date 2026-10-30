@@ -1,0 +1,149 @@
+{
+  "format": 1,
+  "clips": [
+    {
+      "id": "applause",
+      "name": "Applause",
+      "file": "applause.ogg",
+      "icon": "people",
+      "page": "Starter",
+      "starter": "applause"
+    },
+    {
+      "id": "cheer",
+      "name": "Cheer",
+      "file": "cheer.ogg",
+      "icon": "people",
+      "page": "Starter",
+      "starter": "cheer"
+    },
+    {
+      "id": "laugh",
+      "name": "Laugh",
+      "file": "laugh.ogg",
+      "icon": "people",
+      "page": "Starter",
+      "starter": "laugh"
+    },
+    {
+      "id": "boo",
+      "name": "Boo",
+      "file": "boo.ogg",
+      "icon": "people",
+      "page": "Starter",
+      "starter": "boo"
+    },
+    {
+      "id": "rimshot",
+      "name": "Rimshot",
+      "file": "rimshot.ogg",
+      "icon": "music",
+      "page": "Starter",
+      "starter": "rimshot"
+    },
+    {
+      "id": "drumroll",
+      "name": "Drumroll",
+      "file": "drumroll.ogg",
+      "icon": "music",
+      "page": "Starter",
+      "starter": "drumroll"
+    },
+    {
+      "id": "tada",
+      "name": "Tada",
+      "file": "tada.ogg",
+      "icon": "star",
+      "page": "Starter",
+      "starter": "tada"
+    },
+    {
+      "id": "sad-trombone",
+      "name": "Sad trombone",
+      "file": "sad-trombone.ogg",
+      "icon": "music",
+      "page": "Starter",
+      "starter": "sad-trombone"
+    },
+    {
+      "id": "air-horn",
+      "name": "Air horn",
+      "file": "air-horn.ogg",
+      "icon": "burst",
+      "page": "Starter",
+      "starter": "air-horn"
+    },
+    {
+      "id": "ding",
+      "name": "Ding",
+      "file": "ding.ogg",
+      "icon": "bell",
+      "page": "Starter",
+      "starter": "ding"
+    },
+    {
+      "id": "wrong-buzzer",
+      "name": "Wrong buzzer",
+      "file": "wrong-buzzer.ogg",
+      "icon": "burst",
+      "page": "Starter",
+      "starter": "wrong-buzzer"
+    },
+    {
+      "id": "countdown",
+      "name": "Countdown",
+      "file": "countdown.ogg",
+      "icon": "bell",
+      "page": "Starter",
+      "starter": "countdown"
+    },
+    {
+      "id": "crickets",
+      "name": "Crickets",
+      "file": "crickets.ogg",
+      "icon": "",
+      "page": "Starter",
+      "starter": "crickets"
+    },
+    {
+      "id": "whoosh",
+      "name": "Whoosh",
+      "file": "whoosh.ogg",
+      "icon": "",
+      "page": "Starter",
+      "starter": "whoosh"
+    },
+    {
+      "id": "record-scratch",
+      "name": "Record scratch",
+      "file": "record-scratch.ogg",
+      "icon": "record",
+      "page": "Starter",
+      "starter": "record-scratch"
+    },
+    {
+      "id": "cash-register",
+      "name": "Cash register",
+      "file": "cash-register.ogg",
+      "icon": "",
+      "page": "Starter",
+      "starter": "cash-register"
+    },
+    {
+      "id": "you-win",
+      "name": "You win",
+      "file": "you-win.ogg",
+      "icon": "game",
+      "page": "Starter",
+      "starter": "you-win"
+    },
+    {
+      "id": "game-over",
+      "name": "Game over",
+      "file": "game-over.ogg",
+      "icon": "game",
+      "page": "Starter",
+      "starter": "game-over"
+    }
+  ]
+}

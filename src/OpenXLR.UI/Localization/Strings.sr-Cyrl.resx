@@ -3650,6 +3650,12 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   <data name="SoundboardImportLibraryTip" xml:space="preserve">
     <value>Додај клипове из zip фајла библиотеке или њима замени клипове овде. Сваки фајл се проверава као код додавања клипова.</value>
   </data>
+  <data name="SoundboardRestoreStarter" xml:space="preserve">
+    <value>Врати почетне звукове</value>
+  </data>
+  <data name="SoundboardRestoreStarterTip" xml:space="preserve">
+    <value>Поново додај почетне звукове којих више нема на звучној табли, на њихову страницу Starter. Клипови овде остају, а почетни звук који си преименовао или преместио рачуна се као присутан.</value>
+  </data>
   <data name="SoundboardPickExport" xml:space="preserve">
     <value>Извези библиотеку звучне табле</value>
   </data>
@@ -3664,6 +3670,9 @@ Wave XLR Pro UCM профил и даље захтева ручно подеша
   </data>
   <data name="SoundboardImportingLibrary" xml:space="preserve">
     <value>Библиотека се увози. Сваки клип се проверава при доласку.</value>
+  </data>
+  <data name="SoundboardRestoringStarter" xml:space="preserve">
+    <value>Поново се додају почетни звукови који недостају. Сваки клип се проверава при доласку.</value>
   </data>
   <data name="SoundboardTransferNoAnswer" xml:space="preserve">
     <value>Нема одговора од демона. Провери звучну таблу пре новог покушаја.</value>

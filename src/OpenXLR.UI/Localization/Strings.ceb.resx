@@ -3650,6 +3650,12 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
   <data name="SoundboardImportLibraryTip" xml:space="preserve">
     <value>Idugang ang mga clip gikan sa usa ka zip file sa library, o ilisan niini ang mga clip dinhi. Ang matag file gisusi sama sa pagdugang og mga clip.</value>
   </data>
+  <data name="SoundboardRestoreStarter" xml:space="preserve">
+    <value>Ibalik ang mga sinugdanang tingog</value>
+  </data>
+  <data name="SoundboardRestoreStarterTip" xml:space="preserve">
+    <value>Idugang pag-usab ang mga sinugdanang tingog nga wala na sa soundboard, sa ilang Starter nga panid. Ang mga clip dinhi magpabilin, ug ang sinugdanang tingog nga imong giilisan og ngalan o gibalhin giihap nga anaa.</value>
+  </data>
   <data name="SoundboardPickExport" xml:space="preserve">
     <value>I-export ang library sa soundboard</value>
   </data>
@@ -3664,6 +3670,9 @@ Kamot gihapon nga host setup ang Wave XLR Pro UCM profile. I-install ang mga LV2
   </data>
   <data name="SoundboardImportingLibrary" xml:space="preserve">
     <value>Gi-import ang library. Ang matag clip gisusi samtang mosulod.</value>
+  </data>
+  <data name="SoundboardRestoringStarter" xml:space="preserve">
+    <value>Gidugang pag-usab ang mga nawala nga sinugdanang tingog. Ang matag clip gisusi samtang mosulod.</value>
   </data>
   <data name="SoundboardTransferNoAnswer" xml:space="preserve">
     <value>Walay tubag gikan sa daemon. Susiha ang soundboard sa dili pa mosulay pag-usab.</value>

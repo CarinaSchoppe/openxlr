@@ -427,6 +427,12 @@ public sealed class DaemonClientTests
                         clip = ok ? "airhorn" : null }, stop);
                     await SocketTestServer.Send(socket, new { type = "commandResult", requestId = id, error = ok ? null : "This build cannot decode the file." }, stop);
                 }
+                else if (command["cmd"]!.GetValue<string>() == "restoreStarterSounds")
+                {
+                    await SocketTestServer.Send(socket, new { type = "starterSounds", ok = true, message = "Every starter sound is on the soundboard already.",
+                        clips = Array.Empty<string>(), skipped = Array.Empty<string>() }, stop);
+                    await SocketTestServer.Send(socket, new { type = "commandResult", requestId = id, error = (string?)null }, stop);
+                }
                 else if (command["cmd"]!.GetValue<string>() is "exportSoundboard" or "importSoundboard")
                 {
                     bool export = command["cmd"]!.GetValue<string>() == "exportSoundboard";
@@ -462,6 +468,7 @@ public sealed class DaemonClientTests
         Assert.Null(await client.RenameClipPageAsync("Intro", ""));
         Assert.Equal(new SoundboardTransferResult(true, "2 clips were exported to board.zip."), await client.ExportSoundboardAsync("/home/me/board.zip"));
         Assert.Equal(new SoundboardTransferResult(true, "1 clip was added from the archive.", Partial: true), await client.ImportSoundboardAsync("/home/me/board.zip", merge: true));
+        Assert.Equal(new SoundboardTransferResult(true, "Every starter sound is on the soundboard already."), await client.RestoreStarterSoundsAsync());
 
         static string Wire(JsonNode command)
         {
@@ -484,6 +491,7 @@ public sealed class DaemonClientTests
             """{"cmd":"renameClipPage","page":"Intro","name":""}""",
             """{"path":"/home/me/board.zip","cmd":"exportSoundboard"}""",
             """{"path":"/home/me/board.zip","merge":true,"cmd":"importSoundboard"}""",
+            """{"cmd":"restoreStarterSounds"}""",
         }, commands.Select(Wire));
     }
 

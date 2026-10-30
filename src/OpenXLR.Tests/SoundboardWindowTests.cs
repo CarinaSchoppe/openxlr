@@ -236,6 +236,14 @@ internal static class SoundboardWindowTests
                     await holder.Push(new JsonObject { ["type"] = "commandResult", ["requestId"] = id, ["error"] = ok ? null : message });
                     continue;
                 }
+                if (name == "restoreStarterSounds")
+                {
+                    commands.Enqueue(cmd);
+                    await holder.Push(new JsonObject { ["type"] = "starterSounds", ["ok"] = true, ["message"] = "Every starter sound is on the soundboard already.",
+                        ["clips"] = new JsonArray(), ["skipped"] = new JsonArray() });
+                    await holder.Push(new JsonObject { ["type"] = "commandResult", ["requestId"] = id, ["error"] = null });
+                    continue;
+                }
                 if (!name.Contains("Clip", StringComparison.Ordinal) && name is not ("setSoundboard" or "stopAudition")) continue;
                 string? error = daemon.Handle(cmd);
                 commands.Enqueue(cmd);
@@ -503,6 +511,11 @@ internal static class SoundboardWindowTests
             // The library's export and import stand with the other actions, and fit at both widths.
             Assert.True(Find<Button>(board, "SoundboardExportLibrary").IsEffectivelyEnabled);
             Assert.True(Find<Button>(board, "SoundboardImportLibrary").IsEffectivelyEnabled);
+            // Restore starter sounds stands beside them and shows the daemon's sentence.
+            Button restore = Find<Button>(board, "SoundboardRestoreStarter");
+            Assert.True(restore.IsEffectivelyEnabled);
+            Assert.Equal("restoreStarterSounds", (await Sent(() => restore.RaiseEvent(new RoutedEventArgs(Button.ClickEvent))))["cmd"]!.GetValue<string>());
+            await Until(() => status.Text == "Every starter sound is on the soundboard already." && !status.Classes.Contains("warn"));
             Grid pageBar = Find<Grid>(board, "SoundboardPageBar");
             Assert.False(pageBar.IsEffectivelyVisible);
 

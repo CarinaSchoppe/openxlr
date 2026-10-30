@@ -1,0 +1,135 @@
+OpenXLR starter sounds
+
+OpenXLR adds the clips in clips/ to the soundboard once, on its Starter page.
+Each author dedicated their clip to the public domain under CC0 1.0:
+CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
+The licence asks for no credit; it is given here because it is due.
+tools/starter-sounds.py in the OpenXLR source makes the edits and holds
+the exact cut, fades and level of every clip. The edits are CC0 1.0 too,
+as is the air horn, which that script makes.
+
+applause.ogg: Applause
+  Source: Freesound sound 25295, claping_ses1
+  URL: https://freesound.org/people/freesound/sounds/25295/
+  Author: freesound
+  Licence: CC0 1.0
+  Edits: cut from 0 s to 3.55 s of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 250 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+cheer.ogg: Cheer
+  Source: Freesound sound 397434, crowd-cheer
+  URL: https://freesound.org/people/FoolBoyMedia/sounds/397434/
+  Author: FoolBoyMedia
+  Licence: CC0 1.0
+  Edits: cut from 0 s to 5.5 s of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 300 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+laugh.ogg: Laugh
+  Source: Freesound sound 581528, live-audience-comedy-show-genuine-laughter_moderate
+  URL: https://freesound.org/people/HowardV/sounds/581528/
+  Author: HowardV
+  Licence: CC0 1.0
+  Edits: cut from 8.48 s to 12.4 s of the original, leading audio under -50 dBFS skipped; 20 ms fade in, 150 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+boo.ogg: Boo
+  Source: Freesound sound 264378, crowd-booing
+  URL: https://freesound.org/people/HowardV/sounds/264378/
+  Author: HowardV
+  Licence: CC0 1.0
+  Edits: cut from 0 s to 4.5 s of the original, leading audio under -50 dBFS skipped; 10 ms fade in, 300 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+rimshot.ogg: Rimshot
+  Source: Freesound sound 440829, sting-rimshot-drum-roll-smooth
+  URL: https://freesound.org/people/tlwmdbt/sounds/440829/
+  Author: tlwmdbt
+  Licence: CC0 1.0
+  Edits: cut from 0 s to 0.64 s of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 100 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+drumroll.ogg: Drumroll
+  Source: Freesound sound 201211, drum-roll-please
+  URL: https://freesound.org/people/Scheffler/sounds/201211/
+  Author: Scheffler
+  Licence: CC0 1.0
+  Edits: cut from 0 s to 7.8 s of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 300 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+tada.ogg: Tada
+  Source: Freesound sound 397355, tada-fanfare-a
+  URL: https://freesound.org/people/plasterbrain/sounds/397355/
+  Author: plasterbrain
+  Licence: CC0 1.0
+  Edits: cut from 0 s to 1.6 s of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 150 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+sad-trombone.ogg: Sad trombone
+  Source: Freesound sound 175409, wah-wah-sad-trombone
+  URL: https://freesound.org/people/kirbydx/sounds/175409/
+  Author: kirbydx
+  Licence: CC0 1.0
+  Edits: cut from 0 s to 4.95 s of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 100 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+air-horn.ogg: Air horn
+  Source: Air horn, synthesised by tools/starter-sounds.py
+  URL: https://github.com/emaspa/openxlr/blob/main/tools/starter-sounds.py
+  Author: the OpenXLR project
+  Licence: CC0 1.0
+  Edits: level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+ding.ogg: Ding
+  Source: Freesound sound 173932, ding-ding-small-bell
+  URL: https://freesound.org/people/JohnsonBrandEditing/sounds/173932/
+  Author: JohnsonBrandEditing
+  Licence: CC0 1.0
+  Edits: cut from 0 s to 3 s of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 300 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+wrong-buzzer.ogg: Wrong buzzer
+  Source: Freesound sound 54047, buzzer
+  URL: https://freesound.org/people/guitarguy1985/sounds/54047/
+  Author: guitarguy1985
+  Licence: CC0 1.0
+  Edits: cut from 0 s to the end of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 80 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+countdown.ogg: Countdown
+  Source: Freesound sound 368779, short-beep-countdown
+  URL: https://freesound.org/people/gurie/sounds/368779/
+  Author: gurie
+  Licence: CC0 1.0
+  Edits: cut from 0 s to the end of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 10 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+crickets.ogg: Crickets
+  Source: Freesound sound 129678, crickets
+  URL: https://freesound.org/people/FreethinkerAnon/sounds/129678/
+  Author: FreethinkerAnon
+  Licence: CC0 1.0
+  Edits: cut from 0 s to 5 s of the original, leading audio under -50 dBFS skipped; 50 ms fade in, 300 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+whoosh.ogg: Whoosh
+  Source: Freesound sound 60013, whoosh
+  URL: https://freesound.org/people/qubodup/sounds/60013/
+  Author: qubodup
+  Licence: CC0 1.0
+  Edits: cut from 0 s to the end of the original, leading audio under -50 dBFS skipped; 2 ms fade in, 50 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+record-scratch.ogg: Record scratch
+  Source: Freesound sound 71853, record_scratch
+  URL: https://freesound.org/people/ludvique/sounds/71853/
+  Author: ludvique
+  Licence: CC0 1.0
+  Edits: cut from 0 s to the end of the original, leading audio under -50 dBFS skipped; 2 ms fade in, 50 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+cash-register.ogg: Cash register
+  Source: Freesound sound 184438, cash-register-fake
+  URL: https://freesound.org/people/CapsLok/sounds/184438/
+  Author: CapsLok
+  Licence: CC0 1.0
+  Edits: cut from 0 s to 1.5 s of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 100 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+you-win.ogg: You win
+  Source: Voiceover Pack, Male, you_win.ogg
+  URL: https://kenney.nl/assets/voiceover-pack
+  Author: Kenney (kenney.nl), voice by Jeffrey M. Smith
+  Licence: CC0 1.0
+  Edits: cut from 0 s to the end of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 50 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.
+
+game-over.ogg: Game over
+  Source: Voiceover Pack, Male, game_over.ogg
+  URL: https://kenney.nl/assets/voiceover-pack
+  Author: Kenney (kenney.nl), voice by Jeffrey M. Smith
+  Licence: CC0 1.0
+  Edits: cut from 0 s to the end of the original, leading audio under -50 dBFS skipped; 5 ms fade in, 50 ms fade out; level set to -16 LUFS integrated, or lower where the true peak reaches -1 dBTP; resampled to 48 kHz and encoded as Ogg Vorbis.

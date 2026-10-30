@@ -91,6 +91,7 @@ public static class CommandValidation
             case "renameClipPage":
             case "exportSoundboard":
             case "importSoundboard":
+            case "restoreStarterSounds":
                 return CheckSoundboard(cmd, nativeHostInstalled ?? PluginCatalog.HostInstalled);
             case "setDucking":
                 return CheckDucking(cmd, layout, out _);
@@ -561,6 +562,8 @@ public static class CommandValidation
             case "importSoundboard":
                 if (BadArchivePath(cmd.Path)) return "importSoundboard: need 'path', an absolute path to the archive";
                 if (cmd.Merge is null) return "importSoundboard: need 'merge', a boolean: true adds the archive's clips, false replaces the library";
+                return nativeHostInstalled ? null : Mixer.SoundboardNeedsHost;
+            case "restoreStarterSounds":
                 return nativeHostInstalled ? null : Mixer.SoundboardNeedsHost;
             case "renameClipPage":
                 if (cmd.Page is null || BadPage(cmd.Page)) return "renameClipPage: need 'page', the page to rename, empty for the default page";

@@ -273,6 +273,20 @@ public sealed record SoundboardImportMessage(
     [JsonPropertyName("type")] public string Type => "soundboardImport";
 }
 
+/// <summary>
+/// Reply to "restoreStarterSounds": whether it went through, which it does
+/// also when no starter clip is missing, a sentence, the ids added and each
+/// clip left out.
+/// </summary>
+public sealed record StarterSoundsMessage(
+    [property: JsonPropertyName("ok")] bool Ok,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("clips")] IReadOnlyList<string> Clips,
+    [property: JsonPropertyName("skipped")] IReadOnlyList<string> Skipped)
+{
+    [JsonPropertyName("type")] public string Type => "starterSounds";
+}
+
 /// <summary>Reply to "listPlugins": everything the insert picker can offer.</summary>
 public sealed record PluginsMessage
 {

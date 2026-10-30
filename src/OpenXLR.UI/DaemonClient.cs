@@ -399,7 +399,7 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
                     BrowserTabActivationReceived?.Invoke(tabId, site);
             }
             else if (type is "pluginSetup" or "pluginInstall" or "pluginDiagnostics" or "windowsPluginFiles" or "nativeEditorRules" or "browserSession" or "clipImport"
-                     or "soundboardExport" or "soundboardImport") StoreReply(type, node);
+                     or "soundboardExport" or "soundboardImport" or "starterSounds") StoreReply(type, node);
             else if (type == "commandResult" && node["requestId"]?.GetValue<string>() is string requestId)
             {
                 CompleteQuery(requestId);
@@ -740,6 +740,10 @@ public sealed class DaemonClient : IAsyncDisposable, IEqCommands, INoiseCommands
     /// <summary>Add a library archive's clips to the library, or replace the library with them. Null when the daemon did not answer.</summary>
     public Task<SoundboardTransferResult?> ImportSoundboardAsync(string path, bool merge)
         => TransferAsync("soundboardImport", "importSoundboard", new() { ["path"] = path, ["merge"] = merge });
+
+    /// <summary>Add back the starter sounds the library no longer has. Null when the daemon did not answer.</summary>
+    public Task<SoundboardTransferResult?> RestoreStarterSoundsAsync()
+        => TransferAsync("starterSounds", "restoreStarterSounds", []);
 
     /// <summary>
     /// An export or import of the library, in line with the clip imports so

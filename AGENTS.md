@@ -78,6 +78,7 @@ make -C native test-duck  # duck detector, gain depth and timing, no audio serve
 make -C native test-denoise  # noise removal, RNNoise and DeepFilterNet when built (cargo), no audio server
 make -C native test-player  # soundboard player: decoding, limits, press modes and ramps, libsndfile, no audio server
 python3 tools/eq-reference.py --check  # regenerate with no flag after changing the EQ reference settings
+python3 tools/starter-sounds.py --check  # the soundboard's starter sounds; regenerate with no flag after changing their table
 OPENXLR_TEST_DESKTOP=1 xvfb-run -a dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~TrayWindowTests
 OPENXLR_TEST_LAYOUT=1 xvfb-run -a -s '-screen 0 2560x1440x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~WindowLayoutTests
 OPENXLR_TEST_TOOLTIP=1 xvfb-run -a -s '-screen 0 1600x1000x24' dotnet test src/OpenXLR.Tests/OpenXLR.Tests.csproj -c Release --no-build --filter FullyQualifiedName~ToolTipInputTests

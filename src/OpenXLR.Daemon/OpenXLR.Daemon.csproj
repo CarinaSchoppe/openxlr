@@ -30,6 +30,10 @@
     <InternalsVisibleTo Include="OpenXLR.Tests" />
     <Content Include="../../packaging/openxlr-control" Link="openxlr-control"
              CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- The soundboard's starter sounds (CC0), installed beside the daemon
+         with every package and found there by a build tree too. -->
+    <Content Include="../../packaging/starter-sounds/**" LinkBase="starter-sounds"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

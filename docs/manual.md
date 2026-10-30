@@ -3237,6 +3237,22 @@ name that ends in `.zip`. An archive that is not a soundboard library, holds
 anything but its library file and its clips, or is over 512 MiB is
 refused whole and nothing changes.
 
+<a name="starter-sounds"></a>
+**Starter sounds.** The board comes with eighteen short clips on a page
+named **Starter**: applause, a cheer, a laugh, a boo, a rimshot, a
+drumroll, a fanfare, a sad trombone, an air horn, a ding, a buzzer,
+countdown beeps, crickets, a whoosh, a record scratch, a cash register,
+and "You win" and "Game over". OpenXLR adds them once, the first time the
+daemon starts with a version that has them, after any clips you already
+have. Rename, move, edit or delete them as you would your own clips; a
+deleted one stays deleted. **Restore starter sounds**, beside **Import
+library**, adds back the ones the board no longer has and says when none
+is missing; a starter clip you renamed or moved still counts as there.
+All of them are public domain under CC0 1.0. The `CREDITS` file beside
+them names each clip's source, its author and how it was trimmed and
+levelled; in the distribution packages it is
+`/usr/lib/openxlr/daemon/starter-sounds/CREDITS`.
+
 To play clips from the keyboard, tick them in Options, DESKTOP,
 **Desktop keys**. Each one gets a global shortcut of its own, and a Hold
 clip plays while its key is down on desktops that report the key coming
@@ -4672,7 +4688,9 @@ to the daemon the import fails at once. The daemon copies and checks the
 file as it does for the UI. Its answer reaches the bottom line on
 whatever tab is open, and the foot of the list keeps it. A refused file
 shows the daemon's sentence, such as "The clip is 31.0 s long; the limit
-is 30 s." After an import the clip the daemon added is selected. Deleting a clip asks you to type `yes`. Choose
+is 30 s." After an import the clip the daemon added is selected. `R` adds
+back the [starter sounds](#starter-sounds) the board no longer has, and
+the bottom line says which, or that none was missing. Deleting a clip asks you to type `yes`. Choose
 icons and colours in the UI.
 
 Once a clip is on a page other than Main, the pages stand as tabs over the

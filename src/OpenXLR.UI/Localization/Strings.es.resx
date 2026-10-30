@@ -3298,6 +3298,12 @@ Selecciona la interfaz que controla OpenXLR</value>
   <data name="SoundboardImportLibraryTip" xml:space="preserve">
     <value>Añadir los clips de un archivo zip de biblioteca, o sustituir por ellos los clips de aquí. Cada archivo se comprueba como en Añadir clips.</value>
   </data>
+  <data name="SoundboardRestoreStarter" xml:space="preserve">
+    <value>Restaurar sonidos iniciales</value>
+  </data>
+  <data name="SoundboardRestoreStarterTip" xml:space="preserve">
+    <value>Volver a añadir los sonidos iniciales que ya no están en la botonera, en su página Starter. Los clips de aquí se conservan, y un sonido inicial que hayas renombrado o movido cuenta como presente.</value>
+  </data>
   <data name="SoundboardPickExport" xml:space="preserve">
     <value>Exportar la biblioteca de la botonera</value>
   </data>
@@ -3312,6 +3318,9 @@ Selecciona la interfaz que controla OpenXLR</value>
   </data>
   <data name="SoundboardImportingLibrary" xml:space="preserve">
     <value>Importando la biblioteca. Cada clip se comprueba al entrar.</value>
+  </data>
+  <data name="SoundboardRestoringStarter" xml:space="preserve">
+    <value>Volviendo a añadir los sonidos iniciales que faltan. Cada clip se comprueba al entrar.</value>
   </data>
   <data name="SoundboardTransferNoAnswer" xml:space="preserve">
     <value>El daemon no respondió. Revise la botonera antes de volver a intentarlo.</value>

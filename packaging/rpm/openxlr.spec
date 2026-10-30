@@ -20,8 +20,9 @@ Summary:        Linux Wave Link replacement for Elgato XLR interfaces and Wave m
 # crates DeepFilterNet is built from: most give a choice of MIT or
 # Apache-2.0, some are MIT only, prost is Apache-2.0, and the memchr and
 # regex families offer Unlicense OR MIT. `cargo metadata --filter-platform
-# x86_64-unknown-linux-gnu` in native/deepfilter lists every crate.
-License:        GPL-3.0-only AND BSD-3-Clause AND MIT AND Apache-2.0 AND (MIT OR Apache-2.0) AND (Unlicense OR MIT)
+# x86_64-unknown-linux-gnu` in native/deepfilter lists every crate. The
+# soundboard's starter sounds are CC0-1.0, each credited in their CREDITS.
+License:        GPL-3.0-only AND BSD-3-Clause AND MIT AND Apache-2.0 AND (MIT OR Apache-2.0) AND (Unlicense OR MIT) AND CC0-1.0
 URL:            https://github.com/emaspa/openxlr
 Source0:        %{name}-%{version}.tar.gz
 Source1:        https://raw.githubusercontent.com/Rikorose/DeepFilterNet/v%{deepfilter_version}/models/DeepFilterNet3_onnx.tar.gz#/DeepFilterNet3_onnx-%{deepfilter_version}.tar.gz
@@ -190,6 +191,9 @@ install -Dm644 native/deepfilter/libdf/LICENSE-APACHE \
     %{buildroot}%{_licensedir}/openxlr/deepfilter/LICENSE-APACHE
 install -Dm644 native/clap/LICENSE %{buildroot}%{_licensedir}/openxlr/clap/LICENSE
 install -Dm644 native/vst3/LICENSE %{buildroot}%{_licensedir}/openxlr/vst3/LICENSE
+# The starter sounds' sources and authors; the clips are installed beside the daemon.
+install -Dm644 packaging/starter-sounds/CREDITS \
+    %{buildroot}%{_licensedir}/openxlr/starter-sounds/CREDITS
 install -Dm644 README.md %{buildroot}%{_docdir}/openxlr/README.md
 
 %post
@@ -210,6 +214,7 @@ MSG
 %license %{_licensedir}/openxlr/deepfilter/
 %license %{_licensedir}/openxlr/clap/
 %license %{_licensedir}/openxlr/vst3/
+%license %{_licensedir}/openxlr/starter-sounds/
 %doc %{_docdir}/openxlr/README.md
 %{_prefix}/lib/openxlr/
 %{_bindir}/openxlr

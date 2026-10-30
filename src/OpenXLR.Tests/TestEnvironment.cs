@@ -18,6 +18,11 @@ internal static class TestEnvironment
                  })
             Environment.SetEnvironmentVariable(variable, Directory.CreateDirectory(Path.Combine(Root, folder)).FullName);
 
+        // The starter sounds are copied beside the tests, and a daemon would
+        // add them to every board a test starts. Each service reads them from
+        // a folder that does not exist, unless its test asks for the set.
+        OpenXLR.Daemon.MixerService.DefaultStarterSoundsDirectory = Path.Combine(Root, "no-starter-sounds");
+
         // Keep the sandbox for background catalogue tasks until the process
         // exits. Restoring the desktop environment could start user plugins.
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>

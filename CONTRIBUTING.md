@@ -54,6 +54,7 @@ python3 -m json.tool packaging/omarchy/openxlr.mixer/manifest.json >/dev/null
 python3 tools/deck-skins.py --check  # regenerate with no flag after changing embedded skins or colour defaults
 python3 tools/deck-icons.py --check  # regenerate with no flag after changing LayoutIcons.cs
 python3 tools/eq-reference.py --check  # regenerate with no flag after changing the EQ reference settings
+python3 tools/starter-sounds.py --check  # the soundboard's starter sounds; regenerate with no flag after changing their table
 python3 packaging/flatpak/test-package.py  # the Flatpak manifest and its files
 python3 packaging/flatpak/nuget-sources.py --check  # regenerate with no flag after a package change
 python3 packaging/flatpak/cargo-sources.py --check  # regenerate with no flag after a change to native/deepfilter/Cargo.lock

@@ -552,7 +552,10 @@ its own. Each pad's menu edits, auditions, stops, moves or deletes its clip. The
 library, clips, settings and pages, exports to one zip file and imports on
 another computer with the same ids, so Deck keys and desktop keys made for
 it keep working; an import can add to the clips there or replace them,
-and every file in it is checked as an added file is. See
+and every file in it is checked as an added file is. Eighteen CC0 starter
+sounds, such as applause and an air horn, come on a page of their own: the
+daemon adds them once, after any clips there, and Restore starter sounds
+adds back the ones deleted since. See
 [Play sound clips](manual.md#play-sound-clips). The terminal mixer has the
 board in its Sounds tab ([manual](manual.md#terminal-sounds)); the
 [API](api.md#soundboard) drives it from scripts.
@@ -903,8 +906,8 @@ taps on the Stream Deck + XL need OpenDeck newer than 2.14.0
 - The soundboard in Sounds: the board's switch, SFX's volume as its
   master, and a row per clip with its length, mode, loop, gain, status or
   reason, and a bar while it plays. Keys play, stop, stop all, step the
-  gain, mode and loop, reorder, rename and delete, and `i` imports a file
-  by its typed path. Pages stand as tabs over the rows; keys switch page,
+  gain, mode and loop, reorder, rename and delete, `i` imports a file
+  by its typed path, and `R` restores the starter sounds. Pages stand as tabs over the rows; keys switch page,
   move a clip to a page and rename a page. A Hold clip plays on one press and stops on the next,
   since a terminal sends no key-up ([manual](manual.md#terminal-sounds))
 - Insert editing opens the plugin's native editor. A blocked or refused

@@ -33,6 +33,9 @@ public interface ISoundboardCommands
     /// <summary><c>importSoundboard</c> from a path the user picked; null when the daemon did not answer.</summary>
     Task<SoundboardTransferResult?> ImportSoundboardAsync(string path, bool merge);
 
+    /// <summary><c>restoreStarterSounds</c>; null when the daemon did not answer.</summary>
+    Task<SoundboardTransferResult?> RestoreStarterSoundsAsync();
+
     /// <summary><c>renameClipPage</c>: an empty name moves the page's clips to the default page.</summary>
     Task<string?> RenameClipPageAsync(string page, string name);
 
@@ -982,6 +985,10 @@ public sealed class SoundboardViewModel : ViewModelBase
     /// <summary>Add a library archive's clips, or replace the library with them, and say how it went.</summary>
     public Task ImportLibraryAsync(string path, bool merge)
         => TransferAsync(CanAdd, Localizer.Text("SoundboardImportingLibrary"), () => _commands.ImportSoundboardAsync(path, merge));
+
+    /// <summary>Add back the starter sounds the library no longer has, and say how it went: the daemon says when none is missing.</summary>
+    public Task RestoreStarterSoundsAsync()
+        => TransferAsync(CanAdd, Localizer.Text("SoundboardRestoringStarter"), () => _commands.RestoreStarterSoundsAsync());
 
     private async Task TransferAsync(bool allowed, string running, Func<Task<SoundboardTransferResult?>> transfer)
     {

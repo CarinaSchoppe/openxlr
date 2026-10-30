@@ -222,6 +222,11 @@ public partial class SoundboardWindow : Window
         if (merge is bool adding) await board.ImportLibraryAsync(path, adding);
     }
 
+    private async void OnRestoreStarter(object? sender, RoutedEventArgs e)
+    {
+        if (Board is { CanAdd: true } board) await board.RestoreStarterSoundsAsync();
+    }
+
     private static FilePickerFileType ArchiveType() => new(Localizer.Text("SoundboardArchiveType"))
     {
         Patterns = ["*.zip"],

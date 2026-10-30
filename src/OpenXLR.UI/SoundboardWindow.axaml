@@ -6,8 +6,8 @@
         Title="{loc:Text Key=Soundboard}" Width="760" Height="620" MinWidth="440" MinHeight="400"
         WindowStartupLocation="CenterOwner" Background="{DynamicResource Ox.Window.Background}"
         DragDrop.AllowDrop="True">
-  <!-- The soundboard: the switch, SFX's own volume as the board's master, Stop all, Add
-       and the library's export and import, the pages as tabs once there is more than one,
+  <!-- The soundboard: the switch, SFX's own volume as the board's master, Stop all, Add,
+       the library's export and import, Restore starter sounds, the pages as tabs once there is more than one,
        then one pad per clip of the page shown, in library order. Sound files and folders
        dropped on the window are added, a folder as a page of its own. A pad is a key in the skin's button
        face, sized and tinted by the Ox.Soundboard.* tokens, with the clip's own colour
@@ -84,6 +84,8 @@
               IsEnabled="{Binding CanExport}" ToolTip.ShowOnDisabled="True" ToolTip.Tip="{loc:Text Key=SoundboardExportLibraryTip}"/>
       <Button Name="SoundboardImportLibrary" Content="{loc:Text Key=SoundboardImportLibrary}" Click="OnImportLibrary"
               IsEnabled="{Binding CanAdd}" ToolTip.ShowOnDisabled="True" ToolTip.Tip="{loc:Text Key=SoundboardImportLibraryTip}"/>
+      <Button Name="SoundboardRestoreStarter" Content="{loc:Text Key=SoundboardRestoreStarter}" Click="OnRestoreStarter"
+              IsEnabled="{Binding CanAdd}" ToolTip.ShowOnDisabled="True" ToolTip.Tip="{loc:Text Key=SoundboardRestoreStarterTip}"/>
     </WrapPanel>
 
     <!-- The pages, one tab each, and the shown page's menu: rename it, or move its clips to Main -->
